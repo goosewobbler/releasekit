@@ -237,17 +237,28 @@ jobs:
 Run on demand to regenerate notes for past releases. Dry-run by default — flip `apply` to `true` when the preview looks right.
 
 ```yaml
-- uses: actions/checkout@v6
-  with:
-    fetch-depth: 0 # backfill reads every tag
-- uses: goosewobbler/releasekit@v0
-  with:
-    mode: backfill
-    all: "true"
-    update-releases: "true"
-    apply: "false"
-  env:
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+name: Backfill Release Notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply changes (off = dry-run preview)
+        type: boolean
+        default: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: goosewobbler/releasekit@v0
+        with:
+          mode: backfill
+          all: "true"
+          update-releases: "true"
+          apply: ${{ inputs.apply }}
 ```
 
 This fills empty release bodies and rewrites the ones backfill wrote before, and skips every other body. The Action has no `force` input. To replace notes releasekit published, add `only-missing: "true"`: it rewrites every body backfill didn't write, hand edits included, and skips the ones it did.
