@@ -1516,8 +1516,9 @@ async function publishAndMarkPreviews(
     published = true;
     return result;
   } finally {
-    // A publish only succeeds for a merged PR.
-    await markPreviewsStaleAfterMerge(prNumber, options, published || knownMerged, seen.pr);
+    // A publish succeeds only for a merged PR, unless the PR it read says otherwise.
+    const merged = knownMerged || (published && seen.pr?.merged !== false);
+    await markPreviewsStaleAfterMerge(prNumber, options, merged, seen.pr);
   }
 }
 
@@ -1541,27 +1542,27 @@ async function markPreviewsStaleAfterMerge(
   if (!marksPreviewsStale(releaseKitConfig.ci)) {
     return;
   }
-  try {
-    const event = pullRequestEvent(prNumber);
-    const eventBase = event?.pull_request.base?.ref;
-    // Only a `closed` event's snapshot is current: a job started by another event may merge before it publishes.
-    const eventMerged = event?.action === 'closed' ? event.pull_request.merged : undefined;
-    const needPr = eventBase === undefined || (!knownMerged && eventMerged === undefined);
-    const pr = livePr ?? (needPr ? await readPullRequest(prNumber) : undefined);
-    // A dispatch can name a PR that never merged, and then nothing moved the base branch.
-    if (!(knownMerged || (eventMerged ?? pr?.merged))) {
-      if (eventMerged === undefined && pr === undefined) {
-        warn(`Could not confirm PR #${prNumber} merged, so feeder-PR previews weren't marked stale.`);
-      }
-      return;
-    }
-    await markFeederPreviewsStale({
-      ciConfig: releaseKitConfig.ci,
-      branch: pr?.baseRef ?? eventBase ?? releaseKitConfig.git?.branch ?? 'main',
-    });
-  } catch (err) {
-    warn(`Marking feeder-PR previews stale failed: ${err instanceof Error ? err.message : String(err)}`);
+  const event = pullRequestEvent(prNumber);
+  const eventBase = event?.pull_request.base?.ref;
+  // A merge can't be undone, so any event's `merged: true` holds. Only a `closed` event's `false` is current: a job
+  // started by another event may merge before it publishes.
+  const snapshot = event?.pull_request.merged;
+  const eventMerged = snapshot === true || event?.action === 'closed' ? snapshot : undefined;
+  const needPr = eventBase === undefined || (!knownMerged && eventMerged === undefined);
+  const pr = livePr ?? (needPr ? await readPullRequest(prNumber) : undefined);
+  const merged = knownMerged || (eventMerged ?? pr?.merged);
+  // A dispatch can name a PR that never merged, and then nothing moved the base branch.
+  if (merged === false) {
+    return;
   }
+  if (merged === undefined) {
+    warn(`Could not confirm PR #${prNumber} merged, so feeder-PR previews weren't marked stale.`);
+    return;
+  }
+  await markFeederPreviewsStale({
+    ciConfig: releaseKitConfig.ci,
+    branch: pr?.baseRef ?? eventBase ?? releaseKitConfig.git?.branch ?? 'main',
+  });
 }
 
 async function readPullRequest(prNumber: number): Promise<PullRequestDetails | undefined> {
@@ -1959,6 +1960,6 @@ export async function runStandingPRMerge(
     return { merged: true, prNumber: pr.number };
   }
 
-  // publishFromManifest deletes the branch only after a clean publish.
+  // The publish deletes the branch only after a clean publish.
   return publishAndMarkPreviews(pr.number, options, true);
 }

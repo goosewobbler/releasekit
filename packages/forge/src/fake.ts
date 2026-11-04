@@ -99,7 +99,8 @@ export class FakeForge implements Forge {
         this.openIssues.push({ number: n, url: `https://github.com/fake/fake/issues/${n}`, labels: details.labels });
       }
     }
-    this.pullRequestDetails = seed.pullRequests ?? {};
+    // A copy, so mergePullRequest never edits the caller's seed.
+    this.pullRequestDetails = { ...seed.pullRequests };
     this.comments = [...(seed.comments ?? [])];
     this.labelNames = [...(seed.labelNames ?? [])];
     this.releases = seed.releases ?? [];
