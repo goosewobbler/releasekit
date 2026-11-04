@@ -1,14 +1,10 @@
 import * as fs from 'node:fs';
 import { unwrapEnvelope, type VersionOutput } from '@releasekit/core';
-import { VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
-import { z } from 'zod';
+import { VersionOutputSchema } from '@releasekit/core/version-output-schema';
 import type { ChangelogEntry, ChangelogInput, PackageChangelog } from '../core/types.js';
 import { InputParseError, InputValidationError } from '../errors/index.js';
 
-/** Notes only reads changelogs; the entry shape is the shared version-output schema. */
-const NotesVersionOutputSchema = z.looseObject({
-  changelogs: z.array(VersionPackageChangelogSchema),
-});
+const NotesVersionOutputSchema = VersionOutputSchema.pick({ changelogs: true });
 
 function normalizeEntryType(type: string): ChangelogEntry['type'] {
   const typeMap: Record<string, ChangelogEntry['type']> = {

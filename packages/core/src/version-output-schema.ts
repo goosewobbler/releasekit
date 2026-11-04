@@ -1,7 +1,6 @@
-// A separate entry point from the package index, so packages that bundle core without validating needn't depend on zod.
+// Separate from the index, so importing core doesn't load zod.
 import { z } from 'zod';
 
-/** Changelog entry as `version --json` emits it. Extra fields are kept (`looseObject`). */
 export const VersionChangelogEntrySchema = z.looseObject({
   type: z.string(),
   description: z.string(),
@@ -29,7 +28,7 @@ const VersionPackageUpdateSchema = z.looseObject({
   tag: z.string().optional(),
 });
 
-/** Full `VersionOutput` contract shared by publish and any stage that replays version JSON. */
+/** The `VersionOutput` fields publish relies on; others pass through unchecked. */
 export const VersionOutputSchema = z.looseObject({
   dryRun: z.boolean(),
   updates: z.array(VersionPackageUpdateSchema),
