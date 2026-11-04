@@ -47,4 +47,4 @@ Shared [correctness rules](../../README.md#cross-cutting-correctness-rules) appl
 
 - The `pull_request` trigger subscribes to **both** `closed` and `labeled`. The `publish` job guards on `action == 'closed'` so a label on an already-merged PR can't re-trigger a publish; only `retry-publish` reacts to `labeled`.
 - `retry-publish` checks out `ref: main` (since `release/next` is deleted on merge), then removes the `release:retry` label so each application is exactly one retry.
-- Checkbox edits on the open standing PR get a per-PR cancelling `concurrency` group, so rapid ticks collapse into one rebuild. The bot's own body edits, and label or edit events on feeder PRs from branches outside `release/`, run no job and get a group of their own, so they can't cancel or replace the run doing the work. See [In-progress feedback](../../../packages/release/docs/ci-setup.md#in-progress-feedback).
+- The `concurrency` comment in `standing-pr.yml` explains its groups: a queued publish or retry can't be replaced, and rapid checkbox edits collapse into one rebuild.

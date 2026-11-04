@@ -25,15 +25,13 @@ on:
     - cron: '0 * * * *' # advances the minAge status check as time passes
 
 concurrency:
-  # GitHub keeps one pending run per group and replaces it with any newer one. So the standing PR's
-  # publish on merge and its retry label get a group per PR that nothing else can replace or cancel.
-  # A merged `release:immediate` PR queues with the updates, so the two don't write release/next at
-  # once. Events that run no job (on a closed PR or a feeder PR, or sent by a bot) each get a group of
-  # their own, so they can't replace a queued run. A maintainer's checkbox edits on the open PR get a
-  # per-PR cancelling group, so a flurry of ticks collapses to one rebuild. Push, schedule and label
-  # runs share a non-cancelling group. The label names, the `release/` prefix and the `release/next`
-  # branch are hardcoded: update every use in this file if you rename them in `ci.labels` or
-  # `ci.standingPr.branch`.
+  # GitHub keeps one pending run per group and replaces it with any newer one, so:
+  # - the standing PR's publish and retry get a group per PR that nothing else can replace;
+  # - push, schedule and label runs, and a merged `release:immediate` PR, share a non-cancelling group;
+  # - a maintainer's checkbox edits get a per-PR cancelling group, so rapid ticks collapse to one rebuild;
+  # - events that run no job get a unique group, so they can't replace a queued run.
+  # Label names, the `release/` prefix and `release/next` are hardcoded: update every use if you rename
+  # them in `ci.labels` or `ci.standingPr.branch`.
   group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.action == 'closed' && github.event.pull_request.merged && github.event.pull_request.head.ref != 'release/next' && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || startsWith(github.event.pull_request.head.ref, 'release/') && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && !(startsWith(github.event.pull_request.head.ref, 'release/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.sender.type != 'Bot') && format('standing-release-pr-noop-{0}', github.run_id) || github.event_name == 'pull_request' && github.event.action == 'edited' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 

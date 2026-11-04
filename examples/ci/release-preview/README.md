@@ -1,15 +1,13 @@
 # release-preview — PR comment showing what would release
 
-Every PR into `main` from a branch in the repo gets a comment listing the
-packages and versions that would release if it merged. The comment is updated in place on each push or
-label change, so a PR carries one preview comment however many times it runs.
+Each PR into `main` gets a comment listing the packages and versions that would
+release if it merged, updated in place on each push or label change.
 
 ## Files
 
 | File | Copy to |
 |------|---------|
 | [`release-preview.yml`](./release-preview.yml) | `.github/workflows/release-preview.yml` |
-| [`releasekit.config.json`](./releasekit.config.json) | not needed: the preview uses your release workflow's config |
 
 ## Assumptions
 

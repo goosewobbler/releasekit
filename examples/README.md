@@ -14,7 +14,7 @@ markdown snippets they cannot rot silently.
 |----------|---------------|
 | [`ci/minimal`](./ci/minimal) | Push-to-main direct release driven by Conventional Commits. |
 | [`ci/label-driven`](./ci/label-driven) | Release only when a merged PR carries a `bump:*` label (trigger + gate). |
-| [`ci/standing-pr`](./ci/standing-pr) | Standing release PR: `update`, `immediate-release`, `publish` and `retry-publish` jobs. |
+| [`ci/standing-pr`](./ci/standing-pr) | Standing release PR that batches releases until a maintainer merges it. |
 | [`ci/oidc`](./ci/oidc) | npm OIDC trusted publishing — no `NPM_TOKEN`. |
 | [`ci/monorepo-rust`](./ci/monorepo-rust) | Mixed npm + Cargo monorepo (npm OIDC + crates.io token). |
 | [`ci/prerelease`](./ci/prerelease) | Manual `workflow_dispatch` prerelease with a chosen identifier. |
@@ -66,12 +66,12 @@ Two workflows guard these examples on every change under `examples/`:
 4. **Execution smoke-test** — for each scenario, runs that example's **real
    setup steps** (extracted from the example workflow, not hand-copied) on a
    hosted `ubuntu-latest` runner against a throwaway fixture repo, then a
-   `releasekit release --dry-run` (`preview --dry-run` for `release-preview`;
-   `backfill` has no smoke job, because it reads real GitHub Releases).
-   This catches the missing-runtime-tool class
-   and install failures (`pnpm`/`cargo: command not found`, wrong Node version,
-   `cache: pnpm` with no lockfile, `pnpm install` errors, the CLI not
-   resolving). Publish never runs for real — every release is `--dry-run`.
+   `releasekit release --dry-run` (`preview --dry-run` for `release-preview`).
+   `backfill` has no smoke job, because it reads real GitHub Releases. This
+   catches the missing-runtime-tool class and install failures
+   (`pnpm`/`cargo: command not found`, wrong Node version, `cache: pnpm` with no
+   lockfile, `pnpm install` errors, the CLI not resolving). Publish never runs
+   for real — every release is `--dry-run`.
 
 > **What validation does NOT catch.** `actionlint` is a static linter: it has no
 > model of what tools a hosted runner ships, so a missing `pnpm/action-setup` or
@@ -79,13 +79,17 @@ Two workflows guard these examples on every change under `examples/`:
 > **execution smoke-test** (`examples-smoke.yml`) exists alongside it precisely
 > to close that gap — it runs each example's setup + a dry-run release on a real
 > runner. What stays uncaught is everything the dry run deliberately skips:
-> **real publishing and the npm OIDC exchange** (publish runs as `--dry-run`, so
-> trusted-publisher setup and token scopes are unverified); **event-trigger
-> semantics** (the smoke test invokes the *steps*, not the `pull_request` /
-> `schedule` / `workflow_dispatch` *events*, so guards like the standing-PR
-> `action == 'closed'` check aren't exercised); **anything that needs a token
-> or PR context** (the merged-PR lookup, label checks and scope resolution in
-> `release` and `preview`); and **secret- or permission-gated, API-mutating
-> paths** (creating/merging PRs, force-pushing `release/next`). Verifying those requires a real release in a real repo. See
-> issue #276 (this smoke-test), and #259 / #263 for the static layer and the
-> missing-pnpm class it could not catch.
+>
+> - **Real publishing and the npm OIDC exchange.** Publish runs as `--dry-run`,
+>   so trusted-publisher setup and token scopes are unverified.
+> - **Event-trigger semantics.** The smoke test invokes the *steps*, not the
+>   `pull_request` / `schedule` / `workflow_dispatch` *events*, so guards like
+>   the standing-PR `action == 'closed'` check aren't exercised.
+> - **Anything that needs a token or PR context**, such as the merged-PR lookup,
+>   label checks and scope resolution in `release` and `preview`.
+> - **Secret- or permission-gated, API-mutating paths**, such as creating or
+>   merging PRs and force-pushing `release/next`.
+>
+> Verifying those requires a real release in a real repo. See issue #276 (this
+> smoke-test), and #259 / #263 for the static layer and the missing-pnpm class
+> it could not catch.
