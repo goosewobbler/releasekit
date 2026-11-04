@@ -196,6 +196,26 @@ describe('runPreview commit scope in a standing-PR feeder', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('has no merge base with origin/main'));
   });
 
+  it("should scope a PR-head checkout from where it branched when the event's base is newer", async () => {
+    commit(dir, 'early.txt', 'feat: add the early feature');
+    git(dir, 'checkout', '-q', '-b', 'feat/own');
+    commit(dir, 'own.txt', 'fix: correct the own bug');
+    git(dir, 'checkout', '-q', 'main');
+    commit(dir, 'other.txt', 'feat: add the other feature');
+    const baseTip = git(dir, 'rev-parse', 'HEAD');
+    git(dir, 'checkout', '-q', 'feat/own');
+    writeEvent(dir, {
+      head: { ref: 'feat/own', sha: git(dir, 'rev-parse', 'HEAD') },
+      base: { ref: 'main', sha: baseTip },
+    });
+
+    await runPreview({ projectDir: dir, dryRun: false });
+
+    expect(previewBody()).toContain('correct the own bug');
+    expect(previewBody()).not.toContain('add the early feature');
+    expect(previewBody()).toContain('1.0.1');
+  });
+
   it('should say when the event names no base branch, rather than blame fetching', async () => {
     const branchPoint = git(dir, 'rev-parse', 'HEAD');
     git(dir, 'checkout', '-q', '-b', 'feat/own');

@@ -58,8 +58,10 @@ export async function markFeederPreviewsStale(options: MarkPreviewsStaleOptions)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         // A refusal or rate limit hits every PR, so stop rather than repeat it; other failures are this PR's alone.
-        if (forgeErrorStatus(err) === 403) {
-          const hint = /rate limit/i.test(message) ? '' : ' The release job needs `pull-requests: write`.';
+        const status = forgeErrorStatus(err);
+        if (status === 403 || status === 429) {
+          const rateLimited = status === 429 || /rate limit/i.test(message);
+          const hint = rateLimited ? '' : ' The release job needs `pull-requests: write`.';
           warn(`Stopped marking feeder-PR previews stale: GitHub refused PR #${pr.number} (${message}).${hint}`);
           break;
         }

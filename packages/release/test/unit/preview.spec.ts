@@ -36,6 +36,12 @@ vi.mock('@releasekit/core', async (importOriginal) => {
 
 const mockRunRelease = vi.fn();
 
+// Base resolution runs git in projectDir; the fake answers it without a repository.
+vi.mock('@releasekit/git', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@releasekit/git')>();
+  return { ...actual, createGitCli: () => new actual.FakeGit() };
+});
+
 vi.mock('../../src/release.js', () => ({
   runRelease: (...args: unknown[]) => mockRunRelease(...args),
 }));

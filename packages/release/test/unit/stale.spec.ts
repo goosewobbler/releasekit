@@ -258,6 +258,21 @@ describe('markFeederPreviewsStale', () => {
     expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('pull-requests: write'));
   });
 
+  it('should stop at a 429 rate limit too', async () => {
+    const { warn } = await import('@releasekit/core');
+    const forge = seedForge([pr(10), pr(11)]);
+    const update = vi
+      .spyOn(forge, 'updateComment')
+      .mockRejectedValue(Object.assign(new Error('Too Many Requests'), { status: 429 }));
+    mockForgeFor.mockReturnValue(forge);
+
+    await markFeederPreviewsStale(options);
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('pull-requests: write'));
+  });
+
   it('should recognise a stale mark after a web-UI edit turned its line endings into CRLF', async () => {
     const body = `${MARKER}\r\n\r\n${STALE_LINE}\r\n> **Stale:** notice\r\n\r\nedited preview`;
     const forge = createFakeForge({ openPullRequests: [pr(10)], comments: [{ id: 10, prNumber: 10, body }] });

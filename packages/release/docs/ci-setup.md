@@ -268,7 +268,7 @@ jobs:
 
 A ready-to-use template is available at [`templates/workflows/release-preview.yml`](../../../templates/workflows/release-preview.yml).
 
-### Keeping previews fresh after a release
+### Flagging stale previews after a release
 
 A preview is computed on `pull_request` events. When a release moves `main`, GitHub does **not**
 re-fire those events on other open PRs, so each one's prediction stays frozen at the *pre-release*
@@ -286,8 +286,9 @@ With `markStaleAfterRelease` on, each standing-PR publish, and each `releasekit 
 release branch, marks the preview stale on still-open PRs into that branch, checking the 50 most recently
 updated. Running `releasekit publish` on its own doesn't. Give the release job `pull-requests: write`.
 The job doesn't have those PRs' trees, so each preview updates on its PR's next push or label change.
-It's best-effort: a per-PR failure only warns, and a preview job already running when the release lands
-can replace the mark with its pre-release preview.
+It's best-effort: a failure on one PR only warns, a refusal or rate limit stops the sweep with one
+warning, and a preview job already running when the release lands can replace the mark with its
+pre-release preview.
 (`ci.prPreview: true` remains valid shorthand for `{ "enabled": true }`.)
 
 ---

@@ -217,17 +217,20 @@ async function resolvePRBase(
       }
     }
   }
-  if (pr.base?.sha) {
-    const baseRef = pr.base.ref;
-    const mergeRef = pr.head?.sha ? "HEAD isn't its merge ref" : 'the event names no head commit';
-    const mergeBase = baseRef
-      ? `HEAD has no merge base with ${remotes.map((name) => `${name}/${baseRef}`).join(' or ')} (not fetched, or the history is too shallow)`
-      : 'the event names no base branch';
-    warn(
-      `Could not find this PR's base commit: ${mergeRef}, and ${mergeBase}. The preview scopes from pull_request.base.sha, which can lag the base branch and count commits merged there as this PR's.`,
-    );
+  if (!pr.base?.sha) {
+    return undefined;
   }
-  return pr.base?.sha;
+  const baseRef = pr.base.ref;
+  const mergeRef = pr.head?.sha ? "HEAD isn't its merge ref" : 'the event names no head commit';
+  const mergeBase = baseRef
+    ? `HEAD has no merge base with ${remotes.map((name) => `${name}/${baseRef}`).join(' or ')} (not fetched, or the history is too shallow)`
+    : 'the event names no base branch';
+  warn(
+    `Could not find this PR's base commit: ${mergeRef}, and ${mergeBase}. The preview scopes from where HEAD meets pull_request.base.sha, which can lag the base branch and count commits merged there as this PR's.`,
+  );
+  // On a PR-head checkout base.sha can be newer than the fork point; outside HEAD's history, the version engine would
+  // scope from all history.
+  return (await createGitCli().mergeBase('HEAD', pr.base.sha, projectDir)) ?? pr.base.sha;
 }
 
 /** A fork's or out-of-date `origin/<base>` gives a merge base older than the event's base commit. */
