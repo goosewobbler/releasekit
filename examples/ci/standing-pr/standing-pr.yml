@@ -128,11 +128,8 @@ jobs:
         run: |
           set -euo pipefail
           BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
-          case "$BODY" in
-            '<!-- releasekit-processing -->'*'<!-- releasekit-processing-end -->'*) ;;
-            *) exit 0 ;;
-          esac
           CLEANED=$(printf '%s' "$BODY" | perl -0777 -pe 's/\A<!-- releasekit-processing -->.*?<!-- releasekit-processing-end -->[\r\n]*//s')
+          if [ "$CLEANED" = "$BODY" ]; then exit 0; fi
           gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$CLEANED" >/dev/null
 
   immediate-release:
