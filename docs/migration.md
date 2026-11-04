@@ -60,7 +60,8 @@ first-class monorepo model without installing additional packages.
      use trusted publishing. See [CI setup](../packages/release/docs/ci-setup.md) for details.
    - The commit preset defaults to `conventionalcommits`. If you were using `angular` in
      `@semantic-release/commit-analyzer`, set `"version": { "preset": "angular" }` to
-     preserve your existing changelog groupings.
+     preserve your existing changelog groupings. Unlike semantic-release's, it treats a `type!:`
+     header or a `BREAKING-CHANGE:` footer as a breaking change.
 
 4. **Replace the workflow step.** Remove the semantic-release step from your GitHub Actions
    workflow and add `releasekit release` in its place. A minimal replacement:

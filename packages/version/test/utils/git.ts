@@ -47,20 +47,13 @@ export function createConventionalCommit(
     }
   }
 
-  const scopeStr = scope ? `(${scope})` : '';
-  const breakingStr = breaking ? '!' : '';
+  const header = `${type}${scope ? `(${scope})` : ''}${breaking ? '!' : ''}: ${message}`;
 
   try {
-    execSync(
-      `git commit -m "${type}${scopeStr}${breakingStr}: ${message}${breaking ? '\n\nBREAKING CHANGE: This is a breaking change' : ''}"`,
-      { cwd: dir },
-    );
+    execSync(`git commit -m "${header}"`, { cwd: dir });
   } catch {
     // Hooks such as lint-staged can fail the commit.
-    execSync(
-      `git commit --no-verify -m "${type}${scopeStr}${breakingStr}: ${message}${breaking ? '\n\nBREAKING CHANGE: This is a breaking change' : ''}"`,
-      { cwd: dir },
-    );
+    execSync(`git commit --no-verify -m "${header}"`, { cwd: dir });
   }
 }
 

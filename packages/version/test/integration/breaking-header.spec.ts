@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { executeCliCommand, readVersionOutput } from '../utils/cli.js';
-import { initGitRepo } from '../utils/git.js';
+import { createConventionalCommit, initGitRepo } from '../utils/git.js';
 import { createPackageJson } from '../utils/package.js';
 import { cleanupTempDir, symlinkNodeModules } from '../utils/tempFixture.js';
 
@@ -29,7 +29,13 @@ function createRepoAt(version: string, preset: string) {
   execSync(`git tag v${version}`, { cwd: tempDir });
 }
 
-describe('breaking-change header', () => {
+function coreVersion(): string | undefined {
+  const result = executeCliCommand('--json', tempDir);
+  expect(result.status).toBe(0);
+  return readVersionOutput(result.stdout).updates.find((u) => u.packageName === '@test/core')?.newVersion;
+}
+
+describe('breaking-change syntax', () => {
   afterEach(() => {
     cleanupTempDir(tempDir);
   });
@@ -41,12 +47,18 @@ describe('breaking-change header', () => {
   ])('should treat a `type!:` header as breaking with the %s preset (%s → %s)', (preset, from, to) => {
     createRepoAt(from, preset);
     writeFileSync(join(tempDir, 'packages/core/index.js'), '// changed\n');
-    execSync('git add . && git commit -m "fix(core)!: drop the old flag"', { cwd: tempDir });
+    createConventionalCommit(tempDir, 'fix', 'drop the old flag', 'core', true, ['packages/core']);
 
-    const result = executeCliCommand('--json', tempDir);
+    expect(coreVersion()).toBe(to);
+  });
 
-    expect(result.status).toBe(0);
-    const output = readVersionOutput(result.stdout);
-    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe(to);
+  it('should treat a `BREAKING-CHANGE:` footer as breaking with the angular preset', () => {
+    createRepoAt('1.4.2', 'angular');
+    writeFileSync(join(tempDir, 'packages/core/index.js'), '// changed\n');
+    execSync('git add . && git commit -m "fix(core): drop the old flag" -m "BREAKING-CHANGE: the flag is gone"', {
+      cwd: tempDir,
+    });
+
+    expect(coreVersion()).toBe('2.0.0');
   });
 });
