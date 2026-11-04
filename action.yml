@@ -19,7 +19,7 @@ inputs:
     required: false
     default: .
   dry-run:
-    description: Dry-run mode
+    description: Dry-run for release, preview and backfill; other modes fail if it's set
     required: false
     default: 'false'
   json:
@@ -75,7 +75,7 @@ inputs:
     required: false
     default: auto
   npm-token:
-    description: NPM token for publishing (or use NPM_TOKEN input)
+    description: NPM token for publishing without OIDC (defaults to the job's NPM_TOKEN env)
     required: false
   skip-notes:
     description: Skip changelog generation
@@ -98,7 +98,7 @@ inputs:
     required: false
     default: 'false'
   ssh-key:
-    description: SSH deploy key for git push (enables SSH checkout when not dry-run)
+    description: SSH deploy key for git push (the checkout uses it in modes that push, outside a dry run)
     required: false
 
   reconcile:
@@ -213,34 +213,57 @@ outputs:
 runs:
   using: composite
   steps:
+    # Push credentials (the SSH key, or github-token in place of the workflow token) are persisted only for a run
+    # that pushes, so a PR preview's later steps can't read them.
+    - name: Resolve push access
+      id: access
+      shell: bash
+      run: |
+        dry_run=$(printf '%s' "$INPUT_DRY_RUN" | tr '[:upper:]' '[:lower:]')
+        case "$INPUT_MODE" in
+          release | standing-pr-update | standing-pr-publish | refresh-after-release) pushes=true ;;
+          *) pushes=false ;;
+        esac
+        [ "$dry_run" = true ] && pushes=false
+        echo "pushes=$pushes" >> "$GITHUB_OUTPUT"
+      env:
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_DRY_RUN: ${{ inputs.dry-run }}
+
     - name: Checkout (SSH)
-      if: ${{ inputs.skip-checkout != 'true' && inputs.ssh-key != '' && inputs.dry-run != 'true' && inputs.mode != 'gate' }}
+      if: ${{ inputs.skip-checkout != 'true' && inputs.ssh-key != '' && steps.access.outputs.pushes == 'true' }}
       uses: actions/checkout@v7
       with:
         ssh-key: ${{ inputs.ssh-key }}
         fetch-depth: 0
 
     - name: Checkout (read-only)
-      if: ${{ inputs.skip-checkout != 'true' && (inputs.ssh-key == '' || inputs.dry-run == 'true' || inputs.mode == 'gate') }}
+      if: ${{ inputs.skip-checkout != 'true' && (inputs.ssh-key == '' || steps.access.outputs.pushes != 'true') }}
       uses: actions/checkout@v7
       with:
         fetch-depth: 0
-        # Persisted for git pushes, so only a mode that pushes gets github-token: a PR preview's later steps can't
-        # read a PAT. An empty input (a secret unset on a fork run) falls back to the workflow token.
-        token: ${{ (inputs.mode == 'release' || inputs.mode == 'standing-pr-update' || inputs.mode == 'standing-pr-publish' || inputs.mode == 'refresh-after-release') && inputs.dry-run != 'true' && (inputs.github-token || github.token) || github.token }}
+        # An empty input (a secret unset on a fork run) falls back to the workflow token.
+        token: ${{ steps.access.outputs.pushes == 'true' && (inputs.github-token || github.token) || github.token }}
 
     # A repo that doesn't pin pnpm (npm, Dart or Rust) gets the action's own pnpm, and only a pnpm lockfile can
-    # key setup-node's cache. The pin check mirrors pnpm/action-setup's: devEngines.packageManager or packageManager.
+    # key setup-node's cache. The pin check mirrors pnpm/action-setup's (devEngines.packageManager or
+    # packageManager), and falls back to a packageManager grep when the job has no Node yet.
     - name: Resolve pnpm setup
       id: pnpm-setup
       shell: bash
       run: |
-        if ! node -e '
-          const m = require(process.argv[1]);
-          const d = m.devEngines?.packageManager;
-          process.exit(String(m.packageManager).startsWith("pnpm@") || (d?.name === "pnpm" && d.version) ? 0 : 1);
-        ' "$GITHUB_WORKSPACE/package.json" 2>/dev/null; then
-          echo "version=$(node -p 'require(process.argv[1]).packageManager.split("@")[1].split("+")[0]' "$GITHUB_ACTION_PATH/package.json")" >> "$GITHUB_OUTPUT"
+        manifest="$GITHUB_WORKSPACE/package.json"
+        if command -v node >/dev/null; then
+          node -e '
+            const m = require(process.argv[1]);
+            const d = m.devEngines?.packageManager;
+            process.exit(String(m.packageManager).startsWith("pnpm@") || (d?.name === "pnpm" && d.version) ? 0 : 1);
+          ' "$manifest" 2>/dev/null && pinned=true
+        else
+          grep -Eqs '"packageManager"[[:space:]]*:[[:space:]]*"pnpm@' "$manifest" && pinned=true
+        fi
+        if [ "$pinned" != true ]; then
+          echo "version=$(sed -nE 's/.*"packageManager"[[:space:]]*:[[:space:]]*"pnpm@([^"+]*).*/\1/p' "$GITHUB_ACTION_PATH/package.json")" >> "$GITHUB_OUTPUT"
         fi
         if [ -f "$GITHUB_WORKSPACE/pnpm-lock.yaml" ]; then
           echo "cache=pnpm" >> "$GITHUB_OUTPUT"

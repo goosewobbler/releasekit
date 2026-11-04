@@ -70,14 +70,22 @@ describe('action runner', () => {
     expect(outputs).toMatch(/^success<<\S+\nfalse\n/m);
   });
 
-  it('should drop --apply from backfill args on a dry run', () => {
+  it('should run backfill without --apply on a dry run', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
+    tempDirs.push(tempDir);
+    const cliPath = path.join(tempDir, 'fake-cli.mjs');
+    fs.writeFileSync(cliPath, "console.log('ok')\n", 'utf-8');
     const input = parseInputs({
       INPUT_MODE: 'backfill',
       INPUT_DRY_RUN: 'true',
       INPUT_APPLY: 'true',
       INPUT_ALL: 'true',
     });
-    expect(buildBackfillArgs(input)).not.toContain('--apply');
+
+    const result = await runAction(input, { cliPath });
+
+    expect(result.args).toContain('--all');
+    expect(result.args).not.toContain('--apply');
   });
 
   it('should build release args from inputs', () => {

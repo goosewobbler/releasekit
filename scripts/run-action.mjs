@@ -11,7 +11,7 @@ function normalizeBoolean(value, defaultValue = false) {
     return defaultValue;
   }
   // Case-insensitive, like action.yml's `inputs.x == 'true'` guards.
-  return value.toLowerCase() === 'true';
+  return String(value).toLowerCase() === 'true';
 }
 
 function normalizeString(value) {

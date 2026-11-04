@@ -22,7 +22,7 @@ uses: goosewobbler/releasekit@v0
 
 ## Requirements
 
-- The action checks out the repo (unless `skip-checkout`), then runs its own `pnpm/action-setup` and `actions/setup-node` (`node-version`, default `24`, whose npm supports OIDC trusted publishing; ReleaseKit needs Node 22.12+). That replaces any Node version an earlier step set up. pnpm is the version your `package.json` pins in `packageManager`, else the action's own, so npm, Dart and Rust repos need no pnpm setup.
+- The action checks out the repo (unless `skip-checkout`), then runs its own `pnpm/action-setup` and `actions/setup-node` (`node-version`, default `24`, whose npm supports OIDC trusted publishing; ReleaseKit needs Node 22.12+). That replaces any Node version an earlier step set up. pnpm is the version your `package.json` pins in `devEngines.packageManager` or `packageManager`, else the action's own, so npm, Dart and Rust repos need no pnpm setup.
 - For npm publishing, run `actions/setup-node` with `registry-url: https://registry.npmjs.org` before this action so that `NODE_AUTH_TOKEN` is wired up correctly.
 
 ## Required permissions and env
@@ -68,7 +68,7 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 | `node-version` | `24` | Node.js version for the action's setup-node step |
 | `npm-token` | - | NPM token when not using OIDC; when unset, the job's `NPM_TOKEN` env is preserved |
 | `summary` | `true` | Write a job summary for `release` and `gate` |
-| `skip-checkout` | `false` | Skip the action's checkout. Check the repo out on a branch, not a detached HEAD, with `fetch-depth: 0`; the action then rebases it onto `origin/<branch>`, falling back to `git reset --hard`. Pushes use your checkout's credentials, not `ssh-key` or `github-token`. |
+| `skip-checkout` | `false` | Skip the action's checkout. Check the repo out on a branch, not a detached HEAD, with `fetch-depth: 0`; the action then rebases it onto `origin/<branch>`, falling back to `git reset --hard`. Pushes use your checkout's credentials, not `ssh-key`, and `github-token` only through `git.httpsTokenEnv`. |
 | `json` | `false` | JSON output (release mode). Without it, `has-changes` is always `false` and the other release outputs are empty |
 | `verbose` | `false` | Verbose logs |
 | `quiet` | `false` | Suppress non-error logs |
@@ -81,7 +81,7 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 | `prerelease` | - | Prerelease identifier (e.g. `alpha`, `beta`) |
 | `stable` | `false` | Graduate prerelease packages to stable without bumping |
 | `scope` | - | Scope name resolved to target packages from `ci.scopeLabels` (also `gate`) |
-| `ssh-key` | - | SSH deploy key; the action checks out over SSH so the push uses it (not on dry runs or in `gate`) |
+| `ssh-key` | - | SSH deploy key; in the modes that push, outside a dry run, the action checks out over SSH so the push uses it |
 | `sync` | `false` | Synchronized versioning |
 | `target` | - | Comma-separated package targets |
 | `branch` | - | Override push branch |

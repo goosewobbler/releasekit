@@ -127,10 +127,19 @@ describe('npm-publish stage', () => {
     // The action passes an empty NPM_TOKEN when neither its npm-token input nor the job env sets one.
     process.env.NPM_TOKEN = '';
     process.env.NODE_AUTH_TOKEN = 'node_auth_token';
+    // The isolated .npmrc is what npm reads, and it's removed once the stage ends.
+    let npmrc = '';
+    vi.mocked(execCommand).mockImplementation(async (_cmd, args, options) => {
+      if ((args as string[]).includes('publish')) {
+        npmrc = fs.readFileSync(options?.env?.NPM_CONFIG_USERCONFIG as string, 'utf-8');
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
     await runNpmPublishStage(createContext(dir));
 
     const publishCall = vi.mocked(execCommand).mock.calls[1];
     expect(publishCall?.[2]?.env?.NODE_AUTH_TOKEN).toBe('node_auth_token');
+    expect(npmrc).toContain('//registry.npmjs.org/:_authToken=node_auth_token');
   });
 
   it('should skip private packages', async () => {
