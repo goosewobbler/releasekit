@@ -81,6 +81,8 @@ jobs:
               - 'packages/git/**'
             integration:
               - 'test/integration/**'
+              - 'scripts/examples-smoke/**'
+              - 'examples/**'
               - '.github/workflows/_ci-integration.reusable.yml'
             e2e:
               - 'test/e2e/**'

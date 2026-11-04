@@ -33,7 +33,7 @@ concurrency:
   # per-PR cancelling group, so a flurry of ticks collapses to one rebuild. Push, schedule and label
   # runs share a non-cancelling group. The label names and the `release/next` branch are hardcoded:
   # update every use in this file if you rename them in `ci.labels` or `ci.standingPr.branch`.
-  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && !(startsWith(github.event.pull_request.head.ref, 'release/') && github.event.sender.type != 'Bot') && format('standing-release-pr-noop-{0}', github.run_id) || github.event_name == 'pull_request' && github.event.action == 'edited' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && !(github.event.pull_request.head.ref == 'release/next' && github.event.sender.type != 'Bot') && format('standing-release-pr-noop-{0}', github.run_id) || github.event_name == 'pull_request' && github.event.action == 'edited' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
@@ -47,8 +47,8 @@ jobs:
     name: Update Release PR
     # `sender.type != 'Bot'` is load-bearing: the update rewrites the PR body (an `edited` event), so
     # the bot would otherwise re-trigger itself forever. Matching on type rather than the
-    # `github-actions[bot]` login also filters a custom GitHub App token. The `release/` prefix is
-    # hardcoded (workflow `if` can't read config) - in-step config is authoritative.
+    # `github-actions[bot]` login also filters a custom GitHub App token. `release/next` is hardcoded
+    # (workflow `if` can't read config) - in-step config is authoritative.
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'schedule' ||
@@ -60,7 +60,7 @@ jobs:
           github.event.action == 'edited'
         ) &&
         github.event.pull_request.state == 'open' &&
-        startsWith(github.event.pull_request.head.ref, 'release/') &&
+        github.event.pull_request.head.ref == 'release/next' &&
         github.event.sender.type != 'Bot'
       )
     runs-on: ubuntu-latest
@@ -68,7 +68,7 @@ jobs:
       # Instant banner so a maintainer knows their tick or label change was received while the slower
       # rebuild runs. Before checkout so it lands within seconds of the runner starting.
       - name: Acknowledge the update in progress
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'release/next'
+        if: github.event_name == 'pull_request'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -117,7 +117,7 @@ jobs:
 
       - name: Clear the in-progress banner
         # Also after a success: update can exit without rewriting the body.
-        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'release/next'
+        if: always() && github.event_name == 'pull_request'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -195,7 +195,7 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.head.ref, 'release/')
+      github.event.pull_request.head.ref == 'release/next'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -245,7 +245,7 @@ jobs:
       github.event.action == 'labeled' &&
       github.event.label.name == 'release:retry' &&
       github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.head.ref, 'release/')
+      github.event.pull_request.head.ref == 'release/next'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
