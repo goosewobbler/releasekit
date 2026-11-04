@@ -114,7 +114,7 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
   const body = renderDraftBody(versionOutput, releaseNotes ?? {});
   const manifestComment = serializeManifest(manifest);
 
-  // Only reuse an issue with a bot-authored manifest comment that decodes: a hand-labelled issue must not be adopted.
+  // Never adopt a hand-labelled issue or a hand-written manifest.
   const existing = await forge.findOpenIssueByLabel(DRAFT_LABEL);
   const existingManifest = existing ? await forge.findComment(existing.number, MANIFEST_MARKER) : undefined;
   const reusable =
@@ -130,6 +130,17 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
     issueNumber = ref.number;
   }
   await forge.upsertMarkerComment(issueNumber, MANIFEST_MARKER, manifestComment);
+  if (!reusable) {
+    const written = await forge.findComment(issueNumber, MANIFEST_MARKER);
+    if (written && !isBotComment(written)) {
+      await forge.updateIssue(issueNumber, { state: 'closed' });
+      throw new Error(
+        `Closed release draft #${issueNumber}: its manifest comment was written by ` +
+          `'${written.user?.login ?? 'an unknown user'}', not a bot account, so '--from-draft' would refuse it. ` +
+          "Re-run 'releasekit release --draft' with the workflow's GITHUB_TOKEN or a GitHub App token.",
+      );
+    }
+  }
 
   success(`Release draft ready for review: issue #${issueNumber}. Edit the notes, then dispatch --from-draft.`);
   return result;
@@ -142,6 +153,13 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   }
 
   const forge = forgeFor(context);
+  const issue = await forge.getIssue(issueNumber);
+  if (issue.isPullRequest || !issue.labels.includes(DRAFT_LABEL)) {
+    throw new Error(
+      `#${issueNumber} is not a release draft: '--from-draft' takes an issue labelled '${DRAFT_LABEL}' by ` +
+        "'releasekit release --draft'.",
+    );
+  }
   const manifestComment = await forge.findComment(issueNumber, MANIFEST_MARKER);
   if (!manifestComment) {
     throw new Error(`No release-draft manifest found on issue #${issueNumber}.`);
@@ -149,9 +167,8 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   if (!isBotComment(manifestComment)) {
     throw new Error(
       `Refusing to publish from release draft #${issueNumber}: the release manifest comment was authored by ` +
-        `'${manifestComment.user?.login ?? 'an unknown user'}', not the release bot. A manifest that did not come ` +
-        "from 'releasekit release --draft' cannot be trusted. Re-run 'releasekit release --draft' and dispatch the " +
-        'draft issue it reports.',
+        `'${manifestComment.user?.login ?? 'an unknown user'}', not a bot account. Re-run 'releasekit release --draft' ` +
+        "with the workflow's GITHUB_TOKEN or a GitHub App token, then dispatch the draft issue it reports.",
     );
   }
   const manifest = parseManifest(manifestComment.body);
@@ -174,7 +191,6 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
     );
   }
 
-  const issue = await forge.getIssue(issueNumber);
   const draftedNotes = manifest.releaseNotes ?? {};
   const extracted = extractNotesRegions(issue.body, manifest.versionOutput);
   // An untouched region may hold the truncated render, so the full drafted text wins unless the region was edited.

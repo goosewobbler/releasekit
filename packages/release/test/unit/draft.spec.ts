@@ -164,6 +164,15 @@ describe('runReleaseDraft', () => {
     expect(seeded.upsertedComments.map((c) => c.prNumber)).not.toContain(7);
   });
 
+  it('should close a fresh draft and fail when its manifest comment is not bot-authored', async () => {
+    const seeded = createFakeForge({ commentAuthor: humanAuthor });
+    mockForgeFor.mockReturnValue(seeded);
+
+    await expect(runReleaseDraft(baseOptions)).rejects.toThrow(/written by 'attacker', not a bot account/);
+    expect(seeded.createdIssues).toHaveLength(1);
+    expect(seeded.updatedIssues).toEqual([expect.objectContaining({ changes: { state: 'closed' } })]);
+  });
+
   it('should create no issue when there are no releasable changes', async () => {
     mockRunRelease.mockResolvedValue(null);
     const result = await runReleaseDraft(baseOptions);
@@ -189,7 +198,7 @@ describe('publishFromDraft', () => {
     publishFromDraft = mod.publishFromDraft;
   });
 
-  function forgeWithDraft(body: string, user?: CommentAuthor): FakeForge {
+  function forgeWithDraft(body: string, user: CommentAuthor = botAuthor): FakeForge {
     return createFakeForge({
       issues: { 9: { body, title: 'Release draft', labels: ['release:draft'], isPullRequest: false } },
       comments: [{ id: 1, body: serializeManifest(manifest), prNumber: 9, user }],
@@ -211,23 +220,25 @@ describe('publishFromDraft', () => {
     expect(forge.updatedIssues).toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
   });
 
-  it('should publish from a bot-authored manifest comment', async () => {
-    const forge = forgeWithDraft('## Release Notes', botAuthor);
-    mockForgeFor.mockReturnValue(forge);
-
-    await publishFromDraft(9, baseOptions);
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ dryRun: false }));
-    expect(forge.updatedIssues).toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
-  });
-
   it('should refuse a manifest comment the bot did not write, before computing the release', async () => {
     const forge = forgeWithDraft('## Release Notes', humanAuthor);
     mockForgeFor.mockReturnValue(forge);
 
     await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(
-      /authored by 'attacker', not the release bot.*Re-run 'releasekit release --draft'/,
+      /authored by 'attacker', not a bot account\. Re-run 'releasekit release --draft' with/,
     );
+    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(forge.updatedIssues).toHaveLength(0);
+  });
+
+  it('should refuse a target that is not a release:draft issue, such as the standing PR', async () => {
+    const forge = createFakeForge({
+      issues: { 9: { body: '', title: 'chore: release', labels: [], isPullRequest: true } },
+      comments: [{ id: 1, body: serializeManifest(manifest), prNumber: 9, user: botAuthor }],
+    });
+    mockForgeFor.mockReturnValue(forge);
+
+    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/#9 is not a release draft/);
     expect(mockRunRelease).not.toHaveBeenCalled();
     expect(forge.updatedIssues).toHaveLength(0);
   });
@@ -425,7 +436,7 @@ describe('publishFromDraft', () => {
 
   it('should throw when the issue has no manifest comment', async () => {
     const forge = createFakeForge({
-      issues: { 9: { body: 'x', title: 't', labels: [], isPullRequest: false } },
+      issues: { 9: { body: 'x', title: 't', labels: ['release:draft'], isPullRequest: false } },
     });
     mockForgeFor.mockReturnValue(forge);
 
