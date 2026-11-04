@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { parsePubspec } from '@releasekit/config';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCargoInfo } from '../../../src/cargo/cargoHandler.js';
 import * as logging from '../../../src/utils/logging.js';
@@ -7,6 +8,10 @@ import { getVersionFromManifests, throwIfNoManifestsFound } from '../../../src/u
 
 vi.mock('node:fs');
 vi.mock('node:path');
+vi.mock('@releasekit/config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@releasekit/config')>();
+  return { ...actual, parsePubspec: vi.fn() };
+});
 vi.mock('../../../src/cargo/cargoHandler.js');
 vi.mock('../../../src/utils/logging.js');
 
@@ -14,6 +19,7 @@ describe('Manifest Helpers', () => {
   const mockPackageDir = '/test/package/dir';
   const mockPackageJsonPath = '/test/package/dir/package.json';
   const mockCargoTomlPath = '/test/package/dir/Cargo.toml';
+  const mockPubspecPath = '/test/package/dir/pubspec.yaml';
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -22,6 +28,7 @@ describe('Manifest Helpers', () => {
 
     vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(false);
     vi.mocked(fs.readFileSync, { partial: true }).mockReturnValue('');
+    vi.mocked(parsePubspec).mockReturnValue({});
   });
 
   afterEach(() => {
@@ -143,6 +150,22 @@ describe('Manifest Helpers', () => {
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Error reading Cargo.toml:'), 'warning');
     });
 
+    it('should fall back to pubspec.yaml when package.json and Cargo.toml are absent', () => {
+      vi.mocked(fs.existsSync, { partial: true }).mockImplementation((filePath) => filePath === mockPubspecPath);
+      vi.mocked(parsePubspec).mockReturnValue({ name: 'test_package', version: '3.1.0' });
+
+      const result = getVersionFromManifests(mockPackageDir);
+
+      expect(result).toEqual({
+        version: '3.1.0',
+        manifestFound: true,
+        manifestPath: mockPubspecPath,
+        manifestType: 'pubspec.yaml',
+      });
+      expect(parsePubspec).toHaveBeenCalledWith(mockPubspecPath);
+      expect(logging.log).toHaveBeenCalledWith('Found version 3.1.0 in pubspec.yaml', 'debug');
+    });
+
     it('should return null when no manifests exist', () => {
       const result = getVersionFromManifests(mockPackageDir);
 
@@ -181,7 +204,7 @@ describe('Manifest Helpers', () => {
   describe('throwIfNoManifestsFound', () => {
     it('should throw an error with the correct paths', () => {
       expect(() => throwIfNoManifestsFound(mockPackageDir)).toThrow(
-        `Neither package.json nor Cargo.toml found at ${mockPackageDir}. Checked paths: ${mockPackageJsonPath}, ${mockCargoTomlPath}. Cannot determine version.`,
+        `Neither package.json, Cargo.toml, nor pubspec.yaml found at ${mockPackageDir}. Checked paths: ${mockPackageJsonPath}, ${mockCargoTomlPath}, ${mockPubspecPath}. Cannot determine version.`,
       );
     });
   });

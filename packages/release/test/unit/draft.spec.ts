@@ -319,6 +319,21 @@ describe('publishFromDraft', () => {
     expect(forge.updatedIssues).not.toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
   });
 
+  it('should accept a draft written before updates listed their files', async () => {
+    mockRunRelease.mockReset();
+    mockRunRelease
+      .mockResolvedValueOnce({
+        versionOutput: { ...versionOutput, updates: versionOutput.updates.map((u) => ({ ...u, files: [u.filePath] })) },
+      })
+      .mockResolvedValue({ versionOutput, notesGenerated: true });
+    const forge = forgeWithDraft('## Release Notes');
+    mockForgeFor.mockReturnValue(forge);
+
+    await publishFromDraft(9, baseOptions);
+
+    expect(mockRunRelease).toHaveBeenCalledTimes(2);
+  });
+
   it('should refuse when only tags/commit-message drift even though name@version matches', async () => {
     // Same name@version as the manifest, but different tags & commit message - only the full-plan fingerprint
     // catches it.

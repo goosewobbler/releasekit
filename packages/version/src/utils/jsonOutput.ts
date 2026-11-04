@@ -92,6 +92,7 @@ export function addPackageUpdate(packageName: string, newVersion: string, filePa
     packageName,
     newVersion,
     filePath,
+    files: [filePath],
     channel: deriveReleaseChannel(newVersion),
     ...(isRoot ? { isRoot } : {}),
   };
@@ -99,10 +100,14 @@ export function addPackageUpdate(packageName: string, newVersion: string, filePa
   const dir = path.dirname(path.resolve(filePath));
   const existingIndex = _jsonData.updates.findIndex((u) => path.dirname(path.resolve(u.filePath)) === dir);
   if (existingIndex !== -1) {
+    const existing = _jsonData.updates[existingIndex];
+    const files = [...new Set([...(existing.files ?? [existing.filePath]), filePath])];
     const incomingIsPackageJson = path.basename(filePath) === 'package.json';
-    const existingIsPackageJson = path.basename(_jsonData.updates[existingIndex].filePath) === 'package.json';
+    const existingIsPackageJson = path.basename(existing.filePath) === 'package.json';
     if (incomingIsPackageJson && !existingIsPackageJson) {
-      _jsonData.updates[existingIndex] = update;
+      _jsonData.updates[existingIndex] = { ...update, files };
+    } else {
+      existing.files = files;
     }
     return;
   }

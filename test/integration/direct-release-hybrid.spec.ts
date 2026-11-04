@@ -42,7 +42,6 @@ describe('direct-commit release of hybrid packages', () => {
       JSON.stringify({
         version: {
           preset: 'angular',
-          // The sync strategy doesn't bump a pubspec.yaml.
           sync: false,
           versionPrefix: 'v',
           tagTemplate: '${packageName}@v${version}',
@@ -52,6 +51,7 @@ describe('direct-commit release of hybrid packages', () => {
           npm: { enabled: false },
           // As for a napi-rs crate: publish leaves the Cargo.toml alone, so only the version step bumps it.
           cargo: { enabled: false },
+          pub: { enabled: false },
           git: { push: false },
           githubRelease: { enabled: false },
         },
@@ -65,7 +65,7 @@ describe('direct-commit release of hybrid packages', () => {
     write(join(repo, 'packages', 'napi', 'Cargo.lock'), lock('0.1.0'));
     write(join(repo, 'packages', 'napi', 'src', 'lib.rs'), '// napi\n');
     write(join(repo, 'packages', 'dart', 'package.json'), '{ "name": "rk-dart", "version": "0.1.0" }\n');
-    write(join(repo, 'packages', 'dart', 'pubspec.yaml'), 'name: rk_dart\nversion: 0.1.0\npublish_to: none\n');
+    write(join(repo, 'packages', 'dart', 'pubspec.yaml'), 'name: rk_dart\nversion: 0.1.0\n');
     write(join(repo, 'packages', 'dart', 'lib', 'rk_dart.dart'), '// dart\n');
 
     git(repo, 'init', '-q');

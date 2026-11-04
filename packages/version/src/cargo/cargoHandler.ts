@@ -48,11 +48,27 @@ export function getCargoInfo(cargoPath: string): CargoInfo {
   }
 }
 
+/** False for a virtual workspace manifest, which has no [package]. */
+export function isVersionedCrate(cargoPath: string): boolean {
+  let cargo: CargoManifest;
+  try {
+    cargo = parseCargoToml(cargoPath);
+  } catch (error) {
+    throw new Error(`Cannot parse ${cargoPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return !!cargo.package?.name;
+}
+
 /**
  * Records the bump for the end-of-run Cargo.lock sync. Every version-step bump goes through here, so no
  * strategy can skip the sync.
  */
-export function updateCargoVersion(cargoPath: string, version: string, dryRun = false): void {
+export function updateCargoVersion(
+  cargoPath: string,
+  version: string,
+  dryRun = false,
+  { recordAs, isRoot }: { recordAs?: string; isRoot?: boolean } = {},
+): void {
   try {
     const cargo = parseCargoToml(cargoPath);
     const packageName = cargo.package?.name;
@@ -75,7 +91,7 @@ export function updateCargoVersion(cargoPath: string, version: string, dryRun = 
       fs.writeFileSync(cargoPath, updatedContent);
     }
 
-    addPackageUpdate(packageName, version, cargoPath);
+    addPackageUpdate(recordAs ?? packageName, version, cargoPath, isRoot);
     recordCargoBump({ cargoTomlPath: cargoPath, name: packageName, version });
 
     log(`${dryRun ? '[DRY RUN] Would update' : 'Updated'} Cargo.toml at ${cargoPath} to version ${version}`, 'success');

@@ -310,6 +310,12 @@ describe('serializeManifest / parseManifest', () => {
     const parsed = parseManifest(serializeManifest(baseManifest));
     expect(parsed.graduated).toBeUndefined();
   });
+
+  it('should reject an update whose files is not a string array', () => {
+    const update = { ...baseManifest.versionOutput.updates[0], files: 'pubspec.yaml' };
+    const m = { ...baseManifest, versionOutput: { ...baseManifest.versionOutput, updates: [update] } };
+    expect(() => parseManifest(serializeManifest(m as unknown as typeof baseManifest))).toThrow(/failed validation/);
+  });
 });
 
 describe('runStandingPRUpdate', () => {

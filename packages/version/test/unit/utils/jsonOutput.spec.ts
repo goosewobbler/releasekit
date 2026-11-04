@@ -53,6 +53,7 @@ describe('JSON Output Utilities', () => {
         packageName: 'test-package',
         newVersion: '1.0.0',
         filePath: '/path/to/package.json',
+        files: ['/path/to/package.json'],
         channel: 'stable',
       });
       expect(updatedData.tags).toHaveLength(1);
@@ -101,6 +102,7 @@ describe('JSON Output Utilities', () => {
         packageName: 'my-monorepo',
         newVersion: '1.0.0',
         filePath: '/path/to/package.json',
+        files: ['/path/to/package.json'],
         channel: 'stable',
         isRoot: true,
       });
@@ -109,6 +111,7 @@ describe('JSON Output Utilities', () => {
         packageName: 'test-package',
         newVersion: '1.0.0',
         filePath: '/path/to/packages/a/package.json',
+        files: ['/path/to/packages/a/package.json'],
         channel: 'stable',
       });
     });
@@ -128,6 +131,7 @@ describe('JSON Output Utilities', () => {
         packageName: '@scope/x-y',
         newVersion: '1.1.0',
         filePath: '/ws/packages/x/package.json',
+        files: ['/ws/packages/x/package.json', '/ws/packages/x/Cargo.toml'],
         channel: 'stable',
       });
     });
@@ -143,6 +147,7 @@ describe('JSON Output Utilities', () => {
         packageName: '@scope/x-y',
         newVersion: '1.1.0',
         filePath: '/ws/packages/x/package.json',
+        files: ['/ws/packages/x/Cargo.toml', '/ws/packages/x/package.json'],
         channel: 'stable',
       });
     });
@@ -157,6 +162,7 @@ describe('JSON Output Utilities', () => {
         packageName: 'pure-crate',
         newVersion: '2.0.0',
         filePath: '/ws/crates/pure/Cargo.toml',
+        files: ['/ws/crates/pure/Cargo.toml'],
         channel: 'stable',
       });
     });

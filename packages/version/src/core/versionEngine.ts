@@ -11,6 +11,7 @@ import { clearCargoBumps, syncCargoLockfiles } from '../cargo/cargoLock.js';
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
 import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
+import { isReleasablePubspec } from '../pub/pubHandler.js';
 import type { Config, VersionRunOptions } from '../types.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
 import { tagPrerequisiteRoles } from '../utils/jsonOutput.js';
@@ -21,6 +22,14 @@ import { buildWorkspaceGraph } from './workspaceGraph.js';
 
 export interface PackagesWithRoot extends Packages {
   root: string;
+}
+
+/** pnpm globs may start with `./`, and a `!` entry excludes what the others include. */
+function matchesWorkspaceGlobs(relativePath: string, globs: string[]): boolean {
+  const target = relativePath.replace(/\\/g, '/');
+  const matches = (glob: string) => minimatch(target, glob.replace(/^\.\//, ''), { dot: true });
+  const included = globs.filter((glob) => !glob.startsWith('!')).some(matches);
+  return included && !globs.filter((glob) => glob.startsWith('!')).some((glob) => matches(glob.slice(1)));
 }
 
 export class VersionEngine {
@@ -204,20 +213,26 @@ export class VersionEngine {
     };
   }
 
-  private discoverPubspecPackages(workspaceRoot: string): PackagesWithRoot {
-    let pnpmWorkspaceGlobs: string[] | null = null;
+  private readPnpmWorkspaceGlobs(workspaceRoot: string): string[] | null {
     const pnpmWorkspacePath = path.join(workspaceRoot, 'pnpm-workspace.yaml');
-    if (fs.existsSync(pnpmWorkspacePath)) {
-      try {
-        const pnpmWorkspaceContent = fs.readFileSync(pnpmWorkspacePath, 'utf-8');
-        const pnpmWorkspace = yaml.parse(pnpmWorkspaceContent) as { packages?: string[] };
-        if (Array.isArray(pnpmWorkspace?.packages) && pnpmWorkspace.packages.length > 0) {
-          pnpmWorkspaceGlobs = pnpmWorkspace.packages;
-          log(`pnpm workspace globs detected for pub discovery scoping: ${pnpmWorkspaceGlobs.join(', ')}`, 'debug');
-        }
-      } catch (error) {
-        log(`Could not parse pnpm-workspace.yaml for pub discovery scoping: ${error}`, 'debug');
+    if (!fs.existsSync(pnpmWorkspacePath)) {
+      return null;
+    }
+    try {
+      const pnpmWorkspace = yaml.parse(fs.readFileSync(pnpmWorkspacePath, 'utf-8')) as { packages?: string[] };
+      if (Array.isArray(pnpmWorkspace?.packages) && pnpmWorkspace.packages.length > 0) {
+        return pnpmWorkspace.packages;
       }
+    } catch (error) {
+      log(`Could not parse pnpm-workspace.yaml for pub discovery scoping: ${error}`, 'debug');
+    }
+    return null;
+  }
+
+  private discoverPubspecPackages(workspaceRoot: string): PackagesWithRoot {
+    const pnpmWorkspaceGlobs = this.readPnpmWorkspaceGlobs(workspaceRoot);
+    if (pnpmWorkspaceGlobs) {
+      log(`pnpm workspace globs detected for pub discovery scoping: ${pnpmWorkspaceGlobs.join(', ')}`, 'debug');
     }
 
     const pubspecPaths: string[] = [];
@@ -274,13 +289,9 @@ export class VersionEngine {
         if (pubData.name && typeof pubData.version === 'string') {
           const relativePath = path.relative(workspaceRoot, packageDir);
 
-          if (pnpmWorkspaceGlobs !== null) {
-            const normalizedRelative = relativePath.replace(/\\/g, '/');
-            const matchesGlob = pnpmWorkspaceGlobs.some((glob) => minimatch(normalizedRelative, glob, { dot: true }));
-            if (!matchesGlob) {
-              log(`Skipping Dart package ${pubData.name} at ${relativePath}: not in pnpm workspace globs`, 'debug');
-              continue;
-            }
+          if (pnpmWorkspaceGlobs !== null && !matchesWorkspaceGlobs(relativePath, pnpmWorkspaceGlobs)) {
+            log(`Skipping Dart package ${pubData.name} at ${relativePath}: not in pnpm workspace globs`, 'debug');
+            continue;
           }
 
           dartPackages.push({
@@ -358,7 +369,7 @@ export class VersionEngine {
 
   private isNativelyPublishable(packageDir: string): boolean {
     const cargoPath = path.join(packageDir, 'Cargo.toml');
-    if (fs.existsSync(cargoPath)) {
+    if (this.config.cargo?.enabled !== false && fs.existsSync(cargoPath)) {
       try {
         const pkg = parseCargoToml(cargoPath).package;
         const publish = pkg?.publish;
@@ -370,16 +381,14 @@ export class VersionEngine {
       }
     }
     const pubspecPath = path.join(packageDir, 'pubspec.yaml');
-    if (fs.existsSync(pubspecPath)) {
-      try {
-        if (parsePubspec(pubspecPath).publish_to !== 'none') {
-          return true;
-        }
-      } catch {
-        // Unparseable pubspec - fall through.
-      }
+    if (this.config.pub?.enabled === false || !fs.existsSync(pubspecPath)) {
+      return false;
     }
-    return false;
+    try {
+      return isReleasablePubspec(pubspecPath);
+    } catch {
+      return false;
+    }
   }
 
   public async getWorkspacePackages(workspaceRoot: string = cwd()): Promise<PackagesWithRoot> {
@@ -396,7 +405,13 @@ export class VersionEngine {
       const rustPackages = this.discoverCargoTomlPackages(workspaceRoot);
       const dartPackages = this.discoverPubspecPackages(workspaceRoot);
 
-      const mergedPackages = this.mergePackageLists(this.mergePackageLists(npmPackages, rustPackages), dartPackages);
+      const workspacePackages = this.mergePackageLists(this.mergePackageLists(npmPackages, rustPackages), dartPackages);
+      const enabled = (discovered: PackagesWithRoot, ecosystem: { enabled?: boolean } | undefined) =>
+        ecosystem?.enabled === false ? { ...discovered, packages: [] } : discovered;
+      const mergedPackages = this.mergePackageLists(
+        this.mergePackageLists(npmPackages, enabled(rustPackages, this.config.cargo)),
+        enabled(dartPackages, this.config.pub),
+      );
 
       const rustCount = rustPackages.packages.length;
       const dartCount = dartPackages.packages.length;
@@ -411,9 +426,10 @@ export class VersionEngine {
         mergedPackages.root = workspaceRoot;
       }
 
-      // Captured before release-set filtering so the repo-level changelog classifier can tell "touches a
-      // non-releasing package" from "genuinely repo-level" and resolve shared-package globs against every package.
-      this.config.allWorkspacePackages = mergedPackages.packages.map((p) => ({
+      // Every discovered package, disabled ecosystems included, so the repo-level changelog classifier can tell
+      // "touches a non-releasing package" from "genuinely repo-level" and resolve shared-package globs against every
+      // package.
+      this.config.allWorkspacePackages = workspacePackages.packages.map((p) => ({
         name: p.packageJson.name,
         dir: p.dir,
       }));

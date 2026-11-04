@@ -71,6 +71,7 @@ const ManifestVersionOutputSchema = z
           packageName: z.string(),
           newVersion: z.string(),
           filePath: z.string(),
+          files: z.array(z.string()).optional(),
         })
         .passthrough(),
     ),

@@ -11,6 +11,7 @@ import * as gitTags from '../../../src/git/tagsAndBranches.js';
 import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
 import { PackageProcessor } from '../../../src/package/packageProcessor.js';
+import * as pubHandler from '../../../src/pub/pubHandler.js';
 import type { Config } from '../../../src/types.js';
 import * as formatting from '../../../src/utils/formatting.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
@@ -82,6 +83,7 @@ vi.mock('../../../src/core/versionCalculator.js');
 vi.mock('../../../src/version/versionCalc.js');
 vi.mock('node:fs');
 vi.mock('../../../src/cargo/cargoHandler.js');
+vi.mock('../../../src/pub/pubHandler.js');
 
 interface MockPackage {
   dir: string;
@@ -133,6 +135,8 @@ describe('Package Processor', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(cargoHandler.isVersionedCrate).mockReturnValue(true);
+    vi.mocked(pubHandler.isReleasablePubspec).mockReturnValue(true);
 
     vi.spyOn(path, 'join').mockImplementation((...args) => args.join('/'));
 
@@ -238,6 +242,29 @@ describe('Package Processor', () => {
       expect(result.updatedPackages.length).toBe(2);
       expect(result.updatedPackages.some((p) => p.name === 'package-a')).toBe(true);
       expect(result.updatedPackages.some((p) => p.name === 'package-b')).toBe(true);
+    });
+
+    it('should not tag or log a changelog for a package with no manifest to bump', async () => {
+      vi.mocked(fs.existsSync, { partial: true }).mockImplementation((p) =>
+        String(p).startsWith('/path/to/package-a/'),
+      );
+      const extractEntries = vi.spyOn(commitParser, 'extractChangelogEntriesFromCommits');
+      const processor = new PackageProcessor(defaultOptions);
+
+      const result = await processor.processPackages(mockPackages);
+
+      expect(result.updatedPackages.map((p) => p.name)).toEqual(['package-a']);
+      expect(jsonOutput.addChangelogData).not.toHaveBeenCalledWith(
+        expect.objectContaining({ packageName: 'package-b' }),
+      );
+      expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalledWith('package-b', expect.anything());
+      // Checked before the changelog is built, so its repo-level entries don't reach sharedEntries.
+      expect(extractEntries).toHaveBeenCalledWith('/path/to/package-a', expect.anything());
+      expect(extractEntries).not.toHaveBeenCalledWith('/path/to/package-b', expect.anything());
+      expect(logging.log).toHaveBeenCalledWith(
+        'Not releasing package-b: it has no manifest releasekit can bump',
+        'warning',
+      );
     });
 
     it('should skip packages in the exclusion list', async () => {
@@ -919,6 +946,7 @@ describe('Package Processor', () => {
         '/path/to/hybrid-package/Cargo.toml',
         '1.1.0',
         false,
+        { recordAs: 'hybrid-package' },
       );
     });
 
@@ -948,6 +976,7 @@ describe('Package Processor', () => {
         '/path/to/hybrid-package/Cargo.toml',
         '1.1.0',
         false,
+        { recordAs: 'hybrid-package' },
       );
     });
   });

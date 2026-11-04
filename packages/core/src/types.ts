@@ -76,6 +76,8 @@ export interface VersionPackageUpdate {
    */
   previousVersion?: string;
   filePath: string;
+  /** Every manifest bumped in this directory, `filePath` included. Absent in older manifests. */
+  files?: string[];
   /** Absent when all packages share one tag. */
   tag?: string;
   /**

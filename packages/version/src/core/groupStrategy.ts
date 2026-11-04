@@ -30,6 +30,7 @@ import {
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+import { checkManifestToBump, hasManifestToBump, updateNativeManifests } from '../utils/manifestUpdates.js';
 import { resolveVersionAction } from '../utils/versionAction.js';
 import { BaselineResolver } from './baselineResolver.js';
 import { expandTargetsForAtomicGroups, type ResolvedGroup, resolveGroups } from './groupResolution.js';
@@ -347,19 +348,19 @@ async function releaseGroup(
     }
 
     const packageJsonPath = path.join(pkg.dir, 'package.json');
-    if (config.npm?.enabled === false) {
-      log(`Skipping package.json update for ${name} - npm version handling disabled`, 'debug');
-    } else if (fs.existsSync(packageJsonPath)) {
+    const npmBumped = config.npm?.enabled !== false && fs.existsSync(packageJsonPath);
+    if (npmBumped) {
       updatePackageVersion(packageJsonPath, version, config.dryRun);
     } else {
-      log(`Skipping package.json update for ${name} - no package.json found (Rust-only package)`, 'debug');
+      const reason =
+        config.npm?.enabled === false ? 'npm version handling disabled' : 'no package.json found (native-only package)';
+      log(`Skipping package.json update for ${name} - ${reason}`, 'debug');
     }
-
-    // Default path only - `cargo.paths` doesn't apply to group members.
-    const cargoTomlPath = path.join(pkg.dir, 'Cargo.toml');
-    if (config.cargo?.enabled !== false && fs.existsSync(cargoTomlPath)) {
-      updatePackageVersion(cargoTomlPath, version, config.dryRun);
-    }
+    updateNativeManifests(pkg.dir, version, config, {
+      dryRun: config.dryRun,
+      recordAs: name,
+      ignorePaths: true,
+    });
 
     // Always package-specific so each member's release is individually addressable.
     const tag = formatTag(version, formattedPrefix, name, config.tagTemplate, true);
@@ -436,7 +437,11 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
       const allVersions = new Map<string, string>();
 
       for (const group of resolution.groups) {
-        const members = group.members.filter(targetFilter).filter((p) => shouldProcess(p, config));
+        const members = group.members
+          .filter(targetFilter)
+          .filter((p) => shouldProcess(p, config))
+          // Dropped before planning, so a member with nothing to bump can't set the group's version.
+          .filter((p) => hasManifestToBump(p.dir, config, { ignorePaths: true }));
         if (members.length === 0) {
           continue;
         }
@@ -467,8 +472,9 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
           if (droppedNames.length > 0) {
             log(
               `Group "${group.name}" (${group.sync}) will release without: ${droppedNames.join(', ')}. ` +
-                'They were excluded by config.skip or --target, so the group will not ship as a single atomic unit. ' +
-                'Include them (remove from config.skip or add via --target) to keep the group atomic.',
+                'They were excluded by config.skip or --target, or have no manifest releasekit can bump, so the ' +
+                'group will not ship as a single atomic unit. Include them (remove from config.skip or add via ' +
+                '--target) to keep the group atomic.',
               'warning',
             );
           }
@@ -492,19 +498,21 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
           continue;
         }
         const plan = await planMember(config, pkg, formattedPrefix, globalTag);
-        if (!plan.changed) {
+        if (!plan.changed || !checkManifestToBump(pkg.packageJson.name, pkg.dir, config, { ignorePaths: true })) {
           continue;
         }
 
         const name = pkg.packageJson.name;
         const packageJsonPath = path.join(pkg.dir, 'package.json');
-        if (config.npm?.enabled !== false && fs.existsSync(packageJsonPath)) {
+        const npmBumped = config.npm?.enabled !== false && fs.existsSync(packageJsonPath);
+        if (npmBumped) {
           updatePackageVersion(packageJsonPath, plan.ownNext, config.dryRun);
         }
-        const cargoTomlPath = path.join(pkg.dir, 'Cargo.toml');
-        if (config.cargo?.enabled !== false && fs.existsSync(cargoTomlPath)) {
-          updatePackageVersion(cargoTomlPath, plan.ownNext, config.dryRun);
-        }
+        updateNativeManifests(pkg.dir, plan.ownNext, config, {
+          dryRun: config.dryRun,
+          recordAs: name,
+          ignorePaths: true,
+        });
         const tag = formatTag(plan.ownNext, formattedPrefix, name, config.tagTemplate, config.packageSpecificTags);
         addTag(tag);
         setPackageUpdateTag(name, tag);

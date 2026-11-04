@@ -24,6 +24,7 @@ const VersionPackageUpdateSchema = z.looseObject({
   packageName: z.string(),
   newVersion: z.string(),
   filePath: z.string(),
+  files: z.array(z.string()).optional(),
   tag: z.string().optional(),
 });
 
