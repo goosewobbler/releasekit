@@ -257,6 +257,7 @@ export function parseInputs(env = process.env) {
     scope: normalizeString(env.INPUT_SCOPE),
     branch: normalizeString(env.INPUT_BRANCH),
     npmAuth: normalizeString(env.INPUT_NPM_AUTH) ?? 'auto',
+    npmToken: normalizeString(env.INPUT_NPM_TOKEN),
     skipNotes: env.INPUT_SKIP_NOTES,
     skipPublish: env.INPUT_SKIP_PUBLISH,
     skipGit: env.INPUT_SKIP_GIT,
@@ -426,6 +427,10 @@ export async function runAction(input, options = {}) {
   };
   for (const k of Object.keys(spawnEnv).filter((k) => k.startsWith('INPUT_'))) {
     delete spawnEnv[k];
+  }
+  // Only when given, so an unset input keeps the job's NPM_TOKEN rather than blanking it.
+  if (input.npmToken) {
+    spawnEnv.NPM_TOKEN = input.npmToken;
   }
 
   // Not spawnSync: it buffers output until the child exits, hiding where long-running steps

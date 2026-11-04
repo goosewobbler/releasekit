@@ -27,9 +27,9 @@ uses: goosewobbler/releasekit@v0
 
 ## Required permissions and env
 
-The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN` and `GH_TOKEN`, so either in the step's `env` is ignored. In `release`, the standing-PR modes and `refresh-after-release`, the action's checkout also persists it for git pushes, unless you set `ssh-key` or `skip-checkout`.
+The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN` and `GH_TOKEN`, so either in the step's `env` is ignored. In a run that pushes (`release`, the standing-PR modes, `refresh-after-release`, or `backfill` with `apply`, for its follow-up commit; never a dry run), the action's checkout also persists it for git pushes, unless you set `ssh-key` or `skip-checkout`.
 
-To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a GitHub App token. Not a PAT: ReleaseKit recognises its own comments by bot authorship, so with a PAT `standing-pr-publish` refuses the release manifest, marker comments are posted again on every run, and the standing-PR workflow's bot-sender check stops filtering its own edits.
+To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a GitHub App token. It expires after an hour, so a release that publishes for longer can fail at its final push. Not a PAT: ReleaseKit recognises its own comments by bot authorship, so with a PAT `standing-pr-publish` refuses the release manifest, marker comments are posted again on every run, and the standing-PR workflow's bot-sender check stops filtering its own edits.
 
 ### Release mode
 
@@ -50,9 +50,9 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
   - `contents: read`
   - `pull-requests: write` (reading the merged PR's labels and posting label notices)
 
-### Standing-PR modes
+### Standing-PR and refresh modes
 
-`standing-pr-update` and `standing-pr-publish` need the permissions and repo setting in [CI setup](../packages/release/docs/ci-setup.md#setup-requirements).
+`standing-pr-update`, `standing-pr-publish` and `refresh-after-release` need the permissions and repo setting in [CI setup](../packages/release/docs/ci-setup.md#setup-requirements).
 
 ## Inputs
 
@@ -81,7 +81,7 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 | `prerelease` | - | Prerelease identifier (e.g. `alpha`, `beta`) |
 | `stable` | `false` | Graduate prerelease packages to stable without bumping |
 | `scope` | - | Scope name resolved to target packages from `ci.scopeLabels` (also `gate`) |
-| `ssh-key` | - | SSH deploy key; in the modes that push, outside a dry run, the action checks out over SSH so the push uses it |
+| `ssh-key` | - | SSH deploy key; in a run that pushes, the action checks out over SSH so the push uses it |
 | `sync` | `false` | Synchronized versioning |
 | `target` | - | Comma-separated package targets |
 | `branch` | - | Override push branch |

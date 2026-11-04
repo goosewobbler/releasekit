@@ -98,7 +98,7 @@ inputs:
     required: false
     default: 'false'
   ssh-key:
-    description: SSH deploy key for git push (the checkout uses it in modes that push, outside a dry run)
+    description: SSH deploy key for git push (the checkout uses it in a run that pushes)
     required: false
 
   reconcile:
@@ -214,21 +214,24 @@ runs:
   using: composite
   steps:
     # Push credentials (the SSH key, or github-token in place of the workflow token) are persisted only for a run
-    # that pushes, so a PR preview's later steps can't read them.
+    # that pushes, so a PR preview's later steps can't read them. Backfill doesn't push, but an applied run's files
+    # are committed by a follow-up step.
     - name: Resolve push access
       id: access
       shell: bash
       run: |
-        dry_run=$(printf '%s' "$INPUT_DRY_RUN" | tr '[:upper:]' '[:lower:]')
+        lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
         case "$INPUT_MODE" in
           release | standing-pr-update | standing-pr-publish | refresh-after-release) pushes=true ;;
+          backfill) [ "$(lower "$INPUT_APPLY")" = true ] && pushes=true || pushes=false ;;
           *) pushes=false ;;
         esac
-        [ "$dry_run" = true ] && pushes=false
+        [ "$(lower "$INPUT_DRY_RUN")" = true ] && pushes=false
         echo "pushes=$pushes" >> "$GITHUB_OUTPUT"
       env:
         INPUT_MODE: ${{ inputs.mode }}
         INPUT_DRY_RUN: ${{ inputs.dry-run }}
+        INPUT_APPLY: ${{ inputs.apply }}
 
     - name: Checkout (SSH)
       if: ${{ inputs.skip-checkout != 'true' && inputs.ssh-key != '' && steps.access.outputs.pushes == 'true' }}
@@ -237,13 +240,13 @@ runs:
         ssh-key: ${{ inputs.ssh-key }}
         fetch-depth: 0
 
-    - name: Checkout (read-only)
+    - name: Checkout (HTTPS)
       if: ${{ inputs.skip-checkout != 'true' && (inputs.ssh-key == '' || steps.access.outputs.pushes != 'true') }}
       uses: actions/checkout@v7
       with:
         fetch-depth: 0
         # An empty input (a secret unset on a fork run) falls back to the workflow token.
-        token: ${{ steps.access.outputs.pushes == 'true' && (inputs.github-token || github.token) || github.token }}
+        token: ${{ steps.access.outputs.pushes == 'true' && inputs.github-token || github.token }}
 
     # A repo that doesn't pin pnpm (npm, Dart or Rust) gets the action's own pnpm, and only a pnpm lockfile can
     # key setup-node's cache. The pin check mirrors pnpm/action-setup's (devEngines.packageManager or
@@ -253,6 +256,7 @@ runs:
       shell: bash
       run: |
         manifest="$GITHUB_WORKSPACE/package.json"
+        pinned=false
         if command -v node >/dev/null; then
           node -e '
             const m = require(process.argv[1]);
@@ -388,6 +392,5 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token || github.token }}
         # gh, which backfill uses, prefers GH_TOKEN over GITHUB_TOKEN.
         GH_TOKEN: ${{ inputs.github-token || github.token }}
-        NPM_TOKEN: ${{ inputs.npm-token || env.NPM_TOKEN }}
         VERBOSE: ${{ inputs.verbose }}
         OLLAMA_API_KEY: ${{ env.OLLAMA_API_KEY }}

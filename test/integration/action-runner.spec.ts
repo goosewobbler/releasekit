@@ -70,6 +70,33 @@ describe('action runner', () => {
     expect(outputs).toMatch(/^success<<\S+\nfalse\n/m);
   });
 
+  it.each([
+    ['the npm-token input', { npmToken: 'input_token' }, 'job_token', 'input_token'],
+    ["the job's NPM_TOKEN when the input is unset", {}, 'job_token', 'job_token'],
+    ['no NPM_TOKEN when neither is set', {}, undefined, 'unset'],
+  ])('should pass the CLI %s', async (_label, input, jobToken, expected) => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
+    tempDirs.push(tempDir);
+    const cliPath = path.join(tempDir, 'fake-cli.mjs');
+    fs.writeFileSync(cliPath, "console.log(process.env.NPM_TOKEN ?? 'unset')\n", 'utf-8');
+    const original = process.env.NPM_TOKEN;
+    if (jobToken === undefined) {
+      delete process.env.NPM_TOKEN;
+    } else {
+      process.env.NPM_TOKEN = jobToken;
+    }
+    try {
+      const result = await runAction({ mode: 'preview', projectDir: '.', ...input }, { cliPath });
+      expect(result.stdout.trim()).toBe(expected);
+    } finally {
+      if (original === undefined) {
+        delete process.env.NPM_TOKEN;
+      } else {
+        process.env.NPM_TOKEN = original;
+      }
+    }
+  });
+
   it('should run backfill without --apply on a dry run', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
     tempDirs.push(tempDir);
