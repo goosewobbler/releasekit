@@ -190,7 +190,6 @@ function isStandingPrEventRun(): boolean {
 
 interface PullRequestEvent {
   action?: string;
-  label?: { name?: string };
   pull_request: { number?: number; merged?: boolean; head?: { sha?: string }; base?: { ref?: string } };
 }
 
@@ -1501,7 +1500,11 @@ async function assertManifestMatchesSource(
  * Every failure throws: once a PR is named there is no "nothing to do" outcome, so a returned result means the
  * publish ran.
  */
-export async function publishFromManifest(prNumber: number, options: StandingPROptions): Promise<ReleaseOutput> {
+export async function publishFromManifest(
+  prNumber: number,
+  options: StandingPROptions,
+  mergedThisRun = false,
+): Promise<ReleaseOutput> {
   let published = false;
   try {
     const result = await publishManifest(prNumber, options);
@@ -1509,11 +1512,14 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     return result;
   } finally {
     // A publish only succeeds for a merged PR.
-    await markPreviewsStaleAfterMerge(prNumber, options, published);
+    await markPreviewsStaleAfterMerge(prNumber, options, published || mergedThisRun);
   }
 }
 
-/** The merge moved the base branch whatever the publish's outcome. */
+/**
+ * The merge moved the base branch whatever the publish's outcome. A retry marks again: the failed run may not have got
+ * this far, or pushed no tags.
+ */
 async function markPreviewsStaleAfterMerge(
   prNumber: number,
   options: StandingPROptions,
@@ -1525,13 +1531,8 @@ async function markPreviewsStaleAfterMerge(
       return;
     }
     const event = pullRequestEvent(prNumber);
-    // A retry-label run follows one that marked.
-    if (event?.action === 'labeled' && event.label?.name === (releaseKitConfig.ci?.labels ?? DEFAULT_LABELS).retry) {
-      return;
-    }
     const eventBase = event?.pull_request.base?.ref;
-    // Only a `closed` event's snapshot is current: `merge --publish` merges after its event fired.
-    const eventMerged = event?.action === 'closed' ? event.pull_request.merged : undefined;
+    const eventMerged = event?.pull_request.merged;
     const needPr = eventBase === undefined || (!knownMerged && eventMerged === undefined);
     const pr = needPr ? await readPullRequest(prNumber) : undefined;
     // A dispatch can name a PR that never merged, and then nothing moved the base branch.
@@ -1941,5 +1942,5 @@ export async function runStandingPRMerge(
   }
 
   // publishFromManifest deletes the branch only after a clean publish.
-  return publishFromManifest(pr.number, options);
+  return publishFromManifest(pr.number, options, true);
 }

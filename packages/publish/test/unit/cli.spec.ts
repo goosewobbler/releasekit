@@ -209,6 +209,8 @@ describe('createPublishCommand', () => {
 
       expect(JSON.parse(consoleSpy.mock.calls[0]?.[0] as string).status).toBe('success');
       expect(consoleSpy).toHaveBeenCalledTimes(1);
+      // The result is written first, so a slow hook can't hold it up.
+      expect(consoleSpy.mock.invocationCallOrder[0]).toBeLessThan(afterRun.mock.invocationCallOrder[0] ?? 0);
       expect(mockExit).not.toHaveBeenCalled();
       expect(stderrSpy.mock.calls.some(([line]) => String(line).includes('hook broke'))).toBe(true);
       consoleSpy.mockRestore();

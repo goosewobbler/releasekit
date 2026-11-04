@@ -70,9 +70,12 @@ export function createPublishCommand(hooks: PublishCommandHooks = {}): Command {
 
         const output = await runPipeline(input, config, cliOptions);
 
-        // Before the result is written, so a failed --output write can't skip it.
-        await runAfterRun(hooks, output, cliOptions);
-        writeEnvelope(successEnvelope(output, { changed: publishDidChange(output) }), io);
+        try {
+          writeEnvelope(successEnvelope(output, { changed: publishDidChange(output) }), io);
+        } finally {
+          // Even when the --output write fails.
+          await runAfterRun(hooks, output, cliOptions);
+        }
       } catch (err) {
         if (err instanceof PipelineError) {
           writeEnvelope(pipelineErrorEnvelope(err), io);
