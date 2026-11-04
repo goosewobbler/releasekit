@@ -66,7 +66,8 @@ Two workflows guard these examples on every change under `examples/`:
 4. **Execution smoke-test** — for each scenario, runs that example's **real
    setup steps** (extracted from the example workflow, not hand-copied) on a
    hosted `ubuntu-latest` runner against a throwaway fixture repo, then a
-   `releasekit release --dry-run` (`preview --dry-run` for `release-preview`).
+   `releasekit release --dry-run` (`preview --dry-run` for `release-preview`;
+   `backfill` has no smoke job, because it reads real GitHub Releases).
    This catches the missing-runtime-tool class
    and install failures (`pnpm`/`cargo: command not found`, wrong Node version,
    `cache: pnpm` with no lockfile, `pnpm install` errors, the CLI not

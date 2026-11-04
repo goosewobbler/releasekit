@@ -140,7 +140,7 @@ In CI, both tokens are typically available as secrets or via OIDC — see the [C
 
 ## 5. Set up CI
 
-The most common setup releases on every push to `main`. Copy [`release.yml`](../examples/ci/minimal/release.yml) from [`examples/ci/minimal`](../examples/ci/minimal) into `.github/workflows/`. Its job checks out the full history, sets up pnpm and Node, installs your dependencies, then runs:
+The most common setup releases on every push to `main`. Copy [`release.yml`](../examples/ci/minimal/release.yml) from [`examples/ci/minimal`](../examples/ci/minimal) into `.github/workflows/`. Its job checks out the full history, sets up pnpm and Node, installs your dependencies, removes the `.npmrc` that `setup-node` writes (it blocks npm's OIDC exchange), then runs:
 
 ```yaml
 - run: pnpm exec releasekit release
@@ -148,7 +148,7 @@ The most common setup releases on every push to `main`. Copy [`release.yml`](../
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-[`examples/`](../examples/README.md) has workflows for other setups, including npm instead of pnpm, and the [CI setup guide](../packages/release/docs/ci-setup.md) explains them:
+[`examples/`](../examples/README.md) has workflows for other setups and a note on using npm instead of pnpm, and the [CI setup guide](../packages/release/docs/ci-setup.md) explains them:
 
 - Label-based triggers (release only when a PR has a `bump:patch/minor/major` label)
 - npm OIDC trusted publishing (no `NPM_TOKEN` secret required)
