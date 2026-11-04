@@ -178,10 +178,6 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
       - uses: dart-lang/setup-dart@v1
 
       # No pnpm/Node setup needed: the bundled goosewobbler/releasekit action brings
@@ -194,8 +190,6 @@ jobs:
           # For token auth instead of OIDC, set PUB_TOKEN and drop `id-token: write` above:
           # PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
 ```
-
-`fetch-depth: 0` is required so that releasekit can walk the full commit history to determine the version bump.
 
 For **Flutter** packages, swap (or add) `subosito/flutter-action@v2`, which provides both `flutter` and `dart` on the runner.
 

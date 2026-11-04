@@ -181,10 +181,6 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
       - uses: dtolnay/rust-toolchain@stable
 
       # No pnpm/Node setup needed: the bundled goosewobbler/releasekit action brings
@@ -196,8 +192,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 ```
-
-`fetch-depth: 0` is required so that releasekit can walk the full commit history to determine the version bump.
 
 ---
 

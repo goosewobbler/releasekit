@@ -193,8 +193,6 @@ jobs:
       gate-scope: ${{ steps.gate.outputs.gate-scope }}
       gate-target: ${{ steps.gate.outputs.gate-target }}
     steps:
-      - uses: actions/checkout@v6
-
       - id: gate
         uses: goosewobbler/releasekit@v0
         with:
