@@ -78,19 +78,37 @@ describe('runPreview commit scope in a standing-PR feeder', () => {
     return forge.comments.find((c) => c.body.startsWith(MARKER))?.body ?? '';
   }
 
-  it('should leave out commits merged to the base branch after the PR branched', async () => {
+  /** A PR fixing a bug while `main` gains a feature, checked out as GitHub's refs/pull/N/merge with no origin/main. */
+  function checkOutMergeRef(): string {
     const branchPoint = git(dir, 'rev-parse', 'HEAD');
     git(dir, 'checkout', '-q', '-b', 'feat/own');
     commit(dir, 'own.txt', 'fix: correct the own bug');
     git(dir, 'checkout', '-q', 'main');
     commit(dir, 'other.txt', 'feat: add the other feature');
-    // GitHub's refs/pull/N/merge, with no origin/main fetched.
     git(dir, 'checkout', '-q', '--detach', 'main');
     git(dir, 'merge', '-q', '--no-ff', '-m', 'Merge feat/own into main', 'feat/own');
     writeEvent(dir, {
       head: { ref: 'feat/own', sha: git(dir, 'rev-parse', 'feat/own') },
       base: { ref: 'main', sha: branchPoint },
     });
+    return branchPoint;
+  }
+
+  function seedStalePreview(releaseSha: string): void {
+    forge = createFakeForge({
+      comments: [
+        {
+          id: 1,
+          prNumber: 7,
+          body: `${MARKER}\n\n<!-- releasekit-preview-stale:${releaseSha} -->\n> **Stale:** notice\n\nold preview`,
+        },
+      ],
+    });
+    vi.mocked(forgeFor).mockReturnValue(forge);
+  }
+
+  it('should leave out commits merged to the base branch after the PR branched', async () => {
+    checkOutMergeRef();
 
     await runPreview({ projectDir: dir, dryRun: false });
 
@@ -124,9 +142,40 @@ describe('runPreview commit scope in a standing-PR feeder', () => {
     expect(previewBody()).toContain('1.0.1');
   });
 
-  it("should warn when it falls back to the event's base SHA", async () => {
-    const lagging = git(dir, 'rev-parse', 'HEAD');
+  it('should look for the base branch under the configured git.remote', async () => {
+    writeFileSync(
+      join(dir, 'releasekit.config.json'),
+      JSON.stringify({
+        git: { remote: 'upstream' },
+        version: { versionPrefix: 'v' },
+        ci: { releaseStrategy: 'standing-pr' },
+      }),
+    );
+    git(dir, 'commit', '-q', '-am', 'chore: push to upstream');
+    const lagging = git(dir, 'rev-parse', 'HEAD~1');
     commit(dir, 'early.txt', 'feat: add the early feature');
+    git(dir, 'checkout', '-q', '-b', 'feat/own');
+    commit(dir, 'own.txt', 'fix: correct the own bug');
+    git(dir, 'checkout', '-q', 'main');
+    commit(dir, 'other.txt', 'feat: add the other feature');
+    git(dir, 'update-ref', 'refs/remotes/upstream/main', 'main');
+    git(dir, 'checkout', '-q', 'feat/own');
+    writeEvent(dir, {
+      head: { ref: 'feat/own', sha: git(dir, 'rev-parse', 'HEAD') },
+      base: { ref: 'main', sha: lagging },
+    });
+
+    await runPreview({ projectDir: dir, dryRun: false });
+
+    expect(previewBody()).toContain('correct the own bug');
+    expect(previewBody()).not.toContain('add the early feature');
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('pull_request.base.sha'));
+  });
+
+  it("should fall back to the event's base SHA, with a warning", async () => {
+    commit(dir, 'early.txt', 'feat: add the early feature');
+    const lagging = git(dir, 'rev-parse', 'HEAD');
+    commit(dir, 'late.txt', 'fix: patch the late bug');
     git(dir, 'checkout', '-q', '-b', 'feat/own');
     commit(dir, 'own.txt', 'fix: correct the own bug');
     writeEvent(dir, {
@@ -136,7 +185,31 @@ describe('runPreview commit scope in a standing-PR feeder', () => {
 
     await runPreview({ projectDir: dir, dryRun: false });
 
-    expect(previewBody()).toContain('correct the own bug');
+    // Scoped from `lagging`: newer than the last tag, older than where the PR branched.
+    expect(previewBody()).toContain('patch the late bug');
+    expect(previewBody()).not.toContain('add the early feature');
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('pull_request.base.sha'));
+  });
+
+  it('should keep the stale mark when the release it names landed after this checkout', async () => {
+    checkOutMergeRef();
+    const unseenRelease = 'c0ffee0000000000000000000000000000000001';
+    seedStalePreview(unseenRelease);
+
+    await runPreview({ projectDir: dir, dryRun: false });
+
+    expect(previewBody().startsWith(`${MARKER}\n\n<!-- releasekit-preview-stale:${unseenRelease} -->`)).toBe(true);
+    expect(previewBody()).toContain('correct the own bug');
+    expect(previewBody()).not.toContain('old preview');
+  });
+
+  it('should drop the stale mark once the checkout includes the release it names', async () => {
+    const branchPoint = checkOutMergeRef();
+    seedStalePreview(branchPoint);
+
+    await runPreview({ projectDir: dir, dryRun: false });
+
+    expect(previewBody()).not.toContain('releasekit-preview-stale');
+    expect(previewBody()).toContain('correct the own bug');
   });
 });

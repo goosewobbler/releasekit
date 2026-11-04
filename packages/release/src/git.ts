@@ -1,8 +1,16 @@
 import { createGitCli } from '@releasekit/git';
 
 export async function getHeadCommitMessage(cwd?: string): Promise<string | null> {
+  return headLog('%s', cwd);
+}
+
+export async function getHeadParents(cwd?: string): Promise<string[]> {
+  return (await headLog('%P', cwd))?.split(' ') ?? [];
+}
+
+async function headLog(format: string, cwd?: string): Promise<string | null> {
   try {
-    return (await createGitCli().log({ format: '%s', extraArgs: ['-1'], cwd })).trim();
+    return (await createGitCli().log({ format, extraArgs: ['-1'], cwd })).trim();
   } catch {
     return null;
   }

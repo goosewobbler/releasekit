@@ -8,7 +8,7 @@ import { postFailureReport, resolveFailureReportIfPresent } from './failure-repo
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
 import { fetchPRLabels, findMergedPRsForCommit, forgeFor } from './github.js';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
-import { markFeederPreviewsStale } from './preview/refresh.js';
+import { markFeederPreviewsStale } from './preview/stale.js';
 import { mergeNotesRegions } from './standing-pr/notes-region.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
@@ -326,7 +326,10 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
         );
       }
 
-      await markFeederPreviewsStale({ config: options.config, projectDir: options.projectDir });
+      const branch = publishOutput?.git.branch;
+      if (branch) {
+        await markFeederPreviewsStale({ config: options.config, projectDir: options.projectDir, branch });
+      }
     }
   }
 

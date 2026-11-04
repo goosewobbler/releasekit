@@ -2,12 +2,13 @@ import * as fs from 'node:fs';
 import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { type ChangelogRefsMode, info, success, warn } from '@releasekit/core';
-import type { Forge } from '@releasekit/forge';
-import { createGitCli, type Git } from '@releasekit/git';
+import { type Forge, isBotComment } from '@releasekit/forge';
+import { createGitCli } from '@releasekit/git';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure } from '../failure-report/post.js';
 import { evaluatePR } from '../gate/evaluate-pr.js';
-import { fetchPRLabels, forgeFor, postOrUpdateComment } from '../github.js';
+import { getHeadParents } from '../git.js';
+import { fetchPRLabels, forgeFor, MARKER, postOrUpdateComment } from '../github.js';
 import { composeBumpFromLabels, DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
 import { runRelease } from '../release.js';
 import {
@@ -21,6 +22,7 @@ import { detectPrerelease } from './detect.js';
 import type { LabelContext } from './format.js';
 import { formatPreviewComment } from './format.js';
 import { type MergedRow, mergeForPreview } from './merge.js';
+import { markStale, staleReleaseSha } from './stale.js';
 
 export interface PreviewOptions {
   config?: string;
@@ -117,16 +119,14 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     }
   }
 
-  // Advisory mode scopes the analysis to this PR's commits.
-  let prBaseSha: string | undefined;
-  if (labelContext.advisoryInStandingPr) {
-    prBaseSha = await resolvePRBase(event, effectiveOptions.projectDir);
-  }
-
   let result = null;
   let refs: ChangelogRefsMode = 'link';
   if (!labelContext.skip && !labelContext.noBumpLabel) {
     const releaseConfig = loadConfig({ cwd: effectiveOptions.projectDir, configPath: effectiveOptions.config });
+    // Advisory mode scopes the analysis to this PR's commits.
+    const prBaseSha = labelContext.advisoryInStandingPr
+      ? await resolvePRBase(event, effectiveOptions.projectDir, releaseConfig.git?.remote ?? 'origin')
+      : undefined;
     const changelogConfig = releaseConfig.notes?.changelog;
     refs = (changelogConfig ? changelogConfig.refs : undefined) ?? 'link';
     const prereleaseFlag = resolvePrerelease(
@@ -187,44 +187,62 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   }
 
   info(`Posting preview comment on PR #${context.prNumber}...`);
-  await postOrUpdateComment(forge, context.prNumber, commentBody);
+  await postOrUpdateComment(
+    forge,
+    context.prNumber,
+    await keepStaleMark(forge, context.prNumber, commentBody, effectiveOptions.projectDir),
+  );
   success(`Preview comment posted on PR #${context.prNumber}`);
 }
 
 /** `pull_request.base.sha` can lag the base branch, which would count commits merged there since as this PR's. */
-async function resolvePRBase(event: PullRequestEvent | undefined, projectDir: string): Promise<string | undefined> {
+async function resolvePRBase(
+  event: PullRequestEvent | undefined,
+  projectDir: string,
+  remote: string,
+): Promise<string | undefined> {
   const pr = event?.pull_request;
   if (!pr) {
     return undefined;
   }
-  const git = createGitCli();
   if (pr.head?.sha) {
-    const parents = await headParents(git, projectDir);
+    const parents = await getHeadParents(projectDir);
     // GitHub's merge ref: the base branch tip merged with the PR head.
     if (parents.length === 2 && parents[1] === pr.head.sha) {
       return parents[0];
     }
   }
+  // actions/checkout always names its remote `origin`, whatever `git.remote` pushes to.
+  const remotes = [...new Set([remote, 'origin'])];
   if (pr.base?.ref) {
-    const base = await git.mergeBase('HEAD', `refs/remotes/origin/${pr.base.ref}`, projectDir);
-    if (base) {
-      return base;
+    for (const name of remotes) {
+      const base = await createGitCli().mergeBase('HEAD', `refs/remotes/${name}/${pr.base.ref}`, projectDir);
+      if (base) {
+        return base;
+      }
     }
   }
   if (pr.base?.sha) {
+    const tried = remotes.map((name) => `${name}/${pr.base?.ref ?? '<base>'}`).join(' or ');
     warn(
-      `Could not find this PR's base commit (HEAD isn't its merge ref and origin/${pr.base.ref ?? '<base>'} isn't fetched), so the preview scopes from pull_request.base.sha. That can lag the base branch and count commits merged there as this PR's.`,
+      `Could not find this PR's base commit (HEAD isn't its merge ref and ${tried} isn't fetched), so the preview scopes from pull_request.base.sha. That can lag the base branch and count commits merged there as this PR's.`,
     );
   }
   return pr.base?.sha;
 }
 
-async function headParents(git: Git, projectDir: string): Promise<string[]> {
+/** A release that landed after this run's checkout leaves the new preview as stale as the old one. */
+async function keepStaleMark(forge: Forge, prNumber: number, body: string, projectDir: string): Promise<string> {
   try {
-    return (await git.log({ format: '%P', extraArgs: ['-1'], cwd: projectDir })).trim().split(' ');
+    const existing = await forge.findComment(prNumber, MARKER);
+    const releaseSha = existing && isBotComment(existing) ? staleReleaseSha(existing.body) : undefined;
+    if (releaseSha && !(await createGitCli().isAncestor(releaseSha, 'HEAD', projectDir))) {
+      return markStale(body, releaseSha);
+    }
   } catch {
-    return [];
+    // Best-effort: post the preview unmarked.
   }
+  return body;
 }
 
 function resolvePrerelease(

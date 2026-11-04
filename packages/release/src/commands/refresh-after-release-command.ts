@@ -4,7 +4,7 @@ import { runRefreshAfterRelease } from '../preview/refresh.js';
 
 export function createRefreshAfterReleaseCommand(): Command {
   return new Command('refresh-after-release')
-    .description('After a release, reconcile the standing PR (if any) and mark feeder-PR previews stale')
+    .description('After a release outside the standing PR, reconcile the standing PR (standing-pr mode only)')
     .option('-c, --config <path>', 'Path to config file')
     .option('--project-dir <path>', 'Project directory', process.cwd())
     .action(async (opts) => {

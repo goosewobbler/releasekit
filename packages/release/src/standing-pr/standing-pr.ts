@@ -20,7 +20,7 @@ import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../g
 import { forgeFor } from '../github.js';
 import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS, graduatedPackageFromLabel, isGraduatePackageLabel } from '../label-utils.js';
-import { markFeederPreviewsStale } from '../preview/refresh.js';
+import { markFeederPreviewsStale } from '../preview/stale.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
@@ -1711,7 +1711,12 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // Also clears the supersede warning the next standing PR would otherwise show.
   await resolveFailureReportIfPresent(forge, prNumber, manifest.versionOutput);
 
-  await markFeederPreviewsStale({ config: options.config, projectDir: cwd });
+  // The merge moved the base branch; this job pushes tags only.
+  await markFeederPreviewsStale({
+    config: options.config,
+    projectDir: cwd,
+    branch: releaseKitConfig.git?.branch ?? 'main',
+  });
 
   if (deleteBranchOnMerge) {
     const mergedHead = livePr?.headSha ?? eventPrHeadSha(prNumber);

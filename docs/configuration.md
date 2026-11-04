@@ -397,7 +397,7 @@ Set to `false` to disable.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `true` | Whether PR preview comments are posted. |
-| `markStaleAfterRelease` | boolean | `false` | After a release completes, mark the preview comment on still-open feeder PRs into the released branch as stale, since the release moved it; each preview updates on its PR's next push. Cosmetic and best-effort — a failure here never fails the release. Driven automatically in-process after a successful release (both the direct and standing-PR publish paths); the standalone `refresh-after-release` command also performs it for setups that run it as a separate step. |
+| `markStaleAfterRelease` | boolean | `false` | After each successful publish (direct or standing-PR), mark the preview comment on still-open feeder PRs into the released branch as stale, since the release moved it; each preview updates on its PR's next push or label change. Cosmetic and best-effort — a failure here never fails the release. |
 
 
 ### `ci.labels`

@@ -118,6 +118,8 @@ export interface GitResult {
   committed: boolean;
   tags: string[];
   pushed: boolean;
+  /** Set once the release branch itself is pushed; standing-PR mode pushes tags only. */
+  branch?: string;
 }
 
 export interface PublishOutput {

@@ -217,17 +217,10 @@ releasekit standing-pr merge --publish
 
 ## `releasekit refresh-after-release`
 
-Run as the final step of a release/publish job to refresh state that goes stale when a release moves
-`main`. Two parts, with different criticality:
-
-- **Standing-PR reconcile** (standing-pr mode only) — re-runs the standing-PR update with
-  `--reconcile` so a manual/direct release that bypassed the standing PR doesn't leave its manifest
-  stating already-published versions. A failure here fails the job.
-- **Feeder-PR stale previews** (opt-in via `ci.prPreview.markStaleAfterRelease`) — marks the
-  preview comment on still-open PRs into the released branch as stale, because the release moved
-  it. The release job doesn't have those PRs' trees, so each preview updates on its PR's next
-  push. Best-effort: skips the standing PR; checks at most the 50 most recently updated previews;
-  per-PR failures only warn.
+Run as the final step of a standing-pr mode job that releases outside the standing PR. It re-runs the
+standing-PR update with `--reconcile`, so a manual/direct release that bypassed the standing PR doesn't
+leave its manifest stating already-published versions. A failure here fails the job. In other release
+strategies there's no standing PR, so it does nothing.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|

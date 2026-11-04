@@ -88,6 +88,13 @@ describe('loadConfig', () => {
     },
   );
 
+  it('should reject an unknown ci.prPreview key, such as the renamed refreshAfterRelease', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ ci: { prPreview: { refreshAfterRelease: true } } }));
+
+    expect(() => loadConfig()).toThrow(/ci\.prPreview: Unrecognized key: "refreshAfterRelease"/);
+  });
+
   it('should throw a migration error for the removed notes.releaseNotes.mode', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ notes: { releaseNotes: { mode: 'versioned' } } }));

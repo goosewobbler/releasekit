@@ -110,9 +110,8 @@ vi.mock('../../src/github.js', () => ({
   forgeFor: vi.fn(),
 }));
 
-vi.mock('../../src/preview/refresh.js', () => ({
+vi.mock('../../src/preview/stale.js', () => ({
   markFeederPreviewsStale: vi.fn(),
-  runRefreshAfterRelease: vi.fn(),
 }));
 
 function createMockVersionOutput(
@@ -2723,9 +2722,10 @@ describe('runStandingPRPublish', () => {
       { '@scope/core': '- regenerated at publish time' },
       expect.arrayContaining(['RELEASE_NOTES.md', ...baseManifest.notesFiles]),
     );
-    // The publish moved `main`, so feeder-PR previews are marked stale in-process.
-    const { markFeederPreviewsStale } = await import('../../src/preview/refresh.js');
-    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }));
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(
+      expect.objectContaining({ projectDir: '/test', branch: 'main' }),
+    );
   });
 
   it('should refuse to publish when override labels diverge from the manifest', async () => {

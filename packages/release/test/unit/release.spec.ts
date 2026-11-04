@@ -10,9 +10,8 @@ const mockFindMergedPRsForCommit = vi.fn();
 const mockFetchPRLabels = vi.fn();
 const mockMarkFeederPreviewsStale = vi.fn();
 
-vi.mock('../../src/preview/refresh.js', () => ({
+vi.mock('../../src/preview/stale.js', () => ({
   markFeederPreviewsStale: (...args: unknown[]) => mockMarkFeederPreviewsStale(...args),
-  runRefreshAfterRelease: vi.fn(),
 }));
 
 vi.mock('@releasekit/config', () => ({
@@ -154,7 +153,7 @@ const mockPublishConfig = {
 };
 const mockPublishOutput = {
   dryRun: false,
-  git: { committed: true, tags: ['v1.1.0'], pushed: true },
+  git: { committed: true, tags: ['v1.1.0'], pushed: true, branch: 'main' },
   npm: [{ packageName: 'test-pkg', version: '1.1.0', registry: 'npm', success: true, skipped: false }],
   cargo: [],
   verification: [],
@@ -980,8 +979,17 @@ describe('runRelease', () => {
     it('should mark feeder previews stale in-process after a successful release', async () => {
       await runRelease(defaultOptions);
       expect(mockMarkFeederPreviewsStale).toHaveBeenCalledWith(
-        expect.objectContaining({ projectDir: '/test/project' }),
+        expect.objectContaining({ projectDir: '/test/project', branch: 'main' }),
       );
+    });
+
+    it('should not mark feeder previews stale when the release branch was not pushed', async () => {
+      mockPublishRunPipeline.mockResolvedValue({
+        ...mockPublishOutput,
+        git: { ...mockPublishOutput.git, branch: undefined },
+      });
+      await runRelease(defaultOptions);
+      expect(mockMarkFeederPreviewsStale).not.toHaveBeenCalled();
     });
 
     it('should not mark feeder previews stale on a dry run', async () => {

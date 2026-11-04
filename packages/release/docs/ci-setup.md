@@ -52,13 +52,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # For OIDC trusted publishing (recommended) — no NPM_TOKEN needed.
           # For token-based publishing: NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      # Optional: after the release moves `main`, mark the "what would release" preview stale on still-open
-      # PRs (they otherwise stay frozen at the pre-release baseline). No-op unless you enable
-      # `ci.prPreview.markStaleAfterRelease`. See "PR Preview Comments" below.
-      - run: pnpm exec releasekit refresh-after-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 > **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
@@ -172,12 +165,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm exec releasekit release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Optional: mark open-PR previews stale after the release.
-      # No-op unless ci.prPreview.markStaleAfterRelease is enabled.
-      - run: pnpm exec releasekit refresh-after-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -295,11 +282,10 @@ baseline until it's pushed again. Turn on stale marking to flag this:
 }
 ```
 
-With `markStaleAfterRelease` on, add a `refresh-after-release` step to your release job (see the
-[Minimal](#minimal-setup-push-to-main) and [Label-Based](#label-based-trigger) examples). After each
-release it marks the preview stale on still-open PRs into the released branch that already have one,
-except the standing PR, checking at most the 50 most recently updated. The release job doesn't have those
-PRs' trees, so each preview updates on its PR's next push. It's best-effort: a per-PR failure only warns.
+With `markStaleAfterRelease` on, each publish marks the preview stale on still-open PRs into the released
+branch, checking the 50 most recently updated. Give the release job `pull-requests: write`. The job doesn't
+have those PRs' trees, so each preview updates on its PR's next push or label change. A preview job that
+started before the release keeps the mark. It's best-effort: a per-PR failure only warns.
 (`ci.prPreview: true` remains valid shorthand for `{ "enabled": true }`.)
 
 ---
