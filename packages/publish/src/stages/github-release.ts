@@ -1,4 +1,4 @@
-import type { VersionPackageChangelog } from '@releasekit/core';
+import type { VersionOutput } from '@releasekit/core';
 import { assertNotOption, debug, info, sanitizePackageName, success, warn } from '@releasekit/core';
 import type { GitHubReleaseResult, PipelineContext } from '../types.js';
 import { execCommand, execCommandSafe } from '../utils/exec.js';
@@ -9,7 +9,7 @@ type BodySource = 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
 function resolveNotes(
   bodySource: BodySource,
   tag: string,
-  changelogs: VersionPackageChangelog[],
+  input: VersionOutput,
   releaseNotesEnabled: boolean,
   pipelineNotes?: Record<string, string>,
 ): { body?: string; useGithubNotes: boolean } {
@@ -27,27 +27,27 @@ function resolveNotes(
       return { useGithubNotes: true };
     }
     if (pipelineNotes) {
-      const body = findNotesForTag(tag, pipelineNotes);
+      const body = findNotesForTag(tag, input, pipelineNotes);
       if (body) {
         return { body, useGithubNotes: false };
       }
     }
-    warn('No release notes found in pipeline output, falling back to GitHub auto-notes');
+    warn(`No release notes found for tag ${tag}, falling back to GitHub auto-generated notes`);
     return { useGithubNotes: true };
   }
 
   if (bodySource === 'changelog') {
-    const packageBody = formatChangelogForTag(tag, changelogs);
+    const packageBody = formatChangelogForTag(tag, input);
     if (packageBody) {
       return { body: packageBody, useGithubNotes: false };
     }
-    warn('No changelog found for tag, falling back to GitHub auto-notes');
+    warn(`No changelog found for tag ${tag}, falling back to GitHub auto-generated notes`);
     return { useGithubNotes: true };
   }
 
   // 'auto'
   if (releaseNotesEnabled && pipelineNotes) {
-    const body = findNotesForTag(tag, pipelineNotes);
+    const body = findNotesForTag(tag, input, pipelineNotes);
     if (body) {
       return { body, useGithubNotes: false };
     }
@@ -115,37 +115,39 @@ function getTitleFromTag(tag: string, packageNames: string[], titleTemplate: str
   return applyTemplate(tag.slice(0, atIndex), tag.slice(atIndex + 1));
 }
 
-function findNotesForTag(tag: string, notes: Record<string, string>): string | undefined {
-  const resolved = resolveTagPackage(tag, Object.keys(notes));
-  if (resolved) {
-    const body = notes[resolved.packageName];
-    if (body?.trim()) {
-      return body;
-    }
+/** The version output's update-to-tag mapping decides first; parsing the tag covers input that has none. */
+function resolveTagKey(tag: string, input: VersionOutput, keys: string[]): string | undefined {
+  const owners = input.updates.filter((u) => u.tag === tag);
+  if (owners.length === 1) {
+    return keys.find((key) => key === owners[0]?.packageName);
   }
-  const entries = Object.values(notes).filter((b) => b.trim());
-  if (entries.length === 1 && isVersionOnlyTag(tag)) {
-    return entries[0];
+  const resolved = resolveTagPackage(tag, keys);
+  if (resolved) {
+    return resolved.packageName;
+  }
+  const sharedSyncTag = input.strategy === 'sync' && input.updates.every((u) => !u.tag);
+  if (keys.length === 1 && (sharedSyncTag || isVersionOnlyTag(tag))) {
+    return keys[0];
   }
   return undefined;
 }
 
-function formatChangelogForTag(tag: string, changelogs: VersionPackageChangelog[]): string | undefined {
-  if (changelogs.length === 0) {
-    return undefined;
-  }
-
-  const resolved = resolveTagPackage(
+function findNotesForTag(tag: string, input: VersionOutput, notes: Record<string, string>): string | undefined {
+  const key = resolveTagKey(
     tag,
-    changelogs.map((c) => c.packageName),
+    input,
+    Object.keys(notes).filter((name) => notes[name]?.trim()),
   );
+  return key === undefined ? undefined : notes[key];
+}
 
-  let target: VersionPackageChangelog | undefined;
-  if (resolved) {
-    target = changelogs.find((c) => c.packageName === resolved.packageName);
-  } else if (changelogs.length === 1 && isVersionOnlyTag(tag)) {
-    target = changelogs[0];
-  }
+function formatChangelogForTag(tag: string, input: VersionOutput): string | undefined {
+  const key = resolveTagKey(
+    tag,
+    input,
+    input.changelogs.map((c) => c.packageName),
+  );
+  const target = input.changelogs.find((c) => c.packageName === key);
 
   if (!target || target.entries.length === 0) {
     return undefined;
@@ -253,7 +255,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     const { body, useGithubNotes } = resolveNotes(
       config.githubRelease.body,
       tag,
-      ctx.input.changelogs,
+      ctx.input,
       releaseNotesEnabled,
       ctx.releaseNotes,
     );
