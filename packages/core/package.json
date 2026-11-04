@@ -12,11 +12,17 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./version-output-schema": {
+      "import": {
+        "types": "./dist/version-output-schema.d.ts",
+        "default": "./dist/version-output-schema.js"
+      }
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts",
-    "dev": "tsup src/index.ts --format esm --watch --dts",
+    "build": "tsup src/index.ts src/version-output-schema.ts --format esm --dts",
+    "dev": "tsup src/index.ts src/version-output-schema.ts --format esm --watch --dts",
     "clean": "rm -rf dist coverage .turbo",
     "lint": "biome check .",
     "typecheck": "tsc --noEmit",
@@ -28,7 +34,8 @@
     "@manypkg/get-packages": "catalog:",
     "chalk": "catalog:",
     "minimatch": "catalog:",
-    "smol-toml": "catalog:"
+    "smol-toml": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

@@ -1,7 +1,10 @@
 import * as fs from 'node:fs';
 import { unwrapEnvelope, type VersionOutput } from '@releasekit/core';
+import { VersionOutputSchema } from '@releasekit/core/version-output-schema';
 import type { ChangelogEntry, ChangelogInput, PackageChangelog } from '../core/types.js';
-import { InputParseError } from '../errors/index.js';
+import { InputParseError, InputValidationError } from '../errors/index.js';
+
+const NotesVersionOutputSchema = VersionOutputSchema.pick({ changelogs: true });
 
 function normalizeEntryType(type: string): ChangelogEntry['type'] {
   const typeMap: Record<string, ChangelogEntry['type']> = {
@@ -22,7 +25,7 @@ function normalizeEntryType(type: string): ChangelogEntry['type'] {
   return typeMap[type.toLowerCase()] ?? 'changed';
 }
 
-export function versionOutputToChangelogInput(data: VersionOutput): ChangelogInput {
+export function versionOutputToChangelogInput(data: Pick<VersionOutput, 'changelogs'>): ChangelogInput {
   if (!data.changelogs || !Array.isArray(data.changelogs)) {
     throw new InputParseError('Input must contain a "changelogs" array');
   }
@@ -71,7 +74,15 @@ export function parseVersionOutput(json: string): ChangelogInput {
     throw new InputParseError(error instanceof Error ? error.message : String(error));
   }
 
-  return versionOutputToChangelogInput(data as VersionOutput);
+  const result = NotesVersionOutputSchema.safeParse(data);
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+      .join('\n');
+    throw new InputValidationError(`Version output failed schema validation:\n${issues}`);
+  }
+
+  return versionOutputToChangelogInput(result.data);
 }
 
 export function parseVersionOutputFile(filePath: string): ChangelogInput {
