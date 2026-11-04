@@ -31,6 +31,7 @@ on:
 
 permissions:
   contents: write # gh release edit
+  pull-requests: read # PR context for LLM-written notes
 
 jobs:
   backfill:

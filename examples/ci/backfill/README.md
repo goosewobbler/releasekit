@@ -44,4 +44,4 @@ Shared [correctness rules](../../README.md#cross-cutting-correctness-rules) appl
 
 - `fetch-depth: 0` matters more than usual: backfill walks every tag, not just the latest.
 - The dispatch inputs reach the shell through `env`, never inline `${{ inputs.* }}`, so a crafted value can't run as a command.
-- `contents: write` is for `gh release edit`. Nothing is pushed.
+- `contents: write` is for `gh release edit`, and `pull-requests: read` lets LLM notes read each PR. Nothing is pushed.

@@ -17,8 +17,8 @@ label change, so a PR carries one preview comment however many times it runs.
   [`label-driven`](../label-driven) or [`standing-pr`](../standing-pr), and
   shares its `releasekit.config.json`. The config here matches `minimal`; the
   preview follows whatever `ci.releaseStrategy` and `ci.releaseTrigger` say.
-- `ci.prPreview` is on (the default). Set it to `false` to turn the comment off
-  without removing the workflow.
+- `ci.prPreview` is on (the default). Setting it to `false` turns the comment
+  off, but the job still runs on each PR event until you remove the workflow.
 
 ## Correctness notes
 
