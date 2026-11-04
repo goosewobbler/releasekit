@@ -94,6 +94,12 @@ function assertNoRemovedTopLevelFields(config: unknown): void {
           'skipPatterns and minChanges live under release.ci (release.ci.skipPatterns / release.ci.minChanges).',
       );
     }
+    if (isRecord(config.ci.prPreview) && 'refreshAfterRelease' in config.ci.prPreview) {
+      throw new ConfigError(
+        "ci.prPreview.refreshAfterRelease was renamed to markStaleAfterRelease. It now marks open PRs' previews " +
+          'stale after a release instead of recomputing them.',
+      );
+    }
   }
   if (isRecord(config.monorepo) && 'mainPackage' in config.monorepo) {
     throw new ConfigError('monorepo.mainPackage was removed — use version.mainPackage instead.');

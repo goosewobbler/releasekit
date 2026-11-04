@@ -16,12 +16,10 @@ export interface AssociatedPullRequest {
   mergedAt: string | null;
 }
 
-/** Enough to refresh a PR's preview without its event payload. */
 export interface OpenPullRequest {
   number: number;
   headRef: string;
-  draft: boolean;
-  baseSha: string;
+  baseRef: string;
 }
 
 export interface IssueDetails {
@@ -55,6 +53,7 @@ export interface PullRequestDetails {
   body: string;
   labels: string[];
   headSha?: string;
+  baseRef?: string;
 }
 
 export interface CommentAuthor {
@@ -155,8 +154,8 @@ export interface Forge {
   findStandingPR(branch: string): Promise<StandingPullRequest | null>;
   /** PRs whose head is `branch`, most-recently-updated first. */
   listRecentlyClosedPullRequests(branch: string, limit: number): Promise<AssociatedPullRequest[]>;
-  /** Most-recently-updated first; page-capped. */
-  listOpenPullRequests(): Promise<OpenPullRequest[]>;
+  /** Up to `limit` open PRs into `base`, most-recently-updated first. */
+  listOpenPullRequests(base: string, limit: number): Promise<OpenPullRequest[]>;
   getIssue(issueNumber: number): Promise<IssueDetails>;
   getPullRequest(prNumber: number): Promise<PullRequestDetails>;
   createPullRequest(pr: NewPullRequest): Promise<PullRequestRef>;

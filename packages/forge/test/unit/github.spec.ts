@@ -355,13 +355,38 @@ describe('GitHubForge', () => {
       );
     });
 
-    it('should map a pull request to {body,labels,headSha}', async () => {
+    it('should list open PRs into the base branch only', async () => {
       const { octokit, fns } = makeOctokit();
-      fns.pullsGet.mockResolvedValue({ data: { body: 'b', labels: [{ name: 'x' }], head: { sha: 'abc' } } });
+      fns.pullsList.mockResolvedValue({ data: [{ number: 9, head: { ref: 'feat/x' }, base: { ref: 'main' } }] });
+      expect(await new GitHubForge(octokit, 'o', 'r').listOpenPullRequests('main', 52)).toEqual([
+        { number: 9, headRef: 'feat/x', baseRef: 'main' },
+      ]);
+      expect(fns.pullsList).toHaveBeenCalledTimes(1);
+      expect(fns.pullsList).toHaveBeenCalledWith(
+        expect.objectContaining({ state: 'open', base: 'main', per_page: 52, page: 1 }),
+      );
+    });
+
+    it('should page open PRs until it has `limit` of them', async () => {
+      const { octokit, fns } = makeOctokit();
+      const page = (start: number) =>
+        Array.from({ length: 100 }, (_, i) => ({ number: start + i, head: { ref: 'h' }, base: { ref: 'main' } }));
+      fns.pullsList.mockResolvedValueOnce({ data: page(1) }).mockResolvedValueOnce({ data: page(101) });
+      const prs = await new GitHubForge(octokit, 'o', 'r').listOpenPullRequests('main', 150);
+      expect(prs.map((pr) => pr.number)).toEqual(Array.from({ length: 150 }, (_, i) => i + 1));
+      expect(fns.pullsList).toHaveBeenCalledTimes(2);
+    });
+
+    it('should map a pull request to {body,labels,headSha,baseRef}', async () => {
+      const { octokit, fns } = makeOctokit();
+      fns.pullsGet.mockResolvedValue({
+        data: { body: 'b', labels: [{ name: 'x' }], head: { sha: 'abc' }, base: { ref: 'main' } },
+      });
       expect(await new GitHubForge(octokit, 'o', 'r').getPullRequest(4)).toEqual({
         body: 'b',
         labels: ['x'],
         headSha: 'abc',
+        baseRef: 'main',
       });
     });
 

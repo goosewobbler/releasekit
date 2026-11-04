@@ -104,6 +104,7 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
     // Branch before tag, as in runGitPushStage. A no-op once the remote is up to date, so safe to repeat per package.
     if (pushesBranch(ctx) && branch) {
       await runGit(dryRun, `git push ${remote} ${branch}`, () => git.push({ remote: pushRemote, ref: branch, cwd }));
+      output.git.branch = branch;
     }
 
     await runGit(dryRun, `git push ${remote} refs/tags/${tag}`, () =>
@@ -179,6 +180,7 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
         }
       }
       await runGit(dryRun, `git push ${remote} ${branch}`, () => git.push({ remote: pushRemote, ref: branch, cwd }));
+      ctx.output.git.branch = branch;
     }
 
     for (const tag of new Set(output.git.tags)) {

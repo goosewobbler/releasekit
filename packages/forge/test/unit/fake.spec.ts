@@ -16,12 +16,18 @@ describe('FakeForge', () => {
     expect(await forge.getReleaseByTag('absent')).toBeNull();
   });
 
-  it('should return seeded open pull requests', async () => {
-    const open = [{ number: 7, headRef: 'feat/x', draft: false, baseSha: 'abc123' }];
-    const forge = createFakeForge({ openPullRequests: open });
+  it('should return up to `limit` seeded open pull requests into the given base', async () => {
+    const intoMain = { number: 7, headRef: 'feat/x', baseRef: 'main' };
+    const forge = createFakeForge({
+      openPullRequests: [
+        intoMain,
+        { number: 8, headRef: 'feat/y', baseRef: 'next' },
+        { number: 9, headRef: 'feat/z', baseRef: 'main' },
+      ],
+    });
 
-    expect(await forge.listOpenPullRequests()).toEqual(open);
-    expect(await createFakeForge().listOpenPullRequests()).toEqual([]);
+    expect(await forge.listOpenPullRequests('main', 1)).toEqual([intoMain]);
+    expect(await createFakeForge().listOpenPullRequests('main', 10)).toEqual([]);
   });
 
   it('should record writes for assertions', async () => {

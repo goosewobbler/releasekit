@@ -732,22 +732,22 @@ export const CIConfigSchema = z.object({
       z.boolean(),
       z.object({
         enabled: z.boolean().default(true).describe('Whether PR preview comments are posted.'),
-        refreshAfterRelease: z
+        markStaleAfterRelease: z
           .boolean()
           .default(false)
           .describe(
-            'After a release completes, replay the preview comment on still-open feeder PRs so their "what would release" estimate is not left stale against the moved baseline. Cosmetic and best-effort — a failure here never fails the release. Driven automatically in-process after a successful release (both the direct and standing-PR publish paths); the standalone `refresh-after-release` command also performs it for setups that run it as a separate step.',
+            "After a standing-PR publish, or a `releasekit release` that pushes the release branch, mark the preview on open PRs into that branch as stale until the PR's next push or label change. `releasekit publish` on its own doesn't. Best-effort: a failure never fails the release.",
           ),
       }),
     ])
     .default(true)
     .transform((v) =>
       typeof v === 'boolean'
-        ? { enabled: v, refreshAfterRelease: false }
-        : { enabled: v.enabled ?? true, refreshAfterRelease: v.refreshAfterRelease ?? false },
+        ? { enabled: v, markStaleAfterRelease: false }
+        : { enabled: v.enabled ?? true, markStaleAfterRelease: v.markStaleAfterRelease ?? false },
     )
     .describe(
-      'PR preview comments showing what would be released if the PR is merged. `true`/`false` toggles them; the object form additionally enables `refreshAfterRelease` to refresh feeder-PR previews after a release.',
+      'PR preview comments showing what would be released if the PR is merged. `true`/`false` toggles them; the object form additionally enables `markStaleAfterRelease` to mark feeder-PR previews stale after a release.',
     ),
   labels: CILabelsConfigSchema.default({
     graduate: 'release:graduate',
