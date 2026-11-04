@@ -255,26 +255,8 @@ If you need fully custom output formatting, use the [templates system](./templat
 
 ## CLI Flags
 
-LLM options can also be set via CLI flags without a config file:
+The `--llm-*` flags set LLM options without a config file. Every flag is in the [CLI reference](../../../docs/cli.md#releasekit-notes-generate).
 
 ```bash
-releasekit-notes \
-  --llm-provider anthropic \
-  --llm-model claude-haiku-4-5 \
-  --llm-tasks enhance,release-notes \
-  --input version-output.json
-```
-
-> **Task name format:** CLI flags use kebab-case (`release-notes`), while the config file uses camelCase (`releaseNotes`). The mapping is: `enhance` → `enhance`, `categorize` → `categorize`, `summarize` → `summarize`, `releaseNotes` → `release-notes`.
-
-Use `--no-llm` to disable LLM processing even when it is configured:
-
-```bash
-releasekit-notes --no-llm
-```
-
-Use `--no-release-notes` to disable release notes entirely (including LLM):
-
-```bash
-releasekit-notes --no-release-notes
+releasekit-notes --input version-output.json --llm-provider anthropic --llm-model claude-haiku-4-5 --llm-tasks enhance,release-notes
 ```
