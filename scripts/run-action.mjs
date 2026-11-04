@@ -716,11 +716,6 @@ async function main() {
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   main().catch((err) => {
     process.stderr.write(`[run-action] uncaught error: ${err instanceof Error ? err.message : String(err)}\n`);
-    try {
-      writeCoreOutputs(normalizeString(process.env.INPUT_MODE) ?? 'preview', false);
-    } catch {
-      // The error above is the one that matters.
-    }
     process.exit(1);
   });
 }
