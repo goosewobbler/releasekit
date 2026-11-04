@@ -237,6 +237,9 @@ jobs:
 Run on demand to regenerate notes for past releases. Dry-run by default — flip `apply` to `true` when the preview looks right.
 
 ```yaml
+- uses: actions/checkout@v6
+  with:
+    fetch-depth: 0 # backfill reads every tag
 - uses: goosewobbler/releasekit@v0
   with:
     mode: backfill
@@ -247,6 +250,6 @@ Run on demand to regenerate notes for past releases. Dry-run by default — flip
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-This fills empty release bodies and rewrites the ones backfill wrote before, and skips every other body. The Action has no `force` input: to also replace notes releasekit published, add `only-missing: "true"`, which rewrites every body backfill didn't write, hand edits included.
+This fills empty release bodies and rewrites the ones backfill wrote before, and skips every other body. The Action has no `force` input. To replace notes releasekit published, add `only-missing: "true"`: it rewrites every body backfill didn't write, hand edits included, and skips the ones it did.
 
 [`examples/ci/backfill`](../examples/ci/backfill/backfill.yml) has a full `workflow_dispatch` workflow that runs backfill through the CLI, with a `force` input.
