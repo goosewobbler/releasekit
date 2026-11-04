@@ -67,7 +67,7 @@ inputs:
     required: false
     default: '24'
   github-token:
-    description: GitHub token for API calls and, through the action's checkout, git pushes (defaults to the workflow token)
+    description: GitHub token for API calls and git pushes (defaults to the workflow token)
     required: false
     default: ${{ github.token }}
   npm-auth:
@@ -213,9 +213,8 @@ outputs:
 runs:
   using: composite
   steps:
-    # Push credentials (the SSH key, or github-token in place of the workflow token) are persisted only for a run
-    # that pushes, so a PR preview's later steps can't read them. Backfill doesn't push, but an applied run's files
-    # are committed by a follow-up step.
+    # Push credentials (the SSH key or github-token) are persisted only for a run that pushes, so a PR preview's
+    # later steps can't read them. An applied backfill counts: a follow-up step commits its files.
     - name: Resolve push access
       id: access
       shell: bash
@@ -248,9 +247,8 @@ runs:
         # An empty input (a secret unset on a fork run) falls back to the workflow token.
         token: ${{ steps.access.outputs.pushes == 'true' && inputs.github-token || github.token }}
 
-    # A repo that doesn't pin pnpm (npm, Dart or Rust) gets the action's own pnpm, and only a pnpm lockfile can
-    # key setup-node's cache. The pin check mirrors pnpm/action-setup's (devEngines.packageManager or
-    # packageManager), and falls back to a packageManager grep when the job has no Node yet.
+    # A repo that doesn't pin pnpm (npm, Dart or Rust) gets the action's own. The pin check follows
+    # pnpm/action-setup's, falling back to a packageManager grep when the job has no Node yet.
     - name: Resolve pnpm setup
       id: pnpm-setup
       shell: bash
@@ -269,6 +267,7 @@ runs:
         if [ "$pinned" != true ]; then
           echo "version=$(sed -nE 's/.*"packageManager"[[:space:]]*:[[:space:]]*"pnpm@([^"+]*).*/\1/p' "$GITHUB_ACTION_PATH/package.json")" >> "$GITHUB_OUTPUT"
         fi
+        # Only a pnpm lockfile can key setup-node's cache.
         if [ -f "$GITHUB_WORKSPACE/pnpm-lock.yaml" ]; then
           echo "cache=pnpm" >> "$GITHUB_OUTPUT"
         fi

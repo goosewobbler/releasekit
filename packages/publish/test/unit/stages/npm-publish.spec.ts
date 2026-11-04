@@ -124,7 +124,7 @@ describe('npm-publish stage', () => {
     fs.mkdirSync(pkgDir, { recursive: true });
     fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@test/pkg', version: '1.0.0' }));
 
-    // The action passes an empty NPM_TOKEN when neither its npm-token input nor the job env sets one.
+    // An unset secret in `env: NPM_TOKEN: ${{ secrets.NPM_TOKEN }}` arrives as ''.
     process.env.NPM_TOKEN = '';
     process.env.NODE_AUTH_TOKEN = 'node_auth_token';
     // The isolated .npmrc is what npm reads, and it's removed once the stage ends.

@@ -112,7 +112,7 @@ Each step is also a subcommand — `releasekit version`, `releasekit notes`, `re
 
 ### GitHub Action
 
-Use ReleaseKit as a composite action (`release`, `preview`, `gate`, standing-PR modes, `backfill`, `refresh-after-release` — see [docs/action.md](./docs/action.md)):
+Use ReleaseKit as a composite action:
 
 ```yaml
 jobs:
@@ -131,7 +131,7 @@ jobs:
           mode: release
 ```
 
-See [docs/action.md](./docs/action.md) for the `preview` mode, and the full input/output reference.
+See [docs/action.md](./docs/action.md) for every mode and the full input/output reference.
 
 ## Configuration
 

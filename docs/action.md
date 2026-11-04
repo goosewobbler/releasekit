@@ -12,8 +12,8 @@ uses: goosewobbler/releasekit@v0
 
 ## Modes
 
-- `release`: runs the full unified release pipeline.
-- `preview` (default): runs PR preview comment generation.
+- `release`: runs the release pipeline (version, notes, publish).
+- `preview` (default): posts or updates the PR preview comment.
 - `gate`: evaluates merged-PR labels and emits should-release/bump/scope outputs.
 - `standing-pr-update`: creates or refreshes the standing release PR.
 - `standing-pr-publish`: publishes from a merged standing release PR's manifest. Resolution order for which PR: the `pr` input, then the `pull_request` event payload, then the most recently merged standing PR via the GitHub API. Pass `pr` explicitly in dispatch funnels (e.g. `workflow_dispatch` routing for npm OIDC trusted publishing) — re-runs of a stale dispatch can otherwise infer a newer standing PR.
@@ -22,14 +22,15 @@ uses: goosewobbler/releasekit@v0
 
 ## Requirements
 
-- The action checks out the repo (unless `skip-checkout`), then runs its own `pnpm/action-setup` and `actions/setup-node` (`node-version`, default `24`, whose npm supports OIDC trusted publishing; ReleaseKit needs Node 22.12+). That replaces any Node version an earlier step set up. pnpm is the version your `package.json` pins in `devEngines.packageManager` or `packageManager`, else the action's own, so npm, Dart and Rust repos need no pnpm setup.
+- The action checks out the repo (unless `skip-checkout`), then sets up its own Node with `actions/setup-node`: `node-version`, default `24`, whose npm supports OIDC trusted publishing (ReleaseKit needs Node 22.12+). This replaces any Node version an earlier step set up.
+- It sets up pnpm with `pnpm/action-setup`, at the version your `package.json` pins in `devEngines.packageManager` or `packageManager`, else its own, so npm, Dart and Rust repos need no pnpm setup.
 - For npm publishing, run `actions/setup-node` with `registry-url: https://registry.npmjs.org` before this action so that `NODE_AUTH_TOKEN` is wired up correctly.
 
 ## Required permissions and env
 
-The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN` and `GH_TOKEN`, so either in the step's `env` is ignored. In a run that pushes (`release`, the standing-PR modes, `refresh-after-release`, or `backfill` with `apply`, for its follow-up commit; never a dry run), the action's checkout also persists it for git pushes, unless you set `ssh-key` or `skip-checkout`.
+The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN` and `GH_TOKEN`, so either in the step's `env` is ignored. In a run that pushes, the action's checkout also persists it for git pushes, unless you set `ssh-key` or `skip-checkout`. Runs that push are `release`, the standing-PR modes, `refresh-after-release` and an applied `backfill`, never a dry run.
 
-To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a GitHub App token. It expires after an hour, so a release that publishes for longer can fail at its final push. Not a PAT: ReleaseKit recognises its own comments by bot authorship, so with a PAT `standing-pr-publish` refuses the release manifest, marker comments are posted again on every run, and the standing-PR workflow's bot-sender check stops filtering its own edits.
+To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a GitHub App token. It expires after an hour, so a release that publishes for longer can fail at its final push. Not a PAT: ReleaseKit recognises its own comments by bot authorship, so with a PAT `standing-pr-publish` refuses the release manifest, comments are re-posted on every run, and the standing-PR workflow can retrigger itself.
 
 ### Release mode
 
@@ -64,11 +65,11 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 | `config` | - | Path to `releasekit.config.json` |
 | `project-dir` | `.` | Project directory |
 | `dry-run` | `false` | Dry-run for `release`, `preview` and `backfill`; other modes fail if it's set |
-| `github-token` | workflow token | Token for GitHub API calls and the action's checkout, which git pushes use (override with a GitHub App token when rulesets require it) |
+| `github-token` | workflow token | Token for GitHub API calls and git pushes; use a GitHub App token to bypass rulesets |
 | `node-version` | `24` | Node.js version for the action's setup-node step |
 | `npm-token` | - | NPM token when not using OIDC; when unset, the job's `NPM_TOKEN` env is preserved |
 | `summary` | `true` | Write a job summary for `release` and `gate` |
-| `skip-checkout` | `false` | Skip the action's checkout. Check the repo out on a branch, not a detached HEAD, with `fetch-depth: 0`; the action then rebases it onto `origin/<branch>`, falling back to `git reset --hard`. Pushes use your checkout's credentials, not `ssh-key`, and `github-token` only through `git.httpsTokenEnv`. |
+| `skip-checkout` | `false` | Skip the action's checkout. Check out a branch (not a detached HEAD) with `fetch-depth: 0`; the action rebases it onto `origin/<branch>`, or resets to it if the rebase fails. Pushes then use your checkout's credentials. |
 | `json` | `false` | JSON output (release mode). Without it, `has-changes` is always `false` and the other release outputs are empty |
 | `verbose` | `false` | Verbose logs |
 | `quiet` | `false` | Suppress non-error logs |
