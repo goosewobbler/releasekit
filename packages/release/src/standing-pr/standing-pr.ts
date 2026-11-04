@@ -527,7 +527,7 @@ export function serializeManifest(m: StandingPRManifest, marker = MANIFEST_MARKE
 export function parseManifest(commentBody: string): StandingPRManifest {
   const encoded = MANIFEST_BASE64.decode(commentBody);
   if (!encoded) {
-    throw new Error('Release manifest not found or malformed in PR comment');
+    throw new Error('Release manifest not found or malformed');
   }
 
   let json: string;
@@ -539,7 +539,7 @@ export function parseManifest(commentBody: string): StandingPRManifest {
 
   if (json.length > MAX_MANIFEST_BYTES) {
     throw new Error(
-      `Release manifest is too large (${json.length} bytes, limit ${MAX_MANIFEST_BYTES}) — refusing to parse. Re-run 'standing-pr update' to regenerate.`,
+      `Release manifest is too large (${json.length} bytes, limit ${MAX_MANIFEST_BYTES}) — refusing to parse.`,
     );
   }
 
@@ -554,14 +554,14 @@ export function parseManifest(commentBody: string): StandingPRManifest {
   const schemaVersion = (parsed as { schemaVersion?: unknown }).schemaVersion;
   if (schemaVersion !== MANIFEST_SCHEMA_MIN_VERSION && schemaVersion !== MANIFEST_SCHEMA_VERSION) {
     throw new Error(
-      `Release manifest schema version ${JSON.stringify(schemaVersion)} is incompatible (expected exactly ${MANIFEST_SCHEMA_MIN_VERSION}–${MANIFEST_SCHEMA_VERSION}). Re-run 'standing-pr update' to regenerate.`,
+      `Release manifest schema version ${JSON.stringify(schemaVersion)} is incompatible (expected exactly ${MANIFEST_SCHEMA_MIN_VERSION}–${MANIFEST_SCHEMA_VERSION}).`,
     );
   }
 
   const result = ManifestSchema.safeParse(parsed);
   if (!result.success) {
     const detail = result.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
-    throw new Error(`Release manifest failed validation: ${detail}. Re-run 'standing-pr update' to regenerate.`);
+    throw new Error(`Release manifest failed validation: ${detail}`);
   }
 
   // The validated input, not zod's copy: zod lists schema keys first, which breaks order-sensitive comparisons.

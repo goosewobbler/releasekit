@@ -28,7 +28,8 @@ vi.mock('@releasekit/core', async (importOriginal) => {
   return { ...actual, info: vi.fn(), success: vi.fn(), warn: vi.fn() };
 });
 
-const context = { owner: 'o', repo: 'r', token: 'tok', sha: null };
+// The workflow's GITHUB_TOKEN format, which the personal-token check must let through.
+const context = { owner: 'o', repo: 'r', token: 'ghs_workflow', sha: null };
 
 const versionOutput: VersionOutput = {
   dryRun: false,
@@ -165,13 +166,16 @@ describe('runReleaseDraft', () => {
     expect(seeded.upsertedComments.map((c) => c.prNumber)).not.toContain(7);
   });
 
-  it('should refuse a personal token before computing the release', async () => {
-    mockGetGitHubContext.mockReturnValue({ ...context, token: 'ghp_personal' });
+  it.each(['ghp_', 'github_pat_', 'gho_', 'ghu_'])(
+    'should refuse a %s token before computing the release',
+    async (prefix) => {
+      mockGetGitHubContext.mockReturnValue({ ...context, token: `${prefix}personal` });
 
-    await expect(runReleaseDraft(baseOptions)).rejects.toThrow(/personal token/);
-    expect(mockRunRelease).not.toHaveBeenCalled();
-    expect(forge.createdIssues).toHaveLength(0);
-  });
+      await expect(runReleaseDraft(baseOptions)).rejects.toThrow(/personal token/);
+      expect(mockRunRelease).not.toHaveBeenCalled();
+      expect(forge.createdIssues).toHaveLength(0);
+    },
+  );
 
   it('should create no issue when there are no releasable changes', async () => {
     mockRunRelease.mockResolvedValue(null);
