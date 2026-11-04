@@ -20,9 +20,25 @@ import {
   type VersionSourceResult,
 } from '../utils/versionUtils.js';
 
+/**
+ * The angular preset can't parse a `type!:` header, so its bump missed the breaking changes the changelog flags. These
+ * are the conventionalcommits preset's header patterns.
+ */
+function createAngularPresetReadingBreakingHeaders(): BumperPreset {
+  const preset = (createAngularPreset as () => BumperPreset)();
+  return {
+    ...preset,
+    parser: {
+      ...preset.parser,
+      headerPattern: /^(\w*)(?:\((.*)\))?!?: (.*)$/,
+      breakingHeaderPattern: /^(\w*)(?:\((.*)\))?!: (.*)$/,
+    },
+  };
+}
+
 // Imported statically so they resolve from releasekit's own dependencies in any install layout, bundled dist included.
 const PRESETS: Record<Preset, () => BumperPreset> = {
-  angular: createAngularPreset as () => BumperPreset,
+  angular: createAngularPresetReadingBreakingHeaders,
   conventionalcommits: createConventionalCommitsPreset as () => BumperPreset,
 };
 
