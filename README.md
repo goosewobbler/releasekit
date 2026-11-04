@@ -112,7 +112,7 @@ Each step is also a subcommand — `releasekit version`, `releasekit notes`, `re
 
 ### GitHub Action
 
-Use ReleaseKit as a composite action with `release` or `preview` modes:
+Use ReleaseKit as a composite action:
 
 ```yaml
 jobs:
@@ -120,6 +120,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -128,11 +129,9 @@ jobs:
       - uses: goosewobbler/releasekit@v0
         with:
           mode: release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-See [docs/action.md](./docs/action.md) for the `preview` mode, full input/output reference, and rollout guidance.
+See [docs/action.md](./docs/action.md) for every mode and the full input/output reference.
 
 ## Configuration
 
@@ -168,7 +167,7 @@ See the [package docs](#documentation) for the full option reference.
 - [CLI](./docs/cli.md) — every command and flag for the `releasekit` CLI
 - [Standing-PR body](./docs/standing-pr-body.md) — the editable regions, what an edit does, what is bot-owned
 - [Configuration](./docs/configuration.md) — full config reference (all `releasekit.config.json` options)
-- [GitHub Action](./docs/action.md) — `goosewobbler/releasekit` action inputs, outputs, and rollout
+- [GitHub Action](./docs/action.md) — `goosewobbler/releasekit` action modes, inputs and outputs
 - [@releasekit/release](./packages/release/README.md) — unified pipeline, CI automation, programmatic API
 - [@releasekit/version](./packages/version/README.md) — versioning strategies, JSON output
 - [@releasekit/notes](./packages/notes/README.md) — changelog, release notes, LLM, templates

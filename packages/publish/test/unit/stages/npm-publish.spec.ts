@@ -117,6 +117,31 @@ describe('npm-publish stage', () => {
     expect(ctx.output.npm[0]?.success).toBe(true);
   });
 
+  it('should publish with NODE_AUTH_TOKEN when NPM_TOKEN is empty', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'pkg');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@test/pkg', version: '1.0.0' }));
+
+    // An unset secret in `env: NPM_TOKEN: ${{ secrets.NPM_TOKEN }}` arrives as ''.
+    process.env.NPM_TOKEN = '';
+    process.env.NODE_AUTH_TOKEN = 'node_auth_token';
+    // Read the .npmrc during publish: the stage deletes it afterwards.
+    let npmrc = '';
+    vi.mocked(execCommand).mockImplementation(async (_cmd, args, options) => {
+      if ((args as string[]).includes('publish')) {
+        npmrc = fs.readFileSync(options?.env?.NPM_CONFIG_USERCONFIG as string, 'utf-8');
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+    await runNpmPublishStage(createContext(dir));
+
+    const publishCall = vi.mocked(execCommand).mock.calls[1];
+    expect(publishCall?.[2]?.env?.NODE_AUTH_TOKEN).toBe('node_auth_token');
+    expect(npmrc).toContain('//registry.npmjs.org/:_authToken=node_auth_token');
+  });
+
   it('should skip private packages', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();

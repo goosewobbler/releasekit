@@ -28,6 +28,66 @@ describe('action runner', () => {
     tempDirs.length = 0;
   });
 
+  it.each(['gate', 'standing-pr-update', 'standing-pr-publish', 'refresh-after-release'])(
+    'should reject dry-run for %s, which would otherwise run for real',
+    (mode) => {
+      expect(() => parseInputs({ INPUT_MODE: mode, INPUT_DRY_RUN: 'true' })).toThrow(
+        `dry-run is not supported for mode "${mode}"`,
+      );
+    },
+  );
+
+  it('should read dry-run case-insensitively, as action.yml does', () => {
+    expect(() => parseInputs({ INPUT_MODE: 'standing-pr-publish', INPUT_DRY_RUN: 'TRUE' })).toThrow(
+      'dry-run is not supported for mode "standing-pr-publish"',
+    );
+  });
+
+  it.each([
+    ['the npm-token input', { npmToken: 'input_token' }, 'job_token', 'input_token'],
+    ["the job's NPM_TOKEN when the input is unset", {}, 'job_token', 'job_token'],
+    ['no NPM_TOKEN when neither is set', {}, undefined, 'unset'],
+  ])('should pass the CLI %s', async (_label, input, jobToken, expected) => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
+    tempDirs.push(tempDir);
+    const cliPath = path.join(tempDir, 'fake-cli.mjs');
+    fs.writeFileSync(cliPath, "console.log(process.env.NPM_TOKEN ?? 'unset')\n", 'utf-8');
+    const original = process.env.NPM_TOKEN;
+    if (jobToken === undefined) {
+      delete process.env.NPM_TOKEN;
+    } else {
+      process.env.NPM_TOKEN = jobToken;
+    }
+    try {
+      const result = await runAction({ mode: 'preview', projectDir: '.', ...input }, { cliPath });
+      expect(result.stdout.trim()).toBe(expected);
+    } finally {
+      if (original === undefined) {
+        delete process.env.NPM_TOKEN;
+      } else {
+        process.env.NPM_TOKEN = original;
+      }
+    }
+  });
+
+  it('should run backfill without --apply on a dry run', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
+    tempDirs.push(tempDir);
+    const cliPath = path.join(tempDir, 'fake-cli.mjs');
+    fs.writeFileSync(cliPath, "console.log('ok')\n", 'utf-8');
+    const input = parseInputs({
+      INPUT_MODE: 'backfill',
+      INPUT_DRY_RUN: 'true',
+      INPUT_APPLY: 'true',
+      INPUT_ALL: 'true',
+    });
+
+    const result = await runAction(input, { cliPath });
+
+    expect(result.args).toContain('--all');
+    expect(result.args).not.toContain('--apply');
+  });
+
   it('should build release args from inputs', () => {
     const args = buildReleaseArgs({
       config: 'releasekit.config.json',

@@ -10,7 +10,8 @@ function normalizeBoolean(value, defaultValue = false) {
   if (value === undefined || value === '') {
     return defaultValue;
   }
-  return value === 'true';
+  // Case-insensitive, like action.yml's `inputs.x == 'true'` guards.
+  return String(value).toLowerCase() === 'true';
 }
 
 function normalizeString(value) {
@@ -137,7 +138,9 @@ export function buildBackfillArgs(input) {
   pushBooleanFlag(args, '--all', input.backfillAll);
   pushBooleanFlag(args, '--update-releases', input.backfillUpdateReleases);
   pushBooleanFlag(args, '--only-missing', input.backfillOnlyMissing);
-  pushBooleanFlag(args, '--apply', input.backfillApply);
+  if (!normalizeBoolean(input.dryRun)) {
+    pushBooleanFlag(args, '--apply', input.backfillApply);
+  }
 
   return args;
 }
@@ -224,6 +227,17 @@ function setFailure(errorMessage) {
   process.exit(1);
 }
 
+function assertDryRunSupported(mode, dryRun) {
+  if (!normalizeBoolean(dryRun)) {
+    return;
+  }
+  // An allowlist, so a new mode fails on dry-run until it supports it.
+  const dryRunModes = new Set(['release', 'preview', 'backfill']);
+  if (!dryRunModes.has(mode)) {
+    throw new Error(`dry-run is not supported for mode "${mode}"`);
+  }
+}
+
 export function parseInputs(env = process.env) {
   const input = {
     mode: normalizeString(env.INPUT_MODE) ?? 'preview',
@@ -243,6 +257,7 @@ export function parseInputs(env = process.env) {
     scope: normalizeString(env.INPUT_SCOPE),
     branch: normalizeString(env.INPUT_BRANCH),
     npmAuth: normalizeString(env.INPUT_NPM_AUTH) ?? 'auto',
+    npmToken: normalizeString(env.INPUT_NPM_TOKEN),
     skipNotes: env.INPUT_SKIP_NOTES,
     skipPublish: env.INPUT_SKIP_PUBLISH,
     skipGit: env.INPUT_SKIP_GIT,
@@ -279,6 +294,8 @@ export function parseInputs(env = process.env) {
   if (!validModes.includes(input.mode)) {
     throw new Error(`Invalid mode: ${input.mode}. Must be one of: ${validModes.join(', ')}`);
   }
+
+  assertDryRunSupported(input.mode, input.dryRun);
 
   return input;
 }
@@ -410,6 +427,10 @@ export async function runAction(input, options = {}) {
   };
   for (const k of Object.keys(spawnEnv).filter((k) => k.startsWith('INPUT_'))) {
     delete spawnEnv[k];
+  }
+  // Only when set, so an unset input doesn't blank the job's NPM_TOKEN.
+  if (input.npmToken) {
+    spawnEnv.NPM_TOKEN = input.npmToken;
   }
 
   // Not spawnSync: it buffers output until the child exits, hiding where long-running steps

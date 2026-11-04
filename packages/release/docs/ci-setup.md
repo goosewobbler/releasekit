@@ -8,7 +8,7 @@ All workflows require:
 
 - `fetch-depth: 0` on checkout — ReleaseKit reads git history to determine version bumps
 - A `GITHUB_TOKEN` with `contents: write` permission for tagging and GitHub Releases
-- Node.js 20+
+- Node.js 22.12+
 
 ---
 

@@ -43,7 +43,7 @@ export function createNpmSubprocessIsolation(options: {
     return { env: baseEnv, cleanup: () => {} };
   }
 
-  const token = process.env.NPM_TOKEN ?? process.env.NODE_AUTH_TOKEN;
+  const token = process.env.NPM_TOKEN || process.env.NODE_AUTH_TOKEN;
   const registryHost = (() => {
     try {
       return new URL(registryUrl).host;

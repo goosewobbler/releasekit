@@ -175,7 +175,7 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   release:
@@ -187,13 +187,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      # No pnpm/Node setup needed: the bundled goosewobbler/releasekit action brings
-      # its own runtime, and a Rust-only repo has no pnpm-lock.yaml (setting cache: pnpm
-      # would fail with "Dependencies lock file is not found").
+      # No pnpm/Node setup needed: the action sets up its own.
       - name: Run releasekit
-        uses: goosewobbler/releasekit@v1
+        uses: goosewobbler/releasekit@v0
+        with:
+          mode: release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 ```
 
