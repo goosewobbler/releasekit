@@ -93,17 +93,20 @@ export class GitCli implements Git {
     }
   }
 
-  /** A missing `git` binary still throws: that's a configuration failure, not a "no". */
-  private async execSoft(args: string[], options: RunOptions): Promise<boolean> {
+  /** Null on a non-zero exit. A missing `git` binary still throws: that's a configuration failure, not a "no". */
+  private async runSoft(args: string[], options: RunOptions): Promise<RunResult | null> {
     try {
-      await this.run(args, options);
-      return true;
+      return await this.run(args, options);
     } catch (error) {
       if (isCommandNotFound(error)) {
         throw new GitError(`git binary not found (running: git ${args.join(' ')})`, args, undefined, '');
       }
-      return false;
+      return null;
     }
+  }
+
+  private async execSoft(args: string[], options: RunOptions): Promise<boolean> {
+    return (await this.runSoft(args, options)) !== null;
   }
 
   async isRepository(cwd?: string): Promise<boolean> {
@@ -122,20 +125,7 @@ export class GitCli implements Git {
 
   async remoteUrl(remote: string, cwd?: string): Promise<string | null> {
     assertNotOption(remote, 'remote');
-    try {
-      const { stdout } = await this.run(['remote', 'get-url', remote], { cwd: this.cwd(cwd) });
-      return stdout.trim();
-    } catch (error) {
-      if (isCommandNotFound(error)) {
-        throw new GitError(
-          'git binary not found (running: git remote get-url)',
-          ['remote', 'get-url', remote],
-          undefined,
-          '',
-        );
-      }
-      return null;
-    }
+    return (await this.runSoft(['remote', 'get-url', remote], { cwd: this.cwd(cwd) }))?.stdout.trim() ?? null;
   }
 
   async listTags(opts: GitListTagsOptions = {}): Promise<string[]> {
@@ -148,20 +138,7 @@ export class GitCli implements Git {
   }
 
   async describeTags(cwd?: string): Promise<string | null> {
-    try {
-      const { stdout } = await this.run(['describe', '--tags', '--abbrev=0'], { cwd: this.cwd(cwd) });
-      return stdout.trim();
-    } catch (error) {
-      if (isCommandNotFound(error)) {
-        throw new GitError(
-          'git binary not found (running: git describe)',
-          ['describe', '--tags', '--abbrev=0'],
-          undefined,
-          '',
-        );
-      }
-      return null;
-    }
+    return (await this.runSoft(['describe', '--tags', '--abbrev=0'], { cwd: this.cwd(cwd) }))?.stdout.trim() ?? null;
   }
 
   async refExists(ref: string, cwd?: string): Promise<boolean> {
@@ -181,15 +158,7 @@ export class GitCli implements Git {
   async mergeBase(a: string, b: string, cwd?: string): Promise<string | null> {
     assertNotOption(a, 'ref');
     assertNotOption(b, 'ref');
-    try {
-      const { stdout } = await this.run(['merge-base', a, b], { cwd: this.cwd(cwd) });
-      return stdout.trim() || null;
-    } catch (error) {
-      if (isCommandNotFound(error)) {
-        throw new GitError('git binary not found (running: git merge-base)', ['merge-base', a, b], undefined, '');
-      }
-      return null;
-    }
+    return (await this.runSoft(['merge-base', a, b], { cwd: this.cwd(cwd) }))?.stdout.trim() || null;
   }
 
   async countCommits(range: string, opts: GitCountCommitsOptions = {}): Promise<number> {

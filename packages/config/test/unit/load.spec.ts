@@ -409,7 +409,7 @@ describe('loadCIConfig', () => {
     );
 
     const result = loadCIConfig();
-    expect(result?.prPreview).toEqual({ enabled: false, refreshAfterRelease: false });
+    expect(result?.prPreview).toEqual({ enabled: false, markStaleAfterRelease: false });
   });
 
   it('should return undefined when no CI config', () => {

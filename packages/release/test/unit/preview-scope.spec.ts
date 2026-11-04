@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { warn } from '@releasekit/core';
 import { createFakeForge, type FakeForge } from '@releasekit/forge';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgeFor, MARKER } from '../../src/github.js';
@@ -29,12 +30,19 @@ function commit(dir: string, file: string, message: string): void {
   git(dir, 'commit', '-q', '-m', message);
 }
 
+function writeEvent(dir: string, pullRequest: object): void {
+  const eventPath = join(dir, 'event.json');
+  writeFileSync(eventPath, JSON.stringify({ pull_request: { number: 7, ...pullRequest } }));
+  vi.stubEnv('GITHUB_EVENT_PATH', eventPath);
+}
+
 describe('runPreview commit scope in a standing-PR feeder', () => {
   let dir: string;
   let originalCwd: string;
   let forge: FakeForge;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     originalCwd = process.cwd();
     dir = realpathSync(mkdtempSync(join(tmpdir(), 'rk-preview-scope-')));
     git(dir, 'init', '-q', '-b', 'main');
@@ -66,36 +74,69 @@ describe('runPreview commit scope in a standing-PR feeder', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  function previewBody(): string {
+    return forge.comments.find((c) => c.body.startsWith(MARKER))?.body ?? '';
+  }
+
   it('should leave out commits merged to the base branch after the PR branched', async () => {
     const branchPoint = git(dir, 'rev-parse', 'HEAD');
     git(dir, 'checkout', '-q', '-b', 'feat/own');
     commit(dir, 'own.txt', 'fix: correct the own bug');
     git(dir, 'checkout', '-q', 'main');
     commit(dir, 'other.txt', 'feat: add the other feature');
-    // GitHub's refs/pull/N/merge: the base tip merged with the PR head.
+    // GitHub's refs/pull/N/merge, with no origin/main fetched.
     git(dir, 'checkout', '-q', '--detach', 'main');
     git(dir, 'merge', '-q', '--no-ff', '-m', 'Merge feat/own into main', 'feat/own');
-    git(dir, 'update-ref', 'refs/remotes/origin/main', 'main');
-
-    const eventPath = join(dir, 'event.json');
-    writeFileSync(
-      eventPath,
-      JSON.stringify({
-        pull_request: {
-          number: 7,
-          head: { ref: 'feat/own' },
-          base: { ref: 'main', sha: branchPoint },
-        },
-      }),
-    );
-    vi.stubEnv('GITHUB_EVENT_PATH', eventPath);
+    writeEvent(dir, {
+      head: { ref: 'feat/own', sha: git(dir, 'rev-parse', 'feat/own') },
+      base: { ref: 'main', sha: branchPoint },
+    });
 
     await runPreview({ projectDir: dir, dryRun: false });
 
-    const body = forge.comments.find((c) => c.body.startsWith(MARKER))?.body ?? '';
-    expect(body).toContain('correct the own bug');
-    expect(body).not.toContain('add the other feature');
-    expect(body).toContain('1.0.1');
-    expect(body).not.toContain('1.1.0');
+    expect(previewBody()).toContain('correct the own bug');
+    expect(previewBody()).not.toContain('add the other feature');
+    expect(previewBody()).toContain('1.0.1');
+    expect(previewBody()).not.toContain('1.1.0');
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('pull_request.base.sha'));
+  });
+
+  it('should scope a PR-head checkout from its merge base with the remote-tracking base branch', async () => {
+    const lagging = git(dir, 'rev-parse', 'HEAD');
+    commit(dir, 'early.txt', 'feat: add the early feature');
+    git(dir, 'checkout', '-q', '-b', 'feat/own');
+    commit(dir, 'own.txt', 'fix: correct the own bug');
+    git(dir, 'checkout', '-q', 'main');
+    commit(dir, 'other.txt', 'feat: add the other feature');
+    git(dir, 'update-ref', 'refs/remotes/origin/main', 'main');
+    // Shadows refs/remotes/origin/main for a bare `origin/main`.
+    git(dir, 'tag', 'origin/main', lagging);
+    git(dir, 'checkout', '-q', 'feat/own');
+    writeEvent(dir, {
+      head: { ref: 'feat/own', sha: git(dir, 'rev-parse', 'HEAD') },
+      base: { ref: 'main', sha: lagging },
+    });
+
+    await runPreview({ projectDir: dir, dryRun: false });
+
+    expect(previewBody()).toContain('correct the own bug');
+    expect(previewBody()).not.toContain('add the early feature');
+    expect(previewBody()).toContain('1.0.1');
+  });
+
+  it("should warn when it falls back to the event's base SHA", async () => {
+    const lagging = git(dir, 'rev-parse', 'HEAD');
+    commit(dir, 'early.txt', 'feat: add the early feature');
+    git(dir, 'checkout', '-q', '-b', 'feat/own');
+    commit(dir, 'own.txt', 'fix: correct the own bug');
+    writeEvent(dir, {
+      head: { ref: 'feat/own', sha: git(dir, 'rev-parse', 'HEAD') },
+      base: { ref: 'main', sha: lagging },
+    });
+
+    await runPreview({ projectDir: dir, dryRun: false });
+
+    expect(previewBody()).toContain('correct the own bug');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('pull_request.base.sha'));
   });
 });

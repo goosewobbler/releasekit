@@ -8,7 +8,7 @@ import { postFailureReport, resolveFailureReportIfPresent } from './failure-repo
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
 import { fetchPRLabels, findMergedPRsForCommit, forgeFor } from './github.js';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
-import { refreshFeederPreviews } from './preview/refresh.js';
+import { markFeederPreviewsStale } from './preview/refresh.js';
 import { mergeNotesRegions } from './standing-pr/notes-region.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
@@ -326,8 +326,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
         );
       }
 
-      // The release moved `main`, so open feeder PRs' previews are stale.
-      await refreshFeederPreviews({ config: options.config, projectDir: options.projectDir });
+      await markFeederPreviewsStale({ config: options.config, projectDir: options.projectDir });
     }
   }
 

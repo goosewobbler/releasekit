@@ -111,7 +111,7 @@ vi.mock('../../src/github.js', () => ({
 }));
 
 vi.mock('../../src/preview/refresh.js', () => ({
-  refreshFeederPreviews: vi.fn(),
+  markFeederPreviewsStale: vi.fn(),
   runRefreshAfterRelease: vi.fn(),
 }));
 
@@ -332,7 +332,7 @@ describe('runStandingPRUpdate', () => {
       },
       releaseStrategy: 'standing-pr',
       releaseTrigger: 'label',
-      prPreview: { enabled: true, refreshAfterRelease: false },
+      prPreview: { enabled: true, markStaleAfterRelease: false },
       labels: {
         graduate: 'release:graduate',
         prerelease: 'channel:prerelease',
@@ -2723,9 +2723,9 @@ describe('runStandingPRPublish', () => {
       { '@scope/core': '- regenerated at publish time' },
       expect.arrayContaining(['RELEASE_NOTES.md', ...baseManifest.notesFiles]),
     );
-    // The publish moved `main`, so feeder-PR previews are refreshed in-process.
-    const { refreshFeederPreviews } = await import('../../src/preview/refresh.js');
-    expect(vi.mocked(refreshFeederPreviews)).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }));
+    // The publish moved `main`, so feeder-PR previews are marked stale in-process.
+    const { markFeederPreviewsStale } = await import('../../src/preview/refresh.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }));
   });
 
   it('should refuse to publish when override labels diverge from the manifest', async () => {

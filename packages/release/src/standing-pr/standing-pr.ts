@@ -20,7 +20,7 @@ import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../g
 import { forgeFor } from '../github.js';
 import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS, graduatedPackageFromLabel, isGraduatePackageLabel } from '../label-utils.js';
-import { refreshFeederPreviews } from '../preview/refresh.js';
+import { markFeederPreviewsStale } from '../preview/refresh.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
@@ -1711,8 +1711,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // Also clears the supersede warning the next standing PR would otherwise show.
   await resolveFailureReportIfPresent(forge, prNumber, manifest.versionOutput);
 
-  // Publishing moved `main`, so open feeder PRs' previews are stale.
-  await refreshFeederPreviews({ config: options.config, projectDir: cwd });
+  await markFeederPreviewsStale({ config: options.config, projectDir: cwd });
 
   if (deleteBranchOnMerge) {
     const mergedHead = livePr?.headSha ?? eventPrHeadSha(prNumber);

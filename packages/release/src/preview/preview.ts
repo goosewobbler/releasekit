@@ -3,7 +3,7 @@ import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { type ChangelogRefsMode, info, success, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
-import { createGitCli } from '@releasekit/git';
+import { createGitCli, type Git } from '@releasekit/git';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure } from '../failure-report/post.js';
 import { evaluatePR } from '../gate/evaluate-pr.js';
@@ -40,7 +40,7 @@ interface LabelOverrideResult {
 }
 
 interface PullRequestEvent {
-  pull_request?: { head?: { ref?: string }; base?: { ref?: string; sha?: string } };
+  pull_request?: { head?: { ref?: string; sha?: string }; base?: { ref?: string; sha?: string } };
 }
 
 function readEventPayload(): PullRequestEvent | undefined {
@@ -193,14 +193,38 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
 
 /** `pull_request.base.sha` can lag the base branch, which would count commits merged there since as this PR's. */
 async function resolvePRBase(event: PullRequestEvent | undefined, projectDir: string): Promise<string | undefined> {
-  const baseRef = event?.pull_request?.base?.ref;
-  if (baseRef) {
-    const base = await createGitCli().mergeBase('HEAD', `origin/${baseRef}`, projectDir);
+  const pr = event?.pull_request;
+  if (!pr) {
+    return undefined;
+  }
+  const git = createGitCli();
+  if (pr.head?.sha) {
+    const parents = await headParents(git, projectDir);
+    // GitHub's merge ref: the base branch tip merged with the PR head.
+    if (parents.length === 2 && parents[1] === pr.head.sha) {
+      return parents[0];
+    }
+  }
+  if (pr.base?.ref) {
+    const base = await git.mergeBase('HEAD', `refs/remotes/origin/${pr.base.ref}`, projectDir);
     if (base) {
       return base;
     }
   }
-  return event?.pull_request?.base?.sha;
+  if (pr.base?.sha) {
+    warn(
+      `Could not find this PR's base commit (HEAD isn't its merge ref and origin/${pr.base.ref ?? '<base>'} isn't fetched), so the preview scopes from pull_request.base.sha. That can lag the base branch and count commits merged there as this PR's.`,
+    );
+  }
+  return pr.base?.sha;
+}
+
+async function headParents(git: Git, projectDir: string): Promise<string[]> {
+  try {
+    return (await git.log({ format: '%P', extraArgs: ['-1'], cwd: projectDir })).trim().split(' ');
+  } catch {
+    return [];
+  }
 }
 
 function resolvePrerelease(

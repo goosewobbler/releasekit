@@ -223,10 +223,10 @@ Run as the final step of a release/publish job to refresh state that goes stale 
 - **Standing-PR reconcile** (standing-pr mode only) — re-runs the standing-PR update with
   `--reconcile` so a manual/direct release that bypassed the standing PR doesn't leave its manifest
   stating already-published versions. A failure here fails the job.
-- **Feeder-PR preview refresh** (opt-in via `ci.prPreview.refreshAfterRelease`) — marks the
-  preview comment on still-open PRs that already have one as stale, because the release moved
-  `main`. The release job doesn't have those PRs' trees, so each preview updates on its PR's next
-  push. Best-effort: skips drafts, the standing PR, and PRs without a preview; bounded to 50 PRs;
+- **Feeder-PR stale previews** (opt-in via `ci.prPreview.markStaleAfterRelease`) — marks the
+  preview comment on still-open PRs into the released branch as stale, because the release moved
+  it. The release job doesn't have those PRs' trees, so each preview updates on its PR's next
+  push. Best-effort: skips the standing PR; checks at most the 50 most recently updated previews;
   per-PR failures only warn.
 
 | Flag | Type | Default | Description |

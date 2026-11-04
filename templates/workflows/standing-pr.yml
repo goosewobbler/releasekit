@@ -179,7 +179,7 @@ jobs:
       - name: Reconcile standing PR
         # Not `standing-pr update`: HEAD is now a `chore: release …` commit, which the skip-pattern
         # guard matches, so a plain update no-ops. refresh-after-release bypasses the guard and also
-        # refreshes stale feeder-PR previews.
+        # marks feeder-PR previews stale.
         run: pnpm exec releasekit refresh-after-release
         env:
           GITHUB_TOKEN: ${{ github.token }}

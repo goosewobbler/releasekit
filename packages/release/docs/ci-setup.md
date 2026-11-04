@@ -27,7 +27,7 @@ on:
 permissions:
   contents: write
   id-token: write       # for npm OIDC trusted publishing
-  pull-requests: write  # only needed if you enable ci.prPreview.refreshAfterRelease (below)
+  pull-requests: write  # only needed if you enable ci.prPreview.markStaleAfterRelease (below)
 
 jobs:
   release:
@@ -53,9 +53,9 @@ jobs:
           # For OIDC trusted publishing (recommended) — no NPM_TOKEN needed.
           # For token-based publishing: NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Optional: after the release moves `main`, refresh the "what would release" preview on still-open
+      # Optional: after the release moves `main`, mark the "what would release" preview stale on still-open
       # PRs (they otherwise stay frozen at the pre-release baseline). No-op unless you enable
-      # `ci.prPreview.refreshAfterRelease`. See "PR Preview Comments" below.
+      # `ci.prPreview.markStaleAfterRelease`. See "PR Preview Comments" below.
       - run: pnpm exec releasekit refresh-after-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -151,7 +151,7 @@ on:
 permissions:
   contents: write
   id-token: write
-  pull-requests: write  # `read` is enough for release alone; `write` is needed to refresh previews after release
+  pull-requests: write  # `read` is enough for release alone; `write` is needed to mark previews stale after release
 
 jobs:
   release:
@@ -175,8 +175,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Optional: refresh open-PR previews against the post-release baseline.
-      # No-op unless ci.prPreview.refreshAfterRelease is enabled.
+      # Optional: mark open-PR previews stale after the release.
+      # No-op unless ci.prPreview.markStaleAfterRelease is enabled.
       - run: pnpm exec releasekit refresh-after-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -285,21 +285,21 @@ A ready-to-use template is available at [`templates/workflows/release-preview.ym
 
 A preview is computed on `pull_request` events. When a release moves `main`, GitHub does **not**
 re-fire those events on other open PRs, so each one's prediction stays frozen at the *pre-release*
-baseline until it's pushed again. Enable a post-release refresh to flag this:
+baseline until it's pushed again. Turn on stale marking to flag this:
 
 ```jsonc
 {
   "ci": {
-    "prPreview": { "enabled": true, "refreshAfterRelease": true }
+    "prPreview": { "enabled": true, "markStaleAfterRelease": true }
   }
 }
 ```
 
-With `refreshAfterRelease` on, add a `refresh-after-release` step to your release job (see the
+With `markStaleAfterRelease` on, add a `refresh-after-release` step to your release job (see the
 [Minimal](#minimal-setup-push-to-main) and [Label-Based](#label-based-trigger) examples). After each
-release it marks the preview stale on still-open PRs that already have one, skipping drafts, the standing
-PR, and PRs without a preview, and bounded to 50 PRs per run. The release job doesn't have those PRs'
-trees, so each preview updates on its PR's next push. It's best-effort: a per-PR failure only warns.
+release it marks the preview stale on still-open PRs into the released branch that already have one,
+except the standing PR, checking at most the 50 most recently updated. The release job doesn't have those
+PRs' trees, so each preview updates on its PR's next push. It's best-effort: a per-PR failure only warns.
 (`ci.prPreview: true` remains valid shorthand for `{ "enabled": true }`.)
 
 ---

@@ -105,7 +105,7 @@ export class GitHubForge implements Forge {
         page,
       });
       for (const pr of data) {
-        prs.push({ number: pr.number, headRef: pr.head.ref, draft: pr.draft ?? false });
+        prs.push({ number: pr.number, headRef: pr.head.ref, baseRef: pr.base.ref });
       }
       if (data.length < 100) {
         break;

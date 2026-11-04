@@ -8,10 +8,10 @@ const mockLoadCIConfig = vi.fn();
 const mockForgeFor = vi.fn();
 const mockFindMergedPRsForCommit = vi.fn();
 const mockFetchPRLabels = vi.fn();
-const mockRefreshFeederPreviews = vi.fn();
+const mockMarkFeederPreviewsStale = vi.fn();
 
 vi.mock('../../src/preview/refresh.js', () => ({
-  refreshFeederPreviews: (...args: unknown[]) => mockRefreshFeederPreviews(...args),
+  markFeederPreviewsStale: (...args: unknown[]) => mockMarkFeederPreviewsStale(...args),
   runRefreshAfterRelease: vi.fn(),
 }));
 
@@ -976,20 +976,22 @@ describe('runRelease', () => {
     });
   });
 
-  describe('feeder-preview refresh', () => {
-    it('should refresh feeder previews in-process after a successful release', async () => {
+  describe('feeder-preview stale marking', () => {
+    it('should mark feeder previews stale in-process after a successful release', async () => {
       await runRelease(defaultOptions);
-      expect(mockRefreshFeederPreviews).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test/project' }));
+      expect(mockMarkFeederPreviewsStale).toHaveBeenCalledWith(
+        expect.objectContaining({ projectDir: '/test/project' }),
+      );
     });
 
-    it('should not refresh feeder previews on a dry run', async () => {
+    it('should not mark feeder previews stale on a dry run', async () => {
       await runRelease({ ...defaultOptions, dryRun: true });
-      expect(mockRefreshFeederPreviews).not.toHaveBeenCalled();
+      expect(mockMarkFeederPreviewsStale).not.toHaveBeenCalled();
     });
 
-    it('should not refresh feeder previews when publish is skipped', async () => {
+    it('should not mark feeder previews stale when publish is skipped', async () => {
       await runRelease({ ...defaultOptions, skipPublish: true });
-      expect(mockRefreshFeederPreviews).not.toHaveBeenCalled();
+      expect(mockMarkFeederPreviewsStale).not.toHaveBeenCalled();
     });
   });
 

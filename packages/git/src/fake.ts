@@ -45,7 +45,7 @@ export interface FakeGitSeed {
   existingRefs?: string[];
   /** A record maps a `ref` to its ancestors. */
   ancestors?: Record<string, string[]> | ((ancestor: string, ref: string) => boolean);
-  /** Keyed by `<a>...<b>`. */
+  /** Keyed by `<a>...<b>`, in either order. */
   mergeBases?: Record<string, string>;
   remoteBranches?: Record<string, string[]>;
   /** `git log` responses keyed by range; `'*'` is a catch-all when no range matches. */
@@ -153,7 +153,7 @@ export class FakeGit implements Git {
   }
 
   async mergeBase(a: string, b: string, _cwd?: string): Promise<string | null> {
-    return this.mergeBases[`${a}...${b}`] ?? null;
+    return this.mergeBases[`${a}...${b}`] ?? this.mergeBases[`${b}...${a}`] ?? null;
   }
 
   async countCommits(range: string, _opts: GitCountCommitsOptions = {}): Promise<number> {

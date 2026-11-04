@@ -20,7 +20,7 @@ export interface AssociatedPullRequest {
 export interface OpenPullRequest {
   number: number;
   headRef: string;
-  draft: boolean;
+  baseRef: string;
 }
 
 export interface IssueDetails {

@@ -66,9 +66,10 @@ describe('FakeGit queries', () => {
     expect(await git.isAncestor('base', 'other')).toBe(false);
   });
 
-  it('should return seeded merge bases keyed by a...b, null otherwise', async () => {
+  it('should return seeded merge bases keyed by a...b in either order, null otherwise', async () => {
     const git = createFakeGit({ mergeBases: { 'HEAD...origin/main': 'base' } });
     expect(await git.mergeBase('HEAD', 'origin/main')).toBe('base');
+    expect(await git.mergeBase('origin/main', 'HEAD')).toBe('base');
     expect(await git.mergeBase('HEAD', 'origin/other')).toBeNull();
   });
 
