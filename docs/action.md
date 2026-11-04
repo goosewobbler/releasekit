@@ -242,9 +242,10 @@ Run on demand to regenerate notes for past releases. Dry-run by default — flip
     mode: backfill
     all: "true"
     update-releases: "true"
+    only-missing: "true" # skips bodies backfill wrote and rewrites the rest (the Action has no `force` input)
     apply: ${{ inputs.apply }}
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-[`examples/ci/backfill`](../examples/ci/backfill/backfill.yml) has the full `workflow_dispatch` workflow, running the same backfill through the CLI.
+[`examples/ci/backfill`](../examples/ci/backfill/backfill.yml) has a full `workflow_dispatch` workflow that runs backfill through the CLI, which leaves existing bodies alone unless you tick `force`.
