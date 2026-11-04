@@ -8,7 +8,7 @@ on:
   pull_request:
     branches: [main]
     # labeled/unlabeled: bump:* and other release labels change the prediction.
-    types: [opened, synchronize, labeled, unlabeled]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 concurrency:
   group: release-preview-${{ github.event.pull_request.number }}

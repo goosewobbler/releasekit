@@ -1,8 +1,7 @@
 # Copy to: .github/workflows/release.yml
 #
 # A merged PR releases only when it carries a `bump:*` label, which decides the
-# magnitude, or `release:graduate`; conventional commits still determine the
-# changelog.
+# magnitude; conventional commits still determine the changelog.
 name: Release
 
 on:
@@ -25,8 +24,7 @@ jobs:
       github.event.pull_request.merged == true &&
       (contains(github.event.pull_request.labels.*.name, 'bump:patch') ||
        contains(github.event.pull_request.labels.*.name, 'bump:minor') ||
-       contains(github.event.pull_request.labels.*.name, 'bump:major') ||
-       contains(github.event.pull_request.labels.*.name, 'release:graduate'))
+       contains(github.event.pull_request.labels.*.name, 'bump:major'))
     steps:
       - uses: actions/checkout@v6
         with:

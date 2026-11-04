@@ -27,6 +27,10 @@ CLI: `gh workflow run backfill.yml -f from=1.0.0 -f apply=true`.
   the workflow for LLM-written ones.
 - Tags look like `v1.2.3`. Backfill finds them through `version.versionPrefix`,
   so the config sets it to `v`; match it to your tags.
+- A blank `path` backfills every workspace package. With package-specific
+  tags (`pkg@v1.2.0`) each package writes to its own releases. With one shared
+  tag series, every package writes to the same releases and the last one wins,
+  so give a `path` there.
 - Each version already has a GitHub Release. Backfill only edits releases; it
   skips a tag without one.
 - Backfill fills empty release bodies and rewrites the ones it wrote before.
