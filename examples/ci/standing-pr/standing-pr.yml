@@ -31,9 +31,10 @@ concurrency:
   # once. Events that run no job (on a closed PR or a feeder PR, or sent by a bot) each get a group of
   # their own, so they can't replace a queued run. A maintainer's checkbox edits on the open PR get a
   # per-PR cancelling group, so a flurry of ticks collapses to one rebuild. Push, schedule and label
-  # runs share a non-cancelling group. The label names and the `release/next` branch are hardcoded:
-  # update every use in this file if you rename them in `ci.labels` or `ci.standingPr.branch`.
-  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && !(github.event.pull_request.head.ref == 'release/next' && github.event.sender.type != 'Bot') && format('standing-release-pr-noop-{0}', github.run_id) || github.event_name == 'pull_request' && github.event.action == 'edited' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  # runs share a non-cancelling group. The label names, the `release/` prefix and the `release/next`
+  # branch are hardcoded: update every use in this file if you rename them in `ci.labels` or
+  # `ci.standingPr.branch`.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (startsWith(github.event.pull_request.head.ref, 'release/') && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && !(startsWith(github.event.pull_request.head.ref, 'release/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.sender.type != 'Bot') && format('standing-release-pr-noop-{0}', github.run_id) || github.event_name == 'pull_request' && github.event.action == 'edited' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
@@ -47,8 +48,8 @@ jobs:
     name: Update Release PR
     # `sender.type != 'Bot'` is load-bearing: the update rewrites the PR body (an `edited` event), so
     # the bot would otherwise re-trigger itself forever. Matching on type rather than the
-    # `github-actions[bot]` login also filters a custom GitHub App token. `release/next` is hardcoded
-    # (workflow `if` can't read config) - in-step config is authoritative.
+    # `github-actions[bot]` login also filters a custom GitHub App token. The `release/` prefix is
+    # hardcoded (workflow `if` can't read config) - in-step config is authoritative.
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'schedule' ||
@@ -60,7 +61,8 @@ jobs:
           github.event.action == 'edited'
         ) &&
         github.event.pull_request.state == 'open' &&
-        github.event.pull_request.head.ref == 'release/next' &&
+        startsWith(github.event.pull_request.head.ref, 'release/') &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
         github.event.sender.type != 'Bot'
       )
     runs-on: ubuntu-latest
@@ -68,7 +70,7 @@ jobs:
       # Instant banner so a maintainer knows their tick or label change was received while the slower
       # rebuild runs. Before checkout so it lands within seconds of the runner starting.
       - name: Acknowledge the update in progress
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'release/next'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -79,7 +81,7 @@ jobs:
           set -euo pipefail
           BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
           case "$BODY" in
-            *'<!-- releasekit-processing -->'*'<!-- releasekit-processing-end -->'*) echo "Banner already present - skipping"; exit 0 ;;
+            '<!-- releasekit-processing -->'*'<!-- releasekit-processing-end -->'*) echo "Banner already present - skipping"; exit 0 ;;
           esac
           BANNER=$'<!-- releasekit-processing -->\n> 🔄 **Updating the release PR** to reflect your change… ([run details]('"$RUN_URL"$'))\n<!-- releasekit-processing-end -->'
           NEWBODY=$(printf '%s\n\n%s' "$BANNER" "$BODY")
@@ -117,7 +119,7 @@ jobs:
 
       - name: Clear the in-progress banner
         # Also after a success: update can exit without rewriting the body.
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'release/next'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -127,10 +129,10 @@ jobs:
           set -euo pipefail
           BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
           case "$BODY" in
-            *'<!-- releasekit-processing -->'*'<!-- releasekit-processing-end -->'*) ;;
+            '<!-- releasekit-processing -->'*'<!-- releasekit-processing-end -->'*) ;;
             *) exit 0 ;;
           esac
-          CLEANED=$(printf '%s' "$BODY" | perl -0777 -pe 's/<!-- releasekit-processing -->.*?<!-- releasekit-processing-end -->[\r\n]*//s')
+          CLEANED=$(printf '%s' "$BODY" | perl -0777 -pe 's/\A<!-- releasekit-processing -->.*?<!-- releasekit-processing-end -->[\r\n]*//s')
           gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$CLEANED" >/dev/null
 
   immediate-release:
@@ -195,7 +197,7 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
-      github.event.pull_request.head.ref == 'release/next'
+      startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -245,7 +247,7 @@ jobs:
       github.event.action == 'labeled' &&
       github.event.label.name == 'release:retry' &&
       github.event.pull_request.merged == true &&
-      github.event.pull_request.head.ref == 'release/next'
+      startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
