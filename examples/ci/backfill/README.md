@@ -16,7 +16,8 @@ read what it would change in the log first.
 
 GitHub UI: Actions -> **Backfill Release Notes** -> Run workflow. Leave
 `path` blank to backfill every workspace package, or give one package's
-directory (`packages/core`); narrow with `from`/`to`.
+directory (`packages/core`), plus its name in `package` if that directory has no
+`package.json`. Narrow with `from`/`to`.
 CLI: `gh workflow run backfill.yml -f from=1.0.0 -f apply=true`.
 
 ## Assumptions

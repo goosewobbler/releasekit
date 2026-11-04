@@ -379,7 +379,7 @@ Background for all of these: the [release taxonomy](./release-taxonomy.md) (grou
 
 **Cause:** Usually the workflow is missing the `edited` trigger, so the body edit never re-runs `standing-pr update`. Two other cases re-tick by design: the package is a **lockstep** (`fixed`/`linked`) group member (can't be held back individually), or the release is **sync** (atomic — no checklist applies).
 
-**Fix:** Add `edited` to the workflow's `pull_request: types` plus the `sender.type != 'Bot'` guard (see [CI setup](../packages/release/docs/ci-setup.md)). Confirm the `<!-- rk-sel:… -->` marker comments are intact — the selection is read from those, never the visible text.
+**Fix:** Add `edited` to the workflow's `pull_request: types` plus the `sender.type != 'Bot'` guard (see [`examples/ci/standing-pr`](../examples/ci/standing-pr/standing-pr.yml)). Confirm the `<!-- rk-sel:… -->` marker comments are intact — the selection is read from those, never the visible text.
 
 ---
 

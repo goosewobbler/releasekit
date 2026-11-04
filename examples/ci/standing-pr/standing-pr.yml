@@ -26,13 +26,14 @@ on:
 
 concurrency:
   # GitHub keeps one pending run per group and replaces it with any newer one. So the standing PR's
-  # publish and retry get a group per PR, and merged `release:immediate` PRs get a group of their own,
-  # so no update can replace them while they wait. Runs that rebuild the standing PR share a group, so
-  # only one writes release/next at a time. A maintainer's checkbox edit cancels the rebuild in
-  # progress, which would otherwise overwrite the tick when it rewrites the body. Events that run no job
-  # each get a unique group, so they can't replace a queued run. The label names and the `release/next`
-  # branch are hardcoded: update them here if you rename them in `ci.labels` or `ci.standingPr.branch`.
-  group: ${{ github.event_name != 'pull_request' && 'standing-release-pr' || github.event.pull_request.head.ref == 'release/next' && github.event.pull_request.state == 'closed' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr-immediate' || github.event.pull_request.state == 'open' && startsWith(github.event.pull_request.head.ref, 'release/') && github.event.sender.type != 'Bot' && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id) }}
+  # publish on merge and its retry label get a group per PR that nothing else can replace or cancel.
+  # A merged `release:immediate` PR queues with the updates, so the two don't write release/next at
+  # once. Other events on a closed PR run no job, so each gets a group of its own. A maintainer's
+  # checkbox edits on the open PR get a per-PR cancelling group, so a flurry of ticks collapses to one
+  # rebuild. Everything else, including the bot's own body edits, shares a non-cancelling group. The
+  # label names and the `release/next` branch are hardcoded: update them here if you rename them in
+  # `ci.labels` or `ci.standingPr.branch`.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
