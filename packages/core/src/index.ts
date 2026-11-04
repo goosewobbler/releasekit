@@ -51,6 +51,7 @@ export {
 export { extractMarkerRegion, type MarkerData, markerData, wrapMarkerRegion } from './marker.js';
 export {
   extractNotesRegion,
+  hasUnterminatedNotesRegion,
   NOTES_MARKER,
   NOTES_MARKER_END,
   wrapNotesRegion,
