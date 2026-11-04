@@ -70,7 +70,7 @@
     "figlet": "^1.12.0",
     "git-semver-tags": "^8.0.1",
     "jsonc-parser": "catalog:",
-    "minimatch": "^10.2.6",
+    "minimatch": "^11.0.1",
     "semver": "catalog:",
     "smol-toml": "catalog:",
     "yaml": "catalog:",

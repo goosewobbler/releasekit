@@ -8,7 +8,7 @@ allowBuilds:
 catalog:
   '@biomejs/biome': ^2.6.2
   '@manypkg/get-packages': ^3.1.0
-  'minimatch': ^10.2.6
+  'minimatch': ^11.0.1
   '@octokit/rest': ^22.0.1
   '@types/node': ^26.6.5
   '@types/semver': ^7.8.0
