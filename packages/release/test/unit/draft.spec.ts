@@ -1,5 +1,5 @@
 import type { VersionOutput } from '@releasekit/core';
-import { createFakeForge, type FakeForge } from '@releasekit/forge';
+import { type CommentAuthor, createFakeForge, type FakeForge } from '@releasekit/forge';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { serializeManifest } from '../../src/standing-pr/standing-pr.js';
 
@@ -28,7 +28,8 @@ vi.mock('@releasekit/core', async (importOriginal) => {
   return { ...actual, info: vi.fn(), success: vi.fn(), warn: vi.fn() };
 });
 
-const context = { owner: 'o', repo: 'r', token: 'tok', sha: null };
+// The workflow's GITHUB_TOKEN format, which the personal-token check must let through.
+const context = { owner: 'o', repo: 'r', token: 'ghs_workflow', sha: null };
 
 const versionOutput: VersionOutput = {
   dryRun: false,
@@ -55,7 +56,10 @@ const manifest = {
   createdAt: '2026-01-01T00:00:00.000Z',
   baseSha: 'sha-draft',
 };
-const validManifestComment = serializeManifest(manifest);
+const draftMarker = '<!-- releasekit-draft-manifest -->';
+const validManifestComment = serializeManifest(manifest, draftMarker);
+const botAuthor: CommentAuthor = { login: 'github-actions[bot]', type: 'Bot' };
+const humanAuthor: CommentAuthor = { login: 'attacker', type: 'User' };
 
 const baseOptions = {
   dryRun: false,
@@ -105,15 +109,15 @@ describe('runReleaseDraft', () => {
     expect(issue.labels).toEqual([DRAFT_LABEL]);
     expect(issue.body).toContain('@scope/core');
     expect(issue.body).toContain('- a new feature');
-    const created = await forge.findComment(42, '<!-- releasekit-manifest -->');
+    const created = await forge.findComment(42, draftMarker);
     expect(created).not.toBeNull();
   });
 
   it('should reuse the existing open draft issue (with a manifest comment) instead of stacking a new one', async () => {
     const seeded = createFakeForge({
       openIssues: [{ number: 7, url: 'u', labels: [DRAFT_LABEL] }],
-      // A real draft carries a decodable manifest comment - that's what marks it as ours to reuse.
-      comments: [{ id: 1, body: validManifestComment, prNumber: 7 }],
+      // A real draft carries a decodable, bot-authored manifest comment - that's what marks it as ours to reuse.
+      comments: [{ id: 1, body: validManifestComment, prNumber: 7, user: botAuthor }],
     });
     mockForgeFor.mockReturnValue(seeded);
 
@@ -138,7 +142,7 @@ describe('runReleaseDraft', () => {
   it('should NOT reuse an issue whose marker comment is not a valid manifest', async () => {
     const seeded = createFakeForge({
       openIssues: [{ number: 7, url: 'u', labels: [DRAFT_LABEL] }],
-      comments: [{ id: 1, body: '<!-- releasekit-manifest -->\nnot-a-real-manifest', prNumber: 7 }],
+      comments: [{ id: 1, body: `${draftMarker}\nnot-a-real-manifest`, prNumber: 7 }],
     });
     mockForgeFor.mockReturnValue(seeded);
 
@@ -147,6 +151,31 @@ describe('runReleaseDraft', () => {
     expect(seeded.createdIssues).toHaveLength(1);
     expect(seeded.updatedIssues.map((u) => u.issueNumber)).not.toContain(7);
   });
+
+  it('should NOT reuse an issue whose only manifest comment is human-authored', async () => {
+    const seeded = createFakeForge({
+      openIssues: [{ number: 7, url: 'u', labels: [DRAFT_LABEL] }],
+      comments: [{ id: 1, body: validManifestComment, prNumber: 7, user: humanAuthor }],
+    });
+    mockForgeFor.mockReturnValue(seeded);
+
+    await runReleaseDraft(baseOptions);
+
+    expect(seeded.createdIssues).toHaveLength(1);
+    expect(seeded.updatedIssues.map((u) => u.issueNumber)).not.toContain(7);
+    expect(seeded.upsertedComments.map((c) => c.prNumber)).not.toContain(7);
+  });
+
+  it.each(['ghp_', 'github_pat_', 'gho_', 'ghu_'])(
+    'should refuse a %s token before computing the release',
+    async (prefix) => {
+      mockGetGitHubContext.mockReturnValue({ ...context, token: `${prefix}personal` });
+
+      await expect(runReleaseDraft(baseOptions)).rejects.toThrow(/personal token/);
+      expect(mockRunRelease).not.toHaveBeenCalled();
+      expect(forge.createdIssues).toHaveLength(0);
+    },
+  );
 
   it('should create no issue when there are no releasable changes', async () => {
     mockRunRelease.mockResolvedValue(null);
@@ -173,10 +202,10 @@ describe('publishFromDraft', () => {
     publishFromDraft = mod.publishFromDraft;
   });
 
-  function forgeWithDraft(body: string): FakeForge {
+  function forgeWithDraft(body: string, user: CommentAuthor = botAuthor): FakeForge {
     return createFakeForge({
       issues: { 9: { body, title: 'Release draft', labels: ['release:draft'], isPullRequest: false } },
-      comments: [{ id: 1, body: serializeManifest(manifest), prNumber: 9 }],
+      comments: [{ id: 1, body: serializeManifest(manifest, draftMarker), prNumber: 9, user }],
       openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
     });
   }
@@ -193,6 +222,29 @@ describe('publishFromDraft', () => {
       expect.objectContaining({ dryRun: false, editedNotes: { '@scope/core': '- EDITED BY HUMAN' } }),
     );
     expect(forge.updatedIssues).toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
+  });
+
+  it('should refuse a manifest comment the bot did not write, before computing the release', async () => {
+    const forge = forgeWithDraft('## Release Notes', humanAuthor);
+    mockForgeFor.mockReturnValue(forge);
+
+    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(
+      /posted by 'attacker', not a bot account\. Re-run 'releasekit release --draft' with/,
+    );
+    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(forge.updatedIssues).toHaveLength(0);
+  });
+
+  it("should refuse the standing PR's number: its bot-written manifest is not a draft manifest", async () => {
+    const forge = createFakeForge({
+      issues: { 9: { body: '', title: 'chore: release', labels: [], isPullRequest: true } },
+      comments: [{ id: 1, body: serializeManifest(manifest), prNumber: 9, user: botAuthor }],
+    });
+    mockForgeFor.mockReturnValue(forge);
+
+    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/No release-draft manifest found on issue #9/);
+    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(forge.updatedIssues).toHaveLength(0);
   });
 
   it('should read a sync draft edit from the region keyed by the changelog', async () => {
@@ -222,7 +274,7 @@ describe('publishFromDraft', () => {
           isPullRequest: false,
         },
       },
-      comments: [{ id: 1, body: serializeManifest(syncManifest), prNumber: 9 }],
+      comments: [{ id: 1, body: serializeManifest(syncManifest, draftMarker), prNumber: 9, user: botAuthor }],
       openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
     });
     mockForgeFor.mockReturnValue(forge);
@@ -266,8 +318,12 @@ describe('publishFromDraft', () => {
       comments: [
         {
           id: 1,
-          body: serializeManifest({ ...manifest, versionOutput: syncOutput, releaseNotes: { monorepo: full } }),
+          body: serializeManifest(
+            { ...manifest, versionOutput: syncOutput, releaseNotes: { monorepo: full } },
+            draftMarker,
+          ),
           prNumber: 9,
+          user: botAuthor,
         },
       ],
       openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
@@ -373,7 +429,7 @@ describe('publishFromDraft', () => {
     const draftWithNotes = { ...manifest, releaseNotes: { '@scope/core': '- reviewed in the draft' } };
     const forge = createFakeForge({
       issues: { 9: { body: 'no markers here', title: 't', labels: ['release:draft'], isPullRequest: false } },
-      comments: [{ id: 1, body: serializeManifest(draftWithNotes), prNumber: 9 }],
+      comments: [{ id: 1, body: serializeManifest(draftWithNotes, draftMarker), prNumber: 9, user: botAuthor }],
       openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
     });
     mockForgeFor.mockReturnValue(forge);
@@ -383,6 +439,18 @@ describe('publishFromDraft', () => {
     expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('markers may have been removed'));
     expect(mockRunRelease).toHaveBeenCalledWith(
       expect.objectContaining({ editedNotes: { '@scope/core': '- reviewed in the draft' } }),
+    );
+  });
+
+  it('should refuse an unreadable draft manifest with the draft remedy', async () => {
+    const forge = createFakeForge({
+      issues: { 9: { body: 'x', title: 't', labels: ['release:draft'], isPullRequest: false } },
+      comments: [{ id: 1, body: `${draftMarker}\nnot-a-real-manifest`, prNumber: 9, user: botAuthor }],
+    });
+    mockForgeFor.mockReturnValue(forge);
+
+    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(
+      /Release manifest on draft #9 is invalid or incompatible\. Re-run 'releasekit release --draft'/,
     );
   });
 
