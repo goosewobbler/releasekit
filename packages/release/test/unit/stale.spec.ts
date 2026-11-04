@@ -228,6 +228,21 @@ describe('markFeederPreviewsStale', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('PR #11'));
   });
 
+  it('should stop at the first refused edit, with one warning', async () => {
+    const { warn } = await import('@releasekit/core');
+    const forge = seedForge([pr(10), pr(11), pr(12)]);
+    const update = vi
+      .spyOn(forge, 'updateComment')
+      .mockRejectedValue(Object.assign(new Error('Resource not accessible by integration'), { status: 403 }));
+    mockForgeFor.mockReturnValue(forge);
+
+    await markFeederPreviewsStale(options);
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('pull-requests: write'));
+  });
+
   it('should not throw when listing open PRs fails', async () => {
     const forge = seedForge([pr(10)]);
     vi.spyOn(forge, 'listOpenPullRequests').mockRejectedValue(new Error('rate limited'));

@@ -49,6 +49,7 @@ describe('runPreview commit scope in a standing-PR feeder', () => {
     git(dir, 'config', 'user.email', 'test@example.com');
     git(dir, 'config', 'user.name', 'Test');
     git(dir, 'config', 'commit.gpgsign', 'false');
+    git(dir, 'config', 'tag.gpgsign', 'false');
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'test-pkg', version: '1.0.0' }, null, 2));
     writeFileSync(
       join(dir, 'releasekit.config.json'),
@@ -187,6 +188,18 @@ describe('runPreview commit scope in a standing-PR feeder', () => {
 
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('the event names no base branch'));
     expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('not fetched'));
+  });
+
+  it("should not claim HEAD isn't the merge ref when the event names no head commit", async () => {
+    const branchPoint = git(dir, 'rev-parse', 'HEAD');
+    git(dir, 'checkout', '-q', '-b', 'feat/own');
+    commit(dir, 'own.txt', 'fix: correct the own bug');
+    writeEvent(dir, { head: { ref: 'feat/own' }, base: { ref: 'main', sha: branchPoint } });
+
+    await runPreview({ projectDir: dir, dryRun: false });
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('the event names no head commit'));
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("isn't its merge ref"));
   });
 
   it('should replace a preview marked stale with an unmarked one', async () => {

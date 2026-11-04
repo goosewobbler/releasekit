@@ -1,6 +1,6 @@
 import type { CIConfig } from '@releasekit/config';
 import { info, warn } from '@releasekit/core';
-import { isBotComment } from '@releasekit/forge';
+import { forgeErrorStatus, isBotComment } from '@releasekit/forge';
 import { getGitHubContext } from '../git.js';
 import { forgeFor, MARKER } from '../github.js';
 
@@ -56,10 +56,15 @@ export async function markFeederPreviewsStale(options: MarkPreviewsStaleOptions)
         await forge.updateComment(comment.id, markStale(comment.body));
         marked++;
       } catch (err) {
-        // One PR's failure must not abort the sweep or fail the release.
-        warn(
-          `Could not mark the preview on PR #${pr.number} stale: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        const message = err instanceof Error ? err.message : String(err);
+        // A refusal applies to every PR, so stop rather than repeat it; any other failure is this PR's alone.
+        if (forgeErrorStatus(err) === 403) {
+          warn(
+            `Stopped marking feeder-PR previews stale: GitHub refused PR #${pr.number} (${message}). The release job needs \`pull-requests: write\`.`,
+          );
+          break;
+        }
+        warn(`Could not mark the preview on PR #${pr.number} stale: ${message}`);
       }
     }
     info(`Marked ${marked} feeder-PR preview(s) stale.`);

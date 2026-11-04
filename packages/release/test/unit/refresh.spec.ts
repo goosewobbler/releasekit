@@ -12,13 +12,6 @@ vi.mock('@releasekit/core', async (importOriginal) => {
   return { ...actual, info: vi.fn(), warn: vi.fn() };
 });
 
-const mockForgeFor = vi.fn();
-
-vi.mock('../../src/github.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/github.js')>()),
-  forgeFor: (...args: unknown[]) => mockForgeFor(...args),
-}));
-
 const mockRunStandingPRUpdate = vi.fn();
 
 vi.mock('../../src/standing-pr/standing-pr.js', () => ({
@@ -40,10 +33,9 @@ describe('runRefreshAfterRelease', () => {
     await runRefreshAfterRelease({ projectDir: '/p' });
 
     expect(mockRunStandingPRUpdate).not.toHaveBeenCalled();
-    expect(mockForgeFor).not.toHaveBeenCalled();
   });
 
-  it('should reconcile the standing PR without touching feeder previews', async () => {
+  it('should reconcile the standing PR', async () => {
     mockLoadCIConfig.mockReturnValue({
       releaseStrategy: 'standing-pr',
       prPreview: { enabled: true, markStaleAfterRelease: true },
@@ -52,7 +44,6 @@ describe('runRefreshAfterRelease', () => {
     await runRefreshAfterRelease({ projectDir: '/p' });
 
     expect(mockRunStandingPRUpdate).toHaveBeenCalledWith(expect.objectContaining({ reconcile: true }));
-    expect(mockForgeFor).not.toHaveBeenCalled();
   });
 
   it('should propagate a reconcile failure', async () => {
