@@ -274,7 +274,7 @@ describe('publishFromDraft', () => {
           isPullRequest: false,
         },
       },
-      comments: [{ id: 1, body: serializeManifest(syncManifest, draftMarker), prNumber: 9 }],
+      comments: [{ id: 1, body: serializeManifest(syncManifest, draftMarker), prNumber: 9, user: botAuthor }],
       openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
     });
     mockForgeFor.mockReturnValue(forge);
@@ -323,6 +323,7 @@ describe('publishFromDraft', () => {
             draftMarker,
           ),
           prNumber: 9,
+          user: botAuthor,
         },
       ],
       openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
@@ -428,7 +429,7 @@ describe('publishFromDraft', () => {
     const draftWithNotes = { ...manifest, releaseNotes: { '@scope/core': '- reviewed in the draft' } };
     const forge = createFakeForge({
       issues: { 9: { body: 'no markers here', title: 't', labels: ['release:draft'], isPullRequest: false } },
-      comments: [{ id: 1, body: serializeManifest(draftWithNotes, draftMarker), prNumber: 9 }],
+      comments: [{ id: 1, body: serializeManifest(draftWithNotes, draftMarker), prNumber: 9, user: botAuthor }],
       openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
     });
     mockForgeFor.mockReturnValue(forge);
