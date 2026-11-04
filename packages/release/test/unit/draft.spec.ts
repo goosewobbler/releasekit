@@ -229,7 +229,7 @@ describe('publishFromDraft', () => {
     mockForgeFor.mockReturnValue(forge);
 
     await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(
-      /authored by 'attacker', not a bot account\. Re-run 'releasekit release --draft' with/,
+      /posted by 'attacker', not a bot account\. Re-run 'releasekit release --draft' with/,
     );
     expect(mockRunRelease).not.toHaveBeenCalled();
     expect(forge.updatedIssues).toHaveLength(0);

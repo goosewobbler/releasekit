@@ -86,11 +86,11 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
   if (!context?.token) {
     throw new Error('Cannot create a release draft: no GitHub token in the environment.');
   }
-  // User-token prefixes. The workflow's GITHUB_TOKEN and App installation tokens are ghs_; an unknown format passes,
-  // and --from-draft still checks who wrote the manifest.
+  // ghs_ is the workflow's GITHUB_TOKEN or an App installation token; these are user tokens. An unknown format passes,
+  // as --from-draft still checks who posted the manifest.
   if (/^(ghp|github_pat|gho|ghu)_/.test(context.token)) {
     throw new Error(
-      "Cannot create a release draft with a personal token: '--from-draft' refuses a manifest a bot didn't write. " +
+      "Cannot create a release draft with a personal token: '--from-draft' refuses a manifest a bot didn't post. " +
         "Run 'releasekit release --draft' with the workflow's GITHUB_TOKEN or a GitHub App installation token.",
     );
   }
@@ -150,13 +150,13 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   const manifestComment = await forge.findComment(issueNumber, DRAFT_MANIFEST_MARKER);
   if (!manifestComment) {
     throw new Error(
-      `No release-draft manifest found on issue #${issueNumber}. Pass the issue number 'releasekit release --draft' ` +
-        'reported, or re-run it.',
+      `No release-draft manifest found on issue #${issueNumber}. Pass the number of the issue ` +
+        "'releasekit release --draft' reported, or run --draft again.",
     );
   }
   if (!isBotComment(manifestComment)) {
     throw new Error(
-      `Refusing to publish from release draft #${issueNumber}: the release manifest comment was authored by ` +
+      `Refusing to publish from draft #${issueNumber}: its manifest comment was posted by ` +
         `'${manifestComment.user?.login ?? 'an unknown user'}', not a bot account. Re-run ` +
         "'releasekit release --draft' with the workflow's GITHUB_TOKEN or a GitHub App installation token, then " +
         'dispatch the draft issue it reports.',
