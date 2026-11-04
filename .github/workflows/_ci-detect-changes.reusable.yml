@@ -82,7 +82,8 @@ jobs:
             integration:
               - 'test/integration/**'
               - 'scripts/examples-smoke/**'
-              - 'examples/**'
+              - 'examples/**/*.yml'
+              - 'examples/**/releasekit.config.json'
               - '.github/workflows/_ci-integration.reusable.yml'
             e2e:
               - 'test/e2e/**'
