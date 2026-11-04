@@ -55,7 +55,8 @@ const manifest = {
   createdAt: '2026-01-01T00:00:00.000Z',
   baseSha: 'sha-draft',
 };
-const validManifestComment = serializeManifest(manifest);
+const draftMarker = '<!-- releasekit-draft-manifest -->';
+const validManifestComment = serializeManifest(manifest, draftMarker);
 const botAuthor: CommentAuthor = { login: 'github-actions[bot]', type: 'Bot' };
 const humanAuthor: CommentAuthor = { login: 'attacker', type: 'User' };
 
@@ -107,7 +108,7 @@ describe('runReleaseDraft', () => {
     expect(issue.labels).toEqual([DRAFT_LABEL]);
     expect(issue.body).toContain('@scope/core');
     expect(issue.body).toContain('- a new feature');
-    const created = await forge.findComment(42, '<!-- releasekit-manifest -->');
+    const created = await forge.findComment(42, draftMarker);
     expect(created).not.toBeNull();
   });
 
@@ -140,7 +141,7 @@ describe('runReleaseDraft', () => {
   it('should NOT reuse an issue whose marker comment is not a valid manifest', async () => {
     const seeded = createFakeForge({
       openIssues: [{ number: 7, url: 'u', labels: [DRAFT_LABEL] }],
-      comments: [{ id: 1, body: '<!-- releasekit-manifest -->\nnot-a-real-manifest', prNumber: 7 }],
+      comments: [{ id: 1, body: `${draftMarker}\nnot-a-real-manifest`, prNumber: 7 }],
     });
     mockForgeFor.mockReturnValue(seeded);
 
@@ -201,7 +202,7 @@ describe('publishFromDraft', () => {
   function forgeWithDraft(body: string, user: CommentAuthor = botAuthor): FakeForge {
     return createFakeForge({
       issues: { 9: { body, title: 'Release draft', labels: ['release:draft'], isPullRequest: false } },
-      comments: [{ id: 1, body: serializeManifest(manifest), prNumber: 9, user }],
+      comments: [{ id: 1, body: serializeManifest(manifest, draftMarker), prNumber: 9, user }],
       openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
     });
   }
@@ -231,14 +232,14 @@ describe('publishFromDraft', () => {
     expect(forge.updatedIssues).toHaveLength(0);
   });
 
-  it('should refuse a target that is not a release:draft issue, such as the standing PR', async () => {
+  it("should refuse the standing PR's number: its bot-written manifest is not a draft manifest", async () => {
     const forge = createFakeForge({
       issues: { 9: { body: '', title: 'chore: release', labels: [], isPullRequest: true } },
       comments: [{ id: 1, body: serializeManifest(manifest), prNumber: 9, user: botAuthor }],
     });
     mockForgeFor.mockReturnValue(forge);
 
-    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/#9 is not a release draft/);
+    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/No release-draft manifest found on issue #9/);
     expect(mockRunRelease).not.toHaveBeenCalled();
     expect(forge.updatedIssues).toHaveLength(0);
   });
@@ -270,7 +271,7 @@ describe('publishFromDraft', () => {
           isPullRequest: false,
         },
       },
-      comments: [{ id: 1, body: serializeManifest(syncManifest), prNumber: 9 }],
+      comments: [{ id: 1, body: serializeManifest(syncManifest, draftMarker), prNumber: 9 }],
       openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
     });
     mockForgeFor.mockReturnValue(forge);
@@ -314,7 +315,10 @@ describe('publishFromDraft', () => {
       comments: [
         {
           id: 1,
-          body: serializeManifest({ ...manifest, versionOutput: syncOutput, releaseNotes: { monorepo: full } }),
+          body: serializeManifest(
+            { ...manifest, versionOutput: syncOutput, releaseNotes: { monorepo: full } },
+            draftMarker,
+          ),
           prNumber: 9,
         },
       ],
@@ -421,7 +425,7 @@ describe('publishFromDraft', () => {
     const draftWithNotes = { ...manifest, releaseNotes: { '@scope/core': '- reviewed in the draft' } };
     const forge = createFakeForge({
       issues: { 9: { body: 'no markers here', title: 't', labels: ['release:draft'], isPullRequest: false } },
-      comments: [{ id: 1, body: serializeManifest(draftWithNotes), prNumber: 9 }],
+      comments: [{ id: 1, body: serializeManifest(draftWithNotes, draftMarker), prNumber: 9 }],
       openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
     });
     mockForgeFor.mockReturnValue(forge);
@@ -436,7 +440,7 @@ describe('publishFromDraft', () => {
 
   it('should throw when the issue has no manifest comment', async () => {
     const forge = createFakeForge({
-      issues: { 9: { body: 'x', title: 't', labels: ['release:draft'], isPullRequest: false } },
+      issues: { 9: { body: 'x', title: 't', labels: [], isPullRequest: false } },
     });
     mockForgeFor.mockReturnValue(forge);
 

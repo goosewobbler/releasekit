@@ -512,10 +512,10 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
   return shed(undefined);
 }
 
-export function serializeManifest(m: StandingPRManifest): string {
+export function serializeManifest(m: StandingPRManifest, marker = MANIFEST_MARKER): string {
   const encoded = Buffer.from(JSON.stringify(m)).toString('base64');
   return [
-    MANIFEST_MARKER,
+    marker,
     '<details><summary>Release manifest (do not edit)</summary>',
     '',
     MANIFEST_BASE64.encode(encoded),
