@@ -736,7 +736,7 @@ export const CIConfigSchema = z.object({
           .boolean()
           .default(false)
           .describe(
-            "After each successful publish (direct or standing-PR), mark the preview comment on still-open feeder PRs into the released branch as stale, since the release moved it; each preview updates on its PR's next push or label change. Cosmetic and best-effort — a failure here never fails the release.",
+            "After a successful standing-PR publish, or a `releasekit release` that pushes the release branch, mark the preview comment on still-open feeder PRs into that branch as stale, since the release moved it; each preview updates on its PR's next push or label change. `releasekit publish` on its own doesn't mark them. Cosmetic and best-effort — a failure here never fails the release.",
           ),
       }),
     ])

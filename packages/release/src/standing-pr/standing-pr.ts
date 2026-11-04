@@ -187,17 +187,21 @@ function isStandingPrEventRun(): boolean {
   }
 }
 
-/** The head commit in this run's event payload, when the event is about PR `prNumber`. */
-function eventPrHeadSha(prNumber: number): string | undefined {
+interface EventPullRequest {
+  number?: number;
+  head?: { sha?: string };
+  base?: { ref?: string };
+}
+
+/** This run's event payload PR, when the event is about PR `prNumber`. */
+function eventPullRequest(prNumber: number): EventPullRequest | undefined {
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (!eventPath) {
     return undefined;
   }
   try {
-    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as {
-      pull_request?: { number?: number; head?: { sha?: string } };
-    };
-    return event.pull_request?.number === prNumber ? event.pull_request.head?.sha : undefined;
+    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as { pull_request?: EventPullRequest };
+    return event.pull_request?.number === prNumber ? event.pull_request : undefined;
   } catch {
     return undefined;
   }
@@ -1711,14 +1715,9 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // Also clears the supersede warning the next standing PR would otherwise show.
   await resolveFailureReportIfPresent(forge, prNumber, manifest.versionOutput);
 
-  // The merge moved the base branch; this job pushes tags only.
-  await markFeederPreviewsStale({
-    ciConfig: releaseKitConfig.ci,
-    branch: livePr?.baseRef ?? releaseKitConfig.git?.branch ?? 'main',
-  });
-
+  const eventPr = eventPullRequest(prNumber);
   if (deleteBranchOnMerge) {
-    const mergedHead = livePr?.headSha ?? eventPrHeadSha(prNumber);
+    const mergedHead = livePr?.headSha ?? eventPr?.head?.sha;
     if (mergedHead && isCommitSha(mergedHead)) {
       await deleteReleaseBranch(releaseBranch, cwd, mergedHead);
     } else {
@@ -1730,6 +1729,12 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
       );
     }
   }
+
+  // The merge moved the base branch; this job pushes tags only. Runs after the cleanup, which its API calls would delay.
+  await markFeederPreviewsStale({
+    ciConfig: releaseKitConfig.ci,
+    branch: livePr?.baseRef ?? eventPr?.base?.ref ?? releaseKitConfig.git?.branch ?? 'main',
+  });
 
   return {
     versionOutput: manifest.versionOutput,

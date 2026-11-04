@@ -2749,6 +2749,55 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'develop' }));
   });
 
+  it("should fall back to the event's base branch for stale marking when the PR can't be read", async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        pull_request: { head: { ref: 'release/next' }, base: { ref: 'develop' }, number: 42, merged: true },
+      }),
+    );
+    const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'develop' }));
+  });
+
+  it('should mark previews stale only after deleting the release branch', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
+      }),
+    );
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
+    });
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+    const push = vi.spyOn(fakeGit, 'push');
+
+    await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    const deleteCall = push.mock.calls.findIndex(([opts]) => opts.ref === ':release/next');
+    expect(deleteCall).toBeGreaterThanOrEqual(0);
+    expect(vi.mocked(markFeederPreviewsStale).mock.invocationCallOrder[0]).toBeGreaterThan(
+      push.mock.invocationCallOrder[deleteCall] ?? Number.POSITIVE_INFINITY,
+    );
+  });
+
   it('should refuse to publish when override labels diverge from the manifest', async () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(

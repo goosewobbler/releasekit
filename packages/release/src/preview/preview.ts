@@ -218,9 +218,12 @@ async function resolvePRBase(
     }
   }
   if (pr.base?.sha) {
-    const tried = remotes.map((name) => `${name}/${pr.base?.ref ?? '<base>'}`).join(' or ');
+    const baseRef = pr.base.ref;
+    const lookup = baseRef
+      ? `has no merge base with ${remotes.map((name) => `${name}/${baseRef}`).join(' or ')} (not fetched, or the history is too shallow)`
+      : 'the event names no base branch to look up';
     warn(
-      `Could not find this PR's base commit: HEAD isn't its merge ref, and has no merge base with ${tried} (not fetched, or the history is too shallow). The preview scopes from pull_request.base.sha, which can lag the base branch and count commits merged there as this PR's.`,
+      `Could not find this PR's base commit: HEAD isn't its merge ref, and ${lookup}. The preview scopes from pull_request.base.sha, which can lag the base branch and count commits merged there as this PR's.`,
     );
   }
   return pr.base?.sha;

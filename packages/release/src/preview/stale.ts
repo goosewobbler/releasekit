@@ -36,8 +36,9 @@ export async function markFeederPreviewsStale(options: MarkPreviewsStaleOptions)
 
     const standingBranch = options.ciConfig?.standingPr?.branch ?? 'release/next';
     const forge = forgeFor(context);
-    // Not the job's event: in a standing-PR publish, that's the standing PR's. The standing PR is never previewed.
-    const feeders = (await forge.listOpenPullRequests(options.branch)).filter((pr) => pr.headRef !== standingBranch);
+    // One over the cap shows whether any were skipped, and one more allows for the standing PR.
+    const open = await forge.listOpenPullRequests(options.branch, MAX_PRS_CHECKED + 2);
+    const feeders = open.filter((pr) => pr.headRef !== standingBranch);
     if (feeders.length > MAX_PRS_CHECKED) {
       warn(
         `More than ${MAX_PRS_CHECKED} open PRs target ${options.branch}; checking the ${MAX_PRS_CHECKED} most recently updated and skipping the rest.`,
@@ -51,7 +52,7 @@ export async function markFeederPreviewsStale(options: MarkPreviewsStaleOptions)
         if (!comment || !isBotComment(comment) || isMarkedStale(comment.body)) {
           continue;
         }
-        // Straight after the read, so a preview re-posted in the meantime isn't overwritten with the old one.
+        // Straight after the read: GitHub has no conditional comment edit, so a preview re-posted in between is lost.
         await forge.updateComment(comment.id, markStale(comment.body));
         marked++;
       } catch (err) {

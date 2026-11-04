@@ -155,8 +155,8 @@ export interface Forge {
   findStandingPR(branch: string): Promise<StandingPullRequest | null>;
   /** PRs whose head is `branch`, most-recently-updated first. */
   listRecentlyClosedPullRequests(branch: string, limit: number): Promise<AssociatedPullRequest[]>;
-  /** Open PRs into `base`, most-recently-updated first; page-capped. */
-  listOpenPullRequests(base: string): Promise<OpenPullRequest[]>;
+  /** Up to `limit` open PRs into `base`, most-recently-updated first. */
+  listOpenPullRequests(base: string, limit: number): Promise<OpenPullRequest[]>;
   getIssue(issueNumber: number): Promise<IssueDetails>;
   getPullRequest(prNumber: number): Promise<PullRequestDetails>;
   createPullRequest(pr: NewPullRequest): Promise<PullRequestRef>;

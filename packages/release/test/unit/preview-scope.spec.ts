@@ -174,7 +174,19 @@ describe('runPreview commit scope in a standing-PR feeder', () => {
     // Scoped from `lagging`: newer than the last tag, older than where the PR branched.
     expect(previewBody()).toContain('patch the late bug');
     expect(previewBody()).not.toContain('add the early feature');
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('pull_request.base.sha'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('has no merge base with origin/main'));
+  });
+
+  it('should say when the event names no base branch, rather than blame fetching', async () => {
+    const branchPoint = git(dir, 'rev-parse', 'HEAD');
+    git(dir, 'checkout', '-q', '-b', 'feat/own');
+    commit(dir, 'own.txt', 'fix: correct the own bug');
+    writeEvent(dir, { head: { ref: 'feat/own', sha: git(dir, 'rev-parse', 'HEAD') }, base: { sha: branchPoint } });
+
+    await runPreview({ projectDir: dir, dryRun: false });
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('the event names no base branch'));
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('not fetched'));
   });
 
   it('should replace a preview marked stale with an unmarked one', async () => {

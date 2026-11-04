@@ -1,9 +1,6 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import type { CIConfig } from '@releasekit/config';
 import { createFakeForge, type FakeForge, type OpenPullRequest } from '@releasekit/forge';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MARKER } from '../../src/github.js';
 import { markFeederPreviewsStale } from '../../src/preview/stale.js';
 
@@ -181,6 +178,16 @@ describe('markFeederPreviewsStale', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('More than 50'));
   });
 
+  it('should still warn when the standing PR is among the most recently updated', async () => {
+    const { warn } = await import('@releasekit/core');
+    const forge = seedForge([pr(99, { headRef: 'release/next' }), ...Array.from({ length: 51 }, (_, i) => pr(i + 1))]);
+    mockForgeFor.mockReturnValue(forge);
+
+    await markFeederPreviewsStale(options);
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('More than 50'));
+  });
+
   it('should count PRs without a preview toward the cap', async () => {
     const forge = seedForge(
       Array.from({ length: 60 }, (_, i) => pr(i + 1)),
@@ -263,37 +270,5 @@ describe('markFeederPreviewsStale', () => {
 
     expect(mockForgeFor).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('no GitHub token'));
-  });
-
-  describe('inside a standing-PR publish job', () => {
-    let dir: string;
-
-    beforeEach(() => {
-      dir = mkdtempSync(join(tmpdir(), 'rk-stale-'));
-    });
-
-    afterEach(() => {
-      vi.unstubAllEnvs();
-      rmSync(dir, { recursive: true, force: true });
-    });
-
-    it("should mark feeder PRs' previews, not act on the job's own event", async () => {
-      const eventPath = join(dir, 'event.json');
-      writeFileSync(
-        eventPath,
-        JSON.stringify({
-          action: 'closed',
-          pull_request: { number: 99, merged: true, head: { ref: 'release/next' }, base: { ref: 'main' } },
-        }),
-      );
-      vi.stubEnv('GITHUB_EVENT_NAME', 'pull_request');
-      vi.stubEnv('GITHUB_EVENT_PATH', eventPath);
-      const forge = seedForge([pr(99, { headRef: 'release/next' }), pr(10)], [10]);
-      mockForgeFor.mockReturnValue(forge);
-
-      await markFeederPreviewsStale({ ciConfig: ciConfig({ releaseStrategy: 'standing-pr' }), branch: 'main' });
-
-      expect(markedStale(forge)).toEqual([10]);
-    });
   });
 });
