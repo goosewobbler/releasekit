@@ -64,7 +64,7 @@ Set the appropriate strategy in `releasekit.config.json` under `version.mismatch
 
 **Cause:** The API key environment variable for the configured LLM provider is not present in the workflow environment. This is treated as a soft failure — notes are generated without LLM enhancement rather than aborting the release.
 
-**Fix:** Pass the secret to the job that runs the notes stage. In the standing-PR workflow that's the publishing jobs (`publish-release`, `retry-publish` and `immediate-release`), plus `update-release-pr` if you use the `release:preview-notes` label:
+**Fix:** Pass the secret to the job that runs the notes stage. In the standing-PR workflow that's the publishing jobs (`publish-release`, `retry-publish` and `immediate-release`), plus `update-release-pr`, which writes `CHANGELOG.md` and any `release:preview-notes` notes:
 
 ```yaml
 - run: pnpm exec releasekit standing-pr publish

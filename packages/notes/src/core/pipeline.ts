@@ -368,9 +368,8 @@ export interface PipelineResult {
 
 export interface PipelineOptions {
   /**
-   * Skip the LLM pass and the release-notes file write. Use during standing-PR update so the
-   * standing-PR workflow doesn't depend on LLM availability and doesn't pay for
-   * an LLM call on every push to main.
+   * Skip release-notes generation: the `releaseNotes` LLM task, the per-version notes files and the returned
+   * `releaseNotes`. The changelog's LLM passes still run.
    */
   skipReleaseNotes?: boolean;
   /** Use during publish from manifest to regenerate only the release notes against an already-bumped tree. */
@@ -391,8 +390,17 @@ export async function runPipeline(
   const releaseNotesConfig =
     config.releaseNotes === false || config.releaseNotes === undefined ? undefined : config.releaseNotes;
 
-  const llmConfig = releaseNotesConfig?.llm;
-  if (llmConfig && !process.env.CHANGELOG_NO_LLM && !pipelineOptions?.skipReleaseNotes) {
+  const writesChangelog =
+    !pipelineOptions?.skipChangelogs && changelogConfig !== false && Boolean(changelogConfig.mode);
+
+  const configuredLlm = releaseNotesConfig?.llm;
+  const llmConfig =
+    configuredLlm && pipelineOptions?.skipReleaseNotes
+      ? { ...configuredLlm, tasks: { ...configuredLlm.tasks, releaseNotes: false } }
+      : configuredLlm;
+  const llmNeeded =
+    !pipelineOptions?.skipReleaseNotes || (writesChangelog && Object.values(llmConfig?.tasks ?? {}).some(Boolean));
+  if (llmConfig && !process.env.CHANGELOG_NO_LLM && llmNeeded) {
     info('Processing with LLM enhancement');
 
     const examplesCount = llmConfig.examples ?? 3;
@@ -468,7 +476,7 @@ export async function runPipeline(
     refs: (changelogConfig !== false ? changelogConfig.refs : undefined) ?? 'link',
   };
 
-  if (!pipelineOptions?.skipChangelogs && changelogConfig !== false && changelogConfig.mode) {
+  if (writesChangelog) {
     const fileName = changelogConfig.file ?? 'CHANGELOG.md';
     const mode = changelogConfig.mode;
 
