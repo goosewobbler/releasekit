@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@releasekit/notes/cli');
-vi.mock('@releasekit/version/cli');
 vi.mock('@releasekit/publish', async (importOriginal) => {
   const { Command } = await import('commander');
   return {
@@ -12,8 +10,6 @@ vi.mock('@releasekit/publish', async (importOriginal) => {
 vi.mock('../../src/commands/preview-command.js');
 vi.mock('../../src/commands/refresh-after-release-command.js');
 
-import { createNotesCommand } from '@releasekit/notes/cli';
-import { createVersionCommand } from '@releasekit/version/cli';
 import { Command } from 'commander';
 import { createReleaseProgram } from '../../src/cli.js';
 import { createPreviewCommand } from '../../src/commands/preview-command.js';
@@ -21,8 +17,6 @@ import { createRefreshAfterReleaseCommand } from '../../src/commands/refresh-aft
 import { createDispatcherProgram } from '../../src/dispatcher.js';
 import { markPreviewsStaleAfterPublish } from '../../src/preview/stale.js';
 
-vi.mocked(createNotesCommand).mockReturnValue(new Command('notes').description('notes'));
-vi.mocked(createVersionCommand).mockReturnValue(new Command('version').description('version'));
 // exitOverride so an accidental route to preview throws instead of exiting the test worker.
 vi.mocked(createPreviewCommand).mockReturnValue(new Command('preview').description('preview').exitOverride());
 // No-op action so routing to it doesn't run the real post-release reconcile.

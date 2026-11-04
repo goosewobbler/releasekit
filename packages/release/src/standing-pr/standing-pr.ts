@@ -1500,10 +1500,14 @@ async function assertManifestMatchesSource(
  * Every failure throws: once a PR is named there is no "nothing to do" outcome, so a returned result means the
  * publish ran.
  */
-export async function publishFromManifest(
+export async function publishFromManifest(prNumber: number, options: StandingPROptions): Promise<ReleaseOutput> {
+  return publishAndMarkPreviews(prNumber, options, false);
+}
+
+async function publishAndMarkPreviews(
   prNumber: number,
   options: StandingPROptions,
-  mergedThisRun = false,
+  mergedThisRun: boolean,
 ): Promise<ReleaseOutput> {
   let published = false;
   try {
@@ -1532,7 +1536,8 @@ async function markPreviewsStaleAfterMerge(
     }
     const event = pullRequestEvent(prNumber);
     const eventBase = event?.pull_request.base?.ref;
-    const eventMerged = event?.pull_request.merged;
+    // Only a `closed` event's snapshot is current: a job started by another event may merge before it publishes.
+    const eventMerged = event?.action === 'closed' ? event.pull_request.merged : undefined;
     const needPr = eventBase === undefined || (!knownMerged && eventMerged === undefined);
     const pr = needPr ? await readPullRequest(prNumber) : undefined;
     // A dispatch can name a PR that never merged, and then nothing moved the base branch.
@@ -1942,5 +1947,5 @@ export async function runStandingPRMerge(
   }
 
   // publishFromManifest deletes the branch only after a clean publish.
-  return publishFromManifest(pr.number, options, true);
+  return publishAndMarkPreviews(pr.number, options, true);
 }
