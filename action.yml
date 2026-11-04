@@ -67,7 +67,7 @@ inputs:
     required: false
     default: '24'
   github-token:
-    description: GitHub token for API calls (defaults to the workflow token)
+    description: GitHub token for API calls and, through the action's checkout, git pushes (defaults to the workflow token)
     required: false
     default: ${{ github.token }}
   npm-auth:
@@ -225,15 +225,34 @@ runs:
       uses: actions/checkout@v7
       with:
         fetch-depth: 0
+        # Persisted for git pushes. An empty input (a secret unset on a fork run) falls back to the workflow token.
+        token: ${{ inputs.github-token != '' && inputs.github-token || github.token }}
+
+    # A repo without a pnpm packageManager (npm, Dart or Rust) gets the action's own pnpm, and only a pnpm
+    # lockfile can key setup-node's cache.
+    - name: Resolve pnpm setup
+      id: pnpm-setup
+      shell: bash
+      run: |
+        if ! grep -qs '"packageManager": *"pnpm@' "$GITHUB_WORKSPACE/package.json"; then
+          echo "version=$(sed -n 's/.*"packageManager": *"pnpm@\([^"+]*\).*/\1/p' "$ACTION_PATH/package.json")" >> "$GITHUB_OUTPUT"
+        fi
+        if [ -f "$GITHUB_WORKSPACE/pnpm-lock.yaml" ]; then
+          echo "cache=pnpm" >> "$GITHUB_OUTPUT"
+        fi
+      env:
+        ACTION_PATH: ${{ github.action_path }}
 
     - name: Setup pnpm
       uses: pnpm/action-setup@v6
+      with:
+        version: ${{ steps.pnpm-setup.outputs.version }}
 
     - name: Setup Node
       uses: actions/setup-node@v7
       with:
         node-version: ${{ inputs.node-version }}
-        cache: 'pnpm'
+        cache: ${{ steps.pnpm-setup.outputs.cache }}
 
     - name: Install action runtime deps
       run: pnpm install --frozen-lockfile
@@ -339,7 +358,7 @@ runs:
         INPUT_UPDATE_RELEASES: ${{ inputs.update-releases }}
         INPUT_ONLY_MISSING: ${{ inputs.only-missing }}
         INPUT_APPLY: ${{ inputs.apply }}
-        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token != '' && inputs.github-token || github.token }}
         NPM_TOKEN: ${{ inputs.npm-token != '' && inputs.npm-token || env.NPM_TOKEN }}
         VERBOSE: ${{ inputs.verbose }}
         OLLAMA_API_KEY: ${{ env.OLLAMA_API_KEY }}

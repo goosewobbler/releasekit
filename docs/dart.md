@@ -188,17 +188,14 @@ jobs:
 
       - uses: dart-lang/setup-dart@v1
 
-      # No pnpm/Node setup needed: the bundled goosewobbler/releasekit action brings
-      # its own runtime, and a Dart-only repo has no pnpm-lock.yaml (setting cache: pnpm
-      # would fail with "Dependencies lock file is not found").
+      # No pnpm/Node setup needed: the action sets up its own.
       - name: Run releasekit
         uses: goosewobbler/releasekit@v0
         with:
           mode: release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # For token auth instead of OIDC, set PUB_TOKEN and drop `id-token: write` above:
-          # PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+        # For token auth instead of OIDC, drop `id-token: write` above and add:
+        # env:
+        #   PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
 ```
 
 `fetch-depth: 0` is required so that releasekit can walk the full commit history to determine the version bump.

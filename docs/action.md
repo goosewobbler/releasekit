@@ -22,19 +22,19 @@ uses: goosewobbler/releasekit@v0
 
 ## Requirements
 
-- The action checks out the repo (unless `skip-checkout`), then runs its own `pnpm/action-setup` and `actions/setup-node` (`node-version`, default `24`, whose npm supports OIDC trusted publishing; ReleaseKit needs Node 22.12+). That replaces any Node version an earlier step set up.
+- The action checks out the repo (unless `skip-checkout`), then runs its own `pnpm/action-setup` and `actions/setup-node` (`node-version`, default `24`, whose npm supports OIDC trusted publishing; ReleaseKit needs Node 22.12+). That replaces any Node version an earlier step set up. pnpm is the version your `package.json` pins in `packageManager`, else the action's own, so npm, Dart and Rust repos need no pnpm setup.
 - For npm publishing, run `actions/setup-node` with `registry-url: https://registry.npmjs.org` before this action so that `NODE_AUTH_TOKEN` is wired up correctly.
 
 ## Required permissions and env
 
-The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN`, so a `GITHUB_TOKEN` in the step's `env` is ignored. Pass a PAT or App token as `github-token`.
+The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN`, so a `GITHUB_TOKEN` in the step's `env` is ignored. Pass a PAT or App token as `github-token`. The action's checkout also persists it for git pushes, unless you set `ssh-key` or `skip-checkout`.
 
 ### Release mode
 
 - Recommended job permissions:
   - `id-token: write` (OIDC trusted publishing)
-  - `contents: read` (checkout)
-  - `contents: write` (git push & GitHub Releases)
+  - `contents: write` (checkout, git push & GitHub Releases)
+  - `pull-requests: read` (merged-PR labels such as bump and scope)
 
 ### Preview mode
 
@@ -62,12 +62,12 @@ The action passes `github-token` (default: the workflow token) to ReleaseKit as 
 | `config` | - | Path to `releasekit.config.json` |
 | `project-dir` | `.` | Project directory |
 | `dry-run` | `false` | Dry-run for `release`, `preview` and `backfill`. `gate` is read-only; other modes fail if it's set |
-| `github-token` | workflow token | Token for GitHub API calls (override with a PAT/App token when rulesets require it) |
+| `github-token` | workflow token | Token for GitHub API calls and the action's checkout, which git pushes use (override with a PAT/App token when rulesets require it) |
 | `node-version` | `24` | Node.js version for the action's setup-node step |
 | `npm-token` | - | NPM token when not using OIDC; when unset, the job's `NPM_TOKEN` env is preserved |
 | `summary` | `true` | Write a job summary for `release` and `gate` |
-| `skip-checkout` | `false` | Skip the action's checkout steps only; setup-node, pnpm, and install still run. The repo must already be on disk (e.g. a prior checkout step). |
-| `json` | `false` | JSON output (release mode). The release outputs stay empty without it |
+| `skip-checkout` | `false` | Skip the action's checkout. Check the repo out on a branch, not a detached HEAD, with `fetch-depth: 0`; the action then rebases it onto `origin/<branch>`, falling back to `git reset --hard`. Pushes use your checkout's credentials, not `ssh-key` or `github-token`. |
+| `json` | `false` | JSON output (release mode). Without it, `has-changes` is always `false` and the other release outputs are empty |
 | `verbose` | `false` | Verbose logs |
 | `quiet` | `false` | Suppress non-error logs |
 
@@ -75,7 +75,7 @@ The action passes `github-token` (default: the workflow token) to ReleaseKit as 
 
 | Input | Default | Description |
 |---|---|---|
-| `bump` | - | Force bump (`patch|minor|major|prerelease`) |
+| `bump` | - | Force bump (`patch\|minor\|major\|prerelease`) |
 | `prerelease` | - | Prerelease identifier (e.g. `alpha`, `beta`) |
 | `stable` | `false` | Graduate prerelease packages to stable without bumping |
 | `scope` | - | Scope name resolved to target packages from `ci.scopeLabels` (also `gate`) |
@@ -83,7 +83,7 @@ The action passes `github-token` (default: the workflow token) to ReleaseKit as 
 | `sync` | `false` | Synchronized versioning |
 | `target` | - | Comma-separated package targets |
 | `branch` | - | Override push branch |
-| `npm-auth` | `auto` | `auto|oidc|token` |
+| `npm-auth` | `auto` | `auto\|oidc\|token` |
 | `skip-notes` | `false` | Skip notes stage |
 | `skip-publish` | `false` | Skip publish stage |
 | `skip-git` | `false` | Skip git stage |
@@ -168,13 +168,18 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           registry-url: https://registry.npmjs.org
+      # Install and build here.
       - id: rk
         uses: goosewobbler/releasekit@v0
         with:
           mode: release
           json: "true"
+          # The action's own checkout would clean away the build.
+          skip-checkout: "true"
       - name: Print tags
-        run: echo "Tags: ${{ steps.rk.outputs.tags }}"
+        env:
+          TAGS: ${{ steps.rk.outputs.tags }}
+        run: echo "Tags: $TAGS"
 ```
 
 ### Preview mode (post/update PR comment)

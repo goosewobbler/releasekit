@@ -128,8 +128,6 @@ jobs:
       - uses: goosewobbler/releasekit@v0
         with:
           mode: release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 See [docs/action.md](./docs/action.md) for the `preview` mode, and the full input/output reference.

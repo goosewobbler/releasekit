@@ -1,6 +1,8 @@
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildBackfillArgs,
@@ -36,6 +38,30 @@ describe('action runner', () => {
       );
     },
   );
+
+  it('should read dry-run case-insensitively, as action.yml does', () => {
+    expect(() => parseInputs({ INPUT_MODE: 'standing-pr-publish', INPUT_DRY_RUN: 'TRUE' })).toThrow(
+      'dry-run is not supported for mode "standing-pr-publish"',
+    );
+  });
+
+  it('should write the failure outputs when an input is rejected', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-action-outputs-'));
+    tempDirs.push(dir);
+    const outputFile = path.join(dir, 'github-output');
+    const script = fileURLToPath(new URL('../../scripts/run-action.mjs', import.meta.url));
+
+    const result = spawnSync(process.execPath, [script], {
+      env: { ...process.env, INPUT_MODE: 'standing-pr-publish', INPUT_DRY_RUN: 'true', GITHUB_OUTPUT: outputFile },
+      encoding: 'utf-8',
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('dry-run is not supported for mode "standing-pr-publish"');
+    const outputs = fs.readFileSync(outputFile, 'utf-8');
+    expect(outputs).toMatch(/^mode<<\S+\nstanding-pr-publish\n/m);
+    expect(outputs).toMatch(/^success<<\S+\nfalse\n/m);
+  });
 
   it('should accept dry-run for read-only gate mode', () => {
     expect(parseInputs({ INPUT_MODE: 'gate', INPUT_DRY_RUN: 'true' }).mode).toBe('gate');

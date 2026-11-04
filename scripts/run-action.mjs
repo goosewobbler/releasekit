@@ -10,7 +10,8 @@ function normalizeBoolean(value, defaultValue = false) {
   if (value === undefined || value === '') {
     return defaultValue;
   }
-  return value === 'true';
+  // Case-insensitive, like action.yml's `inputs.x == 'true'` guards.
+  return value.toLowerCase() === 'true';
 }
 
 function normalizeString(value) {
@@ -230,8 +231,9 @@ function assertDryRunSupported(mode, dryRun) {
   if (!normalizeBoolean(dryRun)) {
     return;
   }
-  const unsupported = new Set(['standing-pr-update', 'standing-pr-publish', 'refresh-after-release']);
-  if (unsupported.has(mode)) {
+  // An allowlist, so a new mode that drops dry-run fails rather than running for real.
+  const dryRunModes = new Set(['release', 'preview', 'backfill', 'gate']);
+  if (!dryRunModes.has(mode)) {
     throw new Error(`dry-run is not supported for mode "${mode}"`);
   }
 }
@@ -662,7 +664,13 @@ export function buildGateSummary(_input, parsed, success) {
 }
 
 async function main() {
-  const input = parseInputs();
+  let input;
+  try {
+    input = parseInputs();
+  } catch (err) {
+    writeCoreOutputs(normalizeString(process.env.INPUT_MODE) ?? 'preview', false);
+    setFailure(err instanceof Error ? err.message : String(err));
+  }
   const result = await runAction(input);
   const success = result.status === 0;
   const verbose = normalizeBoolean(input.verbose);

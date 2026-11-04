@@ -117,6 +117,22 @@ describe('npm-publish stage', () => {
     expect(ctx.output.npm[0]?.success).toBe(true);
   });
 
+  it('should publish with NODE_AUTH_TOKEN when NPM_TOKEN is empty', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'pkg');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@test/pkg', version: '1.0.0' }));
+
+    // The action passes an empty NPM_TOKEN when neither its npm-token input nor the job env sets one.
+    process.env.NPM_TOKEN = '';
+    process.env.NODE_AUTH_TOKEN = 'node_auth_token';
+    await runNpmPublishStage(createContext(dir));
+
+    const publishCall = vi.mocked(execCommand).mock.calls[1];
+    expect(publishCall?.[2]?.env?.NODE_AUTH_TOKEN).toBe('node_auth_token');
+  });
+
   it('should skip private packages', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();

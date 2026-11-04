@@ -38,5 +38,3 @@ jobs:
           update-releases: 'true'
           only-missing: 'true'
           apply: ${{ inputs.apply }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
