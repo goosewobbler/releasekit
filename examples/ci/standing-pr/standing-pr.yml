@@ -79,7 +79,7 @@ jobs:
           set -euo pipefail
           BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
           case "$BODY" in
-            *'<!-- releasekit-processing -->'*) echo "Banner already present - skipping"; exit 0 ;;
+            *'<!-- releasekit-processing -->'*'<!-- releasekit-processing-end -->'*) echo "Banner already present - skipping"; exit 0 ;;
           esac
           BANNER=$'<!-- releasekit-processing -->\n> 🔄 **Updating the release PR** to reflect your change… ([run details]('"$RUN_URL"$'))\n<!-- releasekit-processing-end -->'
           NEWBODY=$(printf '%s\n\n%s' "$BANNER" "$BODY")
