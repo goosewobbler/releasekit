@@ -31,9 +31,8 @@ function isCheckout(step: Step): boolean {
   return typeof step.uses === 'string' && step.uses.startsWith('actions/checkout');
 }
 
-/** An invocation, not a mention: the standing-pr banner step's `releasekit-processing` marker must not end extraction. */
 function isReleasekitRun(step: Step): boolean {
-  return typeof step.run === 'string' && /\breleasekit(?:\s|$)/m.test(step.run);
+  return typeof step.run === 'string' && /\breleasekit\b/.test(step.run);
 }
 
 /** `gh api` steps (e.g. the standing-pr retry label removal) need real secrets and a real repo. */
@@ -54,11 +53,11 @@ function extractSetupSteps(scenario: Scenario): Step[] {
   }
   const setup: Step[] = [];
   for (const step of job.steps) {
-    if (isReleasekitRun(step)) {
-      break;
-    }
     if (isCheckout(step) || isOutOfScopeApiStep(step)) {
       continue;
+    }
+    if (isReleasekitRun(step)) {
+      break;
     }
     // Strip only `secrets.*` references, which would fail or do harm in a dry
     // run; diagnostic toggles (LOG_LEVEL, RUST_BACKTRACE, ...) and literals stay.

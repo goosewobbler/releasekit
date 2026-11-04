@@ -15,7 +15,8 @@ read what it would change in the log first.
 ## Running it
 
 GitHub UI: Actions -> **Backfill Release Notes** -> Run workflow. Leave
-`package` blank to backfill every workspace package; narrow with `from`/`to`.
+`path` blank to backfill every workspace package, or give one package's
+directory (`packages/core`); narrow with `from`/`to`.
 CLI: `gh workflow run backfill.yml -f from=1.0.0 -f apply=true`.
 
 ## Assumptions
@@ -27,10 +28,10 @@ CLI: `gh workflow run backfill.yml -f from=1.0.0 -f apply=true`.
   so the config sets it to `v`; match it to your tags.
 - Each version already has a GitHub Release. Backfill only edits releases; it
   skips a tag without one.
-- `--only-missing` skips releases that already carry backfilled notes, so a
-  re-run fills only new gaps. It rewrites every other body, hand-written ones
-  included, so read the dry run before you tick `apply`. The other modes are in
-  [`releasekit backfill`](../../../docs/cli.md#releasekit-release-backfill).
+- Backfill fills empty release bodies and rewrites the ones it wrote before.
+  It skips every other body, including the notes releasekit published, unless
+  you tick `force`. Read the dry run before you tick `apply`. The other modes
+  are in [`releasekit backfill`](../../../docs/cli.md#releasekit-release-backfill).
 
 ## Correctness notes
 

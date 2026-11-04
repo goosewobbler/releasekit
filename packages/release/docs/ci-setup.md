@@ -16,7 +16,7 @@ All workflows require:
 
 Trigger a release on every push to `main`. If there are no releasable commits, the command exits cleanly with code 0 and does nothing.
 
-The workflow is [`examples/ci/minimal`](../../../examples/ci/minimal/release.yml). Its job checks out the full history, sets up pnpm and Node, installs, then runs:
+The workflow is [`examples/ci/minimal`](../../../examples/ci/minimal/release.yml). Its job checks out the full history, sets up pnpm and Node, installs, removes the `.npmrc` that `setup-node` writes (it blocks npm's OIDC exchange), then runs:
 
 ```yaml
 - run: pnpm exec releasekit release
@@ -403,10 +403,10 @@ Ticking a checkbox or changing a label on the standing PR re-runs `standing-pr u
 Mechanics (all in `standing-pr.yml`, no config):
 
 - **Fast.** The banner is a plain `gh api` step that runs *before* checkout/install, so it lands ~10–15s after the runner starts (the spin-up floor — an Actions job can't react instantly the way a native GitHub App can). It's on reactive events only; push/schedule updates aren't interactive.
-- **Self-clearing.** `standing-pr update` regenerates the PR body from scratch, so a successful update drops the banner automatically. A dedicated `if: failure()` step strips it if the run dies before the rebuild, so it never lingers as a false "in progress".
+- **Self-clearing.** `standing-pr update` regenerates the PR body from scratch, which drops the banner. A final `if: always()` step strips it from any run that didn't rewrite the body (a failure, a cancel, or an update that exited early), so it doesn't linger as a false "in progress". Both banner steps are `continue-on-error`, so a GitHub API error can't block the update.
 - **Idempotent.** The step skips if a banner is already present, so rapid re-triggers don't stack it.
 
-Rapid checkbox toggles are also **collapsed**: the workflow's `concurrency` routes a maintainer's `edited` events to a per-PR group with `cancel-in-progress: true`, so ticking several packages in a row cancels the superseded rebuilds and only the latest selection is applied. The group is sender-aware — the bot's *own* body edits (the banner and the rebuilt body are `edited` events too) stay on the stable non-cancelling group with push and schedule runs, so they never cancel the run doing the work. Events on a closed PR (the publish on merge, a retry label) get a group per PR, since GitHub replaces a group's pending run with any newer one and would drop a queued publish.
+Rapid checkbox toggles are also **collapsed**. Every run that rebuilds the standing PR (push, schedule, a label change or a checkbox edit) shares one `concurrency` group, so only one writes `release/next` at a time, and a maintainer's checkbox edit cancels the rebuild in progress. Ticking several packages in a row applies only the latest selection, and a rebuild can't overwrite a tick made while it ran. A bot's body edits run no job and get a group of their own, so they never cancel the run doing the work. The publish on merge, a retry label and a merged `release:immediate` PR also get their own groups, since GitHub replaces a group's pending run with any newer one and would drop them.
 
 ### Label semantics in standing-pr mode
 

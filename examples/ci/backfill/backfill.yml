@@ -8,8 +8,8 @@ name: Backfill Release Notes
 on:
   workflow_dispatch:
     inputs:
-      package:
-        description: Package to backfill (blank = every workspace package)
+      path:
+        description: Directory of the package to backfill (blank = every workspace package)
         required: false
       from:
         description: Earliest version to backfill (inclusive)
@@ -17,6 +17,10 @@ on:
       to:
         description: Latest version to backfill (inclusive)
         required: false
+      force:
+        description: Also overwrite release bodies that already have notes
+        type: boolean
+        default: false
       apply:
         description: Apply changes (off = dry-run preview)
         type: boolean
@@ -45,17 +49,19 @@ jobs:
       # Pass the dispatch inputs via env, not inline interpolation, so the shell
       # never runs them as code.
       - run: |
-          args=(--update-releases --only-missing)
-          if [ -n "$PACKAGE" ]; then args+=(--package "$PACKAGE"); else args+=(--all); fi
+          args=(--update-releases)
+          if [ -n "$PKG_PATH" ]; then args+=(--path "$PKG_PATH"); else args+=(--all); fi
           if [ -n "$FROM" ]; then args+=(--from "$FROM"); fi
           if [ -n "$TO" ]; then args+=(--to "$TO"); fi
+          if [ "$FORCE" = 'true' ]; then args+=(--force); fi
           if [ "$APPLY" = 'true' ]; then args+=(--apply); fi
           pnpm exec releasekit backfill "${args[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGE: ${{ inputs.package }}
+          PKG_PATH: ${{ inputs.path }}
           FROM: ${{ inputs.from }}
           TO: ${{ inputs.to }}
+          FORCE: ${{ inputs.force }}
           APPLY: ${{ inputs.apply }}
           # Provider key, if notes.releaseNotes.llm is set:
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

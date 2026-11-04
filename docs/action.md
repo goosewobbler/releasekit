@@ -242,7 +242,6 @@ Run on demand to regenerate notes for past releases. Dry-run by default — flip
     mode: backfill
     all: "true"
     update-releases: "true"
-    only-missing: "true"
     apply: ${{ inputs.apply }}
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
