@@ -13,7 +13,7 @@ import { createVersionError, VersionError, VersionErrorCode } from '../errors/ve
 import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { isReleasablePubspec } from '../pub/pubHandler.js';
 import type { Config, VersionRunOptions } from '../types.js';
-import { packageCommitScope } from '../utils/commitScope.js';
+import { resolveCommitScope } from '../utils/commitScope.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
 import { tagPrerequisiteRoles } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
@@ -365,13 +365,7 @@ export class VersionEngine {
         } catch {
           // No tag resolvable - getCommitsLength falls back to git describe / full history.
         }
-        let scope: string[];
-        try {
-          scope = packageCommitScope(pkg.dir, this.config, { repoRoot, ignorePaths });
-        } catch {
-          // A `paths` entry that leaves the repository fails this package's bump if it releases, not this check.
-          scope = packageCommitScope(pkg.dir, this.config, { repoRoot, ignorePaths: true });
-        }
+        const { scope } = resolveCommitScope(pkg.dir, this.config, { repoRoot, ignorePaths });
         return (await getCommitsLength(scope, tag)) > 0 ? pkg.packageJson.name : null;
       }),
     );
@@ -470,7 +464,12 @@ export class VersionEngine {
           log(`Private filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'debug');
         }
       }
-      this.config.releasablePackageDirs = mergedPackages.packages.map((p) => p.dir);
+      // Before targeting, which narrows only this run: a nested package outside `version.packages` never releases
+      // on its own, so it ships inside the package that contains it.
+      const releasable = this.config.packages?.length
+        ? filterPackagesByConfig(mergedPackages.packages, this.config.packages, mergedPackages.root)
+        : mergedPackages.packages;
+      this.config.releasablePackageDirs = releasable.map((p) => p.dir);
 
       // Runs on the full discovered set, before the target pre-filter below, so prerequisites aren't pruned.
       if (this.includePrerequisites && this.runtimeTargets.length > 0) {

@@ -9,7 +9,7 @@ import { calculateVersion } from '../core/versionCalculator.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
 import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import type { Config, VersionConfigBase } from '../types.js';
-import { packageCommitScope } from '../utils/commitScope.js';
+import { resolveCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addChangelogData,
@@ -174,7 +174,10 @@ export class PackageProcessor {
       }
 
       const latestTag = latestTagResult;
-      const commitScope = packageCommitScope(pkgPath, this.fullConfig, { repoRoot, releasableDirs });
+      const { scope: commitScope, pathsError } = resolveCommitScope(pkgPath, this.fullConfig, {
+        repoRoot,
+        releasableDirs,
+      });
 
       const nextVersion = await calculateVersion(this.fullConfig, {
         latestTag,
@@ -189,6 +192,10 @@ export class PackageProcessor {
 
       if (!nextVersion) {
         continue;
+      }
+      // Before any write for this package, so a release never bumps package.json and then fails on a native manifest.
+      if (pathsError) {
+        throw pathsError;
       }
 
       if (!checkManifestToBump(name, pkgPath, this.fullConfig, { repoRoot })) {

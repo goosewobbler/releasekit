@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { isPathWithinRoot } from '@releasekit/core';
+import { VersionError, VersionErrorCode } from '../errors/versionError.js';
 import type { Config } from '../types.js';
 import { type NativeManifestOptions, nativeManifestsToBump } from './manifestUpdates.js';
 
@@ -27,4 +28,23 @@ export function packageCommitScope(
     .filter((d) => !included.includes(d) && included.some((i) => isPathWithinRoot(i, d)))
     .map((d) => `:(exclude)${d}`);
   return [...included, ...nested];
+}
+
+/**
+ * {@link packageCommitScope}, falling back to the package's own manifests when a `paths` entry leaves the
+ * repository. That error is returned rather than thrown, so a caller raises it only for a package that releases.
+ */
+export function resolveCommitScope(
+  pkgDir: string,
+  config: Pick<Config, 'cargo' | 'pub' | 'releasablePackageDirs'>,
+  options: CommitScopeOptions = {},
+): { scope: string[]; pathsError?: VersionError } {
+  try {
+    return { scope: packageCommitScope(pkgDir, config, options) };
+  } catch (error) {
+    if (!(error instanceof VersionError && error.code === VersionErrorCode.UNSAFE_CONFIG_PATH)) {
+      throw error;
+    }
+    return { scope: packageCommitScope(pkgDir, config, { ...options, ignorePaths: true }), pathsError: error };
+  }
 }

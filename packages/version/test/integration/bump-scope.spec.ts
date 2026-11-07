@@ -177,4 +177,31 @@ describe('bump scope', () => {
     expect(result.status).not.toBe(0);
     expect(execSync('git status --porcelain --untracked-files=no', { cwd: tempDir, encoding: 'utf-8' })).toBe('');
   });
+
+  it('should release despite a cargo.paths entry that leaves the repository for a package that is not releasing', () => {
+    createRepo({
+      workspaceGlobs: ['packages/*', 'tools'],
+      packages: ['app'],
+      version: { cargo: { paths: ['../../crates/app'] } },
+    });
+    mkdirSync(join(tempDir, 'tools'));
+    createPackageJson(join(tempDir, 'tools'), 'tools', '1.0.0');
+    execSync('git add tools && git commit -qm "chore: add tools" && git tag tools@v1.0.0 && git tag -f app@v1.0.0', {
+      cwd: tempDir,
+    });
+    commitTo('packages/app', 'fix', 'correct a typo');
+
+    expect(newVersions()).toEqual({ app: '1.0.1' });
+  });
+
+  it('should bump a package from nested packages outside version.packages', () => {
+    createRepo({
+      workspaceGlobs: ['packages/*', 'packages/*/plugin'],
+      packages: ['host', 'host/plugin'],
+      version: { packages: ['host'] },
+    });
+    commitTo('packages/host/plugin', 'feat', 'drop the old plugin API', true);
+
+    expect(newVersions()).toEqual({ host: '2.0.0' });
+  });
 });

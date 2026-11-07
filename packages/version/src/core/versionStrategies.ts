@@ -11,7 +11,7 @@ import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js'
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
-import { packageCommitScope } from '../utils/commitScope.js';
+import { resolveCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addBaselineTag,
@@ -428,7 +428,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       const latestTag = latestTagResult;
       const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, packageName);
 
-      const commitScope = packageCommitScope(pkgPath, config, { repoRoot });
+      const { scope: commitScope, pathsError } = resolveCommitScope(pkgPath, config, { repoRoot });
 
       let nextVersion: string | undefined;
 
@@ -445,6 +445,9 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       if (!nextVersion) {
         log(`No version change needed for ${packageName}`, 'info');
         return;
+      }
+      if (pathsError) {
+        throw pathsError;
       }
 
       if (!checkManifestToBump(packageName, pkgPath, config, { repoRoot })) {
