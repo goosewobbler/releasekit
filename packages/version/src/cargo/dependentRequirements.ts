@@ -12,11 +12,10 @@ import { recordedCargoBumps } from './cargoLock.js';
 type Manifest = Record<string, unknown>;
 
 /**
- * A crate publishes the requirement its source declares, so raise each internal dependent's requirement on a crate
- * this run released. A releasing dependent always gets the released version, so its published manifest requires the
- * release it was built with. Any other requirement, a dev-dependency's included, changes only when it rejects the new
- * version: Cargo checks a path dependency's local version against it, so every local build would fail. Raising a
- * dev-dependency regardless would turn a dev cycle between two releasing crates into one neither can publish first.
+ * A crate publishes the requirements its source declares, so raise internal dependents' requirements on the crates this
+ * run released. A releasing dependent's normal and build requirements always become the released version, so it
+ * publishes requiring what it was built with. Any other requirement changes only when it rejects the release, since
+ * Cargo checks a path dependency's version locally and every build would fail.
  *
  * Checks every tracked Cargo.toml: a crate that never releases (`publish = false`) can still depend on one that does.
  */
@@ -56,6 +55,7 @@ export function raiseRequirementsIn(manifestPaths: string[], bumps: readonly Car
       const original = originals.get(entry) ?? entry.version;
       originals.set(entry, original);
       const isDev = kind === 'dev-dependencies';
+      // Always raising a dev requirement can leave a dev cycle that neither crate can publish first.
       if ((!isReleasing || isDev) && cargoRequirementAccepts(original, released.version)) {
         continue;
       }
@@ -102,7 +102,7 @@ function parseManifest(manifestPath: string): Manifest | undefined {
   try {
     return TOML.parse(pending ?? fs.readFileSync(manifestPath, 'utf-8'));
   } catch (error) {
-    // A releasing crate's manifest has already parsed, so this is a fixture, a template or a manifest above the repo.
+    // Releasing crates' manifests parsed during the bump, so this is a fixture, a template or a manifest above the repo.
     log(
       `Couldn't check ${manifestPath} for requirements on released crates: ${error instanceof Error ? error.message : String(error)}`,
       'debug',

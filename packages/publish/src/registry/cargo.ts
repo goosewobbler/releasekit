@@ -15,10 +15,7 @@ const ALREADY_PUBLISHED_PATTERN = /already exists on crates\.io index|already up
 export interface CargoTarget extends RegistryTarget {
   dir: string;
   manifestPath: string;
-  /**
-   * Path dependencies' directories, dev-dependencies left out: a crate often dev-depends on its own dependent, and
-   * that edge would make the publish order a cycle.
-   */
+  /** Excludes dev-dependencies: a crate often dev-depends on its own dependent, which would make the order a cycle. */
   pathDepDirs: string[];
 }
 

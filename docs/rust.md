@@ -10,10 +10,10 @@ See [configuration.md](./configuration.md) for the full config reference.
 
 - `Cargo.toml` version bumping driven by conventional commits
 - `Cargo.lock` sync on every bump: the crate's own lock, and every other committed lock whose workspace reaches the crate's directory through path dependencies (`workspace = true` included), is updated in the same release commit, without running cargo. Gitignored locks are left alone, and so are other crates of the same name (every `tauri init` app is `app`)
-- Internal dependents' requirements raised on release: a crate that depends on a releasing crate by `path` and releases too gets the new version as its requirement (`version = "1.1.0"`), so its published manifest requires the release it was built with. A dev-dependency, or a crate that isn't releasing, changes only when its requirement rejects the new version (a major, a 0.x minor or a new pre-release line), since Cargo checks a path dependency's local version against it. For a crate that isn't releasing, the run warns that its published version keeps the old requirement. Every tracked `Cargo.toml` is checked, `publish = false` crates included. Covers normal, dev, build and `[target.*]` dependencies, and `workspace = true` ones, whose requirement is raised in `[workspace.dependencies]`
+- Internal dependents' requirements raised on release: when a crate depends on a releasing crate by `path` and releases too, its requirement becomes the new version (`version = "1.1.0"`), so it publishes requiring the release it was built with. Other requirements (dev-dependencies, and crates that aren't releasing) are raised only when they reject the new version (a major, a 0.x minor or a new pre-release line), since Cargo would otherwise fail every local build. A crate that isn't releasing gets a warning that its published version keeps the old requirement. Every tracked `Cargo.toml` is checked, `publish = false` crates included, across normal, dev, build, `[target.*]` and `workspace = true` dependencies (raised in `[workspace.dependencies]`)
 - Per-crate git tags (via `version.packageSpecificTags`)
 - Publishing to crates.io with `cargo publish`
-- Workspace dependency ordering via topological sort (Kahn's algorithm) so path-dependent crates are published in the correct sequence. Normal and build path dependencies count, `workspace = true` and `[target.*]` ones included; dev-dependencies don't
+- Workspace dependency ordering via topological sort (Kahn's algorithm) so path-dependent crates are published in the correct sequence
 - Idempotent publish: crates already present on crates.io are silently skipped both before publish (via the crates.io API) and after (via error pattern matching, to handle sparse index lag)
 - Pre-publish verification: polls crates.io after each publish to confirm the version is visible
 - `--allow-dirty` automatically passed when the git working directory has uncommitted changes (expected after a version bump commit)
@@ -25,7 +25,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 - OIDC / trusted publishing for crates.io — token-based auth only via `CARGO_REGISTRY_TOKEN`
 - Nested Cargo workspaces — only the repo-root `Cargo.toml`'s `[workspace] members` scope crate discovery
 - `[patch]`, in `Cargo.toml` or `.cargo/config.toml`, when syncing `Cargo.lock` — a lock whose workspace reaches a bumped crate only through a patch keeps the old version, without an error, and `cargo build --locked` there fails until you run `cargo update --workspace` in that workspace and commit the lock
-- Comment and formatting preservation in `Cargo.toml` — the file is rewritten on version bump, or when a dependency requirement is raised, using `smol-toml`'s serialiser; whitespace, comments, and key order may change
+- Comment and formatting preservation in `Cargo.toml` — the file is rewritten with `smol-toml`'s serialiser on a version bump or a raised requirement; whitespace, comments, and key order may change
 
 ---
 
@@ -141,7 +141,7 @@ releasekit checks for this environment variable at the start of the cargo publis
 
 When publishing a Cargo workspace, crates that are path dependencies of other crates must be published first. releasekit resolves this automatically using a topological sort (Kahn's algorithm) over the path dependency graph.
 
-Only `[dependencies]` / `[dev-dependencies]` / `[build-dependencies]` entries with a `path` key are used for ordering. Registry dependencies (version strings or `{ version = "..." }`) and git dependencies are not included in the graph — those are already available on crates.io before the release starts.
+Only `[dependencies]` and `[build-dependencies]` entries with a `path` key are used for ordering, including `[target.*]` tables and `workspace = true` entries whose `[workspace.dependencies]` entry has a `path`. Dev-dependencies aren't, since a crate often dev-depends on its own dependent. Registry dependencies (version strings or `{ version = "..." }`) and git dependencies are not included in the graph — those are already available on crates.io before the release starts.
 
 **When to use `publishOrder` explicitly:**
 

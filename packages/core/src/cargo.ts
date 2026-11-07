@@ -68,11 +68,11 @@ export interface CargoPathDependency {
   manifestPath: string;
   /** The parsed entry from that manifest, so editing it edits what `read` returned. */
   entry: Table & { path: string };
-  /** The dependency's crate directory. */
+  /** The dependency's directory. */
   dir: string;
 }
 
-/** The path dependencies of the crate at `manifestPath`, in its top-level and `[target.<cfg>.*]` tables. */
+/** Covers top-level and `[target.<cfg>.*]` tables. */
 export function findCargoPathDependencies(
   manifestPath: string,
   read: ReadManifest = readManifest,
