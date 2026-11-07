@@ -134,6 +134,46 @@ describe('raiseRequirementsIn', () => {
     expect(read(driver).dependencies.bridge).toEqual({ workspace: true });
   });
 
+  it("should warn about every inheriting crate that isn't releasing, after a releasing one raised the shared entry", () => {
+    const workspace = path.join(root, 'Cargo.toml');
+    fs.writeFileSync(
+      workspace,
+      '[workspace]\nmembers = ["bridge", "app", "driver"]\n\n[workspace.dependencies]\nbridge = { path = "bridge", version = "1" }\n',
+    );
+    const bridge = writeCrate('bridge', '2.0.0');
+    const app = writeCrate('app', '1.0.1', '\n[dependencies]\nbridge.workspace = true\n');
+    const driver = writeCrate('driver', '1.0.0', '\n[dependencies]\nbridge.workspace = true\n');
+
+    raiseRequirementsIn([workspace, app, driver], [released(bridge, '2.0.0'), released(app, '1.0.1')], false);
+
+    expect(read(workspace).workspace.dependencies.bridge.version).toBe('2.0.0');
+    expect(log).toHaveBeenCalledWith(
+      `driver isn't releasing, so its published version keeps requiring bridge "1" until it does`,
+      'warning',
+    );
+  });
+
+  it("should warn rather than edit a workspace manifest git doesn't track", () => {
+    const outside = path.join(root, 'outside', 'Cargo.toml');
+    fs.mkdirSync(path.dirname(outside));
+    fs.writeFileSync(
+      outside,
+      '[workspace]\nmembers = ["../driver"]\n\n[workspace.dependencies]\nbridge = { path = "../bridge", version = "1" }\n',
+    );
+    const before = fs.readFileSync(outside, 'utf-8');
+    const bridge = writeCrate('bridge', '2.0.0');
+    const driver = writeCrate(
+      'driver',
+      '1.0.0',
+      'workspace = "../outside"\n\n[dependencies]\nbridge.workspace = true\n',
+    );
+
+    raiseRequirementsIn([bridge, driver], [released(bridge, '2.0.0')], false);
+
+    expect(fs.readFileSync(outside, 'utf-8')).toBe(before);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(`it's declared in ${outside}`), 'warning');
+  });
+
   it("should warn about a manifest it can't parse and still raise the others", () => {
     const template = writeCrate('template', '1.0.0', 'edition = {{edition}}\n');
     const bridge = writeCrate('bridge', '2.0.0');

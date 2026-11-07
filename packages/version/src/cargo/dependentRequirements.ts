@@ -37,37 +37,48 @@ export function raiseRequirementsIn(manifestPaths: string[], bumps: readonly Car
     return manifests.get(manifestPath);
   };
 
+  const editable = new Set([...manifestPaths.map((p) => path.resolve(p)), ...releasing]);
+  // A shared [workspace.dependencies] entry may already be raised by an earlier member.
+  const originals = new WeakMap<object, string>();
   const changed = new Set<string>();
-  for (const manifestPath of new Set([...manifestPaths.map((p) => path.resolve(p)), ...releasing])) {
+  for (const manifestPath of editable) {
     const isReleasing = releasing.has(manifestPath);
     const name = (read(manifestPath)?.package as { name?: unknown } | undefined)?.name;
     const crate = typeof name === 'string' ? name : manifestPath;
     for (const { manifestPath: declaredIn, entry, dir } of findCargoPathDependencies(manifestPath, read)) {
       const released = releasedByDir.get(dir);
-      if (
-        !released ||
-        typeof entry.version !== 'string' ||
-        (!isReleasing && cargoRequirementAccepts(entry.version, released.version))
-      ) {
+      if (!released || typeof entry.version !== 'string') {
+        continue;
+      }
+      const original = originals.get(entry) ?? entry.version;
+      originals.set(entry, original);
+      if (!isReleasing && cargoRequirementAccepts(original, released.version)) {
         continue;
       }
       const raised = raiseRequirement(entry.version, released.version);
-      if (raised === entry.version) {
-        continue;
+      if (raised !== entry.version) {
+        // A `package.workspace` pointer can lead outside the repository, to a file the release can't commit.
+        if (!editable.has(declaredIn)) {
+          log(
+            `Can't raise ${crate}'s requirement on ${released.name}: it's declared in ${declaredIn}, which git doesn't track`,
+            'warning',
+          );
+          continue;
+        }
+        const where = declaredIn === manifestPath ? '' : ` in ${declaredIn}'s [workspace.dependencies]`;
+        log(
+          `${dryRun ? '[DRY RUN] Would raise' : 'Raised'} ${crate}'s requirement on ${released.name}${where} from "${entry.version}" to "${raised}"`,
+          'info',
+        );
+        entry.version = raised;
+        changed.add(declaredIn);
       }
-      const where = declaredIn === manifestPath ? '' : ` in ${declaredIn}'s [workspace.dependencies]`;
-      log(
-        `${dryRun ? '[DRY RUN] Would raise' : 'Raised'} ${crate}'s requirement on ${released.name}${where} from "${entry.version}" to "${raised}"`,
-        'info',
-      );
       if (!isReleasing) {
         log(
-          `${crate} isn't releasing, so its published version keeps requiring ${released.name} "${entry.version}" until it does`,
+          `${crate} isn't releasing, so its published version keeps requiring ${released.name} "${original}" until it does`,
           'warning',
         );
       }
-      entry.version = raised;
-      changed.add(declaredIn);
     }
   }
 
