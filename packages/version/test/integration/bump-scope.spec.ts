@@ -153,4 +153,28 @@ describe('bump scope', () => {
 
     expect(newVersions()).toEqual({ host: '2.0.0' });
   });
+
+  it('should not bump a targeted package from a nested package that releases on its own', () => {
+    createRepo({ workspaceGlobs: ['packages/*', 'packages/*/plugin'], packages: ['host', 'host/plugin'] });
+    commitTo('packages/host/plugin', 'feat', 'drop the old plugin API', true);
+    commitTo('packages/host', 'fix', 'correct a typo');
+
+    const result = executeCliCommand('--json --target host', tempDir);
+    expect(result.status).toBe(0);
+    const versions = Object.fromEntries(
+      readVersionOutput(result.stdout).updates.map((u) => [u.packageName, u.newVersion]),
+    );
+
+    expect(versions).toEqual({ host: '1.0.1' });
+  });
+
+  it('should fail before writing any version when a cargo.paths entry leaves the repository', () => {
+    createRepo({ packages: ['app'], version: { cargo: { paths: ['../../..'] } } });
+    commitTo('packages/app', 'fix', 'correct a typo');
+
+    const result = executeCliCommand('--json', tempDir, false);
+
+    expect(result.status).not.toBe(0);
+    expect(execSync('git status --porcelain --untracked-files=no', { cwd: tempDir, encoding: 'utf-8' })).toBe('');
+  });
 });

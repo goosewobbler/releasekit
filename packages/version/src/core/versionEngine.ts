@@ -365,7 +365,13 @@ export class VersionEngine {
         } catch {
           // No tag resolvable - getCommitsLength falls back to git describe / full history.
         }
-        const scope = packageCommitScope(pkg.dir, this.config, { repoRoot, ignorePaths });
+        let scope: string[];
+        try {
+          scope = packageCommitScope(pkg.dir, this.config, { repoRoot, ignorePaths });
+        } catch {
+          // A `paths` entry that leaves the repository fails this package's bump if it releases, not this check.
+          scope = packageCommitScope(pkg.dir, this.config, { repoRoot, ignorePaths: true });
+        }
         return (await getCommitsLength(scope, tag)) > 0 ? pkg.packageJson.name : null;
       }),
     );
@@ -464,6 +470,7 @@ export class VersionEngine {
           log(`Private filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'debug');
         }
       }
+      this.config.releasablePackageDirs = mergedPackages.packages.map((p) => p.dir);
 
       // Runs on the full discovered set, before the target pre-filter below, so prerequisites aren't pruned.
       if (this.includePrerequisites && this.runtimeTargets.length > 0) {

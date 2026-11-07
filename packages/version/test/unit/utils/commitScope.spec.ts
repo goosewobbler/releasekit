@@ -44,7 +44,7 @@ describe('packageCommitScope', () => {
     const scope = packageCommitScope(
       pkgDir,
       { cargo: { paths: ['src-tauri'] } },
-      { repoRoot: root, workspaceDirs: [pkgDir, crateDir] },
+      { repoRoot: root, releasableDirs: [pkgDir, crateDir] },
     );
 
     expect(scope).toEqual([pkgDir, crateDir]);
@@ -63,35 +63,24 @@ describe('packageCommitScope', () => {
     expect(scope).toEqual([pkgDir]);
   });
 
-  it('should not throw for a cargo.paths entry that leaves the repository', () => {
-    const pkgDir = join(root, 'packages', 'app');
-
-    expect(packageCommitScope(pkgDir, { cargo: { paths: ['../../..'] } }, { repoRoot: root })).toEqual([pkgDir]);
-  });
-
-  it('should exclude nested packages from config.allWorkspacePackages by default', () => {
+  it('should exclude nested packages from config.releasablePackageDirs by default', () => {
     const pkgDir = join(root, 'packages', 'app');
     const plugin = join(pkgDir, 'plugin');
-    const config = {
-      allWorkspacePackages: [
-        { name: 'app', dir: pkgDir },
-        { name: 'plugin', dir: plugin },
-      ],
-    };
+    const config = { releasablePackageDirs: [pkgDir, plugin] };
 
     expect(packageCommitScope(pkgDir, config, { repoRoot: root })).toEqual([pkgDir, `:(exclude)${plugin}`]);
-    expect(packageCommitScope(pkgDir, config, { repoRoot: root, workspaceDirs: [] })).toEqual([pkgDir]);
+    expect(packageCommitScope(pkgDir, config, { repoRoot: root, releasableDirs: [] })).toEqual([pkgDir]);
   });
 
   it('should exclude packages nested inside it', () => {
-    const workspaceDirs = [root, join(root, 'packages', 'app'), join(root, 'packages', 'app', 'plugin')];
+    const releasableDirs = [root, join(root, 'packages', 'app'), join(root, 'packages', 'app', 'plugin')];
 
-    expect(packageCommitScope(root, {}, { repoRoot: root, workspaceDirs })).toEqual([
+    expect(packageCommitScope(root, {}, { repoRoot: root, releasableDirs })).toEqual([
       root,
       `:(exclude)${join(root, 'packages', 'app')}`,
       `:(exclude)${join(root, 'packages', 'app', 'plugin')}`,
     ]);
-    expect(packageCommitScope(join(root, 'packages', 'app'), {}, { repoRoot: root, workspaceDirs })).toEqual([
+    expect(packageCommitScope(join(root, 'packages', 'app'), {}, { repoRoot: root, releasableDirs })).toEqual([
       join(root, 'packages', 'app'),
       `:(exclude)${join(root, 'packages', 'app', 'plugin')}`,
     ]);

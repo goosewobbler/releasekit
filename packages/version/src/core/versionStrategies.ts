@@ -428,8 +428,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       const latestTag = latestTagResult;
       const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, packageName);
 
-      // The one released package may bundle the workspace packages nested inside it, so their commits count.
-      const commitScope = packageCommitScope(pkgPath, config, { repoRoot, workspaceDirs: [] });
+      const commitScope = packageCommitScope(pkgPath, config, { repoRoot });
 
       let nextVersion: string | undefined;
 

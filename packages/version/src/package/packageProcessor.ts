@@ -114,11 +114,12 @@ export class PackageProcessor {
       sharedChangelogFloor: this.fullConfig.sharedChangelogFloor,
     });
 
-    // The full workspace, so a nested package's commits stay its own and a commit touching only a non-releasing
-    // package isn't misread as repo-level. Falls back to the release set when the engine didn't populate it (e.g. tests).
+    // The full workspace, so a commit touching only a non-releasing package isn't misread as repo-level.
+    // Both fall back to the release set when the engine didn't populate them (e.g. tests).
     const workspace =
       this.fullConfig.allWorkspacePackages ?? packages.map((p) => ({ name: p.packageJson.name, dir: p.dir }));
     const workspaceDirs = workspace.map((p) => p.dir);
+    const releasableDirs = this.fullConfig.releasablePackageDirs ?? packages.map((p) => p.dir);
 
     for (const pkg of pkgsToConsider) {
       const name = pkg.packageJson.name;
@@ -173,7 +174,7 @@ export class PackageProcessor {
       }
 
       const latestTag = latestTagResult;
-      const commitScope = packageCommitScope(pkgPath, this.fullConfig, { repoRoot, workspaceDirs });
+      const commitScope = packageCommitScope(pkgPath, this.fullConfig, { repoRoot, releasableDirs });
 
       const nextVersion = await calculateVersion(this.fullConfig, {
         latestTag,
