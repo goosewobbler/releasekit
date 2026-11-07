@@ -233,7 +233,12 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        changelogEntries = await extractChangelogEntriesFromCommits(mainPkgPath, revisionRange);
+        // Without a mainPackage, the notes cover every commit that can bump the synced version.
+        changelogEntries = await extractChangelogEntriesFromCommits(
+          mainPkgPath,
+          revisionRange,
+          mainPkgName ? ['.'] : [],
+        );
 
         if (changelogEntries.length === 0) {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];

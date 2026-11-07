@@ -7,6 +7,7 @@ import { execSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import type { VersionOutput } from '@releasekit/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { executeCliCommand, readVersionOutput } from '../utils/cli.js';
 import { createConventionalCommit, initGitRepo } from '../utils/git.js';
@@ -16,6 +17,8 @@ import { cleanupTempDir, symlinkNodeModules } from '../utils/tempFixture.js';
 let tempDir: string;
 
 interface RepoOptions {
+  /** Where the workspace sits inside the git repository. */
+  workspaceDir?: string;
   sync?: boolean;
   workspaceGlobs?: string[];
   packages?: string[];
@@ -23,23 +26,23 @@ interface RepoOptions {
 }
 
 function createRepo({
+  workspaceDir = '.',
   sync = false,
   workspaceGlobs = ['packages/*'],
   packages = ['pkg-a', 'pkg-b'],
   version = {},
 }: RepoOptions = {}) {
   tempDir = mkdtempSync(join(tmpdir(), 'rk-bump-scope-'));
-  writeFileSync(join(tempDir, 'package.json'), JSON.stringify({ name: 'monorepo', version: '1.0.0', private: true }));
-  writeFileSync(
-    join(tempDir, 'pnpm-workspace.yaml'),
-    `packages:\n${workspaceGlobs.map((g) => `  - "${g}"\n`).join('')}`,
-  );
+  const ws = join(tempDir, workspaceDir);
+  mkdirSync(ws, { recursive: true });
+  writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'monorepo', version: '1.0.0', private: true }));
+  writeFileSync(join(ws, 'pnpm-workspace.yaml'), `packages:\n${workspaceGlobs.map((g) => `  - "${g}"\n`).join('')}`);
   for (const pkg of packages) {
-    mkdirSync(join(tempDir, 'packages', pkg), { recursive: true });
-    createPackageJson(join(tempDir, 'packages', pkg), basename(pkg), '1.0.0');
+    mkdirSync(join(ws, 'packages', pkg), { recursive: true });
+    createPackageJson(join(ws, 'packages', pkg), basename(pkg), '1.0.0');
   }
   writeFileSync(
-    join(tempDir, 'releasekit.config.json'),
+    join(ws, 'releasekit.config.json'),
     JSON.stringify({
       version: {
         preset: 'conventionalcommits',
@@ -51,7 +54,7 @@ function createRepo({
       },
     }),
   );
-  symlinkNodeModules(tempDir);
+  symlinkNodeModules(ws);
   initGitRepo(tempDir);
   const tags = sync ? ['v1.0.0'] : packages.map((pkg) => `${basename(pkg)}@v1.0.0`);
   for (const tag of tags) {
@@ -64,11 +67,14 @@ function commitTo(dir: string, type: string, message: string, breaking = false) 
   createConventionalCommit(tempDir, type, message, undefined, breaking, [dir]);
 }
 
-function newVersions(): Record<string, string | undefined> {
-  const result = executeCliCommand('--json', tempDir);
+function runVersion(workspaceDir = '.'): VersionOutput {
+  const result = executeCliCommand('--json', join(tempDir, workspaceDir));
   expect(result.status).toBe(0);
-  const output = readVersionOutput(result.stdout);
-  return Object.fromEntries(output.updates.map((u) => [u.packageName, u.newVersion]));
+  return readVersionOutput(result.stdout);
+}
+
+function newVersions(workspaceDir = '.'): Record<string, string | undefined> {
+  return Object.fromEntries(runVersion(workspaceDir).updates.map((u) => [u.packageName, u.newVersion]));
 }
 
 describe('bump scope', () => {
@@ -122,5 +128,16 @@ describe('bump scope', () => {
 
     expect(versions.plugin).toBe('2.0.0');
     expect(versions.host).toBe('1.0.1');
+  });
+
+  it('should bump and note a synced release from a commit outside a nested workspace', () => {
+    createRepo({ workspaceDir: 'js', sync: true });
+    mkdirSync(join(tempDir, 'native'));
+    commitTo('native', 'feat', 'drop the old native API', true);
+
+    const output = runVersion('js');
+
+    expect(output.updates.map((u) => u.newVersion)).toEqual(['2.0.0', '2.0.0', '2.0.0']);
+    expect(output.changelogs.flatMap((c) => c.entries.map((e) => e.description))).toContain('drop the old native API');
   });
 });
