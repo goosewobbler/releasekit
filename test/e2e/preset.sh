@@ -13,6 +13,7 @@ echo "=== E2E: Preset Tests ==="
 setup_preset_repo() {
   local config_json="$1"
   local tagged="$2"
+  local last_commit="${3:-feat!: drop legacy API}"
   create_git_repo
   create_package_json "test-preset" "1.0.0"
   create_releasekit_config "$config_json"
@@ -20,7 +21,7 @@ setup_preset_repo() {
   if [[ "$tagged" == "tagged" ]]; then
     git tag "v1.0.0"
   fi
-  git_commit "feat!: drop legacy API"
+  git_commit "$last_commit"
 }
 
 assert_preset_config_error() {
@@ -42,10 +43,11 @@ assert_preset_config_error() {
   echo "PASS: No crash output on stderr"
 }
 
-# Test 1: no preset on a tagged repo → conventionalcommits (only it parses the `!` marker as breaking)
+# Test 1: no preset on a tagged repo → conventionalcommits: a `chore:` commit releases nothing (angular would
+# release a patch)
 echo ""
 echo "--- Test: tagged repo without a preset uses conventionalcommits ---"
-setup_preset_repo '{"version":{"packages":["./"]}}' tagged
+setup_preset_repo '{"version":{"packages":["./"]}}' tagged "chore: tidy up"
 
 set +e
 output=$(run_cli_json releasekit release --dry-run --json --project-dir "$REPO_DIR")
@@ -53,7 +55,7 @@ exit_code=$?
 set -e
 
 assert_exit_code 0 "$exit_code"
-assert_version "2.0.0" "$(get_version_from_json "$output")"
+assert_version "" "$(get_version_from_json "$output")"
 
 cleanup_repo
 REPO_DIR=""

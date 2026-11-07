@@ -12,7 +12,7 @@ Each section below covers a specific failure mode. Search for the exact message 
 
 **Cause:** There are commits since the tag, but none triggers a bump under the configured preset. With `conventionalcommits` (the default), only `feat`, `fix`, `perf`, `revert` and breaking changes do; `chore`, `docs`, `refactor`, `test`, `ci` and similar don't.
 
-**Fix:** Either (a) add a releasable commit, (b) force a bump with `--bump patch`, or (c) set `"preset": "angular"`, which releases at least a patch for any commit but doesn't treat a `type!:` header as breaking. Confirm which commits exist with `git log <tag>..HEAD --oneline`.
+**Fix:** Either (a) add a releasable commit, (b) force a bump with `--bump patch`, or (c) set `"preset": "angular"`, which releases at least a patch for any commit. Confirm which commits exist with `git log <tag>..HEAD --oneline`.
 
 ---
 

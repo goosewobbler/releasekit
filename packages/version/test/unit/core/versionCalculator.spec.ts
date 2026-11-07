@@ -19,6 +19,7 @@ vi.mock('../../../src/utils/logging.js');
 vi.mock('../../../src/utils/versionUtils.js');
 vi.mock('../../../src/utils/manifestHelpers.js');
 vi.mock('conventional-recommended-bump');
+
 vi.mock('node:fs');
 vi.mock('node:path');
 vi.mock('semver');
@@ -889,6 +890,17 @@ describe('Version Calculator', () => {
       await calculateVersion(defaultConfig as Config, options);
 
       expect(commitsSpy).toHaveBeenCalledWith({ from: 'v1.0.0' });
+    });
+
+    it("should read a `type!:` header as breaking under angular, by the changelog's header rules", async () => {
+      const config = vi.spyOn(Bumper.prototype, 'config').mockReturnThis();
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
+
+      await calculateVersion(defaultConfig as Config, { latestTag: 'v1.0.0', versionPrefix: 'v' });
+
+      const breaking = config.mock.calls[0]?.[0]?.parser?.breakingHeaderPattern;
+      expect(breaking?.test('fix(core)!: drop the old flag')).toBe(true);
+      expect(breaking?.test('fix(parser): accept foo(x)!: y')).toBe(false);
     });
 
     it('should use conventional commits when no type or branch pattern matches', async () => {
