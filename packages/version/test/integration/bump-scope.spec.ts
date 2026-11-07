@@ -107,7 +107,7 @@ describe('bump scope', () => {
   it('should bump a package from commits to a crate it versions through cargo.paths', () => {
     createRepo({ packages: ['app'], version: { cargo: { paths: ['../../crates/app'] } } });
     mkdirSync(join(tempDir, 'crates', 'app'), { recursive: true });
-    // So discovery doesn't release the crate as a package of its own.
+    // publish = false, so discovery doesn't release the crate as a package of its own.
     writeFileSync(
       join(tempDir, 'crates', 'app', 'Cargo.toml'),
       '[package]\nname = "app"\nversion = "1.0.0"\npublish = false\n',
@@ -140,7 +140,7 @@ describe('bump scope', () => {
 
   it('should bump a single released package from commits to a nested package it bundles', () => {
     createRepo({ workspaceGlobs: ['packages/*', 'packages/*/plugin'], packages: ['host', 'host/plugin'] });
-    // So `host` is the only package released and the single-package strategy runs.
+    // Private, so `host` is the only package released and the single-package strategy runs.
     writeFileSync(
       join(tempDir, 'packages', 'host', 'plugin', 'package.json'),
       JSON.stringify({ name: 'plugin', version: '1.0.0', private: true }),
