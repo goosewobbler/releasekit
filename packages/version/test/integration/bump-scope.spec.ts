@@ -67,8 +67,8 @@ function commitTo(dir: string, type: string, message: string, breaking = false) 
   createConventionalCommit(tempDir, type, message, undefined, breaking, [dir]);
 }
 
-function runVersion(workspaceDir = '.'): VersionOutput {
-  const result = executeCliCommand('--json', join(tempDir, workspaceDir));
+function runVersion(workspaceDir = '.', args = ''): VersionOutput {
+  const result = executeCliCommand(`--json${args}`, join(tempDir, workspaceDir));
   expect(result.status).toBe(0);
   return readVersionOutput(result.stdout);
 }
@@ -130,15 +130,12 @@ describe('bump scope', () => {
     expect(versions.host).toBe('1.0.1');
   });
 
-  it('should bump and note a synced release from a commit outside a nested workspace', () => {
+  it('should not release a synced workspace for a commit elsewhere in the repository', () => {
     createRepo({ workspaceDir: 'js', sync: true });
-    mkdirSync(join(tempDir, 'native'));
-    commitTo('native', 'feat', 'drop the old native API', true);
+    mkdirSync(join(tempDir, 'docs'));
+    commitTo('docs', 'feat', 'document the API');
 
-    const output = runVersion('js');
-
-    expect(output.updates.map((u) => u.newVersion)).toEqual(['2.0.0', '2.0.0', '2.0.0']);
-    expect(output.changelogs.flatMap((c) => c.entries.map((e) => e.description))).toContain('drop the old native API');
+    expect(newVersions('js')).toEqual({});
   });
 
   it('should bump a single released package from commits to a nested package it bundles', () => {
@@ -203,5 +200,37 @@ describe('bump scope', () => {
     commitTo('packages/host/plugin', 'feat', 'drop the old plugin API', true);
 
     expect(newVersions()).toEqual({ host: '2.0.0' });
+  });
+
+  it('should fail rather than skip a package whose only change is in a crate next to a bad paths entry', () => {
+    createRepo({ packages: ['app'], version: { cargo: { paths: ['../../crates/app', '../../..'] } } });
+    mkdirSync(join(tempDir, 'crates', 'app'), { recursive: true });
+    writeFileSync(
+      join(tempDir, 'crates', 'app', 'Cargo.toml'),
+      '[package]\nname = "app"\nversion = "1.0.0"\npublish = false\n',
+    );
+    execSync('git add crates && git commit -qm "chore: add crate" && git tag -f app@v1.0.0', { cwd: tempDir });
+    commitTo('crates/app', 'fix', 'correct the crate');
+
+    const result = executeCliCommand('--json', tempDir, false);
+
+    expect(result.status).not.toBe(0);
+    expect(execSync('git status --porcelain --untracked-files=no', { cwd: tempDir, encoding: 'utf-8' })).toBe('');
+  });
+
+  it('should release despite a malformed Cargo.toml in a package that is not releasing', () => {
+    createRepo({ packages: ['app', 'broken'] });
+    writeFileSync(join(tempDir, 'packages', 'broken', 'Cargo.toml'), '[package\n');
+    execSync(
+      'git add packages && git commit -qm "chore: break a manifest" && git tag -f app@v1.0.0 && git tag -f broken@v1.0.0',
+      {
+        cwd: tempDir,
+      },
+    );
+    commitTo('packages/app', 'fix', 'correct a typo');
+
+    expect(newVersions()).toEqual({ app: '1.0.1' });
+    const targeted = runVersion('.', ' --target app --include-prerequisites');
+    expect(targeted.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['app', '1.0.1']]);
   });
 });

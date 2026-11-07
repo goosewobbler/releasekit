@@ -347,13 +347,8 @@ describe('Version Strategies', () => {
         expect.objectContaining({
           path: '/test/workspace/packages/b',
           name: 'package-b',
-          commitScope: [],
+          commitScope: ['/test/workspace'],
         }),
-      );
-      expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith(
-        '/test/workspace/packages/b',
-        expect.any(String),
-        ['.'],
       );
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, {
@@ -388,7 +383,7 @@ describe('Version Strategies', () => {
       );
     });
 
-    it('should scope commits to the whole repository regardless of version source package', async () => {
+    it('should scope commits to the whole workspace regardless of version source package', async () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         sync: true,
@@ -402,7 +397,7 @@ describe('Version Strategies', () => {
         config as Config,
         expect.objectContaining({
           path: '/test/workspace/packages/a',
-          commitScope: [],
+          commitScope: ['/test/workspace'],
         }),
       );
     });
@@ -582,11 +577,7 @@ describe('Version Strategies', () => {
 
         await syncStrategy(mockPackages);
 
-        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith(
-          '/test/workspace',
-          'v1.0.0..HEAD',
-          [],
-        );
+        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'v1.0.0..HEAD');
 
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith({
           packageName: 'monorepo',
@@ -627,7 +618,7 @@ describe('Version Strategies', () => {
 
         await syncStrategy(mockPackages);
 
-        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD', []);
+        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD');
         expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('could not be verified from HEAD'), 'warning');
         // previousVersion omitted so the changelog doesn't claim a baseline it never diffed against.
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
@@ -665,7 +656,7 @@ describe('Version Strategies', () => {
 
         await syncStrategy(mockPackages);
 
-        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD', []);
+        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD');
 
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -688,7 +679,6 @@ describe('Version Strategies', () => {
         expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith(
           '/test/workspace',
           'deadbeef1234..HEAD',
-          [],
         );
       });
 
@@ -708,7 +698,7 @@ describe('Version Strategies', () => {
         const syncStrategy = strategies.createSyncStrategy(config as Config);
         await syncStrategy(mockPackages);
 
-        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD', []);
+        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD');
       });
 
       it('should create one tag per workspace package when packageSpecificTags is true', async () => {

@@ -365,7 +365,13 @@ export class VersionEngine {
         } catch {
           // No tag resolvable - getCommitsLength falls back to git describe / full history.
         }
-        const { scope } = resolveCommitScope(pkg.dir, this.config, { repoRoot, ignorePaths });
+        const { scope, pathsError } = resolveCommitScope(pkg.dir, this.config, { repoRoot, ignorePaths });
+        if (pathsError) {
+          log(
+            `Checking ${pkg.packageJson.name} for changes without a native manifest: ${pathsError.message}`,
+            'warning',
+          );
+        }
         return (await getCommitsLength(scope, tag)) > 0 ? pkg.packageJson.name : null;
       }),
     );

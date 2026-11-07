@@ -1,8 +1,9 @@
 import path from 'node:path';
 import { isPathWithinRoot } from '@releasekit/core';
-import { VersionError, VersionErrorCode } from '../errors/versionError.js';
 import type { Config } from '../types.js';
 import { type NativeManifestOptions, nativeManifestsToBump } from './manifestUpdates.js';
+
+type ScopeConfig = Pick<Config, 'cargo' | 'pub' | 'releasablePackageDirs'>;
 
 export interface CommitScopeOptions extends Pick<NativeManifestOptions, 'repoRoot' | 'ignorePaths'> {
   /** Directories of packages that release on their own; defaults to `config.releasablePackageDirs`. */
@@ -10,41 +11,62 @@ export interface CommitScopeOptions extends Pick<NativeManifestOptions, 'repoRoo
 }
 
 /**
- * Git pathspecs for the commits that belong to a package: its directory and the native manifests it versions
- * through `cargo.paths` / `pub.paths`, minus nested packages that release on their own. A nested package that
- * doesn't (a private one) ships inside this one, so its commits count. Absolute, so they resolve from any cwd.
+ * `scope` holds git pathspecs, absolute so they resolve from any cwd. `pathsError` is the first native manifest
+ * lookup that failed (a `paths` entry outside the repository, a malformed manifest): the scope leaves that entry
+ * out, and a caller raises the error only for a package that releases.
  */
-export function packageCommitScope(
+export interface CommitScope {
+  scope: string[];
+  pathsError?: Error;
+}
+
+/**
+ * The commits that belong to a package: its directory and the native manifests it versions through
+ * `cargo.paths` / `pub.paths`, minus nested packages that release on their own. A nested package that doesn't
+ * (a private one) ships inside this one, so its commits count.
+ */
+export function resolveCommitScope(
   pkgDir: string,
-  config: Pick<Config, 'cargo' | 'pub' | 'releasablePackageDirs'>,
+  config: ScopeConfig,
   { releasableDirs = config.releasablePackageDirs ?? [], ...manifestOptions }: CommitScopeOptions = {},
-): string[] {
+): CommitScope {
   const dir = path.resolve(pkgDir);
-  const manifestDirs = nativeManifestsToBump(dir, config, manifestOptions).map((m) => path.dirname(m));
-  const included = [...new Set([dir, ...manifestDirs])];
+  const { dirs: included, error } = ownedDirs(dir, config, manifestOptions);
   // A crate the package versions can also be discovered as a package of its own (a Tauri `src-tauri`).
   const nested = releasableDirs
     .map((d) => path.resolve(d))
     .filter((d) => !included.includes(d) && included.some((i) => isPathWithinRoot(i, d)))
     .map((d) => `:(exclude)${d}`);
-  return [...included, ...nested];
+  return { scope: [...included, ...nested], ...(error ? { pathsError: error } : {}) };
 }
 
-/**
- * {@link packageCommitScope}, falling back to the package's own manifests when a `paths` entry leaves the
- * repository. That error is returned rather than thrown, so a caller raises it only for a package that releases.
- */
-export function resolveCommitScope(
-  pkgDir: string,
-  config: Pick<Config, 'cargo' | 'pub' | 'releasablePackageDirs'>,
-  options: CommitScopeOptions = {},
-): { scope: string[]; pathsError?: VersionError } {
-  try {
-    return { scope: packageCommitScope(pkgDir, config, options) };
-  } catch (error) {
-    if (!(error instanceof VersionError && error.code === VersionErrorCode.UNSAFE_CONFIG_PATH)) {
-      throw error;
+/** One lookup per configured entry, so an entry that fails doesn't drop the others. */
+function ownedDirs(
+  dir: string,
+  config: ScopeConfig,
+  options: NativeManifestOptions,
+): { dirs: string[]; error?: Error } {
+  const dirs = new Set([dir]);
+  let error: Error | undefined;
+  for (const lookup of manifestLookups(config, options.ignorePaths)) {
+    try {
+      for (const manifest of nativeManifestsToBump(dir, lookup, options)) {
+        dirs.add(path.dirname(manifest));
+      }
+    } catch (e) {
+      error ??= e instanceof Error ? e : new Error(String(e));
     }
-    return { scope: packageCommitScope(pkgDir, config, { ...options, ignorePaths: true }), pathsError: error };
   }
+  return { dirs: [...dirs], ...(error ? { error } : {}) };
+}
+
+function manifestLookups(config: ScopeConfig, ignorePaths = false): Array<Pick<Config, 'cargo' | 'pub'>> {
+  const cargoPaths = ignorePaths ? [] : (config.cargo?.paths ?? []);
+  const pubPaths = ignorePaths ? [] : (config.pub?.paths ?? []);
+  const cargo = (paths: string[]) => ({ cargo: { ...config.cargo, paths }, pub: { enabled: false } });
+  const pub = (paths: string[]) => ({ pub: { ...config.pub, paths }, cargo: { enabled: false } });
+  return [
+    ...(cargoPaths.length > 0 ? cargoPaths.map((p) => cargo([p])) : [cargo([])]),
+    ...(pubPaths.length > 0 ? pubPaths.map((p) => pub([p])) : [pub([])]),
+  ];
 }

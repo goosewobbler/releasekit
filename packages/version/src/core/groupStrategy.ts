@@ -17,7 +17,7 @@ import { StrictReachableError } from '../errors/strictReachableError.js';
 import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import type { Config } from '../types.js';
-import { packageCommitScope } from '../utils/commitScope.js';
+import { resolveCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addBaselineTag,
@@ -101,7 +101,7 @@ async function planMember(
     latestTag = globalTag;
   }
 
-  const commitScope = packageCommitScope(pkg.dir, config, { ignorePaths: true });
+  const commitScope = resolveCommitScope(pkg.dir, config, { ignorePaths: true }).scope;
   const ownNext = await calculateVersion(config, {
     latestTag,
     versionPrefix: formattedPrefix,

@@ -120,8 +120,8 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         versionPrefix: formattedPrefix,
         prereleaseIdentifier,
         path: versionSourcePath,
-        // Synced packages share one version, so every commit in the repository counts.
-        commitScope: [],
+        // Synced packages share one version: every commit in the workspace counts. `paths` can't leave it.
+        commitScope: [repoRoot],
         name: versionSourceName,
         type: config.type,
       });
@@ -233,12 +233,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        // Without a mainPackage, the notes cover every commit that can bump the synced version.
-        changelogEntries = await extractChangelogEntriesFromCommits(
-          mainPkgPath,
-          revisionRange,
-          mainPkgName ? ['.'] : [],
-        );
+        changelogEntries = await extractChangelogEntriesFromCommits(mainPkgPath, revisionRange);
 
         if (changelogEntries.length === 0) {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
