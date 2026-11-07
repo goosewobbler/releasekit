@@ -20,7 +20,7 @@ import {
   type VersionSourceResult,
 } from '../utils/versionUtils.js';
 
-/** Angular's parser can't read a `type!:` header, so it takes the changelog's header rules. */
+/** Angular's parser doesn't recognise a `type!:` header, so the bump uses the changelog's header rules. */
 function createAngularPresetReadingBreakingHeaders(): BumperPreset {
   const preset = (createAngularPreset as () => BumperPreset)();
   return {

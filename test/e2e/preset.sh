@@ -43,8 +43,8 @@ assert_preset_config_error() {
   echo "PASS: No crash output on stderr"
 }
 
-# Test 1: no preset on a tagged repo → conventionalcommits, which releases nothing for a `chore:` commit (angular
-# releases a patch)
+# Test 1: no preset on a tagged repo → conventionalcommits: a `chore:` commit releases nothing (angular would
+# release a patch)
 echo ""
 echo "--- Test: tagged repo without a preset uses conventionalcommits ---"
 setup_preset_repo '{"version":{"packages":["./"]}}' tagged "chore: tidy up"

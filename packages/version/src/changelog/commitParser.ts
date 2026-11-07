@@ -5,7 +5,7 @@ import { log } from '../utils/logging.js';
 type ChangelogEntry = VersionChangelogEntry;
 
 const CONVENTIONAL_COMMIT_REGEX = /^(\w+)(?:\(([^)]+)\))?(!)?: (.+)(?:\n\n([\s\S]*))?/;
-/** The header rules above, for the angular bump, so it and the changelog agree on which headers are breaking. */
+/** `CONVENTIONAL_COMMIT_REGEX`'s header rules for the angular bump, so it agrees with the changelog on breaking. */
 export const HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!?: (.+)$/;
 export const BREAKING_HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!: (.+)$/;
 const BREAKING_CHANGE_REGEX = /BREAKING CHANGE: ([\s\S]+?)(?:\n\n|$)/;

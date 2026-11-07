@@ -61,8 +61,8 @@ first-class monorepo model without installing additional packages.
    - The commit preset defaults to `conventionalcommits`. It sets how commits bump the version,
      not how the changelog groups them. If you were using `angular` in
      `@semantic-release/commit-analyzer`, `"version": { "preset": "angular" }` is the closest
-     match, but unlike semantic-release's it treats a `type!:` header as breaking and releases at
-     least a patch for every commit, `chore:` and `docs:` included.
+     match. Unlike semantic-release's angular preset, it treats a `type!:` header as breaking and
+     releases at least a patch for every commit, `chore:` and `docs:` included.
 
 4. **Replace the workflow step.** Remove the semantic-release step from your GitHub Actions
    workflow and add `releasekit release` in its place. A minimal replacement:
