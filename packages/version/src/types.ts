@@ -109,8 +109,7 @@ export interface Config extends VersionConfigBase {
   prereleaseScope?: string[];
   /** Engine-populated: every discovered package, before release-set filtering. Not user config. */
   allWorkspacePackages?: Array<{ name: string; dir: string }>;
-  /** Engine-populated: directories of packages that release on their own, after the private filter and before
-   *  targeting. Not user config. */
+  /** Engine-populated: directories of packages that release on their own. Not user config. */
   releasablePackageDirs?: string[];
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
   allowFirstBump?: boolean;

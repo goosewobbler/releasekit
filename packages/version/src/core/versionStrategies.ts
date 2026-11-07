@@ -120,7 +120,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         versionPrefix: formattedPrefix,
         prereleaseIdentifier,
         path: versionSourcePath,
-        // Synced packages share one version: every commit in the workspace counts. `paths` can't leave it.
+        // Every commit in the workspace counts; `paths` entries are confined to it.
         commitScope: [repoRoot],
         name: versionSourceName,
         type: config.type,

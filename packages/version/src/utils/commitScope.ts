@@ -6,24 +6,20 @@ import { type NativeManifestOptions, nativeManifestsToBump } from './manifestUpd
 type ScopeConfig = Pick<Config, 'cargo' | 'pub' | 'releasablePackageDirs'>;
 
 export interface CommitScopeOptions extends Pick<NativeManifestOptions, 'repoRoot' | 'ignorePaths'> {
-  /** Directories of packages that release on their own; defaults to `config.releasablePackageDirs`. */
   releasableDirs?: string[];
 }
 
-/**
- * `scope` holds git pathspecs, absolute so they resolve from any cwd. `pathsError` is the first native manifest
- * lookup that failed (a `paths` entry outside the repository, a malformed manifest): the scope leaves that entry
- * out, and a caller raises the error only for a package that releases.
- */
 export interface CommitScope {
+  /** Git pathspecs, absolute so they resolve from any cwd. */
   scope: string[];
+  /** The first native manifest that couldn't be located or parsed, left out of `scope`. Raise it only for a package
+   *  that releases. */
   pathsError?: Error;
 }
 
 /**
  * The commits that belong to a package: its directory and the native manifests it versions through
- * `cargo.paths` / `pub.paths`, minus nested packages that release on their own. A nested package that doesn't
- * (a private one) ships inside this one, so its commits count.
+ * `cargo.paths` / `pub.paths`, minus nested packages that release on their own (one that doesn't ships inside it).
  */
 export function resolveCommitScope(
   pkgDir: string,
@@ -32,7 +28,7 @@ export function resolveCommitScope(
 ): CommitScope {
   const dir = path.resolve(pkgDir);
   const { dirs: included, error } = ownedDirs(dir, config, manifestOptions);
-  // A crate the package versions can also be discovered as a package of its own (a Tauri `src-tauri`).
+  // A crate this package versions may also be discovered as a package (a Tauri `src-tauri`); it stays in scope.
   const nested = releasableDirs
     .map((d) => path.resolve(d))
     .filter((d) => !included.includes(d) && included.some((i) => isPathWithinRoot(i, d)))
@@ -40,7 +36,6 @@ export function resolveCommitScope(
   return { scope: [...included, ...nested], ...(error ? { pathsError: error } : {}) };
 }
 
-/** One lookup per configured entry, so an entry that fails doesn't drop the others. */
 function ownedDirs(
   dir: string,
   config: ScopeConfig,
@@ -60,6 +55,7 @@ function ownedDirs(
   return { dirs: [...dirs], ...(error ? { error } : {}) };
 }
 
+/** One lookup per configured entry, so an entry that fails doesn't drop the others. */
 function manifestLookups(config: ScopeConfig, ignorePaths = false): Array<Pick<Config, 'cargo' | 'pub'>> {
   const cargoPaths = ignorePaths ? [] : (config.cargo?.paths ?? []);
   const pubPaths = ignorePaths ? [] : (config.pub?.paths ?? []);

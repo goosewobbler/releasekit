@@ -333,7 +333,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       // unresolvable tag falls back to the unbounded default rather than throwing.
       const latestTagReachable = !!latestTag && (await refExists(latestTag, pkgPath));
       const bumpFrom = config.baseRef ?? (latestTagReachable ? latestTag : undefined);
-      // Omitted, not undefined: an undefined `from` would replace the bumper's own tag lookup and scan all history.
+      // Omitted, not undefined: an undefined `from` replaces the bumper's own tag lookup.
       bumper.commits({
         ...(bumpFrom ? { from: bumpFrom } : {}),
         ...(commitScope.length > 0 ? { path: commitScope } : {}),

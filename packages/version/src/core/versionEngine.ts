@@ -349,7 +349,7 @@ export class VersionEngine {
    */
   private async detectChangedPackages(packages: Package[], repoRoot: string): Promise<Set<string>> {
     const formattedPrefix = formatVersionPrefix(this.config.versionPrefix || 'v');
-    // Group mode bumps only a package's own manifests, so its changed check ignores `paths` too.
+    // Group mode bumps only a package's own manifests, so ignore `paths` here too.
     const ignorePaths = !this.config.sync && hasExplicitGroups(this.config);
     const results = await Promise.all(
       packages.map(async (pkg) => {
@@ -470,8 +470,8 @@ export class VersionEngine {
           log(`Private filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'debug');
         }
       }
-      // Before targeting, which narrows only this run: a nested package outside `version.packages` never releases
-      // on its own, so it ships inside the package that contains it.
+      // A nested package outside `version.packages` ships inside its parent. Targets narrow only this run, so they
+      // don't count.
       const releasable = this.config.packages?.length
         ? filterPackagesByConfig(mergedPackages.packages, this.config.packages, mergedPackages.root)
         : mergedPackages.packages;
