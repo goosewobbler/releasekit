@@ -55,16 +55,3 @@ export function updateCargoVersion(cargoPath: string, newVersion: string): void 
     );
   }
 }
-
-export function extractPathDeps(manifest: CargoManifest): string[] {
-  const pathDeps: string[] = [];
-  const deps = manifest.dependencies;
-  if (deps) {
-    for (const dep of Object.values(deps)) {
-      if (dep && typeof dep === 'object' && 'path' in dep) {
-        pathDeps.push((dep as { path: string }).path);
-      }
-    }
-  }
-  return pathDeps;
-}

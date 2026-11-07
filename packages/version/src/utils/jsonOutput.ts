@@ -48,6 +48,17 @@ export function recordPendingWrite(path: string, content: string): void {
   _pendingWrites.push({ path, content });
 }
 
+/** The content a dry run has buffered for `filePath`, so a later edit builds on it rather than the file on disk. */
+export function readPendingWrite(filePath: string): string | undefined {
+  const target = path.resolve(filePath);
+  for (let i = _pendingWrites.length - 1; i >= 0; i--) {
+    if (path.resolve(_pendingWrites[i].path) === target) {
+      return _pendingWrites[i].content;
+    }
+  }
+  return undefined;
+}
+
 export function flushPendingWrites(): string[] {
   const written = new Set<string>();
   try {

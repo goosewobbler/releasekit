@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { extractPathDeps, parseCargoToml, updateCargoVersion } from '../../../src/utils/cargo.js';
+import { parseCargoToml, updateCargoVersion } from '../../../src/utils/cargo.js';
 
 describe('cargo utilities', () => {
   const tmpDirs: string[] = [];
@@ -53,42 +53,6 @@ describe('cargo utilities', () => {
       expect(() => updateCargoVersion('/tmp/nonexistent/Cargo.toml', '1.0.0')).toThrow(
         expect.objectContaining({ code: 'CARGO_TOML_ERROR' }),
       );
-    });
-  });
-
-  describe('extractPathDeps', () => {
-    it('should extract path dependencies', () => {
-      const dir = createTmpDir();
-      const cargoPath = path.join(dir, 'Cargo.toml');
-      fs.writeFileSync(
-        cargoPath,
-        [
-          '[package]',
-          'name = "my-crate"',
-          'version = "1.0.0"',
-          '',
-          '[dependencies]',
-          'serde = "1.0"',
-          'local-dep = { path = "../local-dep" }',
-          'another = { path = "../another", version = "0.1" }',
-        ].join('\n'),
-      );
-
-      const manifest = parseCargoToml(cargoPath);
-      const deps = extractPathDeps(manifest);
-
-      expect(deps).toEqual(['../local-dep', '../another']);
-    });
-
-    it('should return empty array when no dependencies', () => {
-      const dir = createTmpDir();
-      const cargoPath = path.join(dir, 'Cargo.toml');
-      fs.writeFileSync(cargoPath, '[package]\nname = "my-crate"\nversion = "1.0.0"\n');
-
-      const manifest = parseCargoToml(cargoPath);
-      const deps = extractPathDeps(manifest);
-
-      expect(deps).toEqual([]);
     });
   });
 });

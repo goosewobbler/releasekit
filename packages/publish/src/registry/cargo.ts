@@ -1,12 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { isCratePublishable } from '@releasekit/config';
-import { buildDependencyGraph, debug, type GraphPackage } from '@releasekit/core';
+import { buildDependencyGraph, debug, findCargoPathDependencies, type GraphPackage } from '@releasekit/core';
 import { createGitCli } from '@releasekit/git';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { hasCargoAuth } from '../utils/auth.js';
-import { CRATES_IO_API_TIMEOUT_MS, CRATES_IO_USER_AGENT, extractPathDeps, parseCargoToml } from '../utils/cargo.js';
+import { CRATES_IO_API_TIMEOUT_MS, CRATES_IO_USER_AGENT, parseCargoToml } from '../utils/cargo.js';
 import { execCommand } from '../utils/exec.js';
 import type { Registry, RegistryTarget } from './types.js';
 
@@ -15,7 +15,8 @@ const ALREADY_PUBLISHED_PATTERN = /already exists on crates\.io index|already up
 export interface CargoTarget extends RegistryTarget {
   dir: string;
   manifestPath: string;
-  pathDeps: string[];
+  /** Excludes dev-dependencies: a crate often dev-depends on its own dependent, which would make the order a cycle. */
+  pathDepDirs: string[];
 }
 
 /** Repository-level dirty state, resolved once per run and reused for every crate's `--allow-dirty`. */
@@ -140,7 +141,9 @@ function findCrates(
         version: update.newVersion,
         dir: update.dir,
         manifestPath: cargoPath,
-        pathDeps: extractPathDeps(cargo),
+        pathDepDirs: findCargoPathDependencies(cargoPath)
+          .filter((dependency) => dependency.kind !== 'dev-dependencies')
+          .map((dependency) => dependency.dir),
       });
     } catch {
       // Skip unparseable Cargo.toml
@@ -179,9 +182,7 @@ export function cratePathDeps(crates: CargoTarget[]): Map<string, string[]> {
   return new Map(
     crates.map((c) => [
       c.packageName,
-      c.pathDeps
-        .map((depPath) => nameByDir.get(path.resolve(c.dir, depPath)))
-        .filter((name): name is string => name !== undefined),
+      c.pathDepDirs.map((dir) => nameByDir.get(dir)).filter((name): name is string => name !== undefined),
     ]),
   );
 }

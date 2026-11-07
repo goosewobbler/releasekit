@@ -8,6 +8,7 @@ import { isPrivatePackageJson, shouldMatchPackageTargets } from '@releasekit/cor
 import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
 import { clearCargoBumps, syncCargoLockfiles } from '../cargo/cargoLock.js';
+import { raiseCargoDependentRequirements } from '../cargo/dependentRequirements.js';
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
 import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
@@ -549,6 +550,7 @@ export class VersionEngine {
     try {
       clearCargoBumps();
       await this.currentStrategy(packages, targets);
+      await raiseCargoDependentRequirements(packages.root ?? cwd(), this.config.dryRun ?? false);
       await syncCargoLockfiles(packages.root ?? cwd(), this.config.dryRun ?? false);
       if (Object.keys(this.prerequisiteOf).length > 0) {
         tagPrerequisiteRoles(this.config.overrideScope ?? [], this.prerequisiteOf);

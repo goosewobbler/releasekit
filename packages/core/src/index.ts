@@ -3,6 +3,8 @@ export {
   type CargoLockGit,
   type CargoLockUpdate,
   findCargoLockfile,
+  findCargoPathDependencies,
+  listCargoManifests,
   planCargoLockUpdates,
 } from './cargo.js';
 export {

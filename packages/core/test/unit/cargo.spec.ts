@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { findCargoLockfile, planCargoLockUpdates, setCargoLockVersion } from '../../src/cargo.js';
+import {
+  findCargoLockfile,
+  findCargoPathDependencies,
+  planCargoLockUpdates,
+  setCargoLockVersion,
+} from '../../src/cargo.js';
 
 describe('findCargoLockfile', () => {
   const tmpDirs: string[] = [];
@@ -141,6 +146,52 @@ const REGISTRY = 'registry+https://github.com/rust-lang/crates.io-index';
 const GIT = 'git+https://github.com/example/dupe#9a1327a6d3f8bc80a0f02fe01325c7828d587668';
 
 const lock = (...lines: string[]): string => `${lines.join('\n')}\n`;
+
+describe('findCargoPathDependencies', () => {
+  let root: string;
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('should resolve own and inherited path dependencies to the manifest that declares them', () => {
+    root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-deps-')));
+    const workspace = path.join(root, 'Cargo.toml');
+    fs.writeFileSync(
+      workspace,
+      '[workspace]\nmembers = ["crates/*"]\n\n[workspace.dependencies]\nbridge = { path = "crates/bridge", version = "1" }\n',
+    );
+    const manifest = path.join(root, 'crates', 'driver', 'Cargo.toml');
+    fs.mkdirSync(path.dirname(manifest), { recursive: true });
+    fs.writeFileSync(
+      manifest,
+      [
+        '[package]',
+        'name = "driver"',
+        '[dependencies]',
+        'bridge.workspace = true',
+        'serde = "1"',
+        "[target.'cfg(unix)'.dev-dependencies]",
+        'shim = { path = "../shim" }',
+      ].join('\n'),
+    );
+
+    expect(findCargoPathDependencies(manifest)).toEqual([
+      {
+        kind: 'dependencies',
+        manifestPath: workspace,
+        entry: { path: 'crates/bridge', version: '1' },
+        dir: path.join(root, 'crates', 'bridge'),
+      },
+      {
+        kind: 'dev-dependencies',
+        manifestPath: manifest,
+        entry: { path: '../shim' },
+        dir: path.join(root, 'crates', 'shim'),
+      },
+    ]);
+  });
+});
 
 describe('setCargoLockVersion', () => {
   it.each([3, 4])('should bump only the crate’s own entry in a v%i lock', (format) => {
