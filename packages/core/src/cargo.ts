@@ -62,6 +62,46 @@ export function findCargoLockfile(crateDir: string): string | undefined {
 
 const DEPENDENCY_KINDS = ['dependencies', 'dev-dependencies', 'build-dependencies'];
 
+export interface CargoPathDependency {
+  /** The manifest declaring the path: the dependent's own, or its workspace root's for `workspace = true`. */
+  manifestPath: string;
+  /** The parsed entry from that manifest, so editing it edits what `read` returned. */
+  entry: Table & { path: string };
+  /** The dependency's crate directory. */
+  dir: string;
+}
+
+/** The path dependencies of the crate at `manifestPath`, in its top-level and `[target.<cfg>.*]` tables. */
+export function findCargoPathDependencies(
+  manifestPath: string,
+  read: ReadManifest = readManifest,
+  kinds: readonly string[] = DEPENDENCY_KINDS,
+): CargoPathDependency[] {
+  const manifest = asTable(read(manifestPath));
+  const rootManifestPath = path.join(findCargoWorkspaceRoot(path.dirname(manifestPath), read), 'Cargo.toml');
+  const tables = [manifest, ...Object.values(asTable(manifest.target)).map(asTable)].flatMap((scope) =>
+    kinds.map((kind) => asTable(scope[kind])),
+  );
+  const dependencies: CargoPathDependency[] = [];
+  for (const table of tables) {
+    for (const [key, value] of Object.entries(table)) {
+      const own = asTable(value);
+      const [declaredIn, entry] =
+        own.workspace === true
+          ? [rootManifestPath, asTable(asTable(asTable(asTable(read(rootManifestPath)).workspace).dependencies)[key])]
+          : [manifestPath, own];
+      if (typeof entry.path === 'string') {
+        dependencies.push({
+          manifestPath: declaredIn,
+          entry: entry as CargoPathDependency['entry'],
+          dir: path.resolve(path.dirname(declaredIn), entry.path),
+        });
+      }
+    }
+  }
+  return dependencies;
+}
+
 /**
  * Directories of the path crates a lock at `lockRoot` resolves: path dependencies followed transitively,
  * across workspaces, from the manifests whose workspace root is `lockRoot`.
@@ -74,22 +114,13 @@ function findPathCrates(lockRoot: string, manifestDirs: string[], read: ReadMani
       continue;
     }
     found.add(dir);
-    const manifest = asTable(read(path.join(dir, 'Cargo.toml')));
-    const root = findCargoWorkspaceRoot(dir, read);
-    const inherited = asTable(asTable(asTable(read(path.join(root, 'Cargo.toml'))).workspace).dependencies);
     // Cargo resolves dev-dependencies for the lock's own workspace members only.
-    const kinds = root === lockRoot ? DEPENDENCY_KINDS : DEPENDENCY_KINDS.filter((kind) => kind !== 'dev-dependencies');
-    const tables = [manifest, ...Object.values(asTable(manifest.target)).map(asTable)].flatMap((scope) =>
-      kinds.map((kind) => asTable(scope[kind])),
-    );
-    for (const table of tables) {
-      for (const [key, value] of Object.entries(table)) {
-        const dependency = asTable(value);
-        const [base, source] = dependency.workspace === true ? [root, asTable(inherited[key])] : [dir, dependency];
-        if (typeof source.path === 'string') {
-          queue.push(path.resolve(base, source.path));
-        }
-      }
+    const kinds =
+      findCargoWorkspaceRoot(dir, read) === lockRoot
+        ? DEPENDENCY_KINDS
+        : DEPENDENCY_KINDS.filter((kind) => kind !== 'dev-dependencies');
+    for (const dependency of findCargoPathDependencies(path.join(dir, 'Cargo.toml'), read, kinds)) {
+      queue.push(dependency.dir);
     }
   }
   return found;
@@ -296,6 +327,25 @@ export interface CargoLockGit {
   isIgnored(file: string, cwd?: string): Promise<boolean>;
 }
 
+async function listTracked(
+  git: Pick<CargoLockGit, 'isRepository' | 'lsFiles'>,
+  cwd: string,
+  paths: string[],
+): Promise<string[]> {
+  if (!(await git.isRepository(cwd))) {
+    return [];
+  }
+  return (await git.lsFiles({ paths, cwd })).map((file) => path.resolve(cwd, file));
+}
+
+/** Every Cargo.toml git tracks in `cwd`'s repository, as absolute paths. */
+export function listCargoManifests(
+  git: Pick<CargoLockGit, 'isRepository' | 'lsFiles'>,
+  cwd: string,
+): Promise<string[]> {
+  return listTracked(git, cwd, [':(top,glob)**/Cargo.toml']);
+}
+
 export interface CargoLockBump {
   cargoTomlPath: string;
   name: string;
@@ -322,13 +372,11 @@ export async function planCargoLockUpdates(
 ): Promise<CargoLockUpdate[]> {
   const lockPaths = new Set<string>();
   const manifestDirs: string[] = [];
-  if (await git.isRepository(cwd)) {
-    for (const file of await git.lsFiles({ paths: [':(top,glob)**/Cargo.lock', ':(top,glob)**/Cargo.toml'], cwd })) {
-      if (path.basename(file) === 'Cargo.lock') {
-        lockPaths.add(path.resolve(cwd, file));
-      } else {
-        manifestDirs.push(path.resolve(cwd, path.dirname(file)));
-      }
+  for (const file of await listTracked(git, cwd, [':(top,glob)**/Cargo.lock', ':(top,glob)**/Cargo.toml'])) {
+    if (path.basename(file) === 'Cargo.lock') {
+      lockPaths.add(file);
+    } else {
+      manifestDirs.push(path.dirname(file));
     }
   }
   const owners = new Map<string, CargoLockBump[]>();

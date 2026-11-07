@@ -5,8 +5,8 @@ import * as TOML from 'smol-toml';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cargoRequirementAccepts,
-  raiseCargoDependentRequirements,
   raiseRequirement,
+  raiseRequirementsIn,
 } from '../../../src/cargo/dependentRequirements.js';
 import { enableJsonOutput, flushPendingWrites, recordPendingWrite } from '../../../src/utils/jsonOutput.js';
 import { log } from '../../../src/utils/logging.js';
@@ -31,7 +31,7 @@ function released(manifest: string, version: string) {
   return { cargoTomlPath: manifest, name: path.basename(path.dirname(manifest)), version };
 }
 
-describe('raiseCargoDependentRequirements', () => {
+describe('raiseRequirementsIn', () => {
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-dependents-'));
     vi.clearAllMocks();
@@ -49,7 +49,7 @@ describe('raiseCargoDependentRequirements', () => {
       '\n[dependencies]\nbridge = { path = "../bridge", version = "1.0.0" }\n',
     );
 
-    raiseCargoDependentRequirements([bridge, driver], [released(bridge, '1.1.0'), released(driver, '1.0.1')], false);
+    raiseRequirementsIn([bridge, driver], [released(bridge, '1.1.0'), released(driver, '1.0.1')], false);
 
     expect(read(driver).dependencies.bridge).toEqual({ path: '../bridge', version: '1.1.0' });
   });
@@ -63,7 +63,7 @@ describe('raiseCargoDependentRequirements', () => {
     );
     const before = fs.readFileSync(driver, 'utf-8');
 
-    raiseCargoDependentRequirements([bridge, driver], [released(bridge, '1.1.0')], false);
+    raiseRequirementsIn([bridge, driver], [released(bridge, '1.1.0')], false);
 
     expect(fs.readFileSync(driver, 'utf-8')).toBe(before);
   });
@@ -76,7 +76,7 @@ describe('raiseCargoDependentRequirements', () => {
       '\n[dependencies.bridge]\npath = "../bridge"\nversion = "1.0.0-next.0"\n',
     );
 
-    raiseCargoDependentRequirements([bridge, driver], [released(bridge, '2.0.0')], false);
+    raiseRequirementsIn([bridge, driver], [released(bridge, '2.0.0')], false);
 
     expect(read(driver).dependencies.bridge.version).toBe('2.0.0');
     expect(log).toHaveBeenCalledWith(expect.stringContaining("driver isn't releasing"), 'warning');
@@ -97,7 +97,7 @@ describe('raiseCargoDependentRequirements', () => {
       ].join('\n'),
     );
 
-    raiseCargoDependentRequirements([bridge, driver], [released(bridge, '2.0.0')], false);
+    raiseRequirementsIn([bridge, driver], [released(bridge, '2.0.0')], false);
 
     const manifest = read(driver);
     expect(manifest['build-dependencies'].bridge.version).toBe('2.0.0');
@@ -113,10 +113,36 @@ describe('raiseCargoDependentRequirements', () => {
       '\n[dependencies]\nlocal-bridge = { package = "bridge", path = "../bridge", version = "1" }\nserde = "1"\n',
     );
 
-    raiseCargoDependentRequirements([bridge, driver], [released(bridge, '2.0.0')], false);
+    raiseRequirementsIn([bridge, driver], [released(bridge, '2.0.0')], false);
 
     expect(read(driver).dependencies['local-bridge'].version).toBe('2.0.0');
     expect(read(driver).dependencies.serde).toBe('1');
+  });
+
+  it("should raise an inherited requirement in the workspace root's [workspace.dependencies]", () => {
+    const workspace = path.join(root, 'Cargo.toml');
+    fs.writeFileSync(
+      workspace,
+      '[workspace]\nmembers = ["bridge", "driver"]\n\n[workspace.dependencies]\nbridge = { path = "bridge", version = "1" }\n',
+    );
+    const bridge = writeCrate('bridge', '2.0.0');
+    const driver = writeCrate('driver', '1.0.0', '\n[dependencies]\nbridge.workspace = true\n');
+
+    raiseRequirementsIn([workspace, bridge, driver], [released(bridge, '2.0.0')], false);
+
+    expect(read(workspace).workspace.dependencies.bridge.version).toBe('2.0.0');
+    expect(read(driver).dependencies.bridge).toEqual({ workspace: true });
+  });
+
+  it("should warn about a manifest it can't parse and still raise the others", () => {
+    const template = writeCrate('template', '1.0.0', 'edition = {{edition}}\n');
+    const bridge = writeCrate('bridge', '2.0.0');
+    const driver = writeCrate('driver', '1.0.0', '\n[dependencies]\nbridge = { path = "../bridge", version = "1" }\n');
+
+    raiseRequirementsIn([template, bridge, driver], [released(bridge, '2.0.0')], false);
+
+    expect(read(driver).dependencies.bridge.version).toBe('2.0.0');
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(`Couldn't check ${template}`), 'warning');
   });
 
   it("should build on a dry run's pending write rather than the manifest on disk", () => {
@@ -129,7 +155,7 @@ describe('raiseCargoDependentRequirements', () => {
     );
     recordPendingWrite(driver, fs.readFileSync(driver, 'utf-8').replace('version = "1.0.0"\n', 'version = "1.0.1"\n'));
 
-    raiseCargoDependentRequirements([bridge, driver], [released(bridge, '1.1.0'), released(driver, '1.0.1')], true);
+    raiseRequirementsIn([bridge, driver], [released(bridge, '1.1.0'), released(driver, '1.0.1')], true);
     flushPendingWrites();
 
     expect(read(driver).package.version).toBe('1.0.1');
@@ -147,6 +173,10 @@ describe('cargoRequirementAccepts', () => {
     ['>=1.0.0, <3', '2.5.0', true],
     ['=1.0.0', '1.0.1', false],
     ['~1.2', '1.2.9', true],
+    ['1.2.*', '1.3.0', false],
+    ['1.2.x', '1.2.7', true],
+    ['1.*', '2.0.0', false],
+    ['*', '2.0.0', true],
   ])('should read "%s" against %s as %s', (requirement, version, accepts) => {
     expect(cargoRequirementAccepts(requirement, version)).toBe(accepts);
   });

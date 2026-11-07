@@ -7,7 +7,7 @@ import { filterPackagesByConfig, isCratePublishable, parseCargoToml, parsePubspe
 import { isPrivatePackageJson, shouldMatchPackageTargets } from '@releasekit/core';
 import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
-import { clearCargoBumps, recordedCargoBumps, syncCargoLockfiles } from '../cargo/cargoLock.js';
+import { clearCargoBumps, syncCargoLockfiles } from '../cargo/cargoLock.js';
 import { raiseCargoDependentRequirements } from '../cargo/dependentRequirements.js';
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
@@ -17,7 +17,6 @@ import type { Config, VersionRunOptions } from '../types.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
 import { tagPrerequisiteRoles } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
-import { nativeManifestsToBump } from '../utils/manifestUpdates.js';
 import { resolvePrerequisiteTargets } from './prerequisiteScope.js';
 import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
 import { buildWorkspaceGraph } from './workspaceGraph.js';
@@ -547,20 +546,11 @@ export class VersionEngine {
     }
   }
 
-  /** Every crate in the workspace, releasing or not: any of them can depend on a crate this run releases. */
-  private cargoManifests(packages: PackagesWithRoot): string[] {
-    const repoRoot = packages.root ?? cwd();
-    const dirs = this.config.allWorkspacePackages?.map((p) => p.dir) ?? packages.packages.map((p) => p.dir);
-    return [...new Set([repoRoot, ...dirs])].flatMap((dir) =>
-      nativeManifestsToBump(dir, { cargo: this.config.cargo, pub: { enabled: false } }, { repoRoot }),
-    );
-  }
-
   public async run(packages: PackagesWithRoot, targets: string[] = []): Promise<void> {
     try {
       clearCargoBumps();
       await this.currentStrategy(packages, targets);
-      raiseCargoDependentRequirements(this.cargoManifests(packages), recordedCargoBumps(), this.config.dryRun ?? false);
+      await raiseCargoDependentRequirements(packages.root ?? cwd(), this.config.dryRun ?? false);
       await syncCargoLockfiles(packages.root ?? cwd(), this.config.dryRun ?? false);
       if (Object.keys(this.prerequisiteOf).length > 0) {
         tagPrerequisiteRoles(this.config.overrideScope ?? [], this.prerequisiteOf);
