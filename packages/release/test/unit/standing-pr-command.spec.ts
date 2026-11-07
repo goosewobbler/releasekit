@@ -57,6 +57,14 @@ describe('createStandingPRCommand', () => {
     expect(runStandingPRUpdate).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }));
   });
 
+  it('should split --graduate into trimmed package patterns', async () => {
+    const { runStandingPRUpdate } = await import('../../src/standing-pr/standing-pr.js');
+    await parseCommand(['update', '--project-dir', '/test', '--graduate', '@scope/a, @scope/b-*,']);
+    expect(runStandingPRUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ graduate: ['@scope/a', '@scope/b-*'] }),
+    );
+  });
+
   it('should call runStandingPRPublish for publish subcommand', async () => {
     const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
     await parseCommand(['publish', '--project-dir', '/test']);

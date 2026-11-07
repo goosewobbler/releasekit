@@ -110,6 +110,7 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 |---|---|---|
 | `pr` | - | Merged standing PR number (`standing-pr-publish`, when not triggered by a `pull_request` event) |
 | `reconcile` | `false` | `standing-pr-update` only: bypass the skip-pattern guard. Set this for a post-release reconcile run, where HEAD is the just-pushed release commit (which matches the skip pattern). Without it the reconcile run no-ops and the standing PR keeps holding the just-published versions. |
+| `graduate` | - | `standing-pr-update` only: prerelease packages to graduate (comma-separated, globs allowed). Opens the standing PR even when nothing else is queued; see `--graduate` in the [CLI reference](./cli.md#releasekit-standing-pr-update). |
 
 ### Backfill mode inputs
 

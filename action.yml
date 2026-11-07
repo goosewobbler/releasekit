@@ -105,6 +105,9 @@ inputs:
     description: 'Bypass the skip-pattern guard in standing-pr-update mode (for post-release reconcile runs, where HEAD is a release commit)'
     required: false
     default: 'false'
+  graduate:
+    description: 'Prerelease packages to graduate in standing-pr-update mode (comma-separated, globs allowed), opening the standing PR even when nothing else is queued'
+    required: false
 
   pr:
     description: Pull request number (preview mode; standing-pr-publish mode when not triggered by a pull_request event)
@@ -373,6 +376,7 @@ runs:
         INPUT_SKIP_GITHUB_RELEASE: ${{ inputs.skip-github-release }}
         INPUT_SKIP_VERIFICATION: ${{ inputs.skip-verification }}
         INPUT_RECONCILE: ${{ inputs.reconcile }}
+        INPUT_GRADUATE: ${{ inputs.graduate }}
         INPUT_PR: ${{ inputs.pr }}
         INPUT_REPO: ${{ inputs.repo }}
         INPUT_PREVIEW_PRERELEASE: ${{ inputs.preview-prerelease }}

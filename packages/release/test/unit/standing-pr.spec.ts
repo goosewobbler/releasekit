@@ -22,8 +22,13 @@ class ControllableGit extends FakeGit {
   subjects: string[] = [];
   tagCommitSha?: string;
   tagResolveThrows = false;
+  /** HEAD's ref names (`%D`), where a `tag: ` entry marks HEAD as tagged. */
+  headRefs = 'HEAD -> release/next, origin/main';
 
   override async log(opts: GitLogOptions): Promise<string> {
+    if (opts.format === '%D') {
+      return this.headRefs;
+    }
     if (opts.format === '%s') {
       // getHeadCommitMessage: the HEAD subject the skip-pattern guards key on.
       return this.subjects.length > 1 ? (this.subjects.shift() ?? '') : (this.subjects[0] ?? '');
@@ -2393,6 +2398,208 @@ describe('runStandingPRUpdate', () => {
       // The label name must survive the 140-char status truncation.
       expect(lastStatus?.description).toContain('graduate:@scope/b');
       expect(lastStatus?.description).toContain('channel:prerelease');
+    });
+  });
+
+  describe('graduate request (--graduate)', () => {
+    const RELEASE_HEAD = 'chore: release 3 package(s) (#10)';
+
+    // Nothing queued but the graduation: @scope/b graduates from 2.0.0-next.2, @scope/c moves only if a test asks.
+    const graduationOutput = (opts: { graduateB?: boolean; bumpC?: boolean } = {}) => ({
+      dryRun: false,
+      strategy: 'async' as const,
+      updates: [
+        ...(opts.graduateB === false
+          ? []
+          : [
+              {
+                packageName: '@scope/b',
+                newVersion: '2.0.0',
+                filePath: 'packages/b/package.json',
+                channel: 'stable' as const,
+                action: 'graduated' as const,
+              },
+            ]),
+        ...(opts.bumpC
+          ? [
+              {
+                packageName: '@scope/c',
+                newVersion: '3.0.1',
+                filePath: 'packages/c/package.json',
+                channel: 'stable' as const,
+                action: 'bumped' as const,
+              },
+            ]
+          : []),
+      ],
+      changelogs: [],
+      tags: [],
+      commitMessage: 'chore: release',
+      sharedEntries: [],
+    });
+
+    async function setupRequest(opts: { output?: ReturnType<typeof graduationOutput>; labels?: string[] } = {}) {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      vi.mocked(runVersionStep).mockResolvedValue(
+        (opts.output ?? graduationOutput()) as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      const forge = await mockForge({ standingPR: opts.labels ? openStandingPR(99, opts.labels) : null });
+      return { forge, runVersionStepMock: vi.mocked(runVersionStep) };
+    }
+
+    const runRequest = (graduate: string[]) =>
+      runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false, graduate });
+
+    const appliedLabels = (forge: FakeForge) => forge.setLabelsCalls.at(-1)?.labels ?? [];
+
+    const writtenManifest = (forge: FakeForge) => {
+      const writes = [...forge.createdComments.map((c) => c.body), ...forge.updatedComments.map((c) => c.body)];
+      return parseManifest(writes.find((b) => b.includes(MANIFEST_MARKER)) as string);
+    };
+
+    it('should open the standing PR from a tagged release-commit HEAD with only the graduation queued', async () => {
+      fakeGit.subjects = [RELEASE_HEAD];
+      fakeGit.headRefs = 'HEAD -> release/next, tag: @scope/b@v2.0.0-next.2, origin/main';
+      const { forge, runVersionStepMock } = await setupRequest();
+
+      const result = await runRequest(['@scope/b']);
+
+      expect(result.action).toBe('created');
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ graduate: ['@scope/b'] });
+      expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ graduate: ['@scope/b'] });
+      expect(appliedLabels(forge)).toEqual(expect.arrayContaining(['release', 'graduate:@scope/b']));
+      // Later updates read the label, and the staleness guard compares it against the merged PR.
+      expect(writtenManifest(forge).overrideLabels).toContain('graduate:@scope/b');
+      expect(forge.createdLabels.some((l) => l.name === 'graduate:@scope/b')).toBe(true);
+    });
+
+    it("should do nothing while the release at HEAD isn't tagged yet", async () => {
+      fakeGit.subjects = [RELEASE_HEAD];
+      const { forge } = await setupRequest();
+
+      const result = await runRequest(['@scope/b']);
+
+      expect(result.action).toBe('noop');
+      expect(forge.createdPullRequests).toHaveLength(0);
+    });
+
+    it('should label a glob request with the exact packages it graduated', async () => {
+      const { forge, runVersionStepMock } = await setupRequest({ output: graduationOutput({ bumpC: true }) });
+
+      await runRequest(['**']);
+
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ graduate: ['**'] });
+      const labels = appliedLabels(forge);
+      expect(labels).toContain('graduate:@scope/b');
+      expect(labels).not.toContain('graduate:**');
+      // @scope/c bumped on its stable line, so it carries no graduate label.
+      expect(labels).not.toContain('graduate:@scope/c');
+    });
+
+    it('should drop a pattern that graduates nothing and leave the rest of the queue alone', async () => {
+      const { forge } = await setupRequest({ output: graduationOutput({ graduateB: false, bumpC: true }) });
+
+      const result = await runRequest(['@scope/missing']);
+
+      expect(result.action).toBe('created');
+      expect(appliedLabels(forge)).not.toContain('graduate:@scope/missing');
+      expect(writtenManifest(forge).overrideLabels ?? []).not.toContain('graduate:@scope/missing');
+    });
+
+    it('should open no PR when the request graduates nothing and nothing else is queued', async () => {
+      const { forge } = await setupRequest({ output: graduationOutput({ graduateB: false }) });
+
+      const result = await runRequest(['@scope/missing']);
+
+      expect(result.action).toBe('noop');
+      expect(forge.createdPullRequests).toHaveLength(0);
+    });
+
+    it('should add the graduate label to an open standing PR, keeping its other labels', async () => {
+      const { forge } = await setupRequest({
+        output: graduationOutput({ bumpC: true }),
+        labels: ['release', 'bump:minor'],
+      });
+
+      const result = await runRequest(['@scope/b']);
+
+      expect(result.action).toBe('updated');
+      expect(appliedLabels(forge)).toEqual(expect.arrayContaining(['release', 'bump:minor', 'graduate:@scope/b']));
+    });
+
+    it('should keep the request as a label when it conflicts with channel:prerelease, so the status names it', async () => {
+      const { forge } = await setupRequest({
+        output: graduationOutput({ graduateB: false, bumpC: true }),
+        labels: ['release', 'channel:prerelease'],
+      });
+
+      await runRequest(['@scope/b']);
+
+      expect(appliedLabels(forge)).toContain('graduate:@scope/b');
+      const lastStatus = forge.commitStatuses.at(-1);
+      expect(lastStatus?.state).toBe('pending');
+      expect(lastStatus?.description).toContain('graduate:@scope/b');
+    });
+
+    it('should graduate the whole batch with release:graduate in a sync repo', async () => {
+      const { loadConfig } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ...defaultConfig,
+        version: { sync: true },
+      } as unknown as ReturnType<typeof loadConfig>);
+      const { forge, runVersionStepMock } = await setupRequest({
+        output: { ...graduationOutput(), strategy: 'sync' } as unknown as ReturnType<typeof graduationOutput>,
+      });
+
+      await runRequest(['@scope/b']);
+
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ stable: true });
+      expect(appliedLabels(forge)).toContain('release:graduate');
+      expect(appliedLabels(forge)).not.toContain('graduate:@scope/b');
+    });
+
+    describe('with ci.standingPr.authorization', () => {
+      beforeEach(async () => {
+        const { loadConfig } = await import('@releasekit/config');
+        vi.mocked(loadConfig).mockReturnValue({
+          ...defaultConfig,
+          ci: {
+            ...defaultConfig.ci,
+            standingPr: { ...defaultConfig.ci.standingPr, authorization: { requiredPermission: 'admin' } },
+          },
+        } as unknown as ReturnType<typeof loadConfig>);
+      });
+
+      const dispatchedBy = async (login: string) => {
+        const { readFileSync } = await import('node:fs');
+        vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ sender: { login, type: 'User' } }));
+        process.env.GITHUB_EVENT_NAME = 'workflow_dispatch';
+        process.env.GITHUB_EVENT_PATH = '/event.json';
+      };
+
+      it('should ignore a request from an actor below the required permission', async () => {
+        await dispatchedBy('rando');
+        const { runVersionStepMock } = await setupRequest();
+        const forge = await mockForge({ standingPR: null, actorPermissions: { rando: 'write' } });
+
+        const result = await runRequest(['@scope/b']);
+
+        expect(result.action).toBe('noop');
+        expect(runVersionStepMock).not.toHaveBeenCalled();
+        expect(forge.createdPullRequests).toHaveLength(0);
+      });
+
+      it('should honour a request from an authorized actor', async () => {
+        await dispatchedBy('admin-user');
+        await setupRequest();
+        const forge = await mockForge({ standingPR: null, actorPermissions: { 'admin-user': 'admin' } });
+
+        const result = await runRequest(['@scope/b']);
+
+        expect(result.action).toBe('created');
+        expect(appliedLabels(forge)).toContain('graduate:@scope/b');
+      });
     });
   });
 

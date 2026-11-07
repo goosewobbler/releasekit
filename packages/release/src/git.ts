@@ -4,6 +4,10 @@ export async function getHeadCommitMessage(cwd?: string): Promise<string | null>
   return headLog('%s', cwd);
 }
 
+export async function isHeadTagged(cwd?: string): Promise<boolean> {
+  return /(?:^|, )tag: /.test((await headLog('%D', cwd)) ?? '');
+}
+
 export async function getHeadParents(cwd?: string): Promise<string[]> {
   return (await headLog('%P', cwd))?.split(' ') ?? [];
 }
