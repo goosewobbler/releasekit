@@ -178,11 +178,17 @@ describe('findCargoPathDependencies', () => {
 
     expect(findCargoPathDependencies(manifest)).toEqual([
       {
+        kind: 'dependencies',
         manifestPath: workspace,
         entry: { path: 'crates/bridge', version: '1' },
         dir: path.join(root, 'crates', 'bridge'),
       },
-      { manifestPath: manifest, entry: { path: '../shim' }, dir: path.join(root, 'crates', 'shim') },
+      {
+        kind: 'dev-dependencies',
+        manifestPath: manifest,
+        entry: { path: '../shim' },
+        dir: path.join(root, 'crates', 'shim'),
+      },
     ]);
   });
 });

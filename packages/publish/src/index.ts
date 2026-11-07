@@ -22,7 +22,7 @@ export type {
 } from './types.js';
 export { detectNpmAuth, hasCargoAuth } from './utils/auth.js';
 export type { CargoManifest } from './utils/cargo.js';
-export { extractPathDeps, parseCargoToml, updateCargoVersion } from './utils/cargo.js';
+export { parseCargoToml, updateCargoVersion } from './utils/cargo.js';
 export type { PackageManager } from './utils/package-manager.js';
 export { detectPackageManager } from './utils/package-manager.js';
 export { getDistTag, isPrerelease } from './utils/semver.js';

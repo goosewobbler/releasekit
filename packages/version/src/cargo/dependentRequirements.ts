@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { type CargoManifest, isCratePublishable } from '@releasekit/config';
 import { type CargoLockBump, findCargoPathDependencies, listCargoManifests } from '@releasekit/core';
 import { createGitCli } from '@releasekit/git';
 import semver from 'semver';
@@ -13,8 +14,9 @@ type Manifest = Record<string, unknown>;
 /**
  * A crate publishes the requirement its source declares, so raise each internal dependent's requirement on a crate
  * this run released. A releasing dependent always gets the released version, so its published manifest requires the
- * release it was built with. Any other dependent changes only when its requirement rejects the new version: Cargo
- * checks a path dependency's local version against it, so every local build would fail.
+ * release it was built with. Any other requirement, a dev-dependency's included, changes only when it rejects the new
+ * version: Cargo checks a path dependency's local version against it, so every local build would fail. Raising a
+ * dev-dependency regardless would turn a dev cycle between two releasing crates into one neither can publish first.
  *
  * Checks every tracked Cargo.toml: a crate that never releases (`publish = false`) can still depend on one that does.
  */
@@ -43,28 +45,28 @@ export function raiseRequirementsIn(manifestPaths: string[], bumps: readonly Car
   const changed = new Set<string>();
   for (const manifestPath of editable) {
     const isReleasing = releasing.has(manifestPath);
-    const name = (read(manifestPath)?.package as { name?: unknown } | undefined)?.name;
-    const crate = typeof name === 'string' ? name : manifestPath;
-    for (const { manifestPath: declaredIn, entry, dir } of findCargoPathDependencies(manifestPath, read)) {
+    const manifest = read(manifestPath) as CargoManifest | undefined;
+    const crate = manifest?.package?.name ?? manifestPath;
+    const publishes = manifest !== undefined && isCratePublishable(manifest);
+    for (const { kind, manifestPath: declaredIn, entry, dir } of findCargoPathDependencies(manifestPath, read)) {
       const released = releasedByDir.get(dir);
       if (!released || typeof entry.version !== 'string') {
         continue;
       }
       const original = originals.get(entry) ?? entry.version;
       originals.set(entry, original);
-      if (!isReleasing && cargoRequirementAccepts(original, released.version)) {
+      const isDev = kind === 'dev-dependencies';
+      if ((!isReleasing || isDev) && cargoRequirementAccepts(original, released.version)) {
         continue;
       }
       const raised = raiseRequirement(entry.version, released.version);
-      if (raised !== entry.version) {
-        // A `package.workspace` pointer can lead outside the repository, to a file the release can't commit.
-        if (!editable.has(declaredIn)) {
-          log(
-            `Can't raise ${crate}'s requirement on ${released.name}: it's declared in ${declaredIn}, which git doesn't track`,
-            'warning',
-          );
-          continue;
-        }
+      // A `package.workspace` pointer can lead outside the repository, to a file the release can't commit.
+      if (raised !== entry.version && !editable.has(declaredIn)) {
+        log(
+          `Can't raise ${crate}'s requirement on ${released.name}: it's declared in ${declaredIn}, which git doesn't track`,
+          'warning',
+        );
+      } else if (raised !== entry.version) {
         const where = declaredIn === manifestPath ? '' : ` in ${declaredIn}'s [workspace.dependencies]`;
         log(
           `${dryRun ? '[DRY RUN] Would raise' : 'Raised'} ${crate}'s requirement on ${released.name}${where} from "${entry.version}" to "${raised}"`,
@@ -73,7 +75,7 @@ export function raiseRequirementsIn(manifestPaths: string[], bumps: readonly Car
         entry.version = raised;
         changed.add(declaredIn);
       }
-      if (!isReleasing) {
+      if (!isReleasing && !isDev && publishes) {
         log(
           `${crate} isn't releasing, so its published version keeps requiring ${released.name} "${original}" until it does`,
           'warning',
@@ -92,7 +94,6 @@ export function raiseRequirementsIn(manifestPaths: string[], bumps: readonly Car
   }
 }
 
-/** Builds on a dry run's pending write rather than the file on disk. */
 function parseManifest(manifestPath: string): Manifest | undefined {
   const pending = readPendingWrite(manifestPath);
   if (pending === undefined && !fs.existsSync(manifestPath)) {

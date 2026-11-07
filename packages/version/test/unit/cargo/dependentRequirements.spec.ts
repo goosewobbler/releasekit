@@ -15,6 +15,8 @@ vi.mock('../../../src/utils/logging.js');
 
 let root: string;
 
+const PATH_DEPENDENCY_ON_1 = '\n[dependencies]\nbridge = { path = "../bridge", version = "1" }\n';
+
 function writeCrate(name: string, version: string, extra = ''): string {
   const dir = path.join(root, name);
   fs.mkdirSync(dir, { recursive: true });
@@ -80,6 +82,33 @@ describe('raiseRequirementsIn', () => {
 
     expect(read(driver).dependencies.bridge.version).toBe('2.0.0');
     expect(log).toHaveBeenCalledWith(expect.stringContaining("driver isn't releasing"), 'warning');
+  });
+
+  it("should leave a releasing crate's dev-dependency alone while it accepts the release", () => {
+    const bridge = writeCrate('bridge', '1.1.0');
+    const driver = writeCrate(
+      'driver',
+      '1.0.1',
+      '\n[dev-dependencies]\nbridge = { path = "../bridge", version = "1.0.0" }\n',
+    );
+    const before = fs.readFileSync(driver, 'utf-8');
+
+    raiseRequirementsIn([bridge, driver], [released(bridge, '1.1.0'), released(driver, '1.0.1')], false);
+
+    expect(fs.readFileSync(driver, 'utf-8')).toBe(before);
+  });
+
+  it.each([
+    ['a dev-dependency', '\n[dev-dependencies]\nbridge = { path = "../bridge", version = "1" }\n'],
+    ['a crate that never publishes', `publish = false\n${PATH_DEPENDENCY_ON_1}`],
+  ])('should raise %s that rejects the release without warning about a published version', (_, extra) => {
+    const bridge = writeCrate('bridge', '2.0.0');
+    const driver = writeCrate('driver', '1.0.0', extra);
+
+    raiseRequirementsIn([bridge, driver], [released(bridge, '2.0.0')], false);
+
+    expect(fs.readFileSync(driver, 'utf-8')).toContain('version = "2.0.0"');
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining("isn't releasing"), 'warning');
   });
 
   it('should cover build, dev and target-specific dependency tables', () => {
@@ -172,6 +201,7 @@ describe('raiseRequirementsIn', () => {
 
     expect(fs.readFileSync(outside, 'utf-8')).toBe(before);
     expect(log).toHaveBeenCalledWith(expect.stringContaining(`it's declared in ${outside}`), 'warning');
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("driver isn't releasing"), 'warning');
   });
 
   it("should warn about a manifest it can't parse and still raise the others", () => {

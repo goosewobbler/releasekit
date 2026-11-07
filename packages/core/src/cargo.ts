@@ -60,9 +60,10 @@ export function findCargoLockfile(crateDir: string): string | undefined {
   return fs.existsSync(lockPath) ? lockPath : undefined;
 }
 
-const DEPENDENCY_KINDS = ['dependencies', 'dev-dependencies', 'build-dependencies'];
+const DEPENDENCY_KINDS = ['dependencies', 'dev-dependencies', 'build-dependencies'] as const;
 
 export interface CargoPathDependency {
+  kind: (typeof DEPENDENCY_KINDS)[number];
   /** The manifest declaring the path: the dependent's own, or its workspace root's for `workspace = true`. */
   manifestPath: string;
   /** The parsed entry from that manifest, so editing it edits what `read` returned. */
@@ -75,27 +76,30 @@ export interface CargoPathDependency {
 export function findCargoPathDependencies(
   manifestPath: string,
   read: ReadManifest = readManifest,
-  kinds: readonly string[] = DEPENDENCY_KINDS,
 ): CargoPathDependency[] {
   const manifest = asTable(read(manifestPath));
-  const rootManifestPath = path.join(findCargoWorkspaceRoot(path.dirname(manifestPath), read), 'Cargo.toml');
-  const tables = [manifest, ...Object.values(asTable(manifest.target)).map(asTable)].flatMap((scope) =>
-    kinds.map((kind) => asTable(scope[kind])),
-  );
+  let rootManifestPath: string | undefined;
+  const scopes = [manifest, ...Object.values(asTable(manifest.target)).map(asTable)];
   const dependencies: CargoPathDependency[] = [];
-  for (const table of tables) {
-    for (const [key, value] of Object.entries(table)) {
-      const own = asTable(value);
-      const [declaredIn, entry] =
-        own.workspace === true
-          ? [rootManifestPath, asTable(asTable(asTable(asTable(read(rootManifestPath)).workspace).dependencies)[key])]
-          : [manifestPath, own];
-      if (typeof entry.path === 'string') {
-        dependencies.push({
-          manifestPath: declaredIn,
-          entry: entry as CargoPathDependency['entry'],
-          dir: path.resolve(path.dirname(declaredIn), entry.path),
-        });
+  for (const kind of DEPENDENCY_KINDS) {
+    for (const scope of scopes) {
+      for (const [key, value] of Object.entries(asTable(scope[kind]))) {
+        const own = asTable(value);
+        let declaredIn = manifestPath;
+        let entry = own;
+        if (own.workspace === true) {
+          rootManifestPath ??= path.join(findCargoWorkspaceRoot(path.dirname(manifestPath), read), 'Cargo.toml');
+          declaredIn = rootManifestPath;
+          entry = asTable(asTable(asTable(asTable(read(rootManifestPath)).workspace).dependencies)[key]);
+        }
+        if (typeof entry.path === 'string') {
+          dependencies.push({
+            kind,
+            manifestPath: declaredIn,
+            entry: entry as CargoPathDependency['entry'],
+            dir: path.resolve(path.dirname(declaredIn), entry.path),
+          });
+        }
       }
     }
   }
@@ -115,12 +119,11 @@ function findPathCrates(lockRoot: string, manifestDirs: string[], read: ReadMani
     }
     found.add(dir);
     // Cargo resolves dev-dependencies for the lock's own workspace members only.
-    const kinds =
-      findCargoWorkspaceRoot(dir, read) === lockRoot
-        ? DEPENDENCY_KINDS
-        : DEPENDENCY_KINDS.filter((kind) => kind !== 'dev-dependencies');
-    for (const dependency of findCargoPathDependencies(path.join(dir, 'Cargo.toml'), read, kinds)) {
-      queue.push(dependency.dir);
+    const isMember = findCargoWorkspaceRoot(dir, read) === lockRoot;
+    for (const dependency of findCargoPathDependencies(path.join(dir, 'Cargo.toml'), read)) {
+      if (isMember || dependency.kind !== 'dev-dependencies') {
+        queue.push(dependency.dir);
+      }
     }
   }
   return found;
