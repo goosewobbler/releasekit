@@ -507,11 +507,7 @@ export class VersionEngine {
       if (this.config.packages && this.config.packages.length > 0) {
         const originalCount = mergedPackages.packages.length;
 
-        const filteredPackages = filterPackagesByConfig(
-          mergedPackages.packages,
-          this.config.packages,
-          mergedPackages.root,
-        );
+        const filteredPackages = releasable;
 
         mergedPackages.packages = filteredPackages;
 
