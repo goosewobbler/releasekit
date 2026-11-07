@@ -19,6 +19,12 @@ vi.mock('../../../src/utils/logging.js');
 vi.mock('../../../src/utils/versionUtils.js');
 vi.mock('../../../src/utils/manifestHelpers.js');
 vi.mock('conventional-recommended-bump');
+
+const conventionalCommitsPreset = vi.hoisted(() => ({ override: undefined as (() => unknown) | undefined }));
+vi.mock('conventional-changelog-conventionalcommits', async (importOriginal) => {
+  const actual = await importOriginal<{ default: () => unknown }>();
+  return { default: () => conventionalCommitsPreset.override?.() ?? actual.default() };
+});
 vi.mock('node:fs');
 vi.mock('node:path');
 vi.mock('semver');
@@ -836,6 +842,19 @@ describe('Version Calculator', () => {
       await calculateVersion(defaultConfig as Config, options);
 
       expect(commitsSpy).not.toHaveBeenCalled();
+    });
+
+    it('should fail loudly if the conventionalcommits preset stops exposing the header patterns angular borrows', async () => {
+      conventionalCommitsPreset.override = () => ({ whatBump: () => ({}) });
+      try {
+        const options: VersionOptions = { latestTag: 'v1.0.0', versionPrefix: 'v' };
+
+        await expect(calculateVersion(defaultConfig as Config, options)).rejects.toThrow(
+          'no longer exposes its header patterns',
+        );
+      } finally {
+        conventionalCommitsPreset.override = undefined;
+      }
     });
 
     it('should use conventional commits when no type or branch pattern matches', async () => {

@@ -29,10 +29,10 @@ function createRepoAt(version: string, preset: string) {
   execSync(`git tag v${version}`, { cwd: tempDir });
 }
 
-function coreVersion(): string | undefined {
+function runVersion() {
   const result = executeCliCommand('--json', tempDir);
   expect(result.status).toBe(0);
-  return readVersionOutput(result.stdout).updates.find((u) => u.packageName === '@test/core')?.newVersion;
+  return readVersionOutput(result.stdout);
 }
 
 describe('breaking-change syntax', () => {
@@ -49,16 +49,10 @@ describe('breaking-change syntax', () => {
     writeFileSync(join(tempDir, 'packages/core/index.js'), '// changed\n');
     createConventionalCommit(tempDir, 'fix', 'drop the old flag', 'core', true, ['packages/core']);
 
-    expect(coreVersion()).toBe(to);
-  });
-
-  it('should treat a `BREAKING-CHANGE:` footer as breaking with the angular preset', () => {
-    createRepoAt('1.4.2', 'angular');
-    writeFileSync(join(tempDir, 'packages/core/index.js'), '// changed\n');
-    execSync('git add . && git commit -m "fix(core): drop the old flag" -m "BREAKING-CHANGE: the flag is gone"', {
-      cwd: tempDir,
-    });
-
-    expect(coreVersion()).toBe('2.0.0');
+    const output = runVersion();
+    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe(to);
+    // The bump and the changelog must agree it's breaking.
+    const entry = output.changelogs.flatMap((c) => c.entries).find((e) => e.description === 'drop the old flag');
+    expect(entry?.breaking).toBe(true);
   });
 });

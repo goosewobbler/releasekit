@@ -20,18 +20,20 @@ import {
   type VersionSourceResult,
 } from '../utils/versionUtils.js';
 
-/** Angular's parser can't read a `type!:` header or a `BREAKING-CHANGE:` footer; conventionalcommits' can. */
-const { headerPattern, breakingHeaderPattern, noteKeywords } =
-  (createConventionalCommitsPreset as () => BumperPreset)().parser ?? {};
-
-function createAngularPresetReadingBreakingChanges(): BumperPreset {
+/** Angular's parser can't read a `type!:` header; conventionalcommits' can. */
+function createAngularPresetReadingBreakingHeaders(): BumperPreset {
   const preset = (createAngularPreset as () => BumperPreset)();
-  return { ...preset, parser: { ...preset.parser, headerPattern, breakingHeaderPattern, noteKeywords } };
+  const { headerPattern, breakingHeaderPattern } =
+    (createConventionalCommitsPreset as () => BumperPreset)().parser ?? {};
+  if (!headerPattern || !breakingHeaderPattern) {
+    throw new Error('conventional-changelog-conventionalcommits no longer exposes its header patterns.');
+  }
+  return { ...preset, parser: { ...preset.parser, headerPattern, breakingHeaderPattern } };
 }
 
 // Imported statically so they resolve from releasekit's own dependencies in any install layout, bundled dist included.
 const PRESETS: Record<Preset, () => BumperPreset> = {
-  angular: createAngularPresetReadingBreakingChanges,
+  angular: createAngularPresetReadingBreakingHeaders,
   conventionalcommits: createConventionalCommitsPreset as () => BumperPreset,
 };
 
