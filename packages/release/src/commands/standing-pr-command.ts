@@ -31,6 +31,10 @@ export function createStandingPRCommand(): Command {
         false,
       )
       .option(
+        '--graduate <packages>',
+        'Graduate these prerelease packages (comma-separated, globs allowed) via graduate:<package> labels, opening the standing PR even when nothing else is queued',
+      )
+      .option(
         '--reconcile',
         'Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point)',
         false,
@@ -46,6 +50,10 @@ export function createStandingPRCommand(): Command {
       reconcile: opts.reconcile,
       target: opts.target,
       includePrerequisites: opts.includePrerequisites,
+      graduate: opts.graduate
+        ?.split(',')
+        .map((p: string) => p.trim())
+        .filter(Boolean),
     };
 
     try {

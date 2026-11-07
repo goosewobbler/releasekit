@@ -891,6 +891,7 @@ Standing-pr mode handles both batched and one-off releases through a single work
 | Adjust the standing PR's bump magnitude | Add `bump:major` (etc.) to the standing PR itself; the next update applies it. |
 | Promote **all** accumulated prereleases to stable | Add `release:graduate` to the standing PR and merge it. |
 | Promote **one** prerelease package to stable (others stay prerelease) | Add `graduate:<package>` to the standing PR (e.g. `graduate:@scope/core`); others keep advancing their line. |
+| Graduate prereleases when **nothing else is queued** (no standing PR open) | Run the standing PR workflow manually with `graduate` set (e.g. `@scope/core`, `@scope/*`, or `**` for every prerelease). It opens the standing PR with the matching `graduate:<package>` labels; merge it. |
 | Retry a publish that failed partway | Add `release:retry` to the **merged** standing PR. |
 
 ---

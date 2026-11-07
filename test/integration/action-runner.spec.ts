@@ -286,6 +286,17 @@ describe('action runner', () => {
     expect(result.args).toEqual(['refresh-after-release', '--config', 'releasekit.config.json', '--project-dir', '.']);
   });
 
+  it('should pass graduate through to standing-pr update as --graduate', () => {
+    const args = buildStandingPRUpdateArgs({ projectDir: '.', graduate: '@scope/a,@scope/b' });
+
+    expect(args).toEqual(expect.arrayContaining(['--graduate', '@scope/a,@scope/b']));
+  });
+
+  it('should parse INPUT_GRADUATE, treating an empty value as unset', () => {
+    expect(parseInputs({ INPUT_MODE: 'standing-pr-update', INPUT_GRADUATE: '**' }).graduate).toBe('**');
+    expect(parseInputs({ INPUT_MODE: 'standing-pr-update', INPUT_GRADUATE: '' }).graduate).toBeUndefined();
+  });
+
   it('should parse INPUT_RECONCILE into the reconcile input', () => {
     const parsed = parseInputs({
       INPUT_MODE: 'standing-pr-update',

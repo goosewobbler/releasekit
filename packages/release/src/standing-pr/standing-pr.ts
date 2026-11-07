@@ -17,10 +17,15 @@ import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure, postFailureReport, resolveFailureReportIfPresent } from '../failure-report/post.js';
-import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
+import { getGitHubContext, getHeadCommitMessage, isHeadTagged, matchesSkipPattern } from '../git.js';
 import { forgeFor } from '../github.js';
 import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
-import { DEFAULT_LABELS, graduatedPackageFromLabel, isGraduatePackageLabel } from '../label-utils.js';
+import {
+  DEFAULT_LABELS,
+  graduatedPackageFromLabel,
+  graduatePackageLabel,
+  isGraduatePackageLabel,
+} from '../label-utils.js';
 import { markFeederPreviewsStale } from '../preview/stale.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
@@ -113,6 +118,11 @@ export interface StandingPROptions {
   target?: string;
   /** Ad-hoc CLI override: also release the changed prerequisites (and group members) of the targets. */
   includePrerequisites?: boolean;
+  /**
+   * Package patterns to graduate, applied as `graduate:<package>` labels so later updates keep them. Opens the
+   * standing PR even when nothing else is queued.
+   */
+  graduate?: string[];
 }
 
 export interface StandingPRResult {
@@ -881,13 +891,17 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const demoteScopes = (changelogConfig ? changelogConfig.demoteScopes : undefined) ?? DEFAULT_DEMOTE_SCOPES;
   const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
 
-  const bypassSkipGuard = options.reconcile || isStandingPrEventRun();
+  const requestedGraduate = options.graduate ?? [];
+  // A graduate request usually follows the release that left HEAD on a release commit.
+  const bypassSkipGuard = options.reconcile || requestedGraduate.length > 0 || isStandingPrEventRun();
 
   if (bypassSkipGuard) {
     info(
       options.reconcile
         ? 'Reconcile mode: bypassing skip-pattern guard'
-        : 'Label-triggered run: bypassing skip-pattern guard',
+        : requestedGraduate.length > 0
+          ? 'Graduate request: bypassing skip-pattern guard'
+          : 'Label-triggered run: bypassing skip-pattern guard',
     );
   } else {
     // A release's own commit on HEAD must not trigger an update.
@@ -939,6 +953,16 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   let channelSelection =
     channelToggleEnabled && liveBody ? extractChannelSelection(liveBody) : { prereleased: [], graduated: [] };
   const authz = standingPrConfig?.authorization;
+  // The request becomes release labels, so it needs the same authorization as applying them by hand.
+  if (requestedGraduate.length > 0 && authz) {
+    const requester = getEventActor();
+    if (!githubContext?.token || !(await authorizedOrWarn(forgeFor(githubContext), requester, authz))) {
+      warn(
+        `Ignoring the graduate request: '${requester.login ?? 'unknown'}' isn't authorized to change the standing PR's release labels.`,
+      );
+      return { action: 'noop' };
+    }
+  }
   // Resolved once so the selection gate and the channel-toggle gate share one permission lookup.
   let eventActor: EventActor | undefined;
   let authorizedBodyEdit = false;
@@ -994,12 +1018,23 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
+  const overrideLabelNames = ciConfig?.labels ?? DEFAULT_LABELS;
+  const sync = releaseKitConfig.version?.sync ?? false;
+
+  // Applied as labels so conflict detection and the version runs treat the request like a maintainer's labels.
+  const labelsBeforeGraduateRequest = effectiveLabels;
+  const requestedGraduateLabels =
+    requestedGraduate.length === 0
+      ? []
+      : sync
+        ? [overrideLabelNames.graduate]
+        : requestedGraduate.map((pattern) => graduatePackageLabel(pattern, overrideLabelNames));
+  effectiveLabels = [...new Set([...effectiveLabels, ...requestedGraduateLabels])];
+
   // Opt-in so the default path stays LLM-free.
-  const previewNotesLabel = (ciConfig?.labels ?? DEFAULT_LABELS).previewNotes;
-  const previewNotesEnabled = effectiveLabels.includes(previewNotesLabel);
+  const previewNotesEnabled = effectiveLabels.includes(overrideLabelNames.previewNotes);
 
   const overrides = resolveStandingPrLabelOverrides(effectiveLabels, ciConfig);
-  const overrideLabelNames = ciConfig?.labels ?? DEFAULT_LABELS;
   if (overrides.bump) {
     info(`Standing PR label override: bump=${overrides.bump}`);
   }
@@ -1019,7 +1054,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     warn(conflict);
   }
 
-  const sync = releaseKitConfig.version?.sync ?? false;
   const cliTarget = options.target ?? overrides.target;
   const includePrerequisites = options.includePrerequisites || overrides.withPrerequisites;
   // A sync release moves as one unit, so only the whole-batch graduate applies.
@@ -1040,6 +1074,29 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   info('Running version analysis (dry run)...');
   const dryRunOptions = buildBaseReleaseOptions(options, true, buildExtras);
   const versionOutputDry = await runVersionStep(dryRunOptions);
+
+  // Swap the requested patterns for labels naming what they graduated, so a pattern that matched nothing or a glob
+  // doesn't linger on the PR. With a conflict nothing graduated, so the labels stay for the status check to name.
+  let requestedGraduateNames: string[] = [];
+  if (requestedGraduateLabels.length > 0 && overrides.conflicts.length === 0) {
+    const graduated = graduatedPackageNames(versionOutputDry);
+    let settledLabels: string[];
+    if (sync) {
+      if (graduated.length === 0) {
+        warn('Graduate request: no package is on a prerelease line.');
+      }
+      settledLabels = graduated.length > 0 ? requestedGraduateLabels : [];
+    } else {
+      for (const pattern of requestedGraduate) {
+        if (!graduated.some((name) => shouldMatchPackageTargets(name, [pattern]))) {
+          warn(`Graduate request: no package on a prerelease line matches '${pattern}'.`);
+        }
+      }
+      requestedGraduateNames = graduated.filter((name) => shouldMatchPackageTargets(name, requestedGraduate));
+      settledLabels = requestedGraduateNames.map((name) => graduatePackageLabel(name, overrideLabelNames));
+    }
+    effectiveLabels = [...new Set([...labelsBeforeGraduateRequest, ...settledLabels])];
+  }
 
   if (versionOutputDry.updates.length === 0) {
     return closeEmptyQueue(existingStandingPr, githubContext);
@@ -1072,8 +1129,15 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   if (!options.reconcile) {
     const resetHeadSubject = await getHeadCommitMessage(cwd);
     if (resetHeadSubject && matchesSkipPattern(resetHeadSubject, skipPatterns)) {
-      info('Skipping standing PR update: a release commit landed on the base branch during this run');
-      return { action: 'noop' };
+      if (requestedGraduate.length === 0) {
+        info('Skipping standing PR update: a release commit landed on the base branch during this run');
+        return { action: 'noop' };
+      }
+      // Once its release is tagged, the version bump at HEAD is no longer pending.
+      if (!(await isHeadTagged(cwd))) {
+        info("Skipping the graduate request: the release at HEAD isn't tagged yet. Re-run once it has published.");
+        return { action: 'noop' };
+      }
     }
   }
 
@@ -1358,7 +1422,10 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   try {
     // A label must exist before a maintainer can apply it, so seed `graduate:<package>` for each prerelease package.
-    await syncLabels(forge, deriveLabelDefinitions(ciConfig, prereleasePackageNames(versionOutput)));
+    await syncLabels(
+      forge,
+      deriveLabelDefinitions(ciConfig, [...prereleasePackageNames(versionOutput), ...requestedGraduateNames]),
+    );
   } catch (err) {
     warn(`Could not ensure ReleaseKit labels exist: ${err instanceof Error ? err.message : String(err)}`);
   }

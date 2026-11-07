@@ -91,6 +91,7 @@ export function buildStandingPRUpdateArgs(input) {
   pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--npm-auth', input.npmAuth);
   pushBooleanFlag(args, '--reconcile', input.reconcile);
+  pushOptionalArg(args, '--graduate', input.graduate);
   pushBooleanFlag(args, '--verbose', input.verbose);
   pushBooleanFlag(args, '--quiet', input.quiet);
 
@@ -265,6 +266,7 @@ export function parseInputs(env = process.env) {
     skipVerification: env.INPUT_SKIP_VERIFICATION,
 
     reconcile: env.INPUT_RECONCILE,
+    graduate: normalizeString(env.INPUT_GRADUATE),
     pr: normalizeString(env.INPUT_PR),
     repo: normalizeString(env.INPUT_REPO),
     previewPrerelease: normalizeString(env.INPUT_PREVIEW_PRERELEASE),
