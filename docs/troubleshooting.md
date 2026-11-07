@@ -20,9 +20,9 @@ Each section below covers a specific failure mode. Search for the exact message 
 
 **Symptom:** The version stage logs `No new commits found for <package> since <tag>, skipping version bump` and exits with code 0.
 
-**Cause:** No commit since the tag touches the package's directory (the repo root in sync mode).
+**Cause:** No commit since the tag touches the package's directory or a crate or Dart package it versions through `cargo.paths` or `pub.paths`. A nested package's commits count only if it never releases on its own (it's private or outside `version.packages`). In sync mode every commit in the workspace counts.
 
-**Fix:** None needed if nothing changed. Otherwise check that the changes are under the package's path with `git log <tag>..HEAD --oneline -- <package-dir>`, and that `<tag>` is the release you expect.
+**Fix:** None needed if nothing changed. Otherwise list the commits with `git log <tag>..HEAD --oneline -- <package-dir>`, adding any `cargo.paths` or `pub.paths` directories and a `':(exclude)<dir>'` for each nested package that releases on its own. Check that `<tag>` is the release you expect.
 
 ---
 

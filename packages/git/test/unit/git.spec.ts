@@ -135,10 +135,19 @@ describe('GitCli queries', () => {
     await expect(new GitCli(run).mergeBase('HEAD', 'origin/main')).rejects.toBeInstanceOf(GitError);
   });
 
-  it('should count commits, appending the path after -- when given', async () => {
+  it('should count commits, appending the paths after -- when given', async () => {
     const { run, calls } = makeRunner({ stdout: '7\n' });
-    expect(await new GitCli(run).countCommits('v1..HEAD', { path: 'packages/git' })).toBe(7);
-    expect(calls[0].args).toEqual(['rev-list', '--count', 'v1..HEAD', '--', 'packages/git']);
+    expect(
+      await new GitCli(run).countCommits('v1..HEAD', { paths: ['packages/git', ':(exclude)packages/git/sub'] }),
+    ).toBe(7);
+    expect(calls[0].args).toEqual([
+      'rev-list',
+      '--count',
+      'v1..HEAD',
+      '--',
+      'packages/git',
+      ':(exclude)packages/git/sub',
+    ]);
   });
 
   it('should count commits without a path and default unparseable output to 0', async () => {
