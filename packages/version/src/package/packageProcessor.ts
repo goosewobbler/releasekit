@@ -9,6 +9,7 @@ import { calculateVersion } from '../core/versionCalculator.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
 import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import type { Config, VersionConfigBase } from '../types.js';
+import { packageCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addChangelogData,
@@ -113,6 +114,12 @@ export class PackageProcessor {
       sharedChangelogFloor: this.fullConfig.sharedChangelogFloor,
     });
 
+    // The full workspace, so a nested package's commits stay its own and a commit touching only a non-releasing
+    // package isn't misread as repo-level. Falls back to the release set when the engine didn't populate it (e.g. tests).
+    const workspace =
+      this.fullConfig.allWorkspacePackages ?? packages.map((p) => ({ name: p.packageJson.name, dir: p.dir }));
+    const workspaceDirs = workspace.map((p) => p.dir);
+
     for (const pkg of pkgsToConsider) {
       const name = pkg.packageJson.name;
       const pkgPath = pkg.dir;
@@ -166,12 +173,14 @@ export class PackageProcessor {
       }
 
       const latestTag = latestTagResult;
+      const commitScope = packageCommitScope(pkgPath, this.fullConfig, { repoRoot, workspaceDirs });
 
       const nextVersion = await calculateVersion(this.fullConfig, {
         latestTag,
         hasRealTag,
         versionPrefix: formattedPrefix,
         path: pkgPath,
+        commitScope,
         name,
         prereleaseIdentifier: this.config.prereleaseIdentifier,
         type: this.config.type,
@@ -223,13 +232,8 @@ export class PackageProcessor {
           );
         }
 
-        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange);
+        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange, commitScope);
 
-        // The full workspace, so a commit touching only a non-releasing package isn't misread as repo-level.
-        // Falls back to the release set when the engine didn't populate it (e.g. tests).
-        const workspace =
-          this.fullConfig.allWorkspacePackages ?? packages.map((p) => ({ name: p.packageJson.name, dir: p.dir }));
-        const allPackageDirs = workspace.map((p) => p.dir);
         const sharedPackagePatterns = this.fullConfig.sharedPackages ?? [];
         const sharedPackageDirs =
           sharedPackagePatterns.length === 0
@@ -241,7 +245,7 @@ export class PackageProcessor {
         const repoLevelEntries = await extractRepoLevelChangelogEntries(
           pkgPath,
           sharedRevisionRange,
-          allPackageDirs,
+          workspaceDirs,
           sharedPackageDirs,
         );
 

@@ -835,7 +835,60 @@ describe('Version Calculator', () => {
 
       await calculateVersion(defaultConfig as Config, options);
 
-      expect(commitsSpy).not.toHaveBeenCalled();
+      expect(commitsSpy).toHaveBeenCalledWith({});
+    });
+
+    it("should scan only the package directory's commits by default", async () => {
+      const commitsSpy = vi.spyOn(Bumper.prototype, 'commits').mockReturnThis();
+      vi.spyOn(gitTags, 'refExists').mockReturnValue(true);
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
+
+      const options: VersionOptions = { latestTag: 'v1.0.0', versionPrefix: 'v', path: '/repo/packages/a' };
+
+      await calculateVersion(defaultConfig as Config, options);
+
+      expect(commitsSpy).toHaveBeenCalledWith({ from: 'v1.0.0', path: ['/repo/packages/a'] });
+    });
+
+    it('should scan and count commits within commitScope', async () => {
+      const commitsSpy = vi.spyOn(Bumper.prototype, 'commits').mockReturnThis();
+      vi.spyOn(gitTags, 'refExists').mockReturnValue(true);
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
+      vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValue({
+        source: 'git',
+        version: 'v1.0.0',
+        reason: 'test',
+      });
+      const commitScope = ['/repo/packages/a', '/repo/crates/a', ':(exclude)/repo/packages/a/plugin'];
+
+      const options: VersionOptions = {
+        latestTag: 'v1.0.0',
+        versionPrefix: 'v',
+        path: '/repo/packages/a',
+        commitScope,
+      };
+
+      await calculateVersion(defaultConfig as Config, options);
+
+      expect(commitsSpy).toHaveBeenCalledWith({ from: 'v1.0.0', path: commitScope });
+      expect(gitTags.getCommitsLength).toHaveBeenCalledWith(commitScope, 'v1.0.0');
+    });
+
+    it('should scan the whole repository when commitScope is empty', async () => {
+      const commitsSpy = vi.spyOn(Bumper.prototype, 'commits').mockReturnThis();
+      vi.spyOn(gitTags, 'refExists').mockReturnValue(true);
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
+
+      const options: VersionOptions = {
+        latestTag: 'v1.0.0',
+        versionPrefix: 'v',
+        path: '/repo/packages/a',
+        commitScope: [],
+      };
+
+      await calculateVersion(defaultConfig as Config, options);
+
+      expect(commitsSpy).toHaveBeenCalledWith({ from: 'v1.0.0' });
     });
 
     it('should use conventional commits when no type or branch pattern matches', async () => {

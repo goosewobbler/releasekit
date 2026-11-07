@@ -17,6 +17,7 @@ import { StrictReachableError } from '../errors/strictReachableError.js';
 import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import type { Config } from '../types.js';
+import { packageCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addBaselineTag,
@@ -65,6 +66,7 @@ interface MemberPlan {
   /** Version this member would bump to on its own ('' when it earned no releasable change). */
   ownNext: string;
   changed: boolean;
+  commitScope: string[];
 }
 
 function cleanBaseline(version: string | undefined): string {
@@ -99,11 +101,16 @@ async function planMember(
     latestTag = globalTag;
   }
 
+  const commitScope = packageCommitScope(pkg.dir, config, {
+    ignorePaths: true,
+    workspaceDirs: config.allWorkspacePackages?.map((p) => p.dir),
+  });
   const ownNext = await calculateVersion(config, {
     latestTag,
     versionPrefix: formattedPrefix,
     prereleaseIdentifier: config.prereleaseIdentifier,
     path: pkg.dir,
+    commitScope,
     name,
     type: config.type,
   });
@@ -113,7 +120,7 @@ async function planMember(
   const candidates = [manifestVersion, tagVersion].map(cleanBaseline).filter((v) => v !== '0.0.0');
   const baseline = candidates.length > 0 ? candidates.sort(semver.rcompare)[0] : '0.0.0';
 
-  return { pkg, baseline, latestTag, usedPackageSpecificTag, ownNext, changed: !!ownNext };
+  return { pkg, baseline, latestTag, usedPackageSpecificTag, ownNext, changed: !!ownNext, commitScope };
 }
 
 function memberBumpRank(plan: MemberPlan): number {
@@ -267,6 +274,7 @@ async function extractEntries(
   resolver: BaselineResolver,
   input: {
     pkgDir: string;
+    commitScope: string[];
     latestTag: string;
     hasRealTag: boolean;
     usedPackageSpecificTag: boolean;
@@ -294,7 +302,7 @@ async function extractEntries(
     });
     revisionRange = baseline.revisionRange;
     previousVersion = baseline.previousVersion;
-    entries = await extractChangelogEntriesFromCommits(input.pkgDir, revisionRange);
+    entries = await extractChangelogEntriesFromCommits(input.pkgDir, revisionRange, input.commitScope);
   } catch (error) {
     if (error instanceof StrictReachableError) {
       throw error;
@@ -377,6 +385,7 @@ async function releaseGroup(
     const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, name);
     const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
       pkgDir: pkg.dir,
+      commitScope: plan.commitScope,
       latestTag: plan.latestTag,
       hasRealTag: plan.latestTag !== '',
       usedPackageSpecificTag: plan.usedPackageSpecificTag,
@@ -525,6 +534,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, name);
         const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
           pkgDir: pkg.dir,
+          commitScope: plan.commitScope,
           latestTag: plan.latestTag,
           hasRealTag: plan.latestTag !== '',
           usedPackageSpecificTag: plan.usedPackageSpecificTag,

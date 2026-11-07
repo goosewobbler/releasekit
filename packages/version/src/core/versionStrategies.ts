@@ -11,6 +11,7 @@ import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js'
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
+import { packageCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addBaselineTag,
@@ -119,8 +120,8 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         versionPrefix: formattedPrefix,
         prereleaseIdentifier,
         path: versionSourcePath,
-        // Count commits across every workspace package, not just the version source's directory.
-        commitCheckPath: repoRoot,
+        // Synced packages share one version, so every commit in the repository counts.
+        commitScope: [],
         name: versionSourceName,
         type: config.type,
       });
@@ -422,6 +423,11 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       const latestTag = latestTagResult;
       const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, packageName);
 
+      const commitScope = packageCommitScope(pkgPath, config, {
+        repoRoot,
+        workspaceDirs: config.allWorkspacePackages?.map((p) => p.dir),
+      });
+
       let nextVersion: string | undefined;
 
       nextVersion = await calculateVersion(config, {
@@ -429,6 +435,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         versionPrefix: formattedPrefix,
         prereleaseIdentifier: config.prereleaseIdentifier,
         path: pkgPath,
+        commitScope,
         name: packageName,
         type: config.type,
       });
@@ -468,7 +475,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange);
+        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange, commitScope);
 
         if (changelogEntries.length === 0) {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];

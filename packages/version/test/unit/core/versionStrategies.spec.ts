@@ -347,7 +347,7 @@ describe('Version Strategies', () => {
         expect.objectContaining({
           path: '/test/workspace/packages/b',
           name: 'package-b',
-          commitCheckPath: '/test/workspace',
+          commitScope: [],
         }),
       );
 
@@ -383,7 +383,7 @@ describe('Version Strategies', () => {
       );
     });
 
-    it('should pass commitCheckPath as repo root regardless of version source package', async () => {
+    it('should scope commits to the whole repository regardless of version source package', async () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         sync: true,
@@ -397,7 +397,7 @@ describe('Version Strategies', () => {
         config as Config,
         expect.objectContaining({
           path: '/test/workspace/packages/a',
-          commitCheckPath: '/test/workspace',
+          commitScope: [],
         }),
       );
     });

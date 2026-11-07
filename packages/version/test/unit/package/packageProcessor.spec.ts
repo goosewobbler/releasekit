@@ -259,8 +259,8 @@ describe('Package Processor', () => {
       );
       expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalledWith('package-b', expect.anything());
       // Checked before the changelog is built, so its repo-level entries don't reach sharedEntries.
-      expect(extractEntries).toHaveBeenCalledWith('/path/to/package-a', expect.anything());
-      expect(extractEntries).not.toHaveBeenCalledWith('/path/to/package-b', expect.anything());
+      expect(extractEntries).toHaveBeenCalledWith('/path/to/package-a', expect.anything(), expect.anything());
+      expect(extractEntries).not.toHaveBeenCalledWith('/path/to/package-b', expect.anything(), expect.anything());
       expect(logging.log).toHaveBeenCalledWith(
         'Not releasing package-b: it has no manifest releasekit can bump',
         'warning',

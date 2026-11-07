@@ -13,6 +13,7 @@ import { createVersionError, VersionError, VersionErrorCode } from '../errors/ve
 import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { isReleasablePubspec } from '../pub/pubHandler.js';
 import type { Config, VersionRunOptions } from '../types.js';
+import { packageCommitScope } from '../utils/commitScope.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
 import { tagPrerequisiteRoles } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
@@ -345,7 +346,7 @@ export class VersionEngine {
    * Over-inclusive by design (any commit since the last tag counts) - a pulled-in prerequisite with no
    * *releasable* change is still skipped by the per-package bump calc downstream.
    */
-  private async detectChangedPackages(packages: Package[]): Promise<Set<string>> {
+  private async detectChangedPackages(packages: Package[], repoRoot: string): Promise<Set<string>> {
     const formattedPrefix = formatVersionPrefix(this.config.versionPrefix || 'v');
     const results = await Promise.all(
       packages.map(async (pkg) => {
@@ -361,7 +362,11 @@ export class VersionEngine {
         } catch {
           // No tag resolvable - getCommitsLength falls back to git describe / full history.
         }
-        return (await getCommitsLength(pkg.dir, tag)) > 0 ? pkg.packageJson.name : null;
+        const scope = packageCommitScope(pkg.dir, this.config, {
+          repoRoot,
+          workspaceDirs: this.config.allWorkspacePackages?.map((p) => p.dir),
+        });
+        return (await getCommitsLength(scope, tag)) > 0 ? pkg.packageJson.name : null;
       }),
     );
     return new Set(results.filter((name): name is string => name !== null));
@@ -463,7 +468,7 @@ export class VersionEngine {
       // Runs on the full discovered set, before the target pre-filter below, so prerequisites aren't pruned.
       if (this.includePrerequisites && this.runtimeTargets.length > 0) {
         const graph = buildWorkspaceGraph(mergedPackages.packages);
-        const changed = await this.detectChangedPackages(mergedPackages.packages);
+        const changed = await this.detectChangedPackages(mergedPackages.packages, mergedPackages.root);
         const { targets, overrideScope, prerequisiteOf } = resolvePrerequisiteTargets(
           graph,
           mergedPackages.packages,

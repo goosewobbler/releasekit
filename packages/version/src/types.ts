@@ -66,8 +66,8 @@ export interface VersionConfigBase {
   type?: ReleaseType;
   prereleaseIdentifier?: string;
   path?: string;
-  /** Directory for commit-count checks, overriding `path`. */
-  commitCheckPath?: string;
+  /** Pathspecs for the commits that bump this version, overriding `path`; empty means the whole repository. */
+  commitScope?: string[];
   name?: string;
   strictReachable?: boolean;
 }

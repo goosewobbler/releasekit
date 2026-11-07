@@ -52,7 +52,7 @@ export interface GitListTagsOptions {
 }
 
 export interface GitCountCommitsOptions {
-  path?: string;
+  paths?: string[];
   cwd?: string;
 }
 

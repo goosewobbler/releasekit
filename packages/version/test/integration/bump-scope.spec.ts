@@ -6,7 +6,7 @@
 import { execSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { executeCliCommand, readVersionOutput } from '../utils/cli.js';
 import { createConventionalCommit, initGitRepo } from '../utils/git.js';
@@ -15,13 +15,28 @@ import { cleanupTempDir, symlinkNodeModules } from '../utils/tempFixture.js';
 
 let tempDir: string;
 
-function createRepo(sync: boolean) {
+interface RepoOptions {
+  sync?: boolean;
+  workspaceGlobs?: string[];
+  packages?: string[];
+  version?: Record<string, unknown>;
+}
+
+function createRepo({
+  sync = false,
+  workspaceGlobs = ['packages/*'],
+  packages = ['pkg-a', 'pkg-b'],
+  version = {},
+}: RepoOptions = {}) {
   tempDir = mkdtempSync(join(tmpdir(), 'rk-bump-scope-'));
   writeFileSync(join(tempDir, 'package.json'), JSON.stringify({ name: 'monorepo', version: '1.0.0', private: true }));
-  writeFileSync(join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n');
-  for (const name of ['pkg-a', 'pkg-b']) {
-    mkdirSync(join(tempDir, 'packages', name), { recursive: true });
-    createPackageJson(join(tempDir, 'packages', name), name, '1.0.0');
+  writeFileSync(
+    join(tempDir, 'pnpm-workspace.yaml'),
+    `packages:\n${workspaceGlobs.map((g) => `  - "${g}"\n`).join('')}`,
+  );
+  for (const pkg of packages) {
+    mkdirSync(join(tempDir, 'packages', pkg), { recursive: true });
+    createPackageJson(join(tempDir, 'packages', pkg), basename(pkg), '1.0.0');
   }
   writeFileSync(
     join(tempDir, 'releasekit.config.json'),
@@ -32,20 +47,21 @@ function createRepo(sync: boolean) {
         versionPrefix: 'v',
         packageSpecificTags: !sync,
         tagTemplate: sync ? '${prefix}${version}' : '${packageName}@v${version}',
+        ...version,
       },
     }),
   );
   symlinkNodeModules(tempDir);
   initGitRepo(tempDir);
-  const tags = sync ? ['v1.0.0'] : ['pkg-a@v1.0.0', 'pkg-b@v1.0.0'];
+  const tags = sync ? ['v1.0.0'] : packages.map((pkg) => `${basename(pkg)}@v1.0.0`);
   for (const tag of tags) {
     execSync(`git tag ${tag}`, { cwd: tempDir });
   }
 }
 
-function commitTo(pkg: string, type: string, message: string, breaking = false) {
-  writeFileSync(join(tempDir, 'packages', pkg, 'index.js'), `// ${message}\n`);
-  createConventionalCommit(tempDir, type, message, pkg, breaking, [`packages/${pkg}`]);
+function commitTo(dir: string, type: string, message: string, breaking = false) {
+  writeFileSync(join(tempDir, dir, 'index.js'), `// ${message}\n`);
+  createConventionalCommit(tempDir, type, message, undefined, breaking, [dir]);
 }
 
 function newVersions(): Record<string, string | undefined> {
@@ -61,9 +77,9 @@ describe('bump scope', () => {
   });
 
   it("should bump each package from its own commits, not another package's", () => {
-    createRepo(false);
-    commitTo('pkg-a', 'feat', 'drop the old API', true);
-    commitTo('pkg-b', 'fix', 'correct a typo');
+    createRepo();
+    commitTo('packages/pkg-a', 'feat', 'drop the old API', true);
+    commitTo('packages/pkg-b', 'fix', 'correct a typo');
 
     const versions = newVersions();
 
@@ -72,13 +88,39 @@ describe('bump scope', () => {
   });
 
   it('should bump synced packages from every commit in the repo', () => {
-    createRepo(true);
-    commitTo('pkg-a', 'feat', 'drop the old API', true);
-    commitTo('pkg-b', 'fix', 'correct a typo');
+    createRepo({ sync: true });
+    commitTo('packages/pkg-a', 'feat', 'drop the old API', true);
+    commitTo('packages/pkg-b', 'fix', 'correct a typo');
 
     const versions = newVersions();
 
     expect(versions['pkg-a']).toBe('2.0.0');
     expect(versions['pkg-b']).toBe('2.0.0');
+  });
+
+  it('should bump a package from commits to a crate it versions through cargo.paths', () => {
+    createRepo({ packages: ['app'], version: { cargo: { paths: ['../../crates/app'] } } });
+    mkdirSync(join(tempDir, 'crates', 'app'), { recursive: true });
+    // publish = false, so discovery doesn't release the crate as a package of its own.
+    writeFileSync(
+      join(tempDir, 'crates', 'app', 'Cargo.toml'),
+      '[package]\nname = "app"\nversion = "1.0.0"\npublish = false\n',
+    );
+    execSync('git add crates && git commit -m "chore: add crate"', { cwd: tempDir });
+    execSync('git tag -f app@v1.0.0', { cwd: tempDir });
+    commitTo('crates/app', 'feat', 'drop the old crate API', true);
+
+    expect(newVersions().app).toBe('2.0.0');
+  });
+
+  it("should not bump a package from a nested package's commits", () => {
+    createRepo({ workspaceGlobs: ['packages/*', 'packages/*/plugin'], packages: ['host', 'host/plugin'] });
+    commitTo('packages/host/plugin', 'feat', 'drop the old plugin API', true);
+    commitTo('packages/host', 'fix', 'correct a typo');
+
+    const versions = newVersions();
+
+    expect(versions.plugin).toBe('2.0.0');
+    expect(versions.host).toBe('1.0.1');
   });
 });

@@ -164,8 +164,8 @@ export class GitCli implements Git {
   async countCommits(range: string, opts: GitCountCommitsOptions = {}): Promise<number> {
     assertNotOption(range, 'range');
     const args = ['rev-list', '--count', range];
-    if (opts.path) {
-      args.push('--', opts.path);
+    if (opts.paths?.length) {
+      args.push('--', ...opts.paths);
     }
     const { stdout } = await this.exec(args, { cwd: this.cwd(opts.cwd) });
     return Number.parseInt(stdout.trim(), 10) || 0;
