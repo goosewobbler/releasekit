@@ -63,6 +63,26 @@ describe('packageCommitScope', () => {
     expect(scope).toEqual([pkgDir]);
   });
 
+  it('should not throw for a cargo.paths entry that leaves the repository', () => {
+    const pkgDir = join(root, 'packages', 'app');
+
+    expect(packageCommitScope(pkgDir, { cargo: { paths: ['../../..'] } }, { repoRoot: root })).toEqual([pkgDir]);
+  });
+
+  it('should exclude nested packages from config.allWorkspacePackages by default', () => {
+    const pkgDir = join(root, 'packages', 'app');
+    const plugin = join(pkgDir, 'plugin');
+    const config = {
+      allWorkspacePackages: [
+        { name: 'app', dir: pkgDir },
+        { name: 'plugin', dir: plugin },
+      ],
+    };
+
+    expect(packageCommitScope(pkgDir, config, { repoRoot: root })).toEqual([pkgDir, `:(exclude)${plugin}`]);
+    expect(packageCommitScope(pkgDir, config, { repoRoot: root, workspaceDirs: [] })).toEqual([pkgDir]);
+  });
+
   it('should exclude packages nested inside it', () => {
     const workspaceDirs = [root, join(root, 'packages', 'app'), join(root, 'packages', 'app', 'plugin')];
 

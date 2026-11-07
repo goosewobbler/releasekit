@@ -140,4 +140,17 @@ describe('bump scope', () => {
     expect(output.updates.map((u) => u.newVersion)).toEqual(['2.0.0', '2.0.0', '2.0.0']);
     expect(output.changelogs.flatMap((c) => c.entries.map((e) => e.description))).toContain('drop the old native API');
   });
+
+  it('should bump a single released package from commits to a nested package it bundles', () => {
+    createRepo({ workspaceGlobs: ['packages/*', 'packages/*/plugin'], packages: ['host', 'host/plugin'] });
+    // Private, so `host` is the only package released and the single-package strategy runs.
+    writeFileSync(
+      join(tempDir, 'packages', 'host', 'plugin', 'package.json'),
+      JSON.stringify({ name: 'plugin', version: '1.0.0', private: true }),
+    );
+    execSync('git commit -qam "chore: make plugin private" && git tag -f host@v1.0.0', { cwd: tempDir });
+    commitTo('packages/host/plugin', 'feat', 'drop the old plugin API', true);
+
+    expect(newVersions()).toEqual({ host: '2.0.0' });
+  });
 });

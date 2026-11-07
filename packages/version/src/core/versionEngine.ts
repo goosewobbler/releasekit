@@ -17,6 +17,7 @@ import { packageCommitScope } from '../utils/commitScope.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
 import { tagPrerequisiteRoles } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+import { hasExplicitGroups } from './groupResolution.js';
 import { resolvePrerequisiteTargets } from './prerequisiteScope.js';
 import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
 import { buildWorkspaceGraph } from './workspaceGraph.js';
@@ -343,11 +344,13 @@ export class VersionEngine {
   }
 
   /**
-   * Over-inclusive by design (any commit since the last tag counts) - a pulled-in prerequisite with no
-   * *releasable* change is still skipped by the per-package bump calc downstream.
+   * Over-inclusive by design (any commit in the package's scope counts, releasable or not) - a pulled-in
+   * prerequisite with no *releasable* change is still skipped by the per-package bump calc downstream.
    */
   private async detectChangedPackages(packages: Package[], repoRoot: string): Promise<Set<string>> {
     const formattedPrefix = formatVersionPrefix(this.config.versionPrefix || 'v');
+    // Group mode bumps only a package's own manifests, so its changed check ignores `paths` too.
+    const ignorePaths = !this.config.sync && hasExplicitGroups(this.config);
     const results = await Promise.all(
       packages.map(async (pkg) => {
         let tag = '';
@@ -362,10 +365,7 @@ export class VersionEngine {
         } catch {
           // No tag resolvable - getCommitsLength falls back to git describe / full history.
         }
-        const scope = packageCommitScope(pkg.dir, this.config, {
-          repoRoot,
-          workspaceDirs: this.config.allWorkspacePackages?.map((p) => p.dir),
-        });
+        const scope = packageCommitScope(pkg.dir, this.config, { repoRoot, ignorePaths });
         return (await getCommitsLength(scope, tag)) > 0 ? pkg.packageJson.name : null;
       }),
     );

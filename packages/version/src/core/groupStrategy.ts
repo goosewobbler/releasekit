@@ -101,10 +101,7 @@ async function planMember(
     latestTag = globalTag;
   }
 
-  const commitScope = packageCommitScope(pkg.dir, config, {
-    ignorePaths: true,
-    workspaceDirs: config.allWorkspacePackages?.map((p) => p.dir),
-  });
+  const commitScope = packageCommitScope(pkg.dir, config, { ignorePaths: true });
   const ownNext = await calculateVersion(config, {
     latestTag,
     versionPrefix: formattedPrefix,
