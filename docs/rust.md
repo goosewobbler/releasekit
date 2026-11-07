@@ -10,6 +10,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 
 - `Cargo.toml` version bumping driven by conventional commits
 - `Cargo.lock` sync on every bump: the crate's own lock, and every other committed lock whose workspace reaches the crate's directory through path dependencies (`workspace = true` included), is updated in the same release commit, without running cargo. Gitignored locks are left alone, and so are other crates of the same name (every `tauri init` app is `app`)
+- Internal dependents' requirements raised on release: a crate that depends on a releasing crate by `path` and releases too gets the new version as its requirement (`version = "1.1.0"`), so its published manifest requires the release it was built with. A crate that isn't releasing changes only when its requirement rejects the new version (a major, a 0.x minor or a new pre-release line), since Cargo checks a path dependency's local version against it, and the run warns that its published version keeps the old requirement. Covers normal, dev, build and `[target.*]` dependencies
 - Per-crate git tags (via `version.packageSpecificTags`)
 - Publishing to crates.io with `cargo publish`
 - Workspace dependency ordering via topological sort (Kahn's algorithm) so path-dependent crates are published in the correct sequence
@@ -24,7 +25,8 @@ See [configuration.md](./configuration.md) for the full config reference.
 - OIDC / trusted publishing for crates.io — token-based auth only via `CARGO_REGISTRY_TOKEN`
 - Nested Cargo workspaces — only the repo-root `Cargo.toml`'s `[workspace] members` scope crate discovery
 - `[patch]`, in `Cargo.toml` or `.cargo/config.toml`, when syncing `Cargo.lock` — a lock whose workspace reaches a bumped crate only through a patch keeps the old version, without an error, and `cargo build --locked` there fails until you run `cargo update --workspace` in that workspace and commit the lock
-- Comment and formatting preservation in `Cargo.toml` — the file is rewritten on version bump using `smol-toml`'s serialiser; whitespace, comments, and key order may change
+- Raising a requirement in `[workspace.dependencies]` — give the dependent its own `path` and `version` instead of `workspace = true`
+- Comment and formatting preservation in `Cargo.toml` — the file is rewritten on version bump, or when a dependency requirement is raised, using `smol-toml`'s serialiser; whitespace, comments, and key order may change
 
 ---
 
