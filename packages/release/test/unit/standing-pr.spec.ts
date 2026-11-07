@@ -110,7 +110,8 @@ vi.mock('../../src/github.js', () => ({
   forgeFor: vi.fn(),
 }));
 
-vi.mock('../../src/preview/stale.js', () => ({
+vi.mock('../../src/preview/stale.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/preview/stale.js')>()),
   markFeederPreviewsStale: vi.fn(),
 }));
 
@@ -2562,6 +2563,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(loadConfig).mockReturnValue({
       ci: {
         standingPr: { branch: 'release/next', deleteBranchOnMerge: true },
+        prPreview: { enabled: true, markStaleAfterRelease: true },
       },
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
@@ -2749,7 +2751,7 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'develop' }));
   });
 
-  it("should fall back to the event's base branch for stale marking when the PR can't be read", async () => {
+  it('should take the base branch for stale marking from the event, without reading the PR', async () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
@@ -2796,6 +2798,268 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(markFeederPreviewsStale).mock.invocationCallOrder[0]).toBeGreaterThan(
       push.mock.invocationCallOrder[deleteCall] ?? Number.POSITIVE_INFINITY,
     );
+  });
+
+  it('should mark previews stale when the publish fails, since the merge already moved the base branch', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        action: 'closed',
+        pull_request: { head: { ref: 'release/next' }, base: { ref: 'main' }, number: 42, merged: true },
+      }),
+    );
+    await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockRejectedValue(new Error('registry rejected'));
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow('registry rejected');
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
+  });
+
+  it.each([
+    [true, 1],
+    [false, 0],
+  ])('should mark previews stale for a dispatched PR only if it merged (merged: %s)', async (merged, calls) => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ inputs: { pr: '42' } }));
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], baseRef: 'main', merged } },
+    });
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockRejectedValue(new Error('registry rejected'));
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }, 42),
+    ).rejects.toThrow();
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledTimes(calls);
+  });
+
+  it("should mark previews stale after a successful dispatch publish, even when the PR can't be read", async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ inputs: { pr: '42' } }));
+    const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }, 42);
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
+  });
+
+  it("should warn, not mark, when a failed dispatch publish can't confirm the PR merged", async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ inputs: { pr: '42' } }));
+    const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    onTestFinished(() => logged.mockRestore());
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockRejectedValue(new Error('registry rejected'));
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }, 42),
+    ).rejects.toThrow();
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).not.toHaveBeenCalled();
+    expect(logged.mock.calls.some(([line]) => String(line).includes('Could not confirm PR #42 merged'))).toBe(true);
+  });
+
+  it("should read the PR when a non-`closed` event's snapshot says not merged", async () => {
+    const { readFileSync } = await import('node:fs');
+    // A job started by a label merged the PR in an earlier step, then ran publish.
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        action: 'labeled',
+        label: { name: 'release:ship' },
+        pull_request: { head: { ref: 'release/next' }, base: { ref: 'main' }, number: 42, merged: false },
+      }),
+    );
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], baseRef: 'main', merged: true } },
+    });
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockRejectedValue(new Error('registry rejected'));
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }, 42),
+    ).rejects.toThrow('registry rejected');
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
+  });
+
+  it("should mark previews stale when a `--pr` retry fails again and the PR can't be read", async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        action: 'labeled',
+        label: { name: 'release:retry' },
+        pull_request: { head: { ref: 'release/next' }, base: { ref: 'main' }, number: 42, merged: true },
+      }),
+    );
+    const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockRejectedValue(new Error('registry rejected'));
+
+    // The example retry job passes --pr.
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }, 42),
+    ).rejects.toThrow('registry rejected');
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
+  });
+
+  it('should not mark previews stale when a publish succeeds for a PR that reads as unmerged', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ inputs: { pr: '42' } }));
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], baseRef: 'main', merged: false } },
+    });
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }, 42);
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).not.toHaveBeenCalled();
+  });
+
+  it('should warn when a failed publish reads the PR but gets no merge state', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ inputs: { pr: '42' } }));
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], baseRef: 'main' } },
+    });
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockRejectedValue(new Error('registry rejected'));
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    onTestFinished(() => logged.mockRestore());
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }, 42),
+    ).rejects.toThrow('registry rejected');
+
+    expect(logged.mock.calls.some(([line]) => String(line).includes('Could not confirm PR #42 merged'))).toBe(true);
+  });
+
+  it('should mark on the base branch publish read, without reading the PR again', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ inputs: { pr: '42' } }));
+    const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    vi.spyOn(forge, 'getPullRequest')
+      .mockResolvedValueOnce({ body: '', labels: [], baseRef: 'develop', merged: true })
+      .mockRejectedValue(new Error('502 Bad Gateway'));
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }, 42);
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'develop' }));
+  });
+
+  it("should add no marking warning when the config doesn't load", async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockImplementation(() => {
+      throw new Error('Config validation errors: bad');
+    });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    onTestFinished(() => logged.mockRestore());
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }, 42),
+    ).rejects.toThrow();
+
+    expect(logged.mock.calls.some(([line]) => String(line).includes('Marking feeder-PR previews stale failed'))).toBe(
+      false,
+    );
+  });
+
+  it("should mark previews stale for a failed `merge --publish`, even when the PR can't be read", async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        action: 'labeled',
+        label: { name: 'release:ship' },
+        pull_request: { head: { ref: 'release/next' }, base: { ref: 'main' }, number: 42, merged: false },
+      }),
+    );
+    const forge = await mockForge({
+      standingPR: openStandingPR(42),
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+    });
+    vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockRejectedValue(new Error('registry rejected'));
+
+    await expect(
+      runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: true }),
+    ).rejects.toThrow('registry rejected');
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
+  });
+
+  it('should mark previews stale on `standing-pr merge` without --publish', async () => {
+    await mockForge({ standingPR: openStandingPR(42) });
+
+    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
+  });
+
+  it('should mark previews stale again on a retry-label run', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        action: 'labeled',
+        label: { name: 'release:retry' },
+        pull_request: { head: { ref: 'release/next' }, base: { ref: 'main' }, number: 42, merged: true },
+      }),
+    );
+    await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
   });
 
   it('should refuse to publish when override labels diverge from the manifest', async () => {

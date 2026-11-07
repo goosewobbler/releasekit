@@ -362,7 +362,7 @@ releasekit notes providers
 
 ## `releasekit publish`
 
-Publish packages to registries with git tagging and GitHub releases. Reads a version-output JSON from a file or stdin. Also available as the standalone `releasekit-publish` binary.
+Publish packages to registries with git tagging and GitHub releases. Reads a version-output JSON from a file or stdin. Also available as the standalone `releasekit-publish` binary, which doesn't mark previews stale under [`ci.prPreview.markStaleAfterRelease`](configuration.md).
 
 | Flag | Type | Default | Description |
 |---|---|---|---|

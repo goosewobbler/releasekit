@@ -1,5 +1,7 @@
 import type { VersionOutput } from '@releasekit/core';
+import { createFakeForge, type FakeForge } from '@releasekit/forge';
 import { FakeGit } from '@releasekit/git';
+import { PipelineError } from '@releasekit/publish';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReleaseOptions } from '../../src/types.js';
 
@@ -8,12 +10,6 @@ const mockLoadCIConfig = vi.fn();
 const mockForgeFor = vi.fn();
 const mockFindMergedPRsForCommit = vi.fn();
 const mockFetchPRLabels = vi.fn();
-const mockMarkFeederPreviewsStale = vi.fn();
-
-vi.mock('../../src/preview/stale.js', () => ({
-  markFeederPreviewsStale: (...args: unknown[]) => mockMarkFeederPreviewsStale(...args),
-}));
-
 vi.mock('@releasekit/config', () => ({
   loadConfig: (...args: unknown[]) => ({ ...mockLoadReleaseKitConfig(...args), ci: mockLoadCIConfig() }),
 }));
@@ -30,7 +26,8 @@ vi.mock('@releasekit/git', async (importOriginal) => {
   return { ...actual, createGitCli: () => fakeGit };
 });
 
-vi.mock('../../src/github.js', () => ({
+vi.mock('../../src/github.js', async (importOriginal) => ({
+  MARKER: (await importOriginal<typeof import('../../src/github.js')>()).MARKER,
   forgeFor: (...args: unknown[]) => mockForgeFor(...args),
   findMergedPRsForCommit: (...args: unknown[]) => mockFindMergedPRsForCommit(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
@@ -976,30 +973,61 @@ describe('runRelease', () => {
   });
 
   describe('feeder-preview stale marking', () => {
-    it('should mark feeder previews stale in-process after a successful release', async () => {
-      const ciConfig = { prPreview: { enabled: true, markStaleAfterRelease: true } };
-      mockLoadCIConfig.mockReturnValue(ciConfig);
-      await runRelease(defaultOptions);
-      expect(mockMarkFeederPreviewsStale).toHaveBeenCalledWith({ ciConfig, branch: 'main' });
+    let forge: FakeForge;
+
+    beforeEach(async () => {
+      const { MARKER } = await import('../../src/github.js');
+      vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
+      vi.stubEnv('GITHUB_TOKEN', 'test-token');
+      mockLoadCIConfig.mockReturnValue({ prPreview: { enabled: true, markStaleAfterRelease: true } });
+      forge = createFakeForge({
+        openPullRequests: [{ number: 10, headRef: 'feat/x', baseRef: 'main' }],
+        comments: [{ id: 1, prNumber: 10, body: `${MARKER}\n\nRelease preview` }],
+      });
+      mockForgeFor.mockReturnValue(forge);
     });
 
-    it('should not mark feeder previews stale when the release branch was not pushed', async () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    const markedStale = () => forge.updatedComments.some((c) => c.body.includes('releasekit-preview-stale'));
+
+    it('should mark feeder previews stale after a successful release', async () => {
+      await runRelease(defaultOptions);
+      expect(markedStale()).toBe(true);
+    });
+
+    it('should mark them when the publish fails after pushing the release branch', async () => {
+      mockPublishRunPipeline.mockRejectedValue(new PipelineError('registry rejected', 'npm', mockPublishOutput));
+      await expect(runRelease(defaultOptions)).rejects.toThrow('registry rejected');
+      expect(markedStale()).toBe(true);
+    });
+
+    it('should not mark them when the publish fails before pushing the release branch', async () => {
+      const unpushed = { ...mockPublishOutput, git: { ...mockPublishOutput.git, pushed: false, branch: undefined } };
+      mockPublishRunPipeline.mockRejectedValue(new PipelineError('registry rejected', 'npm', unpushed));
+      await expect(runRelease(defaultOptions)).rejects.toThrow('registry rejected');
+      expect(markedStale()).toBe(false);
+    });
+
+    it('should not mark them when the release branch was not pushed', async () => {
       mockPublishRunPipeline.mockResolvedValue({
         ...mockPublishOutput,
         git: { ...mockPublishOutput.git, branch: undefined },
       });
       await runRelease(defaultOptions);
-      expect(mockMarkFeederPreviewsStale).not.toHaveBeenCalled();
+      expect(markedStale()).toBe(false);
     });
 
-    it('should not mark feeder previews stale on a dry run', async () => {
+    it('should not mark them on a dry run', async () => {
       await runRelease({ ...defaultOptions, dryRun: true });
-      expect(mockMarkFeederPreviewsStale).not.toHaveBeenCalled();
+      expect(markedStale()).toBe(false);
     });
 
-    it('should not mark feeder previews stale when publish is skipped', async () => {
+    it('should not mark them when publish is skipped', async () => {
       await runRelease({ ...defaultOptions, skipPublish: true });
-      expect(mockMarkFeederPreviewsStale).not.toHaveBeenCalled();
+      expect(markedStale()).toBe(false);
     });
   });
 

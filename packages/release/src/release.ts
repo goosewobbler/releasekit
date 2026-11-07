@@ -8,7 +8,7 @@ import { postFailureReport, resolveFailureReportIfPresent } from './failure-repo
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
 import { fetchPRLabels, findMergedPRsForCommit, forgeFor } from './github.js';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
-import { markFeederPreviewsStale } from './preview/stale.js';
+import { markPreviewsStaleIfPushed } from './preview/stale.js';
 import { mergeNotesRegions } from './standing-pr/notes-region.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
@@ -309,6 +309,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     } catch (err) {
       if (err instanceof PipelineError && !options.dryRun) {
         await reportReleaseFailure(versionOutput, err);
+        await markPreviewsStaleIfPushed(err.partialOutput, ciConfig);
       }
       throw err;
     }
@@ -326,10 +327,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
         );
       }
 
-      const branch = publishOutput?.git.branch;
-      if (branch) {
-        await markFeederPreviewsStale({ ciConfig, branch });
-      }
+      await markPreviewsStaleIfPushed(publishOutput, ciConfig);
     }
   }
 

@@ -736,7 +736,7 @@ export const CIConfigSchema = z.object({
           .boolean()
           .default(false)
           .describe(
-            "After a standing-PR publish, or a `releasekit release` that pushes the release branch, mark the preview on open PRs into that branch as stale until the PR's next push or label change. `releasekit publish` on its own doesn't. Best-effort: a failure never fails the release.",
+            "When a release moves a branch, mark the preview on open PRs into it as stale until the PR's next push or label change: after a standing-PR merge, or once `releasekit release` or `releasekit publish` has pushed the branch, even if a later step fails. The standalone `releasekit-publish` binary doesn't. Best-effort: a failure never fails the release.",
           ),
       }),
     ])

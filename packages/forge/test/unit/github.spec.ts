@@ -377,16 +377,17 @@ describe('GitHubForge', () => {
       expect(fns.pullsList).toHaveBeenCalledTimes(2);
     });
 
-    it('should map a pull request to {body,labels,headSha,baseRef}', async () => {
+    it('should map a pull request to {body,labels,headSha,baseRef,merged}', async () => {
       const { octokit, fns } = makeOctokit();
       fns.pullsGet.mockResolvedValue({
-        data: { body: 'b', labels: [{ name: 'x' }], head: { sha: 'abc' }, base: { ref: 'main' } },
+        data: { body: 'b', labels: [{ name: 'x' }], head: { sha: 'abc' }, base: { ref: 'main' }, merged: true },
       });
       expect(await new GitHubForge(octokit, 'o', 'r').getPullRequest(4)).toEqual({
         body: 'b',
         labels: ['x'],
         headSha: 'abc',
         baseRef: 'main',
+        merged: true,
       });
     });
 

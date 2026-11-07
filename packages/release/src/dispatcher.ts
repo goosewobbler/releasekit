@@ -14,6 +14,7 @@ import { createPreviewCommand } from './commands/preview-command.js';
 import { createRefreshAfterReleaseCommand } from './commands/refresh-after-release-command.js';
 import { createReleaseCommand } from './commands/release-command.js';
 import { createStandingPRCommand } from './commands/standing-pr-command.js';
+import { markPreviewsStaleAfterPublish } from './preview/stale.js';
 
 export function createDispatcherProgram(): Command {
   const program = new Command()
@@ -30,7 +31,7 @@ export function createDispatcherProgram(): Command {
   program.addCommand(createLabelsCommand());
   program.addCommand(createVersionCommand());
   program.addCommand(createNotesCommand());
-  program.addCommand(createPublishCommand());
+  program.addCommand(createPublishCommand({ afterRun: markPreviewsStaleAfterPublish }));
 
   return program;
 }

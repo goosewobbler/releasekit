@@ -161,6 +161,63 @@ describe('createPublishCommand', () => {
     });
   });
 
+  describe('afterRun hook', () => {
+    it('should run with the pipeline output and options after a successful publish', async () => {
+      const afterRun = vi.fn().mockResolvedValue(undefined);
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      await createPublishCommand({ afterRun }).parseAsync(['node', 'test', '--dry-run']);
+
+      expect(afterRun).toHaveBeenCalledWith(mockOutput, expect.objectContaining({ dryRun: true }));
+      expect(mockExit).not.toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
+    it("should run with a failure's partial output, and still exit with PUBLISH_ERROR", async () => {
+      const partialOutput: PublishOutput = { ...mockOutput, git: { ...mockOutput.git, branch: 'main' } };
+      vi.mocked(runPipeline).mockRejectedValue(new PipelineError('registry rejected', 'npm', partialOutput));
+      const afterRun = vi.fn().mockResolvedValue(undefined);
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      await createPublishCommand({ afterRun }).parseAsync(['node', 'test']);
+
+      expect(afterRun).toHaveBeenCalledWith(partialOutput, expect.anything());
+      expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.PUBLISH_ERROR);
+      consoleSpy.mockRestore();
+      stderrSpy.mockRestore();
+    });
+
+    it('should run even when the --output write fails', async () => {
+      const afterRun = vi.fn().mockResolvedValue(undefined);
+      const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const missingDir = join(createTmpDir(), 'missing', 'out.json');
+
+      await createPublishCommand({ afterRun }).parseAsync(['node', 'test', '--output', missingDir]);
+
+      expect(afterRun).toHaveBeenCalledWith(mockOutput, expect.anything());
+      expect(mockExit).toHaveBeenCalled();
+      stderrSpy.mockRestore();
+    });
+
+    it('should only warn when the hook throws, leaving a successful publish successful', async () => {
+      const afterRun = vi.fn().mockRejectedValue(new Error('hook broke'));
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      await createPublishCommand({ afterRun }).parseAsync(['node', 'test', '--json']);
+
+      expect(JSON.parse(consoleSpy.mock.calls[0]?.[0] as string).status).toBe('success');
+      expect(consoleSpy).toHaveBeenCalledTimes(1);
+      // The result is written first, so a slow hook can't hold it up.
+      expect(consoleSpy.mock.invocationCallOrder[0]).toBeLessThan(afterRun.mock.invocationCallOrder[0] ?? 0);
+      expect(mockExit).not.toHaveBeenCalled();
+      expect(stderrSpy.mock.calls.some(([line]) => String(line).includes('hook broke'))).toBe(true);
+      consoleSpy.mockRestore();
+      stderrSpy.mockRestore();
+    });
+  });
+
   describe('error handling', () => {
     it('should print a PipelineError envelope carrying the partial output and exit with PUBLISH_ERROR', async () => {
       const partialOutput: PublishOutput = {
