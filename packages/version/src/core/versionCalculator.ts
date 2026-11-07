@@ -6,6 +6,7 @@ import createConventionalCommitsPreset from 'conventional-changelog-conventional
 import { Bumper, type Preset as BumperPreset } from 'conventional-recommended-bump';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
+import { BREAKING_HEADER_PATTERN, HEADER_PATTERN } from '../changelog/commitParser.js';
 import { getCommitsLength, refExists } from '../git/tagsAndBranches.js';
 import type { Config, VersionOptions } from '../types.js';
 import { buildTagStripPatternFromTemplate, escapeRegExp } from '../utils/formatting.js';
@@ -19,15 +20,13 @@ import {
   type VersionSourceResult,
 } from '../utils/versionUtils.js';
 
-/** Angular's parser can't read a `type!:` header; conventionalcommits' can. */
+/** Angular's parser can't read a `type!:` header, so it takes the changelog's header rules. */
 function createAngularPresetReadingBreakingHeaders(): BumperPreset {
   const preset = (createAngularPreset as () => BumperPreset)();
-  const { headerPattern, breakingHeaderPattern } =
-    (createConventionalCommitsPreset as () => BumperPreset)().parser ?? {};
-  if (!headerPattern || !breakingHeaderPattern) {
-    throw new Error('conventional-changelog-conventionalcommits no longer exposes its header patterns.');
-  }
-  return { ...preset, parser: { ...preset.parser, headerPattern, breakingHeaderPattern } };
+  return {
+    ...preset,
+    parser: { ...preset.parser, headerPattern: HEADER_PATTERN, breakingHeaderPattern: BREAKING_HEADER_PATTERN },
+  };
 }
 
 // Imported statically so they resolve from releasekit's own dependencies in any install layout, bundled dist included.

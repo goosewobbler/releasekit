@@ -5,6 +5,9 @@ import { log } from '../utils/logging.js';
 type ChangelogEntry = VersionChangelogEntry;
 
 const CONVENTIONAL_COMMIT_REGEX = /^(\w+)(?:\(([^)]+)\))?(!)?: (.+)(?:\n\n([\s\S]*))?/;
+/** The header rules above, for the angular bump, so it and the changelog agree on which headers are breaking. */
+export const HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!?: (.+)$/;
+export const BREAKING_HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!: (.+)$/;
 const BREAKING_CHANGE_REGEX = /BREAKING CHANGE: ([\s\S]+?)(?:\n\n|$)/;
 // Non-conventional version-bump bookkeeping subjects (e.g. `Update version to 1.2.3`). Narrow by
 // construction so a real change like "update version handling in the parser" is never swallowed.

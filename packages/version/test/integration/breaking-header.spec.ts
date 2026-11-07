@@ -55,4 +55,15 @@ describe('breaking-change syntax', () => {
     const entry = output.changelogs.flatMap((c) => c.entries).find((e) => e.description === 'drop the old flag');
     expect(entry?.breaking).toBe(true);
   });
+
+  it('should not read `)!: ` inside a subject as breaking with the angular preset', () => {
+    createRepoAt('1.4.2', 'angular');
+    writeFileSync(join(tempDir, 'packages/core/index.js'), '// changed\n');
+    createConventionalCommit(tempDir, 'fix', 'accept foo(x)!: y', 'core', false, ['packages/core']);
+
+    const output = runVersion();
+    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('1.4.3');
+    const entry = output.changelogs.flatMap((c) => c.entries).find((e) => e.description === 'accept foo(x)!: y');
+    expect(entry?.breaking).toBeFalsy();
+  });
 });

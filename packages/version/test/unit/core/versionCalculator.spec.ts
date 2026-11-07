@@ -20,11 +20,6 @@ vi.mock('../../../src/utils/versionUtils.js');
 vi.mock('../../../src/utils/manifestHelpers.js');
 vi.mock('conventional-recommended-bump');
 
-const conventionalCommitsPreset = vi.hoisted(() => ({ override: undefined as (() => unknown) | undefined }));
-vi.mock('conventional-changelog-conventionalcommits', async (importOriginal) => {
-  const actual = await importOriginal<{ default: () => unknown }>();
-  return { default: () => conventionalCommitsPreset.override?.() ?? actual.default() };
-});
 vi.mock('node:fs');
 vi.mock('node:path');
 vi.mock('semver');
@@ -897,17 +892,15 @@ describe('Version Calculator', () => {
       expect(commitsSpy).toHaveBeenCalledWith({ from: 'v1.0.0' });
     });
 
-    it('should fail loudly if the conventionalcommits preset stops exposing the header patterns angular borrows', async () => {
-      conventionalCommitsPreset.override = () => ({ whatBump: () => ({}) });
-      try {
-        const options: VersionOptions = { latestTag: 'v1.0.0', versionPrefix: 'v' };
+    it("should read a `type!:` header as breaking under angular, by the changelog's header rules", async () => {
+      const config = vi.spyOn(Bumper.prototype, 'config').mockReturnThis();
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
 
-        await expect(calculateVersion(defaultConfig as Config, options)).rejects.toThrow(
-          'no longer exposes its header patterns',
-        );
-      } finally {
-        conventionalCommitsPreset.override = undefined;
-      }
+      await calculateVersion(defaultConfig as Config, { latestTag: 'v1.0.0', versionPrefix: 'v' });
+
+      const breaking = config.mock.calls[0]?.[0]?.parser?.breakingHeaderPattern;
+      expect(breaking?.test('fix(core)!: drop the old flag')).toBe(true);
+      expect(breaking?.test('fix(parser): accept foo(x)!: y')).toBe(false);
     });
 
     it('should use conventional commits when no type or branch pattern matches', async () => {
