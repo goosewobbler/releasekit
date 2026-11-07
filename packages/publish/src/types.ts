@@ -118,6 +118,8 @@ export interface GitResult {
   committed: boolean;
   tags: string[];
   pushed: boolean;
+  /** The release branch pushed, dry runs included. Unset when only tags are pushed, as in standing-PR mode. */
+  branch?: string;
 }
 
 export interface PublishOutput {

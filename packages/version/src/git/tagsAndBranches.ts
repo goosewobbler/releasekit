@@ -11,17 +11,18 @@ export interface TagSearchOptions {
   packageSpecificTags?: boolean;
 }
 
-export async function getCommitsLength(pkgRoot: string, sinceTag?: string, git: Git = createGitCli()): Promise<number> {
+/** Empty `paths` counts every commit in the repository. */
+export async function getCommitsLength(paths: string[], sinceTag?: string, git: Git = createGitCli()): Promise<number> {
   try {
     if (sinceTag && sinceTag.trim() !== '') {
-      return await git.countCommits(`${sinceTag}..HEAD`, { path: pkgRoot });
+      return await git.countCommits(`${sinceTag}..HEAD`, { paths });
     }
 
     const latestTag = await git.describeTags();
     if (!latestTag) {
       throw new Error('No names found, cannot describe anything.');
     }
-    return await git.countCommits(`${latestTag}..HEAD`, { path: pkgRoot });
+    return await git.countCommits(`${latestTag}..HEAD`, { paths });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(`Failed to get number of commits since last tag: ${errorMessage}`, 'error');

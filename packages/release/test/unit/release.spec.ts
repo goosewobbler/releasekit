@@ -8,11 +8,10 @@ const mockLoadCIConfig = vi.fn();
 const mockForgeFor = vi.fn();
 const mockFindMergedPRsForCommit = vi.fn();
 const mockFetchPRLabels = vi.fn();
-const mockRefreshFeederPreviews = vi.fn();
+const mockMarkFeederPreviewsStale = vi.fn();
 
-vi.mock('../../src/preview/refresh.js', () => ({
-  refreshFeederPreviews: (...args: unknown[]) => mockRefreshFeederPreviews(...args),
-  runRefreshAfterRelease: vi.fn(),
+vi.mock('../../src/preview/stale.js', () => ({
+  markFeederPreviewsStale: (...args: unknown[]) => mockMarkFeederPreviewsStale(...args),
 }));
 
 vi.mock('@releasekit/config', () => ({
@@ -154,7 +153,7 @@ const mockPublishConfig = {
 };
 const mockPublishOutput = {
   dryRun: false,
-  git: { committed: true, tags: ['v1.1.0'], pushed: true },
+  git: { committed: true, tags: ['v1.1.0'], pushed: true, branch: 'main' },
   npm: [{ packageName: 'test-pkg', version: '1.1.0', registry: 'npm', success: true, skipped: false }],
   cargo: [],
   verification: [],
@@ -976,20 +975,31 @@ describe('runRelease', () => {
     });
   });
 
-  describe('feeder-preview refresh', () => {
-    it('should refresh feeder previews in-process after a successful release', async () => {
+  describe('feeder-preview stale marking', () => {
+    it('should mark feeder previews stale in-process after a successful release', async () => {
+      const ciConfig = { prPreview: { enabled: true, markStaleAfterRelease: true } };
+      mockLoadCIConfig.mockReturnValue(ciConfig);
       await runRelease(defaultOptions);
-      expect(mockRefreshFeederPreviews).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test/project' }));
+      expect(mockMarkFeederPreviewsStale).toHaveBeenCalledWith({ ciConfig, branch: 'main' });
     });
 
-    it('should not refresh feeder previews on a dry run', async () => {
+    it('should not mark feeder previews stale when the release branch was not pushed', async () => {
+      mockPublishRunPipeline.mockResolvedValue({
+        ...mockPublishOutput,
+        git: { ...mockPublishOutput.git, branch: undefined },
+      });
+      await runRelease(defaultOptions);
+      expect(mockMarkFeederPreviewsStale).not.toHaveBeenCalled();
+    });
+
+    it('should not mark feeder previews stale on a dry run', async () => {
       await runRelease({ ...defaultOptions, dryRun: true });
-      expect(mockRefreshFeederPreviews).not.toHaveBeenCalled();
+      expect(mockMarkFeederPreviewsStale).not.toHaveBeenCalled();
     });
 
-    it('should not refresh feeder previews when publish is skipped', async () => {
+    it('should not mark feeder previews stale when publish is skipped', async () => {
       await runRelease({ ...defaultOptions, skipPublish: true });
-      expect(mockRefreshFeederPreviews).not.toHaveBeenCalled();
+      expect(mockMarkFeederPreviewsStale).not.toHaveBeenCalled();
     });
   });
 

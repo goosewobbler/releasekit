@@ -103,6 +103,54 @@ describe('per-package publish pipeline', () => {
     expect(publishedLabels()).toEqual(['cargo publish core-crate@0.2.0', 'cargo publish app-crate@0.2.0']);
   });
 
+  it.each([
+    [
+      'an inherited workspace',
+      cargoToml('app-crate', 'core-crate.workspace = true\n'),
+      '[workspace]\nmembers = ["crates/*"]\n\n[workspace.dependencies]\ncore-crate = { path = "crates/core", version = "0.1.0" }\n',
+    ],
+    [
+      'a build',
+      `[package]\nname = "app-crate"\nversion = "0.1.0"\n\n[build-dependencies]\n${CORE_PATH_DEP}`,
+      undefined,
+    ],
+    [
+      'a target-specific',
+      `[package]\nname = "app-crate"\nversion = "0.1.0"\n\n[target.'cfg(unix)'.dependencies]\n${CORE_PATH_DEP}`,
+      undefined,
+    ],
+  ])('should publish a crate after %s path dependency when it is listed first', async (_, app, root) => {
+    if (root) {
+      write('Cargo.toml', root);
+    }
+    write('crates/app/Cargo.toml', app);
+    write('crates/core/Cargo.toml', cargoToml('core-crate'));
+
+    await runPipeline(
+      perPackageInput([update('app-crate', 'crates/app/Cargo.toml'), update('core-crate', 'crates/core/Cargo.toml')]),
+      getDefaultConfig(),
+      options,
+    );
+
+    expect(publishedLabels()).toEqual(['cargo publish core-crate@0.2.0', 'cargo publish app-crate@0.2.0']);
+  });
+
+  it('should not order a crate by a dev-dependency on its own dependent, which would make a cycle', async () => {
+    write('crates/app/Cargo.toml', cargoToml('app-crate', CORE_PATH_DEP));
+    write(
+      'crates/core/Cargo.toml',
+      `${cargoToml('core-crate')}\n[dev-dependencies]\napp-crate = { path = "../app", version = "0.1.0" }\n`,
+    );
+
+    await runPipeline(
+      perPackageInput([update('app-crate', 'crates/app/Cargo.toml'), update('core-crate', 'crates/core/Cargo.toml')]),
+      getDefaultConfig(),
+      options,
+    );
+
+    expect(publishedLabels()).toEqual(['cargo publish core-crate@0.2.0', 'cargo publish app-crate@0.2.0']);
+  });
+
   it('should publish an npm package after its dependency when it is listed first', async () => {
     write('packages/app/package.json', packageJson('app', { lib: '^0.1.0' }));
     write('packages/lib/package.json', packageJson('lib'));

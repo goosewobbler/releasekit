@@ -8,14 +8,17 @@ import { isPrivatePackageJson, shouldMatchPackageTargets } from '@releasekit/cor
 import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
 import { clearCargoBumps, syncCargoLockfiles } from '../cargo/cargoLock.js';
+import { raiseCargoDependentRequirements } from '../cargo/dependentRequirements.js';
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
 import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { isReleasablePubspec } from '../pub/pubHandler.js';
 import type { Config, VersionRunOptions } from '../types.js';
+import { resolveCommitScope } from '../utils/commitScope.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
 import { tagPrerequisiteRoles } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+import { hasExplicitGroups } from './groupResolution.js';
 import { resolvePrerequisiteTargets } from './prerequisiteScope.js';
 import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
 import { buildWorkspaceGraph } from './workspaceGraph.js';
@@ -342,11 +345,13 @@ export class VersionEngine {
   }
 
   /**
-   * Over-inclusive by design (any commit since the last tag counts) - a pulled-in prerequisite with no
-   * *releasable* change is still skipped by the per-package bump calc downstream.
+   * Over-inclusive by design (any commit in the package's scope counts, releasable or not) - a pulled-in
+   * prerequisite with no *releasable* change is still skipped by the per-package bump calc downstream.
    */
-  private async detectChangedPackages(packages: Package[]): Promise<Set<string>> {
+  private async detectChangedPackages(packages: Package[], repoRoot: string): Promise<Set<string>> {
     const formattedPrefix = formatVersionPrefix(this.config.versionPrefix || 'v');
+    // Group mode bumps only a package's own manifests, so ignore `paths` here too.
+    const ignorePaths = !this.config.sync && hasExplicitGroups(this.config);
     const results = await Promise.all(
       packages.map(async (pkg) => {
         let tag = '';
@@ -361,7 +366,14 @@ export class VersionEngine {
         } catch {
           // No tag resolvable - getCommitsLength falls back to git describe / full history.
         }
-        return (await getCommitsLength(pkg.dir, tag)) > 0 ? pkg.packageJson.name : null;
+        const { scope, pathsError } = resolveCommitScope(pkg.dir, this.config, { repoRoot, ignorePaths });
+        if (pathsError) {
+          log(
+            `Checking ${pkg.packageJson.name} for changes without a native manifest: ${pathsError.message}`,
+            'warning',
+          );
+        }
+        return (await getCommitsLength(scope, tag)) > 0 ? pkg.packageJson.name : null;
       }),
     );
     return new Set(results.filter((name): name is string => name !== null));
@@ -459,11 +471,17 @@ export class VersionEngine {
           log(`Private filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'debug');
         }
       }
+      // A nested package outside `version.packages` ships inside its parent. Targets narrow only this run, so they
+      // don't count.
+      const releasable = this.config.packages?.length
+        ? filterPackagesByConfig(mergedPackages.packages, this.config.packages, mergedPackages.root)
+        : mergedPackages.packages;
+      this.config.releasablePackageDirs = releasable.map((p) => p.dir);
 
       // Runs on the full discovered set, before the target pre-filter below, so prerequisites aren't pruned.
       if (this.includePrerequisites && this.runtimeTargets.length > 0) {
         const graph = buildWorkspaceGraph(mergedPackages.packages);
-        const changed = await this.detectChangedPackages(mergedPackages.packages);
+        const changed = await this.detectChangedPackages(mergedPackages.packages, mergedPackages.root);
         const { targets, overrideScope, prerequisiteOf } = resolvePrerequisiteTargets(
           graph,
           mergedPackages.packages,
@@ -490,11 +508,7 @@ export class VersionEngine {
       if (this.config.packages && this.config.packages.length > 0) {
         const originalCount = mergedPackages.packages.length;
 
-        const filteredPackages = filterPackagesByConfig(
-          mergedPackages.packages,
-          this.config.packages,
-          mergedPackages.root,
-        );
+        const filteredPackages = releasable;
 
         mergedPackages.packages = filteredPackages;
 
@@ -549,6 +563,7 @@ export class VersionEngine {
     try {
       clearCargoBumps();
       await this.currentStrategy(packages, targets);
+      await raiseCargoDependentRequirements(packages.root ?? cwd(), this.config.dryRun ?? false);
       await syncCargoLockfiles(packages.root ?? cwd(), this.config.dryRun ?? false);
       if (Object.keys(this.prerequisiteOf).length > 0) {
         tagPrerequisiteRoles(this.config.overrideScope ?? [], this.prerequisiteOf);

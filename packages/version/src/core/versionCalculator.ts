@@ -1,4 +1,3 @@
-import { cwd } from 'node:process';
 import { inspect } from 'node:util';
 import type { Preset } from '@releasekit/config';
 import { sanitizePackageName, shouldMatchPackageTargets } from '@releasekit/core';
@@ -144,7 +143,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
     latestTag,
     name,
     path: pkgPath,
-    commitCheckPath,
+    commitScope = pkgPath ? [pkgPath] : [],
     type: optionsType,
     prereleaseIdentifier: optionsPrereleaseIdentifier,
   } = options;
@@ -345,9 +344,11 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       // unresolvable tag falls back to the unbounded default rather than throwing.
       const latestTagReachable = !!latestTag && (await refExists(latestTag, pkgPath));
       const bumpFrom = config.baseRef ?? (latestTagReachable ? latestTag : undefined);
-      if (bumpFrom) {
-        bumper.commits({ from: bumpFrom });
-      }
+      // Omitted, not undefined: an undefined `from` replaces the bumper's own tag lookup.
+      bumper.commits({
+        ...(bumpFrom ? { from: bumpFrom } : {}),
+        ...(commitScope.length > 0 ? { path: commitScope } : {}),
+      });
       const recommendedBump = await bumper.bump(presetConfig.whatBump);
       const releaseTypeFromCommits =
         recommendedBump && 'releaseType' in recommendedBump ? (recommendedBump.releaseType as ReleaseType) : undefined;
@@ -359,8 +360,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       log(`Checking commit counting logic`, 'debug');
       if (versionSource && versionSource.source === 'git') {
         log(`Version source is git, checking commits`, 'debug');
-        const checkPath = commitCheckPath || pkgPath || cwd();
-        const commitsLength = await getCommitsLength(checkPath, versionSource.version);
+        const commitsLength = await getCommitsLength(commitScope, versionSource.version);
         log(`Commits since ${versionSource.version}: ${commitsLength}`, 'debug');
         if (commitsLength === 0) {
           log(

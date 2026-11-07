@@ -19,7 +19,7 @@ function ciConfig(overrides: Partial<CIConfig> = {}): CIConfig {
   return {
     releaseStrategy: 'direct',
     releaseTrigger: 'label',
-    prPreview: { enabled: true, refreshAfterRelease: false },
+    prPreview: { enabled: true, markStaleAfterRelease: false },
     labels: DEFAULT_LABELS_CONFIG,
     ...overrides,
   } as CIConfig;

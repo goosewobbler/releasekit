@@ -85,6 +85,7 @@ describe('git-push stage', () => {
       expect.objectContaining({ remote: 'origin', ref: 'refs/tags/v1.0.0' }),
     ]);
     expect(ctx.output.git.pushed).toBe(true);
+    expect(ctx.output.git.branch).toBe('main');
   });
 
   it("should push only this release's tags, each once", async () => {
@@ -261,6 +262,7 @@ describe('git-push stage', () => {
 
     expect(fakeGit.pushed).toEqual([expect.objectContaining({ remote: 'origin', ref: 'refs/tags/v1.0.0' })]);
     expect(currentBranchSpy).not.toHaveBeenCalled();
+    expect(ctx.output.git.branch).toBeUndefined();
   });
 
   it('should push the branch and tags for a reused release commit', async () => {
@@ -345,6 +347,7 @@ describe('pushPackageTag', () => {
     ]);
     expect(ctx.output.git.tags).toContain('pkg-a@v1.0.0');
     expect(ctx.output.git.pushed).toBe(true);
+    expect(ctx.output.git.branch).toBe('main');
   });
 
   it('should wrap a branch-push failure as GIT_PUSH_ERROR without pushing the tag', async () => {
@@ -384,6 +387,7 @@ describe('pushPackageTag', () => {
 
     expect(fakeGit.pushed).toEqual([expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' })]);
     expect(ctx.output.git.pushed).toBe(true);
+    expect(ctx.output.git.branch).toBeUndefined();
   });
 
   it('should push the branch before the tag for a reused release commit', async () => {

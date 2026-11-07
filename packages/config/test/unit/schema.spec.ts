@@ -490,7 +490,7 @@ describe('CIConfigSchema', () => {
     const result = CIConfigSchema.parse({});
     expect(result.releaseStrategy).toBe('direct');
     expect(result.releaseTrigger).toBe('label');
-    expect(result.prPreview).toEqual({ enabled: true, refreshAfterRelease: false });
+    expect(result.prPreview).toEqual({ enabled: true, markStaleAfterRelease: false });
     expect(result.labels).toEqual({
       graduate: 'release:graduate',
       graduatePackagePrefix: 'graduate:',
@@ -512,7 +512,7 @@ describe('CIConfigSchema', () => {
       prPreview: false,
     });
     expect(result.releaseStrategy).toBe('direct');
-    expect(result.prPreview).toEqual({ enabled: false, refreshAfterRelease: false });
+    expect(result.prPreview).toEqual({ enabled: false, markStaleAfterRelease: false });
   });
 
   it('should accept all releaseStrategy values', () => {
@@ -524,35 +524,35 @@ describe('CIConfigSchema', () => {
   it('should normalize prPreview: true to the canonical object', () => {
     expect(CIConfigSchema.parse({ prPreview: true }).prPreview).toEqual({
       enabled: true,
-      refreshAfterRelease: false,
+      markStaleAfterRelease: false,
     });
   });
 
   it('should normalize prPreview: false to the canonical object (shorthand kept)', () => {
     expect(CIConfigSchema.parse({ prPreview: false }).prPreview).toEqual({
       enabled: false,
-      refreshAfterRelease: false,
+      markStaleAfterRelease: false,
     });
   });
 
   it('should default an empty prPreview object to enabled with refresh off', () => {
     expect(CIConfigSchema.parse({ prPreview: {} }).prPreview).toEqual({
       enabled: true,
-      refreshAfterRelease: false,
+      markStaleAfterRelease: false,
     });
   });
 
-  it('should honor prPreview.refreshAfterRelease in the object form', () => {
-    expect(CIConfigSchema.parse({ prPreview: { refreshAfterRelease: true } }).prPreview).toEqual({
+  it('should honor prPreview.markStaleAfterRelease in the object form', () => {
+    expect(CIConfigSchema.parse({ prPreview: { markStaleAfterRelease: true } }).prPreview).toEqual({
       enabled: true,
-      refreshAfterRelease: true,
+      markStaleAfterRelease: true,
     });
   });
 
   it('should allow disabling previews while the object form is used', () => {
     expect(CIConfigSchema.parse({ prPreview: { enabled: false } }).prPreview).toEqual({
       enabled: false,
-      refreshAfterRelease: false,
+      markStaleAfterRelease: false,
     });
   });
 
@@ -698,7 +698,7 @@ describe('ReleaseKitConfigSchema', () => {
     expect(result.version?.preset).toBe('angular');
     expect(result.publish?.npm.enabled).toBe(true);
     expect(result.notes?.changelog).toMatchObject({ mode: 'packages' });
-    expect(result.ci?.prPreview).toEqual({ enabled: true, refreshAfterRelease: false });
+    expect(result.ci?.prPreview).toEqual({ enabled: true, markStaleAfterRelease: false });
   });
 
   it('should reject invalid nested values', () => {

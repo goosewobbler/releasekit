@@ -11,6 +11,10 @@ export function recordCargoBump(bump: CargoLockBump): void {
   recordedBumps.push(bump);
 }
 
+export function recordedCargoBumps(): readonly CargoLockBump[] {
+  return recordedBumps;
+}
+
 /** Drop bumps recorded outside a version run, so a run never syncs another run's bumps. */
 export function clearCargoBumps(): void {
   recordedBumps.length = 0;

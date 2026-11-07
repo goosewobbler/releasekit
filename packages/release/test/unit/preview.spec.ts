@@ -1,4 +1,4 @@
-import type { VersionOutput } from '@releasekit/core';
+import { type VersionOutput, warn } from '@releasekit/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockFsExistsSync = vi.fn().mockReturnValue(false);
@@ -35,6 +35,12 @@ vi.mock('@releasekit/core', async (importOriginal) => {
 });
 
 const mockRunRelease = vi.fn();
+
+// Base resolution runs git in projectDir; the fake answers it without a repository.
+vi.mock('@releasekit/git', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@releasekit/git')>();
+  return { ...actual, createGitCli: () => new actual.FakeGit() };
+});
 
 vi.mock('../../src/release.js', () => ({
   runRelease: (...args: unknown[]) => mockRunRelease(...args),
@@ -133,7 +139,7 @@ describe('runPreview', () => {
     });
 
     it('should skip when CI config disables preview', async () => {
-      mockLoadCIConfig.mockReturnValue({ prPreview: { enabled: false, refreshAfterRelease: false } });
+      mockLoadCIConfig.mockReturnValue({ prPreview: { enabled: false, markStaleAfterRelease: false } });
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
@@ -143,7 +149,7 @@ describe('runPreview', () => {
 
     it('should run when CI config enables preview', async () => {
       mockLoadCIConfig.mockReturnValue({
-        prPreview: { enabled: true, refreshAfterRelease: false },
+        prPreview: { enabled: true, markStaleAfterRelease: false },
         releaseTrigger: 'commit',
       });
 
@@ -1081,7 +1087,7 @@ describe('runPreview', () => {
         mockFsExistsSync.mockReturnValue(false);
       });
 
-      it('should pass prBaseSha as baseRef to runRelease in advisory mode', async () => {
+      it("should fall back to the event's base SHA as baseRef when there's no base ref to resolve", async () => {
         mockLoadCIConfig.mockReturnValue(ciWithLabels());
         mockFetchPRLabels.mockResolvedValue([]); // no bump label - advisory mode
 
@@ -1093,6 +1099,21 @@ describe('runPreview', () => {
 
         const callArg = mockRunRelease.mock.calls[0]?.[0] as { baseRef?: string } | undefined;
         expect(callArg?.baseRef).toBe('pr-base-sha-abc');
+      });
+
+      it("should not scope from another PR's event, and should warn", async () => {
+        mockLoadCIConfig.mockReturnValue(ciWithLabels());
+        mockFetchPRLabels.mockResolvedValue([]);
+
+        process.env.GITHUB_EVENT_PATH = '/tmp/event.json';
+        mockFsExistsSync.mockReturnValue(true);
+        mockFsReadFileSync.mockReturnValue(JSON.stringify({ pull_request: { number: 7, base: { sha: 'pr-7-base' } } }));
+
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+        const callArg = mockRunRelease.mock.calls[0]?.[0] as { baseRef?: string } | undefined;
+        expect(callArg?.baseRef).toBeUndefined();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('no pull_request event for PR #1'));
       });
 
       it('should NOT extract prBaseSha when release:immediate is set (not advisory mode)', async () => {
@@ -1121,6 +1142,7 @@ describe('runPreview', () => {
 
         const callArg = mockRunRelease.mock.calls[0]?.[0] as { baseRef?: string } | undefined;
         expect(callArg?.baseRef).toBeUndefined();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('no pull_request event for PR #1'));
       });
 
       it('should not set baseRef when event file does not exist', async () => {

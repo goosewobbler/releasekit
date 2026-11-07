@@ -146,12 +146,14 @@ export async function extractRepoLevelChangelogEntries(
   }
 }
 
+/** `paths` are pathspecs, relative to `projectDir` or absolute. */
 export function extractChangelogEntriesFromCommits(
   projectDir: string,
   revisionRange: string,
+  paths: string[] = ['.'],
   git: Git = createGitCli(),
 ): Promise<ChangelogEntry[]> {
-  return extractCommitsFromGitLog(projectDir, revisionRange, true, git);
+  return extractCommitsFromGitLog(projectDir, revisionRange, paths, git);
 }
 
 /** Repo-wide: not filtered to commits touching `projectDir`. */
@@ -160,13 +162,13 @@ export function extractAllChangelogEntries(
   revisionRange: string,
   git: Git = createGitCli(),
 ): Promise<ChangelogEntry[]> {
-  return extractCommitsFromGitLog(projectDir, revisionRange, false, git);
+  return extractCommitsFromGitLog(projectDir, revisionRange, undefined, git);
 }
 
 async function extractCommitsFromGitLog(
   projectDir: string,
   revisionRange: string,
-  filterToPath: boolean,
+  paths: string[] | undefined,
   git: Git = createGitCli(),
 ): Promise<ChangelogEntry[]> {
   try {
@@ -174,7 +176,7 @@ async function extractCommitsFromGitLog(
       range: revisionRange,
       format: '%B---COMMIT_DELIMITER---',
       extraArgs: ['--no-merges'],
-      paths: filterToPath ? ['.'] : undefined,
+      paths,
       cwd: projectDir,
     });
 

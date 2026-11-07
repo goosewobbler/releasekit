@@ -41,7 +41,7 @@ describe('tagsAndBranches', () => {
     it('should return the number of commits since a specific tag', async () => {
       const git = createFakeGit({ commitCounts: { 'v0.9.0..HEAD': 5 } });
 
-      const result = await getCommitsLength('packages/test', 'v0.9.0', git);
+      const result = await getCommitsLength(['packages/test'], 'v0.9.0', git);
 
       expect(result).toBe(5);
     });
@@ -49,7 +49,7 @@ describe('tagsAndBranches', () => {
     it('should fall back to the nearest tag via describe when no sinceTag is given', async () => {
       const git = createFakeGit({ nearestTag: 'v0.9.0', commitCounts: { 'v0.9.0..HEAD': 5 } });
 
-      const result = await getCommitsLength('packages/test', undefined, git);
+      const result = await getCommitsLength(['packages/test'], undefined, git);
 
       expect(result).toBe(5);
     });
@@ -57,7 +57,7 @@ describe('tagsAndBranches', () => {
     it('should return 0 when describe finds no reachable tag', async () => {
       const git = createFakeGit({ nearestTag: null });
 
-      const result = await getCommitsLength('packages/test', undefined, git);
+      const result = await getCommitsLength(['packages/test'], undefined, git);
 
       expect(result).toBe(0);
       expect(log).toHaveBeenCalledWith(expect.stringContaining('Failed to get number of commits'), 'error');
@@ -69,7 +69,7 @@ describe('tagsAndBranches', () => {
         throw new Error('Command failed');
       };
 
-      const result = await getCommitsLength('packages/test', 'v0.9.0', git);
+      const result = await getCommitsLength(['packages/test'], 'v0.9.0', git);
 
       expect(result).toBe(0);
       expect(log).toHaveBeenCalledWith('Failed to get number of commits since last tag: Command failed', 'error');

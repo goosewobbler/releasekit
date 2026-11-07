@@ -66,8 +66,8 @@ export interface VersionConfigBase {
   type?: ReleaseType;
   prereleaseIdentifier?: string;
   path?: string;
-  /** Directory for commit-count checks, overriding `path`. */
-  commitCheckPath?: string;
+  /** Pathspecs for the commits that bump this version, overriding `path`; empty means the whole repository. */
+  commitScope?: string[];
   name?: string;
   strictReachable?: boolean;
 }
@@ -109,6 +109,8 @@ export interface Config extends VersionConfigBase {
   prereleaseScope?: string[];
   /** Engine-populated: every discovered package, before release-set filtering. Not user config. */
   allWorkspacePackages?: Array<{ name: string; dir: string }>;
+  /** Engine-populated: includes packages this run doesn't target. Not user config. */
+  releasablePackageDirs?: string[];
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
   allowFirstBump?: boolean;
   strictReachable?: boolean;

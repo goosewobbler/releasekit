@@ -88,6 +88,13 @@ describe('loadConfig', () => {
     },
   );
 
+  it('should throw a migration error for the renamed ci.prPreview.refreshAfterRelease', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ ci: { prPreview: { refreshAfterRelease: true } } }));
+
+    expect(() => loadConfig()).toThrow(/ci\.prPreview\.refreshAfterRelease was renamed to markStaleAfterRelease/);
+  });
+
   it('should throw a migration error for the removed notes.releaseNotes.mode', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ notes: { releaseNotes: { mode: 'versioned' } } }));
@@ -409,7 +416,7 @@ describe('loadCIConfig', () => {
     );
 
     const result = loadCIConfig();
-    expect(result?.prPreview).toEqual({ enabled: false, refreshAfterRelease: false });
+    expect(result?.prPreview).toEqual({ enabled: false, markStaleAfterRelease: false });
   });
 
   it('should return undefined when no CI config', () => {
