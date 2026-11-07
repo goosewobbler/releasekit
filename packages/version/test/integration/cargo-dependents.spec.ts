@@ -168,7 +168,7 @@ describe('internal Cargo dependents', () => {
     });
   });
 
-  it("should warn about a tracked Cargo.toml it can't parse and still raise the others", () => {
+  it("should skip a tracked Cargo.toml it can't parse and still raise the others", () => {
     createRepo({ files: { 'templates/app/Cargo.toml': '[package]\nname = {{project-name}}\n' } });
     commitTo('bridge', 'feat', 'replace the IPC API', true);
 

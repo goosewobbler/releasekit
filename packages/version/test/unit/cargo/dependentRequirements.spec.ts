@@ -204,7 +204,7 @@ describe('raiseRequirementsIn', () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining("driver isn't releasing"), 'warning');
   });
 
-  it("should warn about a manifest it can't parse and still raise the others", () => {
+  it("should skip a manifest it can't parse, without a warning, and still raise the others", () => {
     const template = writeCrate('template', '1.0.0', 'edition = {{edition}}\n');
     const bridge = writeCrate('bridge', '2.0.0');
     const driver = writeCrate('driver', '1.0.0', '\n[dependencies]\nbridge = { path = "../bridge", version = "1" }\n');
@@ -212,7 +212,7 @@ describe('raiseRequirementsIn', () => {
     raiseRequirementsIn([template, bridge, driver], [released(bridge, '2.0.0')], false);
 
     expect(read(driver).dependencies.bridge.version).toBe('2.0.0');
-    expect(log).toHaveBeenCalledWith(expect.stringContaining(`Couldn't check ${template}`), 'warning');
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(`Couldn't check ${template}`), 'debug');
   });
 
   it("should build on a dry run's pending write rather than the manifest on disk", () => {

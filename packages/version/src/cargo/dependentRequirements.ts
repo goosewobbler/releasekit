@@ -102,9 +102,10 @@ function parseManifest(manifestPath: string): Manifest | undefined {
   try {
     return TOML.parse(pending ?? fs.readFileSync(manifestPath, 'utf-8'));
   } catch (error) {
+    // A releasing crate's manifest has already parsed, so this is a fixture, a template or a manifest above the repo.
     log(
       `Couldn't check ${manifestPath} for requirements on released crates: ${error instanceof Error ? error.message : String(error)}`,
-      'warning',
+      'debug',
     );
     return undefined;
   }

@@ -24,6 +24,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 
 - OIDC / trusted publishing for crates.io — token-based auth only via `CARGO_REGISTRY_TOKEN`
 - Nested Cargo workspaces — only the repo-root `Cargo.toml`'s `[workspace] members` scope crate discovery
+- A versioned dev-dependency on a crate that depends back on it, when that crate makes a breaking release: the raised dev requirement names a version that isn't published yet, so neither crate can publish first. Leave `version` off such a dev-dependency; cargo drops path-only dev-dependencies when it publishes
 - `[patch]`, in `Cargo.toml` or `.cargo/config.toml`, when syncing `Cargo.lock` — a lock whose workspace reaches a bumped crate only through a patch keeps the old version, without an error, and `cargo build --locked` there fails until you run `cargo update --workspace` in that workspace and commit the lock
 - Comment and formatting preservation in `Cargo.toml` — the file is rewritten on version bump, or when a dependency requirement is raised, using `smol-toml`'s serialiser; whitespace, comments, and key order may change
 
