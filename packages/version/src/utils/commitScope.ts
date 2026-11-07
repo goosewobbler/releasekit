@@ -28,7 +28,7 @@ export function resolveCommitScope(
 ): CommitScope {
   const dir = path.resolve(pkgDir);
   const { dirs: included, error } = ownedDirs(dir, config, manifestOptions);
-  // A crate this package versions may also be discovered as a package (a Tauri `src-tauri`); it stays in scope.
+  // A crate this package versions may also be discovered as a package (a Tauri `src-tauri`).
   const nested = releasableDirs
     .map((d) => path.resolve(d))
     .filter((d) => !included.includes(d) && included.some((i) => isPathWithinRoot(i, d)))
@@ -55,7 +55,7 @@ function ownedDirs(
   return { dirs: [...dirs], ...(error ? { error } : {}) };
 }
 
-/** One lookup per configured entry, so an entry that fails doesn't drop the others. */
+/** Separate lookups, so an entry that fails doesn't drop the others. */
 function manifestLookups(config: ScopeConfig, ignorePaths = false): Array<Pick<Config, 'cargo' | 'pub'>> {
   const cargoPaths = ignorePaths ? [] : (config.cargo?.paths ?? []);
   const pubPaths = ignorePaths ? [] : (config.pub?.paths ?? []);
