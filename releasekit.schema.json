@@ -1215,7 +1215,7 @@
             "minPackages": {
               "type": "integer",
               "minimum": 1,
-              "description": "Minimum number of packages with releasable changes required to create or maintain the standing PR. Below this threshold the PR is closed and no new PR is opened."
+              "description": "Minimum number of packages with releasable changes required to create or maintain the standing PR. Below this threshold the PR is closed and no new PR is opened, unless it graduates a prerelease."
             },
             "authorization": {
               "type": "object",

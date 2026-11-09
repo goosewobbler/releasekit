@@ -17,7 +17,7 @@ import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure, postFailureReport, resolveFailureReportIfPresent } from '../failure-report/post.js';
-import { getGitHubContext, getHeadCommitMessage, isHeadTagged, matchesSkipPattern } from '../git.js';
+import { getGitHubContext, getHeadCommitMessage, getHeadTags, matchesSkipPattern } from '../git.js';
 import { forgeFor } from '../github.js';
 import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import {
@@ -876,6 +876,49 @@ async function authorizedOrWarn(forge: Forge, actor: EventActor, authz: Standing
   }
 }
 
+/**
+ * A release commit at HEAD stays pending until every tag in the latest merged standing PR's manifest exists, with at
+ * least one at HEAD so an older release's tags can't vouch for it. Until then its version bump is untagged, and
+ * recomputing from it would double-bump (package.json ahead of the last tag under `mismatchStrategy: prefer-package`).
+ * Anything unverifiable reads as pending.
+ */
+async function releasePendingAtHead(
+  cwd: string,
+  skipPatterns: string[],
+  forge: Forge | null,
+  branch: string,
+): Promise<boolean> {
+  const subject = await getHeadCommitMessage(cwd);
+  if (!subject || !matchesSkipPattern(subject, skipPatterns)) {
+    return false;
+  }
+  if (!forge) {
+    return true;
+  }
+  try {
+    const prNumber = await findLatestMergedStandingPR(forge, branch);
+    const comment = prNumber === null ? null : await findManifestComment(forge, prNumber);
+    if (!comment || !isBotComment(comment)) {
+      return true;
+    }
+    const { versionOutput } = parseManifest(comment.body);
+    const expected = [...versionOutput.tags, ...(versionOutput.baselineTags ?? [])];
+    const headTags = new Set(await getHeadTags(cwd));
+    if (!expected.some((tag) => headTags.has(tag))) {
+      return true;
+    }
+    const git = createGitCli();
+    for (const tag of expected) {
+      if (!headTags.has(tag) && !(await git.refExists(`refs/tags/${tag}`, cwd))) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 export async function runStandingPRUpdate(options: StandingPROptions): Promise<StandingPRResult> {
   const cwd = options.projectDir;
 
@@ -892,27 +935,21 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
 
   const requestedGraduate = options.graduate ?? [];
-  // A graduate request usually follows the release that left HEAD on a release commit.
-  const bypassSkipGuard = options.reconcile || requestedGraduate.length > 0 || isStandingPrEventRun();
+  const githubContext = getGitHubContext();
+  const releasePending = () =>
+    releasePendingAtHead(cwd, skipPatterns, githubContext?.token ? forgeFor(githubContext) : null, branch);
 
-  if (bypassSkipGuard) {
+  if (options.reconcile || isStandingPrEventRun()) {
     info(
       options.reconcile
         ? 'Reconcile mode: bypassing skip-pattern guard'
-        : requestedGraduate.length > 0
-          ? 'Graduate request: bypassing skip-pattern guard'
-          : 'Label-triggered run: bypassing skip-pattern guard',
+        : 'Label-triggered run: bypassing skip-pattern guard',
     );
-  } else {
-    // A release's own commit on HEAD must not trigger an update.
-    const headSubject = await getHeadCommitMessage(cwd);
-    if (headSubject && matchesSkipPattern(headSubject, skipPatterns)) {
-      info(`Skipping standing PR update: commit matches skip pattern`);
-      return { action: 'noop' };
-    }
+  } else if (await releasePending()) {
+    // A release's own commit on HEAD must not trigger an update until that release has tagged.
+    info(`Skipping standing PR update: commit matches skip pattern and its release isn't tagged yet`);
+    return { action: 'noop' };
   }
-
-  const githubContext = getGitHubContext();
 
   let existingStandingPr: { number: number; url: string; labels: string[] } | null = null;
   if (githubContext?.token) {
@@ -1023,7 +1060,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   // Applied as labels so conflict detection and the version runs treat the request like a maintainer's labels.
   const labelsBeforeGraduateRequest = effectiveLabels;
-  const requestedGraduateLabels =
+  let requestedGraduateLabels =
     requestedGraduate.length === 0
       ? []
       : sync
@@ -1034,7 +1071,17 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // Opt-in so the default path stays LLM-free.
   const previewNotesEnabled = effectiveLabels.includes(overrideLabelNames.previewNotes);
 
-  const overrides = resolveStandingPrLabelOverrides(effectiveLabels, ciConfig);
+  let overrides = resolveStandingPrLabelOverrides(effectiveLabels, ciConfig);
+  // Conflicting labels graduate nothing, and an unnarrowed glob left on the PR would graduate whatever matches once
+  // they're resolved.
+  if (requestedGraduateLabels.length > 0 && overrides.conflicts.length > 0) {
+    warn(
+      `Ignoring the graduate request: the standing PR's release labels conflict (${overrides.conflicts.join('; ')}). Resolve them and re-run.`,
+    );
+    requestedGraduateLabels = [];
+    effectiveLabels = labelsBeforeGraduateRequest;
+    overrides = resolveStandingPrLabelOverrides(effectiveLabels, ciConfig);
+  }
   if (overrides.bump) {
     info(`Standing PR label override: bump=${overrides.bump}`);
   }
@@ -1054,31 +1101,33 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     warn(conflict);
   }
 
-  const cliTarget = options.target ?? overrides.target;
-  const includePrerequisites = options.includePrerequisites || overrides.withPrerequisites;
-  // A sync release moves as one unit, so only the whole-batch graduate applies.
-  const graduate = sync ? undefined : overrides.graduate;
-  // Conflicting labels drop the overrides (commit-driven); the conflicts still surface in the final status check.
-  const buildExtras: BuildOptionsExtras = overrides.conflicts.length
-    ? { sync, target: cliTarget, includePrerequisites }
-    : {
-        sync,
-        bump: overrides.bump,
-        target: cliTarget,
-        stable: overrides.stable,
-        prerelease: overrides.prerelease,
-        graduate,
-        includePrerequisites,
-      };
+  const extrasFor = (o: typeof overrides): BuildOptionsExtras => {
+    const cliTarget = options.target ?? o.target;
+    const includePrerequisites = options.includePrerequisites || o.withPrerequisites;
+    // Conflicting labels drop the overrides (commit-driven); the conflicts still surface in the final status check.
+    return o.conflicts.length
+      ? { sync, target: cliTarget, includePrerequisites }
+      : {
+          sync,
+          bump: o.bump,
+          target: cliTarget,
+          stable: o.stable,
+          prerelease: o.prerelease,
+          // A sync release moves as one unit, so only the whole-batch graduate applies.
+          graduate: sync ? undefined : o.graduate,
+          includePrerequisites,
+        };
+  };
+  let buildExtras = extrasFor(overrides);
 
   info('Running version analysis (dry run)...');
-  const dryRunOptions = buildBaseReleaseOptions(options, true, buildExtras);
-  const versionOutputDry = await runVersionStep(dryRunOptions);
+  let versionOutputDry = await runVersionStep(buildBaseReleaseOptions(options, true, buildExtras));
 
   // Swap the requested patterns for labels naming what they graduated, so a pattern that matched nothing or a glob
-  // doesn't linger on the PR. With a conflict nothing graduated, so the labels stay for the status check to name.
+  // doesn't linger on the PR.
   let requestedGraduateNames: string[] = [];
-  if (requestedGraduateLabels.length > 0 && overrides.conflicts.length === 0) {
+  let settledRequestLabels: string[] = [];
+  if (requestedGraduateLabels.length > 0) {
     const graduated = graduatedPackageNames(versionOutputDry);
     let settledLabels: string[];
     if (sync) {
@@ -1095,7 +1144,14 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       requestedGraduateNames = graduated.filter((name) => shouldMatchPackageTargets(name, requestedGraduate));
       settledLabels = requestedGraduateNames.map((name) => graduatePackageLabel(name, overrideLabelNames));
     }
+    settledRequestLabels = settledLabels;
     effectiveLabels = [...new Set([...labelsBeforeGraduateRequest, ...settledLabels])];
+    // The write and later updates read the narrowed labels, so the dry run must too.
+    if (!setsEqual(new Set(settledLabels), new Set(requestedGraduateLabels))) {
+      overrides = resolveStandingPrLabelOverrides(effectiveLabels, ciConfig);
+      buildExtras = extrasFor(overrides);
+      versionOutputDry = await runVersionStep(buildBaseReleaseOptions(options, true, buildExtras));
+    }
   }
 
   if (versionOutputDry.updates.length === 0) {
@@ -1104,7 +1160,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const minPackages = standingPrConfig?.minPackages;
   const publishableCount = publishableUpdates(versionOutputDry).length;
-  if (minPackages !== undefined && publishableCount < minPackages) {
+  // A graduation is an explicit request to release, so it isn't held to the threshold.
+  const graduating = graduatedPackageNames(versionOutputDry).length > 0;
+  if (minPackages !== undefined && publishableCount < minPackages && !graduating) {
     info(`Package count (${publishableCount}) is below minPackages threshold (${minPackages}), skipping`);
     if (githubContext?.token && existingStandingPr) {
       const forge = forgeFor(githubContext);
@@ -1126,19 +1184,13 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // A release merge can land on `base` mid-run; the reset pulls in its untagged version bump, and recomputing from it
   // would double-bump (package.json ahead of the last tag under `mismatchStrategy: prefer-package`). Bow out and let
   // the post-release reconcile rebuild the PR once the release has tagged.
-  if (!options.reconcile) {
-    const resetHeadSubject = await getHeadCommitMessage(cwd);
-    if (resetHeadSubject && matchesSkipPattern(resetHeadSubject, skipPatterns)) {
-      if (requestedGraduate.length === 0) {
-        info('Skipping standing PR update: a release commit landed on the base branch during this run');
-        return { action: 'noop' };
-      }
-      // Once its release is tagged, the version bump at HEAD is no longer pending.
-      if (!(await isHeadTagged(cwd))) {
-        info("Skipping the graduate request: the release at HEAD isn't tagged yet. Re-run once it has published.");
-        return { action: 'noop' };
-      }
-    }
+  if (!options.reconcile && (await releasePending())) {
+    info(
+      requestedGraduate.length > 0
+        ? "Skipping the graduate request: the release at HEAD isn't tagged yet. Re-run once it has published."
+        : "Skipping standing PR update: the release commit at HEAD isn't tagged yet",
+    );
+    return { action: 'noop' };
   }
 
   const dryUpdates = publishableUpdates(versionOutputDry);
@@ -1268,6 +1320,18 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     prereleaseScope: writePrereleaseScope.length > 0 ? writePrereleaseScope : undefined,
   });
   const versionOutput = await runVersionStep(writeOptions);
+
+  // A requested graduation the prerelease toggle overrode isn't labelled, so the PR doesn't claim it.
+  const overriddenRequests = requestedGraduateNames.filter((name) => channelConflicts.includes(name));
+  if (overriddenRequests.length > 0) {
+    const dropped = new Set(overriddenRequests.map((name) => graduatePackageLabel(name, overrideLabelNames)));
+    warn(
+      `Graduate request: not graduating ${overriddenRequests.map((name) => `\`${name}\``).join(', ')}, which the PR sets to prerelease.`,
+    );
+    requestedGraduateNames = requestedGraduateNames.filter((name) => !overriddenRequests.includes(name));
+    settledRequestLabels = settledRequestLabels.filter((label) => !dropped.has(label));
+    effectiveLabels = effectiveLabels.filter((l) => !dropped.has(l) || labelsBeforeGraduateRequest.includes(l));
+  }
 
   // The write can come back empty when a release landed on `base` mid-run (a reconcile race the skip-pattern bail
   // exempts), which would render a degenerate body. Publishable-only so a sync root-only bump is caught too.
@@ -1437,8 +1501,16 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     try {
       const mergedLabels = [...new Set([...effectiveLabels, ...labels])];
       await forge.setLabels(prNumber, mergedLabels);
-    } catch {
-      warn('Failed to apply labels to standing PR');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // The request lives only in these labels, so losing them would drop it silently.
+      const unapplied = settledRequestLabels.filter((l) => !labelsBeforeGraduateRequest.includes(l));
+      if (unapplied.length > 0) {
+        throw new Error(
+          `Could not apply the graduate request's labels (${unapplied.join(', ')}) to standing PR #${prNumber}: ${message}. Re-run the request.`,
+        );
+      }
+      warn(`Failed to apply labels to standing PR: ${message}`);
     }
   }
 

@@ -4,8 +4,11 @@ export async function getHeadCommitMessage(cwd?: string): Promise<string | null>
   return headLog('%s', cwd);
 }
 
-export async function isHeadTagged(cwd?: string): Promise<boolean> {
-  return /(?:^|, )tag: /.test((await headLog('%D', cwd)) ?? '');
+export async function getHeadTags(cwd?: string): Promise<string[]> {
+  return ((await headLog('%D', cwd)) ?? '')
+    .split(', ')
+    .filter((ref) => ref.startsWith('tag: '))
+    .map((ref) => ref.slice('tag: '.length));
 }
 
 export async function getHeadParents(cwd?: string): Promise<string[]> {

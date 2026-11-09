@@ -398,7 +398,7 @@ When `releaseStrategy: "standing-pr"`, the `ci.standingPr` block tunes the bot-m
 | `deleteBranchOnMerge` | `true` | Delete the release branch after publish completes, unless an update has moved it since the merge. |
 | `mergeMethod` | `merge` | `merge` \| `squash` \| `rebase`. |
 | `minAge` | (unset) | Duration string (`6h`, `30m`, `1d`). Until elapsed, `releasekit/standing-pr` status check reports `pending`. |
-| `minPackages` | (unset) | Minimum distinct packages with releasable changes before a standing PR is created. Below threshold, an existing PR is closed. |
+| `minPackages` | (unset) | Minimum distinct packages with releasable changes before a standing PR is created. Below threshold, an existing PR is closed. A PR that graduates a prerelease isn't held to it. |
 
 ```json
 {

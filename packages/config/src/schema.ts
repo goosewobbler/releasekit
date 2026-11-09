@@ -649,7 +649,7 @@ export const StandingPrConfigSchema = z.object({
     .positive()
     .optional()
     .describe(
-      'Minimum number of packages with releasable changes required to create or maintain the standing PR. Below this threshold the PR is closed and no new PR is opened.',
+      'Minimum number of packages with releasable changes required to create or maintain the standing PR. Below this threshold the PR is closed and no new PR is opened, unless it graduates a prerelease.',
     ),
   authorization: z
     .object({

@@ -177,8 +177,8 @@ Calculate versions, commit to the release branch, and create/update the standing
 |---|---|---|---|
 | `-t, --target <packages>` | string | labels | Ad-hoc override: release only these packages (comma-separated). Wins over label-derived targets |
 | `--include-prerequisites` | boolean | `false` | With `--target`, also release the changed internal dependencies (and group members) of the targets |
-| `--reconcile` | boolean | `false` | Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point) |
-| `--graduate <packages>` | string | - | Graduate these prerelease packages (comma-separated, globs allowed) by adding `graduate:<package>` labels, opening the standing PR even when nothing else is queued. Runs on a release-commit HEAD once that release is tagged. With `ci.standingPr.authorization`, the triggering actor must be authorized |
+| `--reconcile` | boolean | `false` | Bypass the skip-pattern guard, which stops an update while HEAD is a release commit whose tags aren't all in place, so a post-release reconcile run always updates the standing PR |
+| `--graduate <packages>` | string | - | Graduate these prerelease packages (comma-separated, globs allowed) by adding `graduate:<package>` labels, opening the standing PR even when nothing else is queued. Not held to `minPackages`. With `ci.standingPr.authorization`, the triggering actor must be authorized |
 
 ```bash
 releasekit standing-pr update --reconcile
