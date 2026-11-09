@@ -109,6 +109,17 @@ function releaseBodies(): Record<string, string | undefined> {
   return bodies;
 }
 
+/** Each created release's `--title`. */
+function releaseTitles(): Record<string, string | undefined> {
+  const titles: Record<string, string | undefined> = {};
+  for (const [command, args] of vi.mocked(execCommand).mock.calls) {
+    if (command === 'gh' && args[1] === 'create') {
+      titles[args[2] as string] = args[args.indexOf('--title') + 1];
+    }
+  }
+  return titles;
+}
+
 function warningsNaming(tag: string): string[] {
   return warnMock.mock.calls.map(([message]) => String(message)).filter((message) => message.includes(tag));
 }
@@ -157,6 +168,65 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     expect(releaseBodies()).toEqual({ 'v1.2.3': 'X' });
   });
+
+  it.each(['release-1.2.3', 'app-v1.2.3'])(
+    'should give a sync release tagged %s the sole release notes when the input predates strategy',
+    async (tag) => {
+      const { strategy: _, ...input } = syncInput(tag);
+
+      await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { monorepo: 'X' } });
+
+      expect(releaseBodies()).toEqual({ [tag]: 'X' });
+    },
+  );
+
+  it('should give a tag shared by several packages the sole release notes', async () => {
+    const input: VersionOutput = {
+      dryRun: false,
+      strategy: 'async',
+      updates: [update('pkg-a', 'release-1.2.3'), update('pkg-b', 'release-1.2.3')],
+      changelogs: [],
+      tags: ['release-1.2.3'],
+    };
+
+    await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { monorepo: 'X' } });
+
+    expect(releaseBodies()).toEqual({ 'release-1.2.3': 'X' });
+  });
+
+  it("should give a tag the sole release notes when they're keyed under another name for the same package", async () => {
+    const input: VersionOutput = {
+      dryRun: false,
+      strategy: 'single',
+      updates: [update('my_crate', 'v1.2.3')],
+      changelogs: [],
+      tags: ['v1.2.3'],
+    };
+
+    await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { 'my-crate': 'X' } });
+
+    expect(releaseBodies()).toEqual({ 'v1.2.3': 'X' });
+  });
+
+  it.each([
+    ['with', { pkg: 'pkg-v1.2.3', 'pkg-2': 'pkg-2-v1.2.3' }],
+    ['without', { pkg: undefined, 'pkg-2': undefined }],
+  ])(
+    "should not give a package's notes to a longer-named package with empty notes, %s update tags",
+    async (_, tags) => {
+      const input: VersionOutput = {
+        dryRun: false,
+        strategy: 'async',
+        updates: [update('pkg', tags.pkg), update('pkg-2', tags['pkg-2'])],
+        changelogs: [],
+        tags: ['pkg-v1.2.3', 'pkg-2-v1.2.3'],
+      };
+
+      await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { pkg: 'P', 'pkg-2': '' } });
+
+      expect(releaseBodies()).toEqual({ 'pkg-v1.2.3': 'P', 'pkg-2-v1.2.3': GENERATED });
+    },
+  );
 
   it("should match per-package tags from a custom template to each package's own notes", async () => {
     const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
@@ -227,5 +297,45 @@ describe('GitHub release bodies in the publish pipeline', () => {
     expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
     expect(warningsNaming('pkg-b/1.2.3')).not.toEqual([]);
     expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
+  });
+
+  it('should skip the release for a package in skipPackages whose tag comes from a custom template', async () => {
+    const config = getDefaultConfig();
+    config.githubRelease.skipPackages = ['pkg-a'];
+
+    await runPipeline(perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' }), config, options);
+
+    expect(Object.keys(releaseBodies())).toEqual(['pkg-b/1.2.3']);
+  });
+
+  it("should not skip a package whose name starts with a skipped package's name", async () => {
+    const config = getDefaultConfig();
+    config.githubRelease.skipPackages = ['pkg'];
+
+    await runPipeline(perPackageInput({ pkg: 'pkg-v1.2.3', 'pkg-2': 'pkg-2-v1.2.3' }), config, options);
+
+    expect(Object.keys(releaseBodies())).toEqual(['pkg-2-v1.2.3']);
+  });
+
+  it("should title a release with its package's name and version", async () => {
+    const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', '@scope/pkg-b': '@scope/pkg-b@v1.2.3' });
+
+    await runPipeline(input, getDefaultConfig(), options);
+
+    expect(releaseTitles()).toEqual({ 'pkg-a/1.2.3': 'pkg-a: 1.2.3', '@scope/pkg-b@v1.2.3': '@scope/pkg-b: v1.2.3' });
+  });
+
+  it('should title a release whose tag is only a version with the tag', async () => {
+    const input: VersionOutput = {
+      dryRun: false,
+      strategy: 'single',
+      updates: [update('pkg-a', 'v1.2.3')],
+      changelogs: [],
+      tags: ['v1.2.3'],
+    };
+
+    await runPipeline(input, getDefaultConfig(), options);
+
+    expect(releaseTitles()).toEqual({ 'v1.2.3': 'v1.2.3' });
   });
 });

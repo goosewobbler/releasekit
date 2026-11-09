@@ -1,4 +1,4 @@
-import type { VersionOutput } from '@releasekit/core';
+import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
 import { assertNotOption, debug, info, sanitizePackageName, success, warn } from '@releasekit/core';
 import type { GitHubReleaseResult, PipelineContext } from '../types.js';
 import { execCommand, execCommandSafe } from '../utils/exec.js';
@@ -97,11 +97,32 @@ function resolveTagPackage(tag: string, packageNames: string[]): TagResolution |
   return null;
 }
 
+/** The update a tag releases, when exactly one update carries it. */
+function tagOwner(tag: string, input: VersionOutput): VersionPackageUpdate | undefined {
+  const owners = input.updates.filter((u) => u.tag === tag);
+  return owners.length === 1 ? owners[0] : undefined;
+}
+
+/** A sync release's tag (no update carries one), or a template without `${packageName}`. */
+function isSharedTag(tag: string, input: VersionOutput): boolean {
+  const owners = input.updates.filter((u) => u.tag === tag).length;
+  return owners > 1 || (owners === 0 && input.updates.length > 0 && input.updates.every((u) => !u.tag));
+}
+
 /** Titles use the unsanitized package name, e.g. "releasekit-version-v0.4.1" → "@releasekit/version: v0.4.1". */
-function getTitleFromTag(tag: string, packageNames: string[], titleTemplate: string): string {
+function getTitleFromTag(
+  tag: string,
+  owner: VersionPackageUpdate | undefined,
+  packageNames: string[],
+  titleTemplate: string,
+): string {
   const applyTemplate = (packageName: string, version: string): string =>
     titleTemplate.replace(/\$\{packageName\}/g, packageName).replace(/\$\{version\}/g, version);
 
+  if (owner && !isVersionOnlyTag(tag)) {
+    const version = tag.endsWith(`v${owner.newVersion}`) ? `v${owner.newVersion}` : owner.newVersion;
+    return applyTemplate(owner.packageName, version);
+  }
   if (packageNames.length > 0) {
     const resolved = resolveTagPackage(tag, packageNames);
     if (resolved) {
@@ -115,30 +136,35 @@ function getTitleFromTag(tag: string, packageNames: string[], titleTemplate: str
   return applyTemplate(tag.slice(0, atIndex), tag.slice(atIndex + 1));
 }
 
-/** The version output's update-to-tag mapping decides first; parsing the tag covers input that has none. */
-function resolveTagKey(tag: string, input: VersionOutput, keys: string[]): string | undefined {
-  const owners = input.updates.filter((u) => u.tag === tag);
-  if (owners.length === 1) {
-    return keys.find((key) => key === owners[0]?.packageName);
+/**
+ * The version output's update-to-tag mapping decides first; parsing the tag covers input that has none. A tag with no
+ * matching key falls back to the sole `filled` key, unless that key is another package's.
+ */
+function resolveTagKey(tag: string, input: VersionOutput, keys: string[], filled = keys): string | undefined {
+  const owner = tagOwner(tag, input);
+  const matched = owner ? keys.find((key) => key === owner.packageName) : resolveTagPackage(tag, keys)?.packageName;
+  if (matched !== undefined) {
+    return matched;
   }
-  const resolved = resolveTagPackage(tag, keys);
-  if (resolved) {
-    return resolved.packageName;
+  const sole = filled.length === 1 ? filled[0] : undefined;
+  if (sole === undefined) {
+    return undefined;
   }
-  const sharedSyncTag = input.strategy === 'sync' && input.updates.every((u) => !u.tag);
-  if (keys.length === 1 && (sharedSyncTag || isVersionOnlyTag(tag))) {
-    return keys[0];
+  if (owner) {
+    return input.updates.some((u) => u !== owner && u.packageName === sole) ? undefined : sole;
   }
-  return undefined;
+  return isSharedTag(tag, input) || isVersionOnlyTag(tag) ? sole : undefined;
 }
 
 function findNotesForTag(tag: string, input: VersionOutput, notes: Record<string, string>): string | undefined {
+  const keys = Object.keys(notes);
   const key = resolveTagKey(
     tag,
     input,
-    Object.keys(notes).filter((name) => notes[name]?.trim()),
+    keys,
+    keys.filter((name) => notes[name]?.trim()),
   );
-  return key === undefined ? undefined : notes[key];
+  return key === undefined || !notes[key]?.trim() ? undefined : notes[key];
 }
 
 function formatChangelogForTag(tag: string, input: VersionOutput): string | undefined {
@@ -146,6 +172,7 @@ function formatChangelogForTag(tag: string, input: VersionOutput): string | unde
     tag,
     input,
     input.changelogs.map((c) => c.packageName),
+    input.changelogs.filter((c) => c.entries.length > 0).map((c) => c.packageName),
   );
   const target = input.changelogs.find((c) => c.packageName === key);
 
@@ -208,11 +235,15 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       continue;
     }
 
+    const owner = tagOwner(tag, ctx.input);
+
     // Tags are still created (the next release's changelog range needs them) and npm publish still runs.
     if (skipPackages.length > 0) {
-      const resolved = resolveTagPackage(tag, skipPackages);
-      if (resolved) {
-        debug(`Skipping GitHub release for ${resolved.packageName} (listed in githubRelease.skipPackages)`);
+      const skipped = owner
+        ? skipPackages.find((name) => name === owner.packageName)
+        : resolveTagPackage(tag, skipPackages)?.packageName;
+      if (skipped) {
+        debug(`Skipping GitHub release for ${skipped} (listed in githubRelease.skipPackages)`);
         continue;
       }
     }
@@ -241,7 +272,10 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       ...ctx.input.changelogs.map((c) => c.packageName),
       ...(ctx.releaseNotes ? Object.keys(ctx.releaseNotes) : []),
     ];
-    ghArgs.push('--title', getTitleFromTag(tag, [...new Set(titlePackageNames)], config.githubRelease.titleTemplate));
+    ghArgs.push(
+      '--title',
+      getTitleFromTag(tag, owner, [...new Set(titlePackageNames)], config.githubRelease.titleTemplate),
+    );
 
     if (config.githubRelease.draft) {
       ghArgs.push('--draft');
