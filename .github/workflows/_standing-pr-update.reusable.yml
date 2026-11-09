@@ -11,6 +11,11 @@ on:
         type: boolean
         required: false
         default: false
+      graduate:
+        description: 'Prerelease packages to graduate (comma-separated, globs allowed)'
+        type: string
+        required: false
+        default: ''
     secrets:
       OLLAMA_API_KEY:
         required: false
@@ -47,7 +52,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Update standing release PR
-        run: node packages/release/dist/cli.js standing-pr update ${{ inputs.reconcile && '--reconcile' || '' }}
+        run: node packages/release/dist/cli.js standing-pr update ${{ inputs.reconcile && '--reconcile' || '' }} ${GRADUATE:+--graduate "$GRADUATE"}
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          GRADUATE: ${{ inputs.graduate }}
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}

@@ -4,11 +4,33 @@ export async function getHeadCommitMessage(cwd?: string): Promise<string | null>
   return headLog('%s', cwd);
 }
 
-export async function getHeadTags(cwd?: string): Promise<string[]> {
-  return ((await headLog('%D', cwd)) ?? '')
-    .split(', ')
-    .filter((ref) => ref.startsWith('tag: '))
-    .map((ref) => ref.slice('tag: '.length));
+/** Each tag's commit, peeled through annotated tags. */
+export async function getTagCommits(cwd?: string): Promise<Map<string, string>> {
+  const lines = await createGitCli().forEachRef({
+    format: '%(refname:strip=2)%09%(objectname)%09%(*objectname)',
+    pattern: 'refs/tags',
+    cwd,
+  });
+  const commits = new Map<string, string>();
+  for (const line of lines) {
+    const [name, object, peeled] = line.split('\t');
+    if (name && object) {
+      commits.set(name, peeled || object);
+    }
+  }
+  return commits;
+}
+
+/** HEAD and its first-parent ancestors, newest first. */
+export async function getRecentCommits(count: number, cwd?: string): Promise<Array<{ sha: string; subject: string }>> {
+  const out = await createGitCli().log({ format: '%H%x09%s', extraArgs: [`-${count}`, '--first-parent'], cwd });
+  return out
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [sha = '', ...subject] = line.split('\t');
+      return { sha, subject: subject.join('\t') };
+    });
 }
 
 export async function getHeadParents(cwd?: string): Promise<string[]> {

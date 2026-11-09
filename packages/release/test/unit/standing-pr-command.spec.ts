@@ -65,6 +65,25 @@ describe('createStandingPRCommand', () => {
     );
   });
 
+  it.each([' ', ' , '])('should reject a --graduate value with no package in it (%j)', async (value) => {
+    const { runStandingPRUpdate } = await import('../../src/standing-pr/standing-pr.js');
+    vi.mocked(runStandingPRUpdate).mockClear();
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never);
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await expect(parseCommand(['update', '--project-dir', '/test', '--graduate', value])).rejects.toThrow(
+        'process.exit(3)',
+      );
+      expect(errSpy).toHaveBeenCalledWith('--graduate needs at least one package name or pattern');
+      expect(runStandingPRUpdate).not.toHaveBeenCalled();
+    } finally {
+      exitSpy.mockRestore();
+      errSpy.mockRestore();
+    }
+  });
+
   it('should call runStandingPRPublish for publish subcommand', async () => {
     const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
     await parseCommand(['publish', '--project-dir', '/test']);

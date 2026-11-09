@@ -1,6 +1,6 @@
 import type { VersionPackageUpdate } from '@releasekit/core';
 import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
-import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
+import { FakeGit, type FakeGitSeed, type GitForEachRefOptions, type GitLogOptions } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
 import { renderNotesRegion } from '../../src/standing-pr/notes-region.js';
@@ -22,12 +22,22 @@ class ControllableGit extends FakeGit {
   subjects: string[] = [];
   tagCommitSha?: string;
   tagResolveThrows = false;
-  /** HEAD's ref names (`%D`), where a `tag: ` entry marks HEAD as tagged. */
-  headRefs = 'HEAD -> release/next, origin/main';
+  /** First-parent history from HEAD; defaults to HEAD alone with the current subject. */
+  history?: Array<{ sha: string; subject: string }>;
+  /** Tag name to commit, read by the release-at-HEAD check. */
+  tagShas: Record<string, string> = {};
+
+  override async forEachRef(opts: GitForEachRefOptions): Promise<string[]> {
+    if (opts.pattern === 'refs/tags') {
+      return Object.entries(this.tagShas).map(([tag, sha]) => `${tag}\t${sha}\t`);
+    }
+    return super.forEachRef(opts);
+  }
 
   override async log(opts: GitLogOptions): Promise<string> {
-    if (opts.format === '%D') {
-      return this.headRefs;
+    if (opts.format === '%H%x09%s') {
+      const history = this.history ?? [{ sha: await this.headSha(opts.cwd), subject: this.subjects[0] ?? '' }];
+      return history.map((c) => `${c.sha}\t${c.subject}`).join('\n');
     }
     if (opts.format === '%s') {
       // getHeadCommitMessage: the HEAD subject the skip-pattern guards key on.
@@ -2403,6 +2413,7 @@ describe('runStandingPRUpdate', () => {
 
   describe('graduate request (--graduate)', () => {
     const RELEASE_HEAD = 'chore: release 3 package(s) (#10)';
+    const RELEASE_TAGS = ['@scope/a@v1.1.0', '@scope/b@v2.0.0-next.2'];
 
     // Nothing queued but the graduation: @scope/b graduates from 2.0.0-next.2, @scope/c moves only if a test asks.
     const graduationOutput = (opts: { graduateB?: boolean; bumpC?: boolean } = {}) => ({
@@ -2453,10 +2464,9 @@ describe('runStandingPRUpdate', () => {
       return { forge, runVersionStepMock: vi.mocked(runVersionStep) };
     }
 
-    // The standing PR merged as HEAD's release commit, with the tags its publish creates.
-    const RELEASE_TAGS = ['@scope/a@v1.1.0', '@scope/b@v2.0.0-next.2'];
-    const mergedRelease = (tags = RELEASE_TAGS): FakeForgeSeed => ({
-      recentlyClosedPRs: [{ number: 10, mergedAt: '2026-11-01T00:00:00Z' }],
+    /** Standing PR #10 merged as `sha`, its manifest naming the tags its publish creates. */
+    const standingPrMergedAt = (sha: string, tags = RELEASE_TAGS): FakeForgeSeed => ({
+      pullRequestsForCommit: { [sha]: [{ number: 10, mergedAt: '2026-11-01T00:00:00Z' }] },
       comments: [
         {
           id: 7,
@@ -2465,9 +2475,22 @@ describe('runStandingPRUpdate', () => {
         },
       ],
     });
-    const tagHead = (tags: string[]) => {
-      fakeGit.headRefs = ['HEAD -> release/next', ...tags.map((t) => `tag: ${t}`), 'origin/main'].join(', ');
+
+    const atReleaseHead = (history: Array<{ sha: string; subject: string }>, tags: Record<string, string>) => {
+      fakeGit = new ControllableGit({ headSha: history[0]?.sha, ancestors: () => true });
+      fakeGit.subjects = [history[0]?.subject ?? ''];
+      fakeGit.history = history;
+      fakeGit.tagShas = tags;
     };
+
+    const allTagsAt = (sha: string) => Object.fromEntries(RELEASE_TAGS.map((t) => [t, sha]));
+
+    /** The run's action, or the message it failed with. */
+    const settle = (run: Promise<{ action: string }>) =>
+      run.then(
+        (r) => r.action,
+        (err: Error) => err.message,
+      );
 
     const runRequest = (graduate: string[]) =>
       runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false, graduate });
@@ -2480,9 +2503,8 @@ describe('runStandingPRUpdate', () => {
     };
 
     it('should open the standing PR from a tagged release-commit HEAD with only the graduation queued', async () => {
-      fakeGit.subjects = [RELEASE_HEAD];
-      tagHead(RELEASE_TAGS);
-      const { forge, runVersionStepMock } = await setupRequest({ forge: mergedRelease() });
+      atReleaseHead([{ sha: 'abc123', subject: RELEASE_HEAD }], allTagsAt('abc123'));
+      const { forge, runVersionStepMock } = await setupRequest({ forge: standingPrMergedAt('abc123') });
 
       const result = await runRequest(['@scope/b']);
 
@@ -2496,48 +2518,69 @@ describe('runStandingPRUpdate', () => {
     });
 
     it.each([
-      ['untagged', [] as string[], [] as string[]],
+      ['untagged', {}],
       // Per-package publish pushes each tag as its package publishes.
-      ['partly tagged', ['@scope/a@v1.1.0'], []],
-      // An older release's tags exist, but none sits on this release commit.
-      ['carrying only an older release', [], RELEASE_TAGS],
-    ])('should do nothing while the release at HEAD is %s', async (_label, headTags, otherTags) => {
-      fakeGit = new ControllableGit({
-        headSha: 'abc123',
-        ancestors: () => true,
-        existingRefs: otherTags.map((t) => `refs/tags/${t}`),
-      });
-      fakeGit.subjects = [RELEASE_HEAD];
-      tagHead(headTags);
-      const { forge, runVersionStepMock } = await setupRequest({ forge: mergedRelease() });
+      ['partly tagged', { '@scope/a@v1.1.0': 'abc123' }],
+    ])('should fail the request while the standing-PR release at HEAD is %s', async (_label, tags) => {
+      atReleaseHead([{ sha: 'abc123', subject: RELEASE_HEAD }], tags);
+      const { forge, runVersionStepMock } = await setupRequest({ forge: standingPrMergedAt('abc123') });
 
-      const result = await runRequest(['@scope/b']);
-
-      expect(result.action).toBe('noop');
+      await expect(runRequest(['@scope/b'])).rejects.toThrow(/release at HEAD isn't fully tagged/);
       expect(runVersionStepMock).not.toHaveBeenCalled();
       expect(forge.createdPullRequests).toHaveLength(0);
     });
 
-    it('should accept a release tag that exists off HEAD once another of its tags is on HEAD', async () => {
-      fakeGit = new ControllableGit({
-        headSha: 'abc123',
-        ancestors: () => true,
-        existingRefs: ['refs/tags/@scope/a@v1.1.0'],
-      });
-      fakeGit.subjects = [RELEASE_HEAD];
-      tagHead(['@scope/b@v2.0.0-next.2']);
-      await setupRequest({ forge: mergedRelease() });
+    it.each([
+      ['fully', allTagsAt('notes1'), 'created'],
+      ['partly', { '@scope/a@v1.1.0': 'notes1' }, /isn't fully tagged/],
+    ])(
+      'should judge a release-notes commit by the merged standing PR beneath it, %s tagged',
+      async (_l, tags, outcome) => {
+        atReleaseHead(
+          [
+            { sha: 'notes1', subject: 'chore: release notes for v2.0.0' },
+            { sha: 'merge1', subject: RELEASE_HEAD },
+          ],
+          tags,
+        );
+        await setupRequest({ forge: standingPrMergedAt('merge1') });
 
-      expect((await runRequest(['@scope/b'])).action).toBe('created');
+        expect(await settle(runRequest(['@scope/b']))).toMatch(outcome);
+      },
+    );
+
+    it('should find the standing PR from the squash subject while GitHub hasn’t indexed the merge', async () => {
+      // Partly tagged: without the subject's (#10), HEAD's tag would pass it as a finished direct release.
+      atReleaseHead([{ sha: 'abc123', subject: RELEASE_HEAD }], { '@scope/a@v1.1.0': 'abc123' });
+      const { pullRequestsForCommit: _unindexed, ...seed } = standingPrMergedAt('abc123');
+      await setupRequest({ forge: seed });
+
+      await expect(runRequest(['@scope/b'])).rejects.toThrow(/isn't fully tagged/);
+    });
+
+    it.each([
+      ['tagged', { 'v1.3.0': 'direct1' }, 'created'],
+      ['untagged', {}, /isn't fully tagged/],
+    ])('should accept a direct release commit at HEAD once it is %s', async (_label, tags, outcome) => {
+      // e.g. a release:immediate release that emptied the queue; no standing PR merged as this commit.
+      atReleaseHead(
+        [
+          { sha: 'direct1', subject: 'chore: release v1.3.0' },
+          { sha: 'feat1', subject: 'feat: something (#12)' },
+        ],
+        tags,
+      );
+      await setupRequest({ forge: standingPrMergedAt('older-merge') });
+
+      expect(await settle(runRequest(['@scope/b']))).toMatch(outcome);
     });
 
     it('should keep updating the graduation PR without the request once the release at HEAD is tagged', async () => {
       // A scheduled run: the PR carries the request's label, and HEAD is still the tagged release commit.
-      fakeGit.subjects = [RELEASE_HEAD];
-      tagHead(RELEASE_TAGS);
+      atReleaseHead([{ sha: 'abc123', subject: RELEASE_HEAD }], allTagsAt('abc123'));
       const { forge, runVersionStepMock } = await setupRequest({
         labels: ['release', 'graduate:@scope/b'],
-        forge: mergedRelease(),
+        forge: standingPrMergedAt('abc123'),
       });
 
       const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
@@ -2552,10 +2595,10 @@ describe('runStandingPRUpdate', () => {
 
       await runRequest(['**']);
 
-      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ graduate: ['**'] });
-      // The narrowed labels drive a fresh dry run and the write, as they will every later update.
-      expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ dryRun: true, graduate: ['@scope/b'] });
-      expect(runVersionStepMock.mock.calls[2]?.[0]).toMatchObject({ dryRun: false, graduate: ['@scope/b'] });
+      expect(runVersionStepMock).toHaveBeenCalledTimes(2);
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ dryRun: true, graduate: ['**'] });
+      // The write graduates from the narrowed labels, as every later update will.
+      expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ dryRun: false, graduate: ['@scope/b'] });
       const labels = appliedLabels(forge);
       expect(labels).toContain('graduate:@scope/b');
       expect(labels).not.toContain('graduate:**');
@@ -2563,22 +2606,22 @@ describe('runStandingPRUpdate', () => {
       expect(labels).not.toContain('graduate:@scope/c');
     });
 
-    it('should drop a pattern that graduates nothing and leave the rest of the queue alone', async () => {
-      const { forge } = await setupRequest({ output: graduationOutput({ graduateB: false, bumpC: true }) });
+    it('should drop a pattern that graduates nothing when another pattern graduates', async () => {
+      const { forge } = await setupRequest({ output: graduationOutput({ bumpC: true }) });
 
-      const result = await runRequest(['@scope/missing']);
+      const result = await runRequest(['@scope/b', '@scope/missing']);
 
       expect(result.action).toBe('created');
+      expect(appliedLabels(forge)).toContain('graduate:@scope/b');
       expect(appliedLabels(forge)).not.toContain('graduate:@scope/missing');
-      expect(writtenManifest(forge).overrideLabels ?? []).not.toContain('graduate:@scope/missing');
     });
 
-    it('should open no PR when the request graduates nothing and nothing else is queued', async () => {
-      const { forge } = await setupRequest({ output: graduationOutput({ graduateB: false }) });
+    it('should fail a request that graduates nothing, even with other changes queued', async () => {
+      const { forge } = await setupRequest({ output: graduationOutput({ graduateB: false, bumpC: true }) });
 
-      const result = await runRequest(['@scope/missing']);
-
-      expect(result.action).toBe('noop');
+      await expect(runRequest(['@scope/missing'])).rejects.toThrow(
+        "no package on a prerelease line matches '@scope/missing'",
+      );
       expect(forge.createdPullRequests).toHaveLength(0);
     });
 
@@ -2594,19 +2637,15 @@ describe('runStandingPRUpdate', () => {
       expect(appliedLabels(forge)).toEqual(expect.arrayContaining(['release', 'bump:minor', 'graduate:@scope/b']));
     });
 
-    it('should ignore a request that conflicts with the standing PR’s labels, leaving no label behind', async () => {
-      const { forge, runVersionStepMock } = await setupRequest({
-        output: graduationOutput({ graduateB: false, bumpC: true }),
-        labels: ['release', 'channel:prerelease'],
-      });
+    it.each([
+      ['the request', ['release', 'channel:prerelease']],
+      ['each other', ['release', 'bump:minor', 'bump:major']],
+    ])('should fail the request when the standing PR’s labels conflict with %s', async (_label, labels) => {
+      const { forge, runVersionStepMock } = await setupRequest({ labels });
 
-      await runRequest(['**']);
-
-      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ prerelease: true });
-      expect(runVersionStepMock.mock.calls[0]?.[0]).not.toHaveProperty('graduate', ['**']);
-      expect(appliedLabels(forge)).not.toContain('graduate:**');
-      expect(writtenManifest(forge).overrideLabels).toEqual(['channel:prerelease']);
-      expect(forge.commitStatuses.at(-1)?.state).toBe('success');
+      await expect(runRequest(['**'])).rejects.toThrow(/release labels conflict/);
+      expect(runVersionStepMock).not.toHaveBeenCalled();
+      expect(forge.setLabelsCalls).toHaveLength(0);
     });
 
     it('should open a graduation-only PR below the minPackages threshold', async () => {
@@ -2620,14 +2659,16 @@ describe('runStandingPRUpdate', () => {
       expect((await runRequest(['@scope/b'])).action).toBe('created');
     });
 
-    it('should fail rather than drop the request when its labels cannot be applied', async () => {
+    it('should write the manifest, hold the status and then fail when the request’s labels cannot be applied', async () => {
       const { forge } = await setupRequest();
       vi.spyOn(forge, 'setLabels').mockRejectedValue(new Error('Validation Failed'));
 
       await expect(runRequest(['@scope/b'])).rejects.toThrow(
         /Could not apply the graduate request's labels \(graduate:@scope\/b\).*Validation Failed/,
       );
-      expect(forge.createdComments.some((c) => c.body.includes(MANIFEST_MARKER))).toBe(false);
+      // A merge before the re-run then fails the publish's label staleness check.
+      expect(writtenManifest(forge).overrideLabels).toContain('graduate:@scope/b');
+      expect(forge.commitStatuses.at(-1)?.state).toBe('pending');
     });
 
     it('should not label a requested graduation the PR’s prerelease toggle overrides', async () => {
@@ -2666,25 +2707,21 @@ describe('runStandingPRUpdate', () => {
       expect(appliedLabels(forge)).not.toContain('graduate:@scope/b');
     });
 
-    it('should drop release:graduate from the write as well as the labels when nothing is on a prerelease line', async () => {
+    it('should fail a sync request when nothing is on a prerelease line', async () => {
       const { loadConfig } = await import('@releasekit/config');
       vi.mocked(loadConfig).mockReturnValue({
         ...defaultConfig,
         version: { sync: true },
       } as unknown as ReturnType<typeof loadConfig>);
-      const { forge, runVersionStepMock } = await setupRequest({
+      const { forge } = await setupRequest({
         output: {
           ...graduationOutput({ graduateB: false, bumpC: true }),
           strategy: 'sync',
         } as unknown as ReturnType<typeof graduationOutput>,
       });
 
-      await runRequest(['**']);
-
-      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ stable: true });
-      expect(runVersionStepMock.mock.calls[2]?.[0]).toMatchObject({ dryRun: false });
-      expect(runVersionStepMock.mock.calls[2]?.[0]).not.toHaveProperty('stable', true);
-      expect(appliedLabels(forge)).not.toContain('release:graduate');
+      await expect(runRequest(['**'])).rejects.toThrow('no package is on a prerelease line');
+      expect(forge.createdPullRequests).toHaveLength(0);
     });
 
     describe('with ci.standingPr.authorization', () => {
@@ -2706,14 +2743,12 @@ describe('runStandingPRUpdate', () => {
         process.env.GITHUB_EVENT_PATH = '/event.json';
       };
 
-      it('should ignore a request from an actor below the required permission', async () => {
+      it('should fail a request from an actor below the required permission', async () => {
         await dispatchedBy('rando');
         const { runVersionStepMock } = await setupRequest();
         const forge = await mockForge({ standingPR: null, actorPermissions: { rando: 'write' } });
 
-        const result = await runRequest(['@scope/b']);
-
-        expect(result.action).toBe('noop');
+        await expect(runRequest(['@scope/b'])).rejects.toThrow("'rando' isn't authorized");
         expect(runVersionStepMock).not.toHaveBeenCalled();
         expect(forge.createdPullRequests).toHaveLength(0);
       });

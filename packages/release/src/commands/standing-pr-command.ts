@@ -40,6 +40,13 @@ export function createStandingPRCommand(): Command {
         false,
       ),
   ).action(async (opts) => {
+    const graduate: string[] | undefined = opts.graduate
+      ?.split(',')
+      .map((p: string) => p.trim())
+      .filter(Boolean);
+    if (graduate?.length === 0) {
+      failInput('--graduate needs at least one package name or pattern', { json: opts.json, output: opts.output });
+    }
     const options: StandingPROptions = {
       config: opts.config,
       projectDir: opts.projectDir,
@@ -50,10 +57,7 @@ export function createStandingPRCommand(): Command {
       reconcile: opts.reconcile,
       target: opts.target,
       includePrerequisites: opts.includePrerequisites,
-      graduate: opts.graduate
-        ?.split(',')
-        .map((p: string) => p.trim())
-        .filter(Boolean),
+      graduate,
     };
 
     try {

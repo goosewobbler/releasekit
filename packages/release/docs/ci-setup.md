@@ -464,6 +464,14 @@ on:
     branches: [main]
   schedule:
     - cron: '0 * * * *'  # Hourly — re-evaluates minAge status check as time passes
+  # A manual run with `graduate` set opens the standing PR to graduate prereleases, even when
+  # nothing else is queued.
+  workflow_dispatch:
+    inputs:
+      graduate:
+        description: 'Prerelease packages to graduate to stable, comma-separated (globs allowed, ** for all)'
+        required: false
+        type: string
 
 concurrency:
   # GitHub keeps one pending run per group and replaces it with any newer one. So the standing PR's
@@ -496,6 +504,7 @@ jobs:
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
       (
         github.event_name == 'pull_request' &&
         (
@@ -552,9 +561,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - run: pnpm exec releasekit standing-pr update
+      - run: pnpm exec releasekit standing-pr update ${GRADUATE:+--graduate "$GRADUATE"}
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          GRADUATE: ${{ inputs.graduate }}
           # LLM key only needed when using the release:preview-notes label (optional).
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

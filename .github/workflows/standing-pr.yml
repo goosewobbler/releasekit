@@ -6,7 +6,12 @@ on:
   pull_request:
     types: [closed, labeled, unlabeled]
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      graduate:
+        description: 'Prerelease packages to graduate to stable, comma-separated (globs allowed, ** for all)'
+        required: false
+        type: string
 
 # `push` and `workflow_dispatch` runs (publish dispatch, update-release-pr) must serialize, so they
 # share a group; splitting them would let a manual re-trigger race an in-flight push run.
@@ -48,8 +53,14 @@ jobs:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
+          GRADUATE: ${{ inputs.graduate }}
         run: |
           set -euo pipefail
+          # A graduate request usually runs on the merge that shipped the prereleases; it must update, not re-publish.
+          if [ -n "$GRADUATE" ]; then
+            echo "Graduate request: running the update"
+            exit 0
+          fi
           STANDING_PR_BRANCH=$(jq -r '.ci.standingPr.branch // "release/next"' releasekit.config.json)
 
           # Prefer the squash-merge subject's `(#N)`: GitHub's commits→PRs index is eventually
@@ -99,6 +110,8 @@ jobs:
     needs: detect-release-merge
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.detect-release-merge.outputs.pr_number == ''
     uses: ./.github/workflows/_standing-pr-update.reusable.yml
+    with:
+      graduate: ${{ inputs.graduate || '' }}
     permissions:
       contents: write
       pull-requests: write
