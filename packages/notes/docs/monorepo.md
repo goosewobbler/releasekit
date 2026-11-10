@@ -39,11 +39,13 @@ In `"root"` or `"both"` mode, the root changelog aggregates entries from all pac
 ## [@myorg/core@2.0.0] — 2026-03-15
 
 ### Added
+
 - New streaming API
 
 ## [utils@1.1.0] — 2026-03-15
 
 ### Fixed
+
 - Memory leak in event handler
 ```
 

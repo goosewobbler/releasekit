@@ -6,34 +6,35 @@ import { runPipeline } from '../../src/core/pipeline.js';
 import type { ChangelogInput, Config, PackageChangelog, TemplateContext } from '../../src/core/types.js';
 import { writeMonorepoChangelogs } from '../../src/monorepo/aggregator.js';
 
-const EXISTING = `# Changelog
+const HEADER = `# Changelog
 
 All notable changes to this project will be documented in this file.
+`;
 
-## [1.0.0] - 2026-01-01
+const OLD_RELEASE = `## [1.0.0] - 2026-01-01
 
 ### Added
+
 - Ancient history that must survive
 `;
 
-const NO_HEADER = '## [1.0.0] - 2026-01-01\n\n### Added\n- Ancient history that must survive\n';
+const EXISTING = `${HEADER}\n${OLD_RELEASE}`;
 
-const SINGLE_PACKAGE_GOLDEN = `# Changelog
+const DEFAULT_HEADER = `# Changelog
 
 All notable changes to this project will be documented in this file.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+`;
 
-## [1.1.0] - 2026-02-01
+const NEW_RELEASE = `## [1.1.0] - 2026-02-01
 
 [Full Changelog](https://github.com/acme/repo/compare/1.0.0...1.1.0)
 
 ### Added
+
 - feature
-
-## [1.0.0] - 2026-01-01
-
-### Added
-- Ancient history that must survive
 `;
 
 function pkg(packageName: string, entries: PackageChangelog['entries']): PackageChangelog {
@@ -109,28 +110,33 @@ describe('Pipeline: root changelog keeps its history', () => {
   });
 
   it('should prepend above a first section that has no header before it', async () => {
-    const out = await writeChangelog(twoPackages, { changelog: { mode: 'root' } }, NO_HEADER);
+    const out = await writeChangelog(twoPackages, { changelog: { mode: 'root' } }, OLD_RELEASE);
 
     expect(out.startsWith('## [@x/a@1.1.0]')).toBe(true);
     expect(out.indexOf('## [@x/b@1.1.0]')).toBeLessThan(out.indexOf('## [1.0.0]'));
     expect(out).toContain('- Ancient history that must survive');
   });
 
-  it('should leave single-package prepend output unchanged', async () => {
+  it.each([
+    ['a header and releases', EXISTING, `${HEADER}\n${NEW_RELEASE}\n${OLD_RELEASE}`],
+    ['releases and no header', OLD_RELEASE, `${NEW_RELEASE}\n${OLD_RELEASE}`],
+    ['a header and no releases', HEADER, `${HEADER}\n${NEW_RELEASE}`],
+    ['no content', '', `${DEFAULT_HEADER}\n${NEW_RELEASE}`],
+  ])('should keep standard Markdown spacing when prepending to a file with %s', async (_, existing, expected) => {
     const single: ChangelogInput = {
       source: 'version',
       packages: [pkg('my-lib', [{ type: 'added', description: 'feature' }])],
     };
-    const out = await writeChangelog(single, { changelog: { mode: 'root' } }, EXISTING);
+    const out = await writeChangelog(single, { changelog: { mode: 'root' } }, existing);
 
-    expect(out).toBe(SINGLE_PACKAGE_GOLDEN);
+    expect(out).toBe(expected);
   });
 });
 
 describe('writeMonorepoChangelogs: per-package changelogs keep their history', () => {
   it.each([
     ['a header', EXISTING],
-    ['no header', NO_HEADER],
+    ['no header', OLD_RELEASE],
   ])('should prepend the new section to a file with %s', (_, existing) => {
     const pkgDir = path.join(dir, 'packages', 'a');
     fs.mkdirSync(pkgDir, { recursive: true });

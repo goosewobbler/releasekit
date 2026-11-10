@@ -78,8 +78,7 @@ function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
 }
 
 function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts: EntryRefOptions): string[] {
-  const lines: string[] = [];
-  lines.push(`### ${name}`);
+  const blocks = [`### ${name}`];
 
   const scopeCounts = new Map<string, number>();
   for (const entry of entries) {
@@ -95,9 +94,7 @@ function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts:
   }
 
   if (groupedScopes.size === 0) {
-    for (const entry of entries) {
-      lines.push(formatEntry(entry, refOpts));
-    }
+    blocks.push(entries.map((entry) => formatEntry(entry, refOpts)).join('\n'));
   } else {
     // Scope groups are expanded at the position of their first member.
     // Ungrouped entries that fall between two members of the same group
@@ -111,24 +108,27 @@ function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts:
       }
     }
 
+    // An ungrouped entry after a group stays in its list: a blank line would merge the two into one loose list.
+    let list: string[] = [];
     const renderedScopes = new Set<string>();
     for (const entry of entries) {
       if (entry.scope && groupedScopes.has(entry.scope)) {
         if (!renderedScopes.has(entry.scope)) {
           renderedScopes.add(entry.scope);
-          lines.push(`**${escapeChangelogMentions(entry.scope)}**:`);
-          for (const e of byScope.get(entry.scope) ?? []) {
-            lines.push(formatEntry(e, { ...refOpts, hideScope: true }));
+          if (list.length > 0) {
+            blocks.push(list.join('\n'));
           }
+          blocks.push(`**${escapeChangelogMentions(entry.scope)}**:`);
+          list = (byScope.get(entry.scope) ?? []).map((e) => formatEntry(e, { ...refOpts, hideScope: true }));
         }
       } else {
-        lines.push(formatEntry(entry, refOpts));
+        list.push(formatEntry(entry, refOpts));
       }
     }
+    blocks.push(list.join('\n'));
   }
 
-  lines.push('');
-  return lines;
+  return blocks;
 }
 
 function rerouteBreakingEntries(categories: EnhancedCategory[]): EnhancedCategory[] {
@@ -261,30 +261,25 @@ export interface FormatVersionOptions {
 }
 
 export function formatVersion(context: TemplateContext, options?: FormatVersionOptions): string {
-  const lines: string[] = [];
   const refOpts: EntryRefOptions = { refs: options?.refs ?? 'link', repoUrl: context.repoUrl };
 
   const versionLabel =
     options?.includePackageName && context.packageName ? `${context.packageName}@${context.version}` : context.version;
   const versionHeader = context.previousVersion ? `## [${versionLabel}]` : `## ${versionLabel}`;
 
-  lines.push(`${versionHeader} - ${context.date}`);
-  lines.push('');
+  const blocks = [`${versionHeader} - ${context.date}`];
 
   const introLine = firstReleaseLine(context, options?.firstRelease);
   if (introLine) {
-    lines.push(introLine);
-    lines.push('');
+    blocks.push(introLine);
   }
 
   if (context.compareUrl) {
-    lines.push(`[Full Changelog](${context.compareUrl})`);
-    lines.push('');
+    blocks.push(`[Full Changelog](${context.compareUrl})`);
   }
 
   if (context.enhanced?.summary) {
-    lines.push(context.enhanced.summary);
-    lines.push('');
+    blocks.push(context.enhanced.summary);
   }
 
   if (context.enhanced?.categories && context.enhanced.categories.length > 0) {
@@ -295,28 +290,23 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
       if (category.entries.length === 0) {
         continue;
       }
-      lines.push(...formatCategorySection(category.name, category.entries, refOpts));
+      blocks.push(...formatCategorySection(category.name, category.entries, refOpts));
     }
 
     const links = resolveLinks(context.entries, options?.links);
     if (links.length > 0) {
-      lines.push(`### ${options?.links?.title ?? 'Links'}`);
-      for (const link of links) {
-        lines.push(`- [${link.label}](${link.url})`);
-      }
-      lines.push('');
+      blocks.push(
+        `### ${options?.links?.title ?? 'Links'}`,
+        links.map((link) => `- [${link.label}](${link.url})`).join('\n'),
+      );
     }
   } else {
     for (const section of groupChangelogSections(context.entries, (e) => e, { labelOrder: SECTION_ORDER })) {
-      lines.push(`### ${section.label}`);
-      for (const entry of section.items) {
-        lines.push(formatEntry(entry, refOpts));
-      }
-      lines.push('');
+      blocks.push(`### ${section.label}`, section.items.map((entry) => formatEntry(entry, refOpts)).join('\n'));
     }
   }
 
-  return lines.join('\n');
+  return `${blocks.join('\n\n')}\n`;
 }
 
 function formatHeader(): string {
@@ -326,7 +316,6 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 `;
 }
 
@@ -357,9 +346,9 @@ export function prependVersions(
 
   const headerEnd = existing.indexOf('\n## ');
   if (headerEnd === -1) {
-    return `${existing.trimEnd()}\n\n\n${sections}`;
+    return `${existing.trimEnd()}\n\n${sections}`;
   }
-  return `${existing.slice(0, headerEnd)}\n\n${sections}\n${existing.slice(headerEnd + 1)}`;
+  return `${existing.slice(0, headerEnd).trimEnd()}\n\n${sections}\n${existing.slice(headerEnd + 1)}`;
 }
 
 export function writeMarkdown(

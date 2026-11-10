@@ -112,17 +112,22 @@ describe('Pipeline: render snapshot', () => {
       "## [2.0.0] - 2026-01-15
 
       ### Breaking
+
       - **BREAKING** **API rename**: Rename connect() to initialize()
 
       ### New
+
       **ipc**:
+
       - **Deeplink testing**: Add deep link support via triggerDeeplink()
       - Add mock IPC support
 
       ### Fixed
+
       - Resolve memory leak in renderer process
 
       ### Developer
+
       - Migrate bundler to esbuild 0.20
       "
     `);
