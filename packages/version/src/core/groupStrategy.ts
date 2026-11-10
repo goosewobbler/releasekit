@@ -399,6 +399,7 @@ async function releaseGroup(
       revisionRange,
       repoUrl: readRepoUrl(pkg.dir),
       entries,
+      tag,
     });
     setPackageUpdatePreviousVersion(name, previousVersion);
 
@@ -548,6 +549,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
           revisionRange,
           repoUrl: readRepoUrl(pkg.dir),
           entries,
+          tag,
         });
         setPackageUpdatePreviousVersion(name, previousVersion);
         if (config.baselineTagTemplate) {

@@ -317,15 +317,6 @@ export class PackageProcessor {
         recordAs: name,
       });
 
-      addChangelogData({
-        packageName: name,
-        version: nextVersion,
-        previousVersion,
-        revisionRange,
-        repoUrl: repoUrl || null,
-        entries: changelogEntries,
-      });
-
       const packageTag = formatTag(
         nextVersion,
         this.versionPrefix,
@@ -333,6 +324,15 @@ export class PackageProcessor {
         this.tagTemplate,
         this.fullConfig.packageSpecificTags,
       );
+      addChangelogData({
+        packageName: name,
+        version: nextVersion,
+        previousVersion,
+        revisionRange,
+        repoUrl: repoUrl || null,
+        entries: changelogEntries,
+        tag: packageTag,
+      });
       addTag(packageTag);
       setPackageUpdateTag(name, packageTag);
       const { action, reason } = resolveVersionAction({ hasNoTags: !hasRealTag, latestTag, nextVersion });

@@ -96,6 +96,17 @@ function perPackageInput(tags: Record<string, string>): VersionOutput {
   };
 }
 
+/** Records each changelog's tag as the version step does: its package's own, else the sync release's. */
+function recordChangelogTags(input: VersionOutput): VersionOutput {
+  return {
+    ...input,
+    changelogs: input.changelogs.map((c) => ({
+      ...c,
+      tag: input.updates.find((u) => u.packageName === c.packageName)?.tag ?? input.tags[0],
+    })),
+  };
+}
+
 /** Each created release's `--notes` body, or `--generate-notes` when GitHub writes it. */
 function releaseBodies(): Record<string, string | undefined> {
   const bodies: Record<string, string | undefined> = {};
@@ -361,5 +372,64 @@ describe('GitHub release bodies in the publish pipeline', () => {
     await runPipeline(input, getDefaultConfig(), options);
 
     expect(releaseTitles()).toEqual({ [tag]: tag });
+  });
+
+  describe('with each changelog recording its tag', () => {
+    function sharedTagInput(): VersionOutput {
+      return recordChangelogTags({
+        dryRun: false,
+        strategy: 'async',
+        updates: [update('pkg-a', 'release-1.2.3'), update('pkg-b', 'release-1.2.3'), update('pkg-c', 'pkg-c-v1.2.3')],
+        changelogs: ['pkg-a', 'pkg-b', 'pkg-c'].map((name) => changelog(name, `Fix ${name}`)),
+        tags: ['release-1.2.3', 'pkg-c-v1.2.3'],
+      });
+    }
+
+    it.each(['release-1.2.3', 'v1.2.3'])(
+      "should give a sync release tagged %s its changelog's notes over a stale key",
+      async (tag) => {
+        await runPipeline(recordChangelogTags(syncInput(tag)), getDefaultConfig(), {
+          ...options,
+          releaseNotes: { monorepo: 'X', 'pkg-a': 'stale' },
+        });
+
+        expect(releaseBodies()).toEqual({ [tag]: 'X' });
+      },
+    );
+
+    it.each([
+      ['auto', { 'pkg-a/1.2.3': 'A', 'pkg-b/1.2.3': 'B' }],
+      ['changelog', { 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': '- Fix pkg-b' }],
+    ] as const)(
+      "should give each per-package tag from a custom template its own package's body when body is %s",
+      async (body, expected) => {
+        const config = getDefaultConfig();
+        config.githubRelease.body = body;
+        const input = recordChangelogTags(perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' }));
+
+        await runPipeline(input, config, { ...options, releaseNotes: { 'pkg-a': 'A', 'pkg-b': 'B' } });
+
+        expect(releaseBodies()).toEqual(expected);
+        expect(warnMock).not.toHaveBeenCalled();
+      },
+    );
+
+    it('should use the notes of the only package that has any when several share a tag', async () => {
+      await runPipeline(sharedTagInput(), getDefaultConfig(), {
+        ...options,
+        releaseNotes: { 'pkg-a': 'A', 'pkg-c': 'C' },
+      });
+
+      expect(releaseBodies()).toEqual({ 'release-1.2.3': 'A', 'pkg-c-v1.2.3': 'C' });
+    });
+
+    it('should use generated notes when more than one package sharing a tag has notes', async () => {
+      await runPipeline(sharedTagInput(), getDefaultConfig(), {
+        ...options,
+        releaseNotes: { 'pkg-a': 'A', 'pkg-b': 'B', 'pkg-c': 'C' },
+      });
+
+      expect(releaseBodies()).toEqual({ 'release-1.2.3': GENERATED, 'pkg-c-v1.2.3': 'C' });
+    });
   });
 });

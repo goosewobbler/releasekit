@@ -392,6 +392,21 @@ describe('publishFromDraft', () => {
     expect(mockRunRelease).toHaveBeenCalledTimes(2);
   });
 
+  it('should accept a draft written before changelogs recorded their tag', async () => {
+    mockRunRelease.mockReset();
+    mockRunRelease
+      .mockResolvedValueOnce({
+        versionOutput: { ...versionOutput, changelogs: versionOutput.changelogs.map((c) => ({ ...c, tag: 'v1.2.0' })) },
+      })
+      .mockResolvedValue({ versionOutput, notesGenerated: true });
+    const forge = forgeWithDraft('## Release Notes');
+    mockForgeFor.mockReturnValue(forge);
+
+    await publishFromDraft(9, baseOptions);
+
+    expect(mockRunRelease).toHaveBeenCalledTimes(2);
+  });
+
   it('should refuse when only tags/commit-message drift even though name@version matches', async () => {
     // Same name@version as the manifest, but different tags & commit message - only the full-plan fingerprint
     // catches it.

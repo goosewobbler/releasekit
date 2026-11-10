@@ -280,10 +280,14 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       }
 
       const displayPrevious = previousVersion;
+      const nextTags =
+        config.packageSpecificTags && workspaceNames.length > 0
+          ? workspaceNames.map((pkgName) => formatTag(nextVersion, formattedPrefix, pkgName, tagTemplate, true))
+          : [formatTag(nextVersion, formattedPrefix, null, undefined, false)];
       // One entry per workspace package in per-package tag mode, so notes can write each package's
       // CHANGELOG.md and publish can match tags to the right release notes.
       if (config.packageSpecificTags && workspaceNames.length > 0) {
-        for (const pkgName of workspaceNames) {
+        for (const [i, pkgName] of workspaceNames.entries()) {
           addChangelogData({
             packageName: pkgName,
             version: nextVersion,
@@ -291,6 +295,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
             revisionRange,
             repoUrl,
             entries: changelogEntries,
+            tag: nextTags[i],
           });
         }
       } else {
@@ -301,14 +306,10 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           revisionRange,
           repoUrl,
           entries: changelogEntries,
+          tag: nextTags[0],
         });
       }
       const commitPackageName = workspaceNames.length > 0 ? workspaceNames.join(', ') : undefined;
-
-      const nextTags =
-        config.packageSpecificTags && workspaceNames.length > 0
-          ? workspaceNames.map((pkgName) => formatTag(nextVersion, formattedPrefix, pkgName, tagTemplate, true))
-          : [formatTag(nextVersion, formattedPrefix, null, undefined, false)];
 
       let formattedCommitMessage: string;
 
@@ -528,6 +529,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       updateNativeManifests(pkgPath, nextVersion, config, { dryRun, repoRoot, recordAs: packageName });
 
+      const tagName = formatTag(nextVersion, formattedPrefix, packageName, tagTemplate, config.packageSpecificTags);
       addChangelogData({
         packageName,
         version: nextVersion,
@@ -535,11 +537,11 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         revisionRange,
         repoUrl: repoUrl || null,
         entries: changelogEntries,
+        tag: tagName,
       });
 
       log(`Updated package ${packageName} to version ${nextVersion}`, 'success');
 
-      const tagName = formatTag(nextVersion, formattedPrefix, packageName, tagTemplate, config.packageSpecificTags);
       const commitMsg = formatCommitMessage(commitMessage, nextVersion, packageName);
 
       addTag(tagName);
