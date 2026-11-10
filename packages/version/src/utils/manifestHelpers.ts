@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { parsePubspec } from '@releasekit/config';
+import { isCargoToml, isPubspecYaml, parsePubspec } from '@releasekit/config';
 import { getCargoInfo } from '../cargo/cargoHandler.js';
+import { getPubInfo } from '../pub/pubHandler.js';
 import { log } from './logging.js';
 
 export interface ManifestVersionResult {
@@ -80,6 +81,19 @@ export function getVersionFromManifests(packageDir: string): ManifestVersionResu
     manifestPath: '',
     manifestType: null,
   };
+}
+
+export function readManifestVersion(manifestPath: string): string | undefined {
+  if (isCargoToml(manifestPath)) {
+    return getCargoInfo(manifestPath).version;
+  }
+  if (isPubspecYaml(manifestPath)) {
+    return getPubInfo(manifestPath).version;
+  }
+  if (path.basename(manifestPath) === 'package.json') {
+    return JSON.parse(fs.readFileSync(manifestPath, 'utf-8')).version;
+  }
+  throw new Error(`${manifestPath} is not a package.json, Cargo.toml or pubspec.yaml`);
 }
 
 export function throwIfNoManifestsFound(packageDir: string): never {

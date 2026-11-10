@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { VersionPackageUpdate } from '@releasekit/core';
 import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
 import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
@@ -92,13 +93,14 @@ vi.mock('@releasekit/config', () => ({
 
 // Resolves declared primaries against the workspace; empty (no primaries → flat render) unless a test opts in.
 const mockGetWorkspacePackageNames = vi.fn<(...args: unknown[]) => Promise<string[]>>().mockResolvedValue([]);
-// The publish path reads the merged tree's actual package versions to validate the manifest.
-const mockGetWorkspacePackageVersions = vi
-  .fn<(...args: unknown[]) => Promise<Record<string, string>>>()
-  .mockResolvedValue({});
+// The publish path validates the manifest against the merged tree, where each package sits in
+// `/test/packages/<name>` and its manifests carry the version set here.
+let mergedVersions: Record<string, string> = {};
 vi.mock('@releasekit/version', () => ({
   getWorkspacePackageNames: (...args: unknown[]) => mockGetWorkspacePackageNames(...args),
-  getWorkspacePackageVersions: (...args: unknown[]) => mockGetWorkspacePackageVersions(...args),
+  getWorkspacePackageDirs: async () =>
+    Object.fromEntries(Object.keys(mergedVersions).map((name) => [name, `/test/packages/${name}`])),
+  readManifestVersion: (file: string) => mergedVersions[path.relative('/test/packages', path.dirname(file))],
 }));
 
 vi.mock('../../src/steps.js', () => ({
@@ -2675,7 +2677,7 @@ describe('runStandingPRPublish', () => {
 
     // The merged tree's on-disk version matches the manifest fixture (@scope/core@1.2.3) so the
     // recompute-and-compare guard passes on the happy paths.
-    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    mergedVersions = { '@scope/core': '1.2.3' };
 
     setupGit();
   });
@@ -3333,7 +3335,7 @@ describe('publishFromManifest', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    mergedVersions = { '@scope/core': '1.2.3' };
 
     setupGit();
   });
@@ -3503,7 +3505,7 @@ describe('publishFromManifest', () => {
       githubReleases: [],
       git: { committed: true, tags: [], pushed: true },
     } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
-    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/a': '1.0.0', '@scope/b': '2.0.0' });
+    mergedVersions = { '@scope/a': '1.0.0', '@scope/b': '2.0.0' };
 
     await mockForge({
       comments: [{ id: 77, body: serializeManifest({ ...baseManifest, versionOutput: twoPackageOutput() }) }],
@@ -3537,7 +3539,7 @@ describe('publishFromManifest', () => {
 
   it('should refuse to publish when a forged manifest bumps a version beyond the merged source', async () => {
     const { runPublishStep } = await import('../../src/steps.js');
-    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    mergedVersions = { '@scope/core': '1.2.3' };
     const forged = {
       ...baseManifest,
       versionOutput: createMockVersionOutput([{ packageName: '@scope/core', newVersion: '9.9.9' }]),
@@ -3552,7 +3554,7 @@ describe('publishFromManifest', () => {
 
   it('should refuse to publish when a forged manifest adds a package absent from the merged source', async () => {
     const { runPublishStep } = await import('../../src/steps.js');
-    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    mergedVersions = { '@scope/core': '1.2.3' };
     const forged = {
       ...baseManifest,
       versionOutput: createMockVersionOutput([
@@ -3570,7 +3572,7 @@ describe('publishFromManifest', () => {
 
   it('should refuse to publish a manifest carrying a rogue tag that encodes no published version', async () => {
     const { runPublishStep } = await import('../../src/steps.js');
-    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    mergedVersions = { '@scope/core': '1.2.3' };
     const forged = {
       ...baseManifest,
       versionOutput: {
@@ -3588,7 +3590,7 @@ describe('publishFromManifest', () => {
 
   it('should refuse a rogue tag that embeds a validated version (digit or prerelease suffix)', async () => {
     const { runPublishStep } = await import('../../src/steps.js');
-    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    mergedVersions = { '@scope/core': '1.2.3' };
     const forged = {
       ...baseManifest,
       versionOutput: {
@@ -3608,7 +3610,7 @@ describe('publishFromManifest', () => {
 
   it('should refuse a tag whose scoped package is not among those being published', async () => {
     const { runPublishStep } = await import('../../src/steps.js');
-    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    mergedVersions = { '@scope/core': '1.2.3' };
     const forged = {
       ...baseManifest,
       versionOutput: {
@@ -3626,7 +3628,7 @@ describe('publishFromManifest', () => {
 
   it('should refuse a manifest that clears updates but still injects rogue tags', async () => {
     const { runPublishStep } = await import('../../src/steps.js');
-    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    mergedVersions = { '@scope/core': '1.2.3' };
     const forged = {
       ...baseManifest,
       versionOutput: {
@@ -3645,7 +3647,7 @@ describe('publishFromManifest', () => {
 
   it('should refuse a manifest carrying a rogue baseline tag', async () => {
     const { runPublishStep } = await import('../../src/steps.js');
-    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    mergedVersions = { '@scope/core': '1.2.3' };
     const forged = {
       ...baseManifest,
       versionOutput: {
@@ -3741,7 +3743,7 @@ describe('runStandingPRMerge', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    mergedVersions = { '@scope/core': '1.2.3' };
 
     setupGit();
   });

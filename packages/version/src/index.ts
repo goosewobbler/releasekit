@@ -12,10 +12,11 @@ export { PackageProcessor } from './package/packageProcessor.js';
 export type { Config, VersionConfigBase, VersionRunOptions } from './types.js';
 export type { JsonOutputData } from './utils/jsonOutput.js';
 export { enableJsonOutput, flushPendingWrites, getJsonData } from './utils/jsonOutput.js';
+export { readManifestVersion } from './utils/manifestHelpers.js';
 export {
   resolveVersionAction,
   type VersionAction,
   type VersionActionInput,
   type VersionActionResult,
 } from './utils/versionAction.js';
-export { getWorkspacePackageNames, getWorkspacePackageVersions } from './workspace.js';
+export { getWorkspacePackageDirs, getWorkspacePackageNames } from './workspace.js';
