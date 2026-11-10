@@ -38,6 +38,8 @@ export interface FakeGitSeed {
   isRepo?: boolean;
   /** Returned by `listTags` in seeded order. */
   tags?: string[];
+  /** `listTags({ merged })` responses keyed by ref; an unseeded ref sees every tag. */
+  mergedTags?: Record<string, string[]>;
   nearestTag?: string | null;
   headSha?: string;
   currentBranch?: string;
@@ -72,6 +74,7 @@ function ancestryHas(ancestors: FakeGitSeed['ancestors'], ancestor: string, ref:
 export class FakeGit implements Git {
   private readonly isRepo: boolean;
   private tagsList: string[];
+  private readonly mergedTags: Record<string, string[]>;
   private readonly nearestTag: string | null;
   private readonly head: string;
   private readonly branch: string;
@@ -100,6 +103,7 @@ export class FakeGit implements Git {
   constructor(seed: FakeGitSeed = {}) {
     this.isRepo = seed.isRepo ?? true;
     this.tagsList = [...(seed.tags ?? [])];
+    this.mergedTags = seed.mergedTags ?? {};
     this.nearestTag = seed.nearestTag ?? null;
     this.head = seed.headSha ?? '0000000000000000000000000000000000000000';
     this.branch = seed.currentBranch ?? 'main';
@@ -132,8 +136,9 @@ export class FakeGit implements Git {
     return this.remoteUrls[remote] ?? null;
   }
 
-  async listTags(_opts: GitListTagsOptions = {}): Promise<string[]> {
-    return [...this.tagsList];
+  async listTags(opts: GitListTagsOptions = {}): Promise<string[]> {
+    const merged = opts.merged ? this.mergedTags[opts.merged] : undefined;
+    return [...(merged ?? this.tagsList)];
   }
 
   /**

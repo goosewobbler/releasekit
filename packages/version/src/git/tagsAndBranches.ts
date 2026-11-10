@@ -1,4 +1,3 @@
-import { ConventionalGitClient } from '@conventional-changelog/git-client';
 import { createGitCli, type Git } from '@releasekit/git';
 import semver from 'semver';
 import { escapeRegExp } from '../utils/formatting.js';
@@ -49,19 +48,21 @@ export async function getNearestReachableTag(cwd?: string, git: Git = createGitC
   }
 }
 
-async function getSemverTags(versionPrefix?: string): Promise<string[]> {
-  const client = new ConventionalGitClient(process.cwd());
-  const tags: string[] = [];
-  for await (const tag of client.getSemverTags({ prefix: versionPrefix })) {
-    tags.push(tag);
-  }
-  return tags;
+/** Semver tags reachable from HEAD, most-recently-created first; with a prefix, only tags that carry it. */
+async function listReachableSemverTags(versionPrefix: string | undefined, git: Git): Promise<string[]> {
+  const tags = await git.listTags({ sort: '-creatordate', merged: 'HEAD', cwd: process.cwd() });
+  return tags.filter((tag) => {
+    if (!versionPrefix) {
+      return semver.valid(tag) !== null;
+    }
+    return tag.startsWith(versionPrefix) && semver.valid(tag.slice(versionPrefix.length)) !== null;
+  });
 }
 
 /** Sorted semantically, not chronologically, so a tag created out of order (e.g. v0.7.1 after v0.8.0) can't win. */
-export async function getLatestTag(versionPrefix?: string): Promise<string> {
+export async function getLatestTag(versionPrefix?: string, git: Git = createGitCli()): Promise<string> {
   try {
-    const tags = await getSemverTags(versionPrefix);
+    const tags = await listReachableSemverTags(versionPrefix, git);
 
     if (tags.length === 0) {
       return '';
@@ -92,21 +93,12 @@ export async function getLatestTag(versionPrefix?: string): Promise<string> {
 
     return semanticLatest;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log(`Failed to get latest tag: ${errorMessage}`, 'error');
-
-    if (error instanceof Error && error.message.includes('No names found')) {
-      log('No tags found in the repository.', 'info');
-    }
-
+    log(`Failed to get latest tag: ${error instanceof Error ? error.message : String(error)}`, 'error');
     return '';
   }
 }
 
-/**
- * Global tags (e.g. `v1.2.0`), most-recently-created first. Lists `git tag` directly because
- * the conventional git client only sees tags reachable from HEAD.
- */
+/** Global tags (e.g. `v1.2.0`), most-recently-created first, whether or not they're reachable from HEAD. */
 export async function listGlobalTags(versionPrefix?: string, git: Git = createGitCli()): Promise<string[]> {
   let allTags: string[] = [];
   try {
@@ -199,13 +191,10 @@ export async function getLatestTagForPackage(
     log('No matching tags found for configured tag pattern', 'debug');
     return '';
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log(`Failed to get latest tag for package ${packageName}: ${errorMessage}`, 'error');
-
-    if (error instanceof Error && error.message.includes('No names found')) {
-      log(`No tags found for package ${packageName}.`, 'info');
-    }
-
+    log(
+      `Failed to get latest tag for package ${packageName}: ${error instanceof Error ? error.message : String(error)}`,
+      'error',
+    );
     return '';
   }
 }
@@ -233,9 +222,9 @@ export async function getLatestStableTagForPackage(
   }
 }
 
-export async function getLatestStableTag(versionPrefix?: string): Promise<string> {
+export async function getLatestStableTag(versionPrefix?: string, git: Git = createGitCli()): Promise<string> {
   try {
-    const tags = await getSemverTags(versionPrefix);
+    const tags = await listReachableSemverTags(versionPrefix, git);
     const stripPrefix = (tag: string) =>
       versionPrefix && tag.startsWith(versionPrefix) ? tag.slice(versionPrefix.length) : tag;
 

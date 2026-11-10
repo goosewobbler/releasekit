@@ -133,6 +133,10 @@ export class GitCli implements Git {
     if (opts.sort) {
       args.push(`--sort=${opts.sort}`);
     }
+    if (opts.merged) {
+      assertNotOption(opts.merged, 'ref');
+      args.push(`--merged=${opts.merged}`);
+    }
     const { stdout } = await this.exec(args, { cwd: this.cwd(opts.cwd) });
     return splitLines(stdout);
   }

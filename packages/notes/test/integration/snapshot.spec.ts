@@ -126,5 +126,5 @@ describe('Pipeline: render snapshot', () => {
       - Migrate bundler to esbuild 0.20
       "
     `);
-  }, 15_000);
+  });
 });

@@ -155,6 +155,19 @@
           }
         }
       }
+    },
+    {
+      // Runs as the action entrypoint, never as a turbo task, so turbo.json shouldn't declare the env vars it reads.
+      "includes": [
+        "scripts/run-action.mjs"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noUndeclaredEnvVars": "off"
+          }
+        }
+      }
     }
   ],
   "assist": {
