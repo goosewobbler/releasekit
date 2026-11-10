@@ -2,6 +2,10 @@ export function sanitizePackageName(name: string): string {
   return name.startsWith('@') ? name.slice(1).replace(/\//g, '-') : name;
 }
 
+export function matchesPackageName(name: string, packageName: string): boolean {
+  return name === packageName || name === sanitizePackageName(packageName);
+}
+
 /**
  * `execFile` spawns with no shell, but a leading-`-` positional is still argument injection into git/gh. Tag, ref
  * and package names never legitimately start with `-`.

@@ -1,15 +1,23 @@
-import type { VersionPackageChangelog } from '@releasekit/core';
-import { assertNotOption, debug, info, sanitizePackageName, success, warn } from '@releasekit/core';
+import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
+import { assertNotOption, debug, info, matchesPackageName, sanitizePackageName, success, warn } from '@releasekit/core';
 import type { GitHubReleaseResult, PipelineContext } from '../types.js';
 import { execCommand, execCommandSafe } from '../utils/exec.js';
 import { isPrerelease } from '../utils/semver.js';
 
 type BodySource = 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
 
+interface ReleaseTag {
+  tag: string;
+  /** The update that carries the tag, when only one does. */
+  owner?: VersionPackageUpdate;
+  /** A sync release's tag, or one several updates carry. */
+  shared: boolean;
+  input: VersionOutput;
+}
+
 function resolveNotes(
   bodySource: BodySource,
-  tag: string,
-  changelogs: VersionPackageChangelog[],
+  release: ReleaseTag,
   releaseNotesEnabled: boolean,
   pipelineNotes?: Record<string, string>,
 ): { body?: string; useGithubNotes: boolean } {
@@ -27,31 +35,33 @@ function resolveNotes(
       return { useGithubNotes: true };
     }
     if (pipelineNotes) {
-      const body = findNotesForTag(tag, pipelineNotes);
+      const body = findNotesForTag(release, pipelineNotes);
       if (body) {
         return { body, useGithubNotes: false };
       }
     }
-    warn('No release notes found in pipeline output, falling back to GitHub auto-notes');
+    warn(`No release notes found for tag ${release.tag}, falling back to GitHub auto-generated notes`);
     return { useGithubNotes: true };
   }
 
   if (bodySource === 'changelog') {
-    const packageBody = formatChangelogForTag(tag, changelogs);
+    const packageBody = formatChangelogForTag(release);
     if (packageBody) {
       return { body: packageBody, useGithubNotes: false };
     }
-    warn('No changelog found for tag, falling back to GitHub auto-notes');
+    warn(`No changelog found for tag ${release.tag}, falling back to GitHub auto-generated notes`);
     return { useGithubNotes: true };
   }
 
   // 'auto'
   if (releaseNotesEnabled && pipelineNotes) {
-    const body = findNotesForTag(tag, pipelineNotes);
+    const body = findNotesForTag(release, pipelineNotes);
     if (body) {
       return { body, useGithubNotes: false };
     }
-    warn(`Release notes configured but no content found for tag ${tag}, falling back to GitHub auto-generated notes`);
+    warn(
+      `Release notes configured but no content found for tag ${release.tag}, falling back to GitHub auto-generated notes`,
+    );
   }
 
   return { useGithubNotes: true };
@@ -81,7 +91,7 @@ function resolveTagPackage(tag: string, packageNames: string[]): TagResolution |
     const sanitizedAtPrefix = `${sanitized}@`;
     if (sanitizedAtPrefix !== atPrefix && tag.startsWith(sanitizedAtPrefix)) {
       const versionPart = tag.slice(sanitizedAtPrefix.length);
-      if (/^v?\d/.test(versionPart)) {
+      if (isVersionOnlyTag(versionPart)) {
         return { packageName, version: versionPart };
       }
     }
@@ -89,7 +99,7 @@ function resolveTagPackage(tag: string, packageNames: string[]): TagResolution |
     const dashPrefix = `${sanitized}-`;
     if (tag.startsWith(dashPrefix)) {
       const versionPart = tag.slice(dashPrefix.length);
-      if (/^v?\d/.test(versionPart)) {
+      if (isVersionOnlyTag(versionPart)) {
         return { packageName, version: versionPart };
       }
     }
@@ -97,11 +107,28 @@ function resolveTagPackage(tag: string, packageNames: string[]): TagResolution |
   return null;
 }
 
+function startsWithPackageName(tag: string, packageName: string): boolean {
+  return [packageName, sanitizePackageName(packageName)].some(
+    (name) => tag.startsWith(name) && /^[^a-z0-9]/i.test(tag.slice(name.length)),
+  );
+}
+
 /** Titles use the unsanitized package name, e.g. "releasekit-version-v0.4.1" → "@releasekit/version: v0.4.1". */
-function getTitleFromTag(tag: string, packageNames: string[], titleTemplate: string): string {
+function getTitleFromTag(
+  tag: string,
+  owner: VersionPackageUpdate | undefined,
+  packageNames: string[],
+  titleTemplate: string,
+): string {
   const applyTemplate = (packageName: string, version: string): string =>
     titleTemplate.replace(/\$\{packageName\}/g, packageName).replace(/\$\{version\}/g, version);
 
+  if (owner && startsWithPackageName(tag, owner.packageName)) {
+    const withV = `v${owner.newVersion}`;
+    // The v must follow a separator: 'pkg-dev1.2.3' has no v prefix.
+    const tagHasV = tag.endsWith(withV) && !/[a-z0-9]/i.test(tag.charAt(tag.length - withV.length - 1));
+    return applyTemplate(owner.packageName, tagHasV ? withV : owner.newVersion);
+  }
   if (packageNames.length > 0) {
     const resolved = resolveTagPackage(tag, packageNames);
     if (resolved) {
@@ -115,37 +142,47 @@ function getTitleFromTag(tag: string, packageNames: string[], titleTemplate: str
   return applyTemplate(tag.slice(0, atIndex), tag.slice(atIndex + 1));
 }
 
-function findNotesForTag(tag: string, notes: Record<string, string>): string | undefined {
-  const resolved = resolveTagPackage(tag, Object.keys(notes));
-  if (resolved) {
-    const body = notes[resolved.packageName];
-    if (body?.trim()) {
-      return body;
-    }
+/**
+ * Returns the owning update's package, else the package the tag names. A shared or version-only tag falls back to
+ * the only filled key, unless that package has a different tag.
+ */
+function resolveTagKey(
+  { tag, owner, shared, input }: ReleaseTag,
+  keys: string[],
+  filled: string[],
+): string | undefined {
+  if (owner) {
+    return keys.includes(owner.packageName) ? owner.packageName : undefined;
   }
-  const entries = Object.values(notes).filter((b) => b.trim());
-  if (entries.length === 1 && isVersionOnlyTag(tag)) {
-    return entries[0];
+  const parsed = resolveTagPackage(tag, keys)?.packageName;
+  if (parsed !== undefined) {
+    return parsed;
   }
-  return undefined;
-}
-
-function formatChangelogForTag(tag: string, changelogs: VersionPackageChangelog[]): string | undefined {
-  if (changelogs.length === 0) {
+  const sole = filled.length === 1 ? filled[0] : undefined;
+  if (sole === undefined || input.updates.some((u) => u.packageName === sole && u.tag && u.tag !== tag)) {
     return undefined;
   }
+  return shared || isVersionOnlyTag(tag) ? sole : undefined;
+}
 
-  const resolved = resolveTagPackage(
-    tag,
-    changelogs.map((c) => c.packageName),
+function findNotesForTag(release: ReleaseTag, notes: Record<string, string>): string | undefined {
+  const keys = Object.keys(notes);
+  const key = resolveTagKey(
+    release,
+    keys,
+    keys.filter((name) => notes[name]?.trim()),
   );
+  return key === undefined || !notes[key]?.trim() ? undefined : notes[key];
+}
 
-  let target: VersionPackageChangelog | undefined;
-  if (resolved) {
-    target = changelogs.find((c) => c.packageName === resolved.packageName);
-  } else if (changelogs.length === 1 && isVersionOnlyTag(tag)) {
-    target = changelogs[0];
-  }
+function formatChangelogForTag(release: ReleaseTag): string | undefined {
+  const { changelogs } = release.input;
+  const key = resolveTagKey(
+    release,
+    changelogs.map((c) => c.packageName),
+    changelogs.filter((c) => c.entries.length > 0).map((c) => c.packageName),
+  );
+  const target = changelogs.find((c) => c.packageName === key);
 
   if (!target || target.entries.length === 0) {
     return undefined;
@@ -187,6 +224,10 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
   const tagsToRelease = config.githubRelease.perPackage ? tags : [firstTag];
 
   const skipPackages = config.githubRelease.skipPackages ?? [];
+  const syncTag = ctx.input.updates.length > 0 && ctx.input.updates.every((u) => !u.tag);
+  const titlePackageNames = [
+    ...new Set([...ctx.input.changelogs.map((c) => c.packageName), ...Object.keys(ctx.releaseNotes ?? {})]),
+  ];
 
   for (const tag of tagsToRelease) {
     // Defense-in-depth against argument injection: the git stage already rejects a leading `-`, but a
@@ -206,11 +247,16 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       continue;
     }
 
+    const owners = ctx.input.updates.filter((u) => u.tag === tag);
+    const owner = owners.length === 1 ? owners[0] : undefined;
+
     // Tags are still created (the next release's changelog range needs them) and npm publish still runs.
     if (skipPackages.length > 0) {
-      const resolved = resolveTagPackage(tag, skipPackages);
-      if (resolved) {
-        debug(`Skipping GitHub release for ${resolved.packageName} (listed in githubRelease.skipPackages)`);
+      const skipped = owner
+        ? skipPackages.find((name) => matchesPackageName(name, owner.packageName))
+        : resolveTagPackage(tag, skipPackages)?.packageName;
+      if (skipped) {
+        debug(`Skipping GitHub release for ${skipped} (listed in githubRelease.skipPackages)`);
         continue;
       }
     }
@@ -235,11 +281,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     };
 
     const ghArgs = ['release', 'create', tag];
-    const titlePackageNames = [
-      ...ctx.input.changelogs.map((c) => c.packageName),
-      ...(ctx.releaseNotes ? Object.keys(ctx.releaseNotes) : []),
-    ];
-    ghArgs.push('--title', getTitleFromTag(tag, [...new Set(titlePackageNames)], config.githubRelease.titleTemplate));
+    ghArgs.push('--title', getTitleFromTag(tag, owner, titlePackageNames, config.githubRelease.titleTemplate));
 
     if (config.githubRelease.draft) {
       ghArgs.push('--draft');
@@ -252,8 +294,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     const releaseNotesEnabled = !!(ctx.releaseNotes && Object.keys(ctx.releaseNotes).length > 0);
     const { body, useGithubNotes } = resolveNotes(
       config.githubRelease.body,
-      tag,
-      ctx.input.changelogs,
+      { tag, owner, shared: owners.length > 1 || (owners.length === 0 && syncTag), input: ctx.input },
       releaseNotesEnabled,
       ctx.releaseNotes,
     );
