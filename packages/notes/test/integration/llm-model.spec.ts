@@ -34,6 +34,7 @@ describe('Pipeline: llm.model is checked only when LLM tasks run', () => {
   afterEach(() => {
     fs.rmSync(dir, { recursive: true, force: true });
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
   function loadWithLlm(llm: Record<string, unknown>): Config {
@@ -90,7 +91,6 @@ describe('Pipeline: llm.model is checked only when LLM tasks run', () => {
     expect(errors.mock.calls.flat().join('\n')).toContain(
       'notes.releaseNotes.llm.model: {env:OLLAMA_MODEL} is not set',
     );
-    vi.restoreAllMocks();
   });
 
   it('should run without a model when release notes are skipped', async () => {
