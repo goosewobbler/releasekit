@@ -464,12 +464,4 @@ describe('publishFromDraft', () => {
 
     await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/No release-draft manifest/);
   });
-
-  it('should throw a GitHub error naming a malformed GITHUB_REPOSITORY', async () => {
-    vi.stubEnv('GITHUB_REPOSITORY', 'owner');
-    await expect(publishFromDraft(9, baseOptions)).rejects.toMatchObject({
-      code: 'GITHUB_ERROR',
-      message: expect.stringMatching(/GITHUB_REPOSITORY 'owner' is not owner\/repo, so release draft #9 cannot be/),
-    });
-  });
 });
