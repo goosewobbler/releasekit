@@ -40,21 +40,15 @@ describe('groupChangelogSections', () => {
     ).toEqual([['Added', ['A', 'B']]]);
   });
 
-  it('should follow labelOrder, then any other label in first-seen order', () => {
+  it('should order Keep a Changelog sections first, then other known labels, then unknown ones as first seen', () => {
     expect(
       labelsAndDescriptions(
-        [
-          { type: 'wip', description: 'Unknown' },
-          { type: 'fixed', description: 'Fix' },
-          { type: 'changed', description: 'Change' },
-        ],
-        { labelOrder: ['Changed', 'Fixed'] },
-      ),
-    ).toEqual([
-      ['Changed', ['Change']],
-      ['Fixed', ['Fix']],
-      ['Wip', ['Unknown']],
-    ]);
+        ['wip', 'perf', 'security', 'fix', 'removed', 'deprecated', 'changed', 'feat'].map((type) => ({
+          type,
+          description: type,
+        })),
+      ).map(([label]) => label),
+    ).toEqual(['Added', 'Changed', 'Deprecated', 'Removed', 'Fixed', 'Security', 'Performance', 'Wip']);
   });
 
   it('should omit the Breaking section when nothing is breaking', () => {

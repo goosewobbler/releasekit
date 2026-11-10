@@ -262,6 +262,23 @@ describe('formatPreviewComment', () => {
     expect(formatPreviewComment(output, { demoteScopes: [] })).toContain('> #### Changed\n>\n> - Bump lodash (`deps`)');
   });
 
+  it('should order sections as the published changelog does', () => {
+    const output = structuredClone(releaseOutput);
+    const changelog = output.versionOutput.changelogs[0];
+    if (changelog) {
+      changelog.entries = [
+        { type: 'fix', description: 'A fix' },
+        { type: 'deprecated', description: 'A deprecation' },
+        { type: 'changed', description: 'A change' },
+        { type: 'feat', description: 'A feature' },
+      ];
+    }
+
+    const comment = formatPreviewComment(output);
+    const headings = comment.split('\n').filter((l) => l.startsWith('> #### '));
+    expect(headings.slice(0, 4)).toEqual(['> #### Added', '> #### Changed', '> #### Deprecated', '> #### Fixed']);
+  });
+
   it('should render bare #NNN refs per the refs mode', () => {
     expect(formatPreviewComment(releaseOutput, { refs: 'escape' })).toContain(
       '- Fix prerelease sorting (`semver`) (\\#42)',

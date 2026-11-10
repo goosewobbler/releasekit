@@ -3,18 +3,21 @@ export const BREAKING_SECTION = 'Breaking';
 /** No "shared across packages" descriptor: it isn't reliably true (`Update version to X` is package-specific). */
 const DEMOTED_SECTION = 'Dependencies & version bumps';
 
-/** Several types fold onto one label (feat/added → Added), so entries group by label, not raw type. */
+/**
+ * Several types fold onto one label (feat/added → Added), so entries group by label, not raw type. Key order is section
+ * order: Keep a Changelog's sections first, as the published changelog lists them.
+ */
 const CHANGELOG_TYPE_LABELS: Record<string, string> = {
-  feat: 'Added',
-  fix: 'Fixed',
   added: 'Added',
+  feat: 'Added',
   changed: 'Changed',
   deprecated: 'Deprecated',
   removed: 'Removed',
   fixed: 'Fixed',
+  fix: 'Fixed',
+  security: 'Security',
   perf: 'Performance',
   refactor: 'Refactored',
-  security: 'Security',
   docs: 'Documentation',
   chore: 'Chores',
   test: 'Tests',
@@ -40,19 +43,18 @@ interface SectionEntry {
 }
 
 interface GroupChangelogOptions {
-  labelOrder?: readonly string[];
-  /** Non-breaking entries in these scopes go last, in their own section. */
+  /** Non-breaking entries in these scopes move to a trailing section; a breaking one still leads. */
   demoteScopes?: readonly string[];
 }
 
 /**
  * Breaking entries lead under {@link BREAKING_SECTION}, out of their type group; the rest group by type label in
- * `labelOrder`, then any other label in first-seen order. Empty sections are omitted.
+ * section order, then any other label in first-seen order. Empty sections are omitted.
  */
 export function groupChangelogSections<T>(
   items: readonly T[],
   entryOf: (item: T) => SectionEntry,
-  { labelOrder = CHANGELOG_LABEL_ORDER, demoteScopes = [] }: GroupChangelogOptions = {},
+  { demoteScopes = [] }: GroupChangelogOptions = {},
 ): { label: string; items: T[] }[] {
   const demote = new Set(demoteScopes);
   const breaking: T[] = [];
@@ -79,7 +81,7 @@ export function groupChangelogSections<T>(
   if (breaking.length > 0) {
     sections.push({ label: BREAKING_SECTION, items: breaking });
   }
-  for (const label of labelOrder) {
+  for (const label of CHANGELOG_LABEL_ORDER) {
     const list = byLabel.get(label);
     if (list) {
       sections.push({ label, items: list });

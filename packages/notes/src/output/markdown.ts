@@ -33,8 +33,6 @@ export function firstReleaseLine(context: TemplateContext, config?: FirstRelease
   return template.replaceAll('${packageName}', context.packageName).replaceAll('${version}', context.version);
 }
 
-const SECTION_ORDER = ['Added', 'Changed', 'Deprecated', 'Removed', 'Fixed', 'Security'];
-
 interface EntryRefOptions {
   hideScope?: boolean;
   refs?: ChangelogRefsMode;
@@ -291,7 +289,7 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
       );
     }
   } else {
-    for (const section of groupChangelogSections(context.entries, (e) => e, { labelOrder: SECTION_ORDER })) {
+    for (const section of groupChangelogSections(context.entries, (e) => e)) {
       blocks.push(`### ${section.label}`, section.items.map((entry) => formatEntry(entry, refOpts)).join('\n'));
     }
   }
