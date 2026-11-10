@@ -5,6 +5,7 @@ import {
   graduatedPackageFromLabel,
   graduatePackageLabel,
   isGraduatePackageLabel,
+  resolveScopeToTarget,
 } from '../../src/label-utils.js';
 
 describe('composeBumpFromLabels', () => {
@@ -82,5 +83,39 @@ describe('per-package graduate labels', () => {
     const partial = { graduate: 'release:graduate' };
     expect(graduatePackageLabel('core', partial)).toBe('graduate:core');
     expect(isGraduatePackageLabel('graduate:core', partial)).toBe(true);
+  });
+});
+
+describe('resolveScopeToTarget', () => {
+  it('should resolve prefixed scope name (scope:electron)', () => {
+    const result = resolveScopeToTarget('electron', {
+      'scope:electron': '@wdio/electron-*',
+      'scope:tauri': '@wdio/tauri-*',
+    });
+    expect(result).toBe('@wdio/electron-*');
+  });
+
+  it('should resolve bare scope name when prefixed not found', () => {
+    const result = resolveScopeToTarget('electron', {
+      electron: '@wdio/electron-*',
+      tauri: '@wdio/tauri-*',
+    });
+    expect(result).toBe('@wdio/electron-*');
+  });
+
+  it('should prefer prefixed over bare when both exist', () => {
+    const result = resolveScopeToTarget('electron', {
+      'scope:electron': '@wdio/electron-scope-*',
+      electron: '@wdio/electron-bare-*',
+    });
+    expect(result).toBe('@wdio/electron-scope-*');
+  });
+
+  it('should throw when scope not found', () => {
+    expect(() =>
+      resolveScopeToTarget('unknown', {
+        'scope:electron': '@wdio/electron-*',
+      }),
+    ).toThrow('Scope "unknown" not found in ci.scopeLabels. Available: scope:electron');
   });
 });

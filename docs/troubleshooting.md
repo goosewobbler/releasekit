@@ -339,10 +339,20 @@ See [ci-setup.md — CI concurrency caveat](../packages/release/docs/ci-setup.md
 
 **Cause:** Two common cases:
 
-- **Label trigger mode:** the merged PR has no `bump:*` label. Without a bump label, the label trigger exits cleanly.
+- **Label trigger mode:** the merged PR has no `bump:*` or `release:graduate` label. The log says `Not releasing: No release labels found`.
 - **Commit mode:** all commits since the last tag match `release.ci.skipPatterns` (configure this explicitly, e.g. `["chore: release "]`, to suppress release commits) or are non-releasable types under the preset.
 
 **Fix:** In label mode, ensure the merged PR carries a `bump:patch`, `bump:minor`, or `bump:major` label. In commit mode, confirm releasable commits (`feat:`, `fix:`) exist since the last tag with `git log <last-tag>..HEAD --oneline`. Run with `--dry-run --verbose` to see the commit analysis without making changes.
+
+---
+
+### Release ignores PR labels: `Could not look up the PRs merged since the last release`
+
+**Symptom:** `releasekit release` warns that it couldn't look up the merged PRs, then releases from commits: an unlabelled PR releases in label mode, or `release:skip` has no effect.
+
+**Cause:** The workflow token can't list the PRs for a commit. An explicit `permissions:` block without `pull-requests` denies it.
+
+**Fix:** Add `pull-requests: read` to the release job's permissions. `releasekit gate` reports the same failure as `shouldRelease: false`.
 
 ---
 

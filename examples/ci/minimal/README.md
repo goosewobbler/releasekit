@@ -16,7 +16,8 @@ the command exits 0 and the workflow is a no-op.
 - The default branch is `main`.
 - Releases are driven by commits (`ci.releaseTrigger: "commit"`), not labels —
   every push that contains a `feat:`/`fix:`/etc. commit since the last tag
-  releases. To require a `bump:*` label instead, see [`label-driven`](../label-driven).
+  releases, unless its PR is labelled `release:skip`. To require a `bump:*`
+  label instead, see [`label-driven`](../label-driven).
 - npm publishing via OIDC (no `NPM_TOKEN`); see [`oidc`](../oidc) to switch to token auth.
 
 The workflow follows the [correctness rules](../../README.md#cross-cutting-correctness-rules) every example shares; its inline comments cover the per-step reasoning.

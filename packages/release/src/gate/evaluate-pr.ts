@@ -11,6 +11,8 @@ export interface PREvaluation {
   stable?: boolean;
   blocked?: boolean;
   reason?: string;
+  /** The merged PR is the standing release PR, which publishes from its manifest. The release fails on it. */
+  refusedStandingPr?: boolean;
   /** Decides whether a non-releasing verdict gets a notify comment; not simply "has release labels". */
   hasReleaseIntent: boolean;
 }
@@ -59,8 +61,8 @@ export function evaluatePR(
   }
 
   // Without the immediate label a feeder PR's labels are advisory, so it's neutral: no conflict check, no notify.
-  const releaseStrategy = ciConfig?.releaseStrategy ?? 'direct';
-  if (releaseStrategy === 'standing-pr' && !labels.includes(labelConfig.immediate)) {
+  const inStandingPr = (ciConfig?.releaseStrategy ?? 'direct') === 'standing-pr';
+  if (inStandingPr && !labels.includes(labelConfig.immediate)) {
     return {
       prNumber,
       labels,
@@ -84,6 +86,7 @@ export function evaluatePR(
       target,
       stable: false,
       reason: standingRefusal,
+      refusedStandingPr: true,
       // The notify comment asks for a bump label, which wouldn't help: the standing PR still publishes on its own.
       hasReleaseIntent: false,
     };
@@ -91,8 +94,8 @@ export function evaluatePR(
 
   const conflict = detectLabelConflicts(labels, labelConfig);
 
-  // Bump conflicts only matter in label mode; in commit mode only bump:major is meaningful.
-  if (trigger === 'label' && conflict.bumpConflict) {
+  // Bump labels set the bump in label mode and on the immediate path; elsewhere in commit mode only bump:major counts.
+  if ((trigger === 'label' || inStandingPr) && conflict.bumpConflict) {
     return {
       prNumber,
       labels,
@@ -119,6 +122,21 @@ export function evaluatePR(
   }
 
   const bump = composeBumpFromLabels(labels, labelConfig);
+
+  // Whatever the trigger, commits decide the bump as merging the standing PR would; bump and channel labels override.
+  if (inStandingPr) {
+    return {
+      prNumber,
+      labels,
+      shouldRelease: true,
+      bump,
+      scope,
+      target,
+      stable: labels.includes(labelConfig.graduate),
+      reason: `${labelConfig.immediate} label found`,
+      hasReleaseIntent,
+    };
+  }
 
   if (trigger === 'label') {
     const hasBumpLabel = labels.some(

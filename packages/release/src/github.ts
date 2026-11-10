@@ -12,13 +12,12 @@ export function forgeFor(context: { token: string | null | undefined; owner: str
 }
 
 export async function findMergedPRsForCommit(forge: Forge, commitSha: string): Promise<number[]> {
-  try {
-    const prs = await forge.listPullRequestsForCommit(commitSha);
-    return prs.filter((pr) => pr.mergedAt !== null).map((pr) => pr.number);
-  } catch {
-    return [];
-  }
+  const prs = await forge.listPullRequestsForCommit(commitSha);
+  return prs.filter((pr) => pr.mergedAt !== null).map((pr) => pr.number);
 }
+
+/** The forge couldn't list the merged PRs, which isn't the same as none having merged. */
+export class PRLookupError extends Error {}
 
 export async function findMergedPRsSinceLastRelease(forge: Forge, projectDir: string): Promise<number[]> {
   const git = createGitCli();
@@ -37,7 +36,15 @@ export async function findMergedPRsSinceLastRelease(forge: Forge, projectDir: st
     return [];
   }
 
-  const prGroups = await Promise.all(mergeShas.map((sha) => findMergedPRsForCommit(forge, sha)));
+  let prGroups: number[][];
+  try {
+    prGroups = await Promise.all(mergeShas.map((sha) => findMergedPRsForCommit(forge, sha)));
+  } catch (err) {
+    throw new PRLookupError(
+      `Could not look up the PRs merged since the last release: ${err instanceof Error ? err.message : String(err)}. ` +
+        'Grant the workflow token `pull-requests: read`.',
+    );
+  }
   const seen = new Set<number>();
   for (const prs of prGroups) {
     for (const n of prs) {

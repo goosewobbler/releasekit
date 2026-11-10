@@ -3,9 +3,14 @@ import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import { info, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
-import { fetchPRLabels, findMergedPRsSinceLastRelease, forgeFor, postOrUpdateComment } from '../github.js';
-import { DEFAULT_LABELS, type LabelConfig } from '../label-utils.js';
-import { resolveScopeToTarget } from '../release.js';
+import {
+  fetchPRLabels,
+  findMergedPRsSinceLastRelease,
+  forgeFor,
+  PRLookupError,
+  postOrUpdateComment,
+} from '../github.js';
+import { DEFAULT_LABELS, type LabelConfig, resolveScopeToTarget } from '../label-utils.js';
 import { evaluatePR, type PREvaluation } from './evaluate-pr.js';
 
 const NOTIFY_MARKER = '<!-- releasekit-gate-notify -->';
@@ -61,10 +66,53 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     };
   }
 
+  const forge = forgeFor({ token, owner: githubContext.owner, repo: githubContext.repo });
+  let result: GateOutput;
+  try {
+    result = await decideFromMergedPRs({
+      forge,
+      releaseKitConfig,
+      projectDir: options.projectDir,
+      scope: options.scope,
+    });
+  } catch (err) {
+    if (!(err instanceof PRLookupError)) {
+      throw err;
+    }
+    warn(err.message);
+    return { shouldRelease: false, labels: [], prNumbers: [], evaluations: [], reason: err.message };
+  }
+
+  if (options.notify !== false) {
+    await notifyInsufficientLabels(
+      forge,
+      result.evaluations,
+      ciConfig?.releaseTrigger ?? 'label',
+      ciConfig?.labels ?? DEFAULT_LABELS,
+    );
+  }
+
+  return result;
+}
+
+export interface MergedPRDecisionInput {
+  forge: Forge;
+  releaseKitConfig: ReleaseKitConfig;
+  projectDir: string;
+  scope?: string;
+}
+
+/**
+ * The gate's verdict on the PRs merged since the last release, shared by `gate` and `release`. `prNumbers` is empty
+ * when none merged; a failed lookup throws a {@link PRLookupError}.
+ */
+export async function decideFromMergedPRs(input: MergedPRDecisionInput): Promise<GateOutput> {
+  const { forge, releaseKitConfig, projectDir, scope } = input;
+  const ciConfig = releaseKitConfig.ci;
+
   // Since the last release tag, not just the triggering SHA: a later push (e.g. dependabot) can cancel the original
   // run and fire the gate with a different head_sha.
-  const forge = forgeFor({ token, owner: githubContext.owner, repo: githubContext.repo });
-  const prNumbers = await findMergedPRsSinceLastRelease(forge, options.projectDir);
+  const prNumbers = await findMergedPRsSinceLastRelease(forge, projectDir);
 
   if (prNumbers.length === 0) {
     info('No merged PRs found since last release');
@@ -92,32 +140,20 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     }),
   );
 
-  const trigger = ciConfig?.releaseTrigger ?? 'label';
-  const result = await computeGateResult({
-    evaluations,
-    prNumbers,
-    options,
-    ciConfig,
-    releaseKitConfig,
-  });
-
-  if (options.notify !== false) {
-    await notifyInsufficientLabels(forge, evaluations, trigger, labelConfig);
-  }
-
-  return result;
+  return computeGateResult({ evaluations, prNumbers, projectDir, scope, ciConfig, releaseKitConfig });
 }
 
 interface ComputeGateInput {
   evaluations: PREvaluation[];
   prNumbers: number[];
-  options: GateOptions;
+  projectDir: string;
+  scope?: string;
   ciConfig: CIConfig | undefined;
   releaseKitConfig: ReleaseKitConfig;
 }
 
 async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
-  const { evaluations, prNumbers, options, ciConfig, releaseKitConfig } = input;
+  const { evaluations, prNumbers, projectDir, scope, ciConfig, releaseKitConfig } = input;
 
   const blocked = evaluations.find((e) => e.blocked);
   if (blocked) {
@@ -138,13 +174,13 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
 
   let resolvedScope = winner?.scope;
   let resolvedTarget = winner?.target;
-  if (options.scope) {
+  if (scope) {
     if (!ciConfig?.scopeLabels || Object.keys(ciConfig.scopeLabels).length === 0) {
-      throw new Error(`--scope "${options.scope}" provided but ci.scopeLabels is not configured`);
+      throw new Error(`--scope "${scope}" provided but ci.scopeLabels is not configured`);
     }
-    resolvedTarget = resolveScopeToTarget(options.scope, ciConfig.scopeLabels);
-    resolvedScope = options.scope;
-    info(`Scope "${options.scope}" resolved to target: ${resolvedTarget}`);
+    resolvedTarget = resolveScopeToTarget(scope, ciConfig.scopeLabels);
+    resolvedScope = scope;
+    info(`Scope "${scope}" resolved to target: ${resolvedTarget}`);
   } else if (winner?.scope) {
     info(`Scope from PR #${winner.prNumber} label "scope:${winner.scope}" resolved to target: ${winner.target}`);
   }
@@ -166,7 +202,7 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
   // Stops the gate firing on its own release commits.
   const releaseConfig = releaseKitConfig.release;
   if (releaseConfig?.ci?.skipPatterns?.length) {
-    const headCommit = await getHeadCommitMessage(options.projectDir);
+    const headCommit = await getHeadCommitMessage(projectDir);
     if (headCommit) {
       const matchedPattern = matchesSkipPattern(headCommit, releaseConfig.ci.skipPatterns);
       if (matchedPattern) {

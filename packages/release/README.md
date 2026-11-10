@@ -61,6 +61,8 @@ The release command runs three steps in order:
 
 If no releasable changes are found after step 1, the command exits with code 0 and skips the remaining steps.
 
+In GitHub Actions it first applies `gate`'s decision to the labels of the PRs merged since the last release, so it also exits 0 when they don't call for a release, and takes the bump, graduation and scope from them otherwise. See [Merged-PR labels](../../docs/cli.md#merged-pr-labels).
+
 ## CLI Reference
 
 Flags for every command are in the [CLI reference](../../docs/cli.md): [`release`](../../docs/cli.md#releasekit-release), [`preview`](../../docs/cli.md#releasekit-preview), [`gate`](../../docs/cli.md#releasekit-release-gate), [`standing-pr`](../../docs/cli.md#releasekit-standing-pr), [`refresh-after-release`](../../docs/cli.md#releasekit-refresh-after-release), [`backfill`](../../docs/cli.md#releasekit-release-backfill), [`init`](../../docs/cli.md#releasekit-init) and [`labels`](../../docs/cli.md#releasekit-labels).
@@ -102,6 +104,8 @@ releasekit release --bump prerelease
 
 ### Gate mode in CI
 
+`release` makes the gate's decision itself, so one release step is enough. Run `gate` as its own job to skip the release job's setup when nothing will release, or to use its outputs:
+
 ```yaml
 jobs:
   gate:
@@ -109,8 +113,8 @@ jobs:
     outputs:
       should-release: ${{ steps.gate.outputs.should-release }}
       bump: ${{ steps.gate.outputs.bump }}
-      gate-scope: ${{ steps.gate.outputs.gate-scope }}
       gate-target: ${{ steps.gate.outputs.gate-target }}
+      gate-stable: ${{ steps.gate.outputs.gate-stable }}
     steps:
       - id: gate
         uses: goosewobbler/releasekit@v0
@@ -122,12 +126,12 @@ jobs:
     if: needs.gate.outputs.should-release == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-
-      - run: releasekit release
+      - uses: goosewobbler/releasekit@v0
         with:
+          mode: release
           bump: ${{ needs.gate.outputs.bump }}
           target: ${{ needs.gate.outputs.gate-target }}
+          stable: ${{ needs.gate.outputs.gate-stable }}
 ```
 
 ## Programmatic API
@@ -239,7 +243,7 @@ Both modes support `release:graduate` and `channel:prerelease`. `release:graduat
 
 Use `scopeLabels` to filter which packages are released based on PR labels. This is useful for monorepos with distinct package groups.
 
-When a PR has a matching scope label, only packages matching the pattern are included in the release:
+When the PR that decides the release has a matching scope label, only packages matching the pattern are included in the release:
 
 ```json
 {
@@ -254,38 +258,21 @@ When a PR has a matching scope label, only packages matching the pattern are inc
 
 **Usage:**
 - `scope:shared` + `bump:minor` → Release only `@myorg/shared-*` packages with minor bump
-- `scope:shared` + `scope:ui` → Release both matching scope groups
-- `scope:shared` (no release label) → Release only shared packages, bump determined by conventional commits
+- `scope:shared` alone → Release only shared packages under the `commit` trigger, bump from conventional commits; no release under the `label` trigger
+- No scope label → Release every package with releasable changes
 
-Multiple scope labels are combined with OR logic. Without a `release:*` label, conventional commits determine the version bump.
+A PR's first matching scope label applies. `--target` or `--scope` replace it.
 
 **Label conflicts:**
 
-In label trigger mode, conflicting labels will block the release and post a comment explaining the issue:
-- Multiple bump labels (`bump:major` + `bump:minor` + `bump:patch`) → blocked
-- Conflicting release type (`release:graduate` + `channel:prerelease`) → blocked (both modes)
+Conflicting labels on a PR block the release, and `gate` comments on the PR to explain:
+- Multiple bump labels (`bump:major` + `bump:minor` + `bump:patch`) → blocked in label trigger mode
+- Conflicting release type (`release:graduate` + `channel:prerelease`) → blocked in both modes
 
 **How it works:**
 
 - **Preview mode**: Reads labels directly from the PR
-- **Release mode**: When triggered via `workflow_run` after a PR merge, releasekit finds the merged PR(s) for the HEAD commit and reads their labels automatically
-
-**Example workflow configuration:**
-
-```yaml
-# Specify a fallback target - scope labels will filter to specific packages when found
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: goosewobbler/releasekit@v0
-        with:
-          mode: release
-          # Fallback target - used when no scope label is found
-          target: "@myorg/shared-*,@myorg/ui-*,@myorg/api-*"
-```
-
-With this setup, releasekit will use the specified packages as fallback. When a PR has a scope label, it will be used instead to filter to just those packages.
+- **Release and gate modes**: Read the labels of the PRs merged since the last release; the newest PR whose labels call for a release decides. See [Merged-PR labels](../../docs/cli.md#merged-pr-labels).
 
 #### Standing PR Configuration
 

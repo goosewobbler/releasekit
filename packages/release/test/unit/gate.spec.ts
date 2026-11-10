@@ -32,20 +32,6 @@ vi.mock('../../src/github.js', () => ({
   postOrUpdateComment: (...args: unknown[]) => mockPostOrUpdateComment(...args),
 }));
 
-vi.mock('../../src/release.js', () => ({
-  resolveScopeToTarget: (scopeName: string, scopeLabels: Record<string, string>) => {
-    const prefixed = `scope:${scopeName}`;
-    if (scopeLabels[prefixed]) {
-      return scopeLabels[prefixed];
-    }
-    if (scopeLabels[scopeName]) {
-      return scopeLabels[scopeName];
-    }
-    throw new Error(`Scope "${scopeName}" not found`);
-  },
-  runRelease: vi.fn(),
-}));
-
 vi.mock('../../src/git.js', () => ({
   getHeadCommitMessage: vi.fn().mockReturnValue('feat: some feature\n'),
   getGitHubContext: () => {
@@ -390,15 +376,16 @@ describe('Gate', () => {
       expect(result.target).toBe('@wdio/tauri-*');
     });
 
-    it('should not release but notify when immediate is present without a bump label', async () => {
+    it('should release on the immediate label alone in label trigger mode, leaving the bump to commits', async () => {
       mockLoadReleaseKitConfig.mockReturnValue(standingPrConfig());
       mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
       mockFetchPRLabels.mockResolvedValue(['release:immediate']);
 
       const result = await runGate();
 
-      expect(result.shouldRelease).toBe(false);
-      expect(mockPostOrUpdateComment).toHaveBeenCalled();
+      expect(result.shouldRelease).toBe(true);
+      expect(result.bump).toBeUndefined();
+      expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
     });
 
     it('should block on conflicting bump labels when the immediate label is present', async () => {

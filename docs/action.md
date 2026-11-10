@@ -12,7 +12,7 @@ uses: goosewobbler/releasekit@v0
 
 ## Modes
 
-- `release`: runs the release pipeline (version, notes, publish).
+- `release`: runs the release pipeline (version, notes, publish), after the same check of merged-PR labels as `gate`.
 - `preview` (default): posts or updates the PR preview comment.
 - `gate`: evaluates merged-PR labels and emits should-release/bump/scope outputs.
 - `standing-pr-update`: creates or refreshes the standing release PR.

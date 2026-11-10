@@ -1,14 +1,14 @@
-import type { CIConfig, ReleaseConfig } from '@releasekit/config';
+import type { ReleaseConfig, ReleaseKitConfig } from '@releasekit/config';
 import { assertLlmModel, loadConfig as loadReleaseKitConfig, runsLlmTasks } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
 import { PipelineError } from '@releasekit/publish';
 import { postFailureReport, resolveFailureReportIfPresent } from './failure-report/post.js';
-import { standingPRImmediateRefusal } from './gate/evaluate-pr.js';
+import { decideFromMergedPRs, type GateOutput } from './gate/gate.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
-import { fetchPRLabels, findMergedPRsForCommit, forgeFor } from './github.js';
-import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
+import { findMergedPRsForCommit, forgeFor, PRLookupError } from './github.js';
+import { resolveScopeToTarget } from './label-utils.js';
 import { markFeederPreviewsStale } from './preview/stale.js';
 import { mergeNotesRegions } from './standing-pr/notes-region.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
@@ -31,8 +31,11 @@ async function resolveReleaseReportTarget(): Promise<{
   const isManualDispatch = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch';
   let prNumber: number | undefined;
   if (sha && !isManualDispatch) {
-    const prs = await findMergedPRsForCommit(forge, sha);
-    prNumber = prs[0];
+    try {
+      prNumber = (await findMergedPRsForCommit(forge, sha))[0];
+    } catch {
+      // Without the PR the report still reaches the step summary.
+    }
   }
 
   return { forge, prNumber, mode: prNumber !== undefined ? 'direct' : 'manual' };
@@ -62,121 +65,41 @@ async function reportReleaseFailure(versionOutput: VersionOutput, err: PipelineE
   }
 }
 
-export function resolveScopeToTarget(scopeName: string, scopeLabels: Record<string, string>): string {
-  const prefixed = `scope:${scopeName}`;
-  if (scopeLabels[prefixed]) {
-    return scopeLabels[prefixed];
-  }
-  if (scopeLabels[scopeName]) {
-    return scopeLabels[scopeName];
-  }
-  const available = Object.keys(scopeLabels).join(', ');
-  throw new Error(`Scope "${scopeName}" not found in ci.scopeLabels. Available: ${available}`);
-}
-
-interface PRLabelsResult {
-  target: string | undefined;
-  scopeLabels: string[];
-  labels: string[];
-  blocked?: boolean;
-  skipped?: boolean;
-}
-
-async function applyScopeLabelsFromPR(
-  ciConfig: CIConfig | undefined,
-  options: ReleaseOptions,
-): Promise<PRLabelsResult> {
-  const scopeLabels = ciConfig?.scopeLabels ?? {};
-
+/** Null when no merged PR has a say, so commits and flags alone decide. */
+async function decideFromPRs(releaseKitConfig: ReleaseKitConfig, projectDir: string): Promise<GateOutput | null> {
   const githubContext = getGitHubContext();
   if (!githubContext?.sha) {
-    return { target: options.target, scopeLabels: [], labels: [] };
+    return null;
+  }
+  if (!githubContext.token) {
+    warn('No GITHUB_TOKEN available, so merged PR labels are ignored');
+    return null;
+  }
+  if (process.env.GITHUB_EVENT_NAME === 'workflow_dispatch') {
+    info('Manual workflow_dispatch release: merged PR labels are ignored');
+    return null;
   }
 
-  const token = githubContext.token;
-  if (!token) {
-    warn('No GITHUB_TOKEN available — skipping scope label detection');
-    return { target: options.target, scopeLabels: [], labels: [] };
-  }
-
-  const githubEventName = process.env.GITHUB_EVENT_NAME;
-  if (githubEventName === 'workflow_dispatch') {
-    info('Manual workflow_dispatch release — skipping scope label check');
-    return { target: options.target, scopeLabels: [], labels: [] };
-  }
-
-  const forge = forgeFor({ token, owner: githubContext.owner, repo: githubContext.repo });
-
-  const prNumbers = await findMergedPRsForCommit(forge, githubContext.sha);
-  const allLabels: string[] = [];
-  const perPRLabels: Map<number, string[]> = new Map();
-
-  for (const prNumber of prNumbers) {
-    const labels = await fetchPRLabels(forge, prNumber);
-    allLabels.push(...labels);
-    perPRLabels.set(prNumber, labels);
-  }
-
-  // Per PR: labels from different PRs don't conflict.
-  const labels = ciConfig?.labels ?? DEFAULT_LABELS;
-  const inStandingPr = (ciConfig?.releaseStrategy ?? 'direct') === 'standing-pr';
-  for (const [prNumber, prLabels] of perPRLabels) {
-    if (inStandingPr && prLabels.includes(labels.immediate)) {
-      const { headRef } = await forge.getPullRequest(prNumber);
-      const refusal = standingPRImmediateRefusal(prNumber, headRef, labels, ciConfig);
-      // Fail rather than skip, so the job's next step doesn't reconcile the standing PR while it publishes.
-      if (refusal) {
-        throw new Error(refusal);
-      }
+  const forge = forgeFor({ token: githubContext.token, owner: githubContext.owner, repo: githubContext.repo });
+  try {
+    const verdict = await decideFromMergedPRs({ forge, releaseKitConfig, projectDir });
+    return verdict.prNumbers.length > 0 ? verdict : null;
+  } catch (err) {
+    if (!(err instanceof PRLookupError)) {
+      throw err;
     }
-
-    const conflict = detectLabelConflicts(prLabels, labels);
-
-    if ((ciConfig?.releaseTrigger ?? 'label') === 'commit' && prLabels.includes(labels.skip)) {
-      info(`PR #${prNumber} has "${labels.skip}" label — skipping release`);
-      return { target: options.target, scopeLabels: [], labels: [], skipped: true };
-    }
-
-    if (prLabels.includes(labels.skip)) {
-      warn(`PR #${prNumber} has "${labels.skip}" label — this has no effect in label trigger mode`);
-    }
-
-    if (conflict.prereleaseConflict) {
-      warn(`PR #${prNumber} has conflicting labels "${labels.graduate}" and "${labels.prerelease}" — release blocked`);
-      return { target: options.target, scopeLabels: [], labels: [], blocked: true };
-    }
-    if (conflict.bumpConflict && (ciConfig?.releaseTrigger ?? 'label') === 'label') {
-      warn(`PR #${prNumber} has conflicting bump labels (${conflict.bumpLabelsPresent.join(', ')}) — release blocked`);
-      return { target: options.target, scopeLabels: [], labels: [], blocked: true };
-    }
+    warn(`${err.message} Releasing from commits alone.`);
+    return null;
   }
+}
 
-  if (prNumbers.length === 0) {
-    info(`No merged PRs found — ${options.target ? `using target: ${options.target}` : 'releasing all packages'}`);
-    return { target: options.target, scopeLabels: [], labels: allLabels };
+/** CLI flags win: `--bump`, `--stable` or `--prerelease` replace the PR's bump and channel, `--target` its scope. */
+function applyVerdict(options: ReleaseOptions, verdict: GateOutput): void {
+  if (options.bump === undefined && !options.stable && options.prerelease === undefined) {
+    options.bump = verdict.bump;
+    options.stable = verdict.stable;
   }
-
-  const matchedScopePatterns: string[] = [];
-  for (const [labelName, packagePattern] of Object.entries(scopeLabels)) {
-    if (allLabels.includes(labelName)) {
-      info(`Scope label "${labelName}" detected — limiting release to packages matching "${packagePattern}"`);
-      matchedScopePatterns.push(packagePattern);
-    }
-  }
-
-  let finalTarget = options.target;
-  if (matchedScopePatterns.length > 0) {
-    finalTarget = matchedScopePatterns.join(', ');
-  } else if (!options.target) {
-    const scopeLabelsConfigured = Object.keys(scopeLabels).length > 0;
-    throw new Error(
-      scopeLabelsConfigured
-        ? 'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.'
-        : 'No scope specified. Use --target flag to specify which packages to release.',
-    );
-  }
-
-  return { target: finalTarget, scopeLabels: matchedScopePatterns, labels: allLabels };
+  options.target ??= verdict.target;
 }
 
 /** Config can only add skips, never undo a CLI flag. */
@@ -231,21 +154,22 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     options.target = resolvedTarget;
   }
 
-  let effectiveTarget = options.target;
-
-  // Runs in dry-run too, for its conflict detection, but only a real run takes its target: preview handles scope.
-  const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
-  if (scopeResult.blocked) {
-    info('Release blocked due to conflicting PR labels');
+  const verdict = options.skipGate ? null : await decideFromPRs(releaseKitConfig, options.projectDir);
+  if (verdict?.blocked) {
+    warn(`Release blocked: ${verdict.reason}`);
     return null;
   }
-  if (scopeResult.skipped) {
-    info('Release skipped due to release:skip label');
+  const standingRefusal = verdict?.evaluations.find((e) => e.refusedStandingPr);
+  if (standingRefusal) {
+    // Fail rather than skip, so the job's next step doesn't reconcile the standing PR while it publishes.
+    throw new Error(standingRefusal.reason ?? 'The standing release PR publishes from its manifest');
+  }
+  if (verdict && !verdict.shouldRelease) {
+    info(`Not releasing: ${verdict.reason}`);
     return null;
   }
-  if (!options.dryRun && scopeResult.target !== options.target) {
-    info(`Scope labels override target: ${options.target} → ${scopeResult.target}`);
-    effectiveTarget = scopeResult.target;
+  if (verdict) {
+    applyVerdict(options, verdict);
   }
 
   if (releaseConfig?.ci?.skipPatterns?.length) {
@@ -263,7 +187,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
 
   // Always dryRun: writes are captured as pending so every early-exit guard runs before the repo is touched.
   info('Running version analysis...');
-  const versionOutput = await runVersionStep({ ...options, target: effectiveTarget, dryRun: true });
+  const versionOutput = await runVersionStep({ ...options, dryRun: true });
   // Restore the caller's intent; notes and publish inspect this flag.
   versionOutput.dryRun = options.dryRun ?? false;
 

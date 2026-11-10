@@ -16,6 +16,7 @@ on:
 permissions:
   contents: write
   id-token: write # REQUIRED for OIDC: mints the OIDC token
+  pull-requests: read # releasekit release reads the labels of the PRs merged since the last release
 
 jobs:
   release:

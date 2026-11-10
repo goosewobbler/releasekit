@@ -116,7 +116,7 @@ Run the full release pipeline: version, changelog, publish, git, and GitHub Rele
 | `--stable` | boolean | `false` | Graduate prerelease packages to stable without bumping |
 | `--allow-first-bump` | boolean | `false` | Acknowledge applying a bump on a first release with an already-stable manifest (silences the overshoot warning; see [`version.allowFirstBump`](./configuration.md#version)) |
 | `-s, --sync` | boolean | `false` | Use synchronized versioning across all packages |
-| `-t, --target <packages>` | string | all | Target specific packages (comma-separated) |
+| `-t, --target <packages>` | string | merged PR's `scope:*` label, else all | Target specific packages (comma-separated) |
 | `--include-prerequisites` | boolean | `false` | Also release the changed internal dependencies of `--target` packages (and the rest of their groups) |
 | `--scope <name>` | string | - | Resolve scope name to target packages from `ci.scopeLabels` config |
 | `--branch <name>` | string | current | Override the git branch used for push |
@@ -139,6 +139,16 @@ Run the full release pipeline: version, changelog, publish, git, and GitHub Rele
 ```bash
 releasekit release --dry-run
 ```
+
+### Merged-PR labels
+
+In GitHub Actions (`GITHUB_REPOSITORY`, `GITHUB_SHA` and `GITHUB_TOKEN` set, outside `workflow_dispatch`), `release` first makes [`gate`](#releasekit-release-gate)'s decision on the PRs merged since the last release, with the same code. The newest PR whose labels call for a release wins.
+
+- **No release**: no PR's labels call for one, or HEAD matches `release.ci.skipPatterns`. A PR calls for a release with a `bump:*` or `release:graduate` label under `ci.releaseTrigger: "label"`, without `release:skip` under `"commit"`, and with `release:immediate` in `standing-pr` strategy. `release` exits 0, logs the reason, and `--json` reports `changed: false`. A PR with conflicting labels blocks the release the same way.
+- **Release**: the winning PR's `bump:*` and `channel:prerelease` labels set the bump, `release:graduate` the graduation and `scope:*` the target. `--bump`, `--stable` or `--prerelease` replace its bump and graduation, and `--target` or `--scope` its scope. Without a scope label, every changed package releases.
+- **No merged PR** (a direct push) or no GitHub context: `release` releases from commits.
+
+Listing the PRs needs `pull-requests: read`. If the lookup fails, `release` warns, names the permission and releases from commits. `--draft` and `--from-draft` ignore PR labels.
 
 ### Draft-then-dispatch (manual mode)
 
@@ -392,7 +402,7 @@ releasekit version --json | releasekit publish --dry-run
 
 ## `releasekit-release gate`
 
-The `gate` command — used by the GitHub Action's `gate` mode — checks whether a release should proceed based on PR labels and config. It is exposed on both the `releasekit` and `releasekit-release` binaries (from `@releasekit/release`).
+The `gate` command — used by the GitHub Action's `gate` mode — checks whether a release should proceed based on PR labels and config. It is exposed on both the `releasekit` and `releasekit-release` binaries (from `@releasekit/release`). `releasekit release` makes the same decision itself (see [Merged-PR labels](#merged-pr-labels)), so run `gate` only when a workflow needs the decision before the release job, e.g. to skip its setup. If the PR lookup fails, `gate` reports `shouldRelease: false` with a reason naming the `pull-requests: read` permission.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
