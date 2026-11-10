@@ -49,7 +49,7 @@ export const VersionCargoConfigSchema = z.object({
     .boolean()
     .default(true)
     .describe(
-      'Version Cargo.toml manifests. Detected Rust packages are versioned by default; set false to opt out (e.g. a vendored crate, or Rust versioning handled elsewhere), which also stops a Cargo.toml beside a package.json from publishing.',
+      'Version Cargo.toml manifests. Detected Rust packages are versioned by default; set false to opt out (e.g. a vendored crate, or Rust versioning handled elsewhere). That also stops a Cargo.toml beside a package.json from publishing.',
     ),
   paths: z
     .array(z.string())
