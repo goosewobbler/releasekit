@@ -144,6 +144,11 @@ function pushesPerPackage(versionOutput: VersionOutput): boolean {
   return versionOutput.updates.some((update) => !!update.tag);
 }
 
+/** The branch the release commit reached, when a tag push after it failed. */
+function branchPushedWithoutTags(publishOutput: PublishOutput | undefined): string | undefined {
+  return publishOutput?.git.pushed === true ? undefined : publishOutput?.git.branch;
+}
+
 function partialFailureState(
   mode: FailureReportMode,
   publishOutput: PublishOutput | undefined,
@@ -159,10 +164,52 @@ function partialFailureState(
   if (pushed) {
     return 'A push succeeded before the failure, so the release commit or some tags may already be on the remote.';
   }
+  const branch = branchPushedWithoutTags(publishOutput);
+  if (branch) {
+    return `The release commit reached \`${branch}\`, but a tag push failed, so tags are missing and no GitHub Release was created.`;
+  }
   if (failedStage === 'git-push' && publishOutput?.git.committed) {
-    return 'The push stage failed after a local commit. The branch may already be on the remote if it was pushed before a tag push failed.';
+    return 'The push stage failed before the branch was pushed, so the release commit and tags are not on the remote.';
   }
   return 'This run did not confirm a push, so the version commit and tags may exist only in the failed run. Packages that reached the registry stay published.';
+}
+
+/** Per-package mode pushes a tag only once its package publishes, so unpublished packages have none to restore. */
+function tagsToRestore(versionOutput: VersionOutput, publishOutput: PublishOutput): string[] {
+  if (!pushesPerPackage(versionOutput)) {
+    return [...new Set(publishOutput.git.tags)];
+  }
+  const reached = new Set(
+    buildLedger(versionOutput, publishOutput)
+      .filter((entry) => entry.status === 'published' || entry.status === 'skipped')
+      .map((entry) => entry.packageName),
+  );
+  return versionOutput.updates.flatMap((update) => (update.tag && reached.has(update.packageName) ? [update.tag] : []));
+}
+
+function renderRollForward(versionOutput: VersionOutput, publishOutput: PublishOutput): string[] {
+  const lines = [
+    'Roll forward with the next release. It bumps past this release, which gets no GitHub Release. Do not re-run this workflow run: the re-run creates a second release commit that cannot be pushed over the one already on the remote, so it fails every time.',
+  ];
+  const tags = tagsToRestore(versionOutput, publishOutput);
+  const sha = publishOutput.git.commitSha;
+  if (sha && tags.length > 0) {
+    lines.push(
+      '',
+      'Optionally, restore the missing tags on the release commit:',
+      '',
+      '```sh',
+      'git fetch origin',
+      ...tags.map((tag) => `git tag ${tag} ${sha}`),
+      ...tags.map((tag) => `git push origin ${tag}`),
+      '```',
+    );
+  }
+  lines.push(
+    '',
+    "Under `mismatchStrategy: 'error'`, the next release can throw a version mismatch if this release moved onto or off a prerelease. Restore the tags first, or set `mismatchStrategy` to `'warn'` for that release.",
+  );
+  return lines;
 }
 
 function renderRecovery(
@@ -193,6 +240,9 @@ function renderRecovery(
     lines.push(
       'Roll forward with the next release. The release commit and tags for packages that published are already on the remote — do not delete them.',
     );
+    return lines;
+  } else if (publishOutput && branchPushedWithoutTags(publishOutput)) {
+    lines.push(...renderRollForward(versionOutput, publishOutput));
     return lines;
   } else if (ctx.mode === 'direct') {
     lines.push(

@@ -97,6 +97,10 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
     }
   }
 
+  if (!dryRun) {
+    ctx.output.git.commitSha = await git.headSha(cwd);
+  }
+
   // Baseline tags share the release commit but stay separate on VersionOutput so github-release can skip them.
   const allTags = [...input.tags, ...(input.baselineTags ?? [])];
   for (const tag of allTags) {
