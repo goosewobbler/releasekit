@@ -11,10 +11,13 @@ import {
 } from '../../../src/git/tagsAndBranches.js';
 import { log } from '../../../src/utils/logging.js';
 
-// getLatestTag/getLatestStableTag use git-semver-tags rather than the FakeGit seam.
+// getLatestTag/getLatestStableTag use ConventionalGitClient rather than the FakeGit seam.
+const { mockGetSemverTags } = vi.hoisted(() => ({ mockGetSemverTags: vi.fn() }));
 vi.mock('../../../src/utils/logging.js');
-vi.mock('git-semver-tags', () => ({
-  getSemverTags: vi.fn(),
+vi.mock('@conventional-changelog/git-client', () => ({
+  ConventionalGitClient: class {
+    getSemverTags = mockGetSemverTags;
+  },
 }));
 
 /** Tags newest-first, as `git tag --sort=-creatordate` returns them. */
@@ -104,18 +107,16 @@ describe('tagsAndBranches', () => {
 
   describe('getLatestTag', () => {
     it('should return the latest semver tag', async () => {
-      const mockGetSemverTags = await import('git-semver-tags');
-      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue(['v1.0.0', 'v0.9.0']);
+      mockGetSemverTags.mockReturnValue(['v1.0.0', 'v0.9.0']);
 
       const result = await getLatestTag();
 
       expect(result).toBe('v1.0.0');
-      expect(mockGetSemverTags.getSemverTags).toHaveBeenCalledWith({});
+      expect(mockGetSemverTags).toHaveBeenCalledWith({});
     });
 
     it('should return empty string if no tags found', async () => {
-      const mockGetSemverTags = await import('git-semver-tags');
-      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([]);
+      mockGetSemverTags.mockReturnValue([]);
 
       const result = await getLatestTag();
 
@@ -123,8 +124,9 @@ describe('tagsAndBranches', () => {
     });
 
     it('should log error and return empty string if getSemverTags fails', async () => {
-      const mockGetSemverTags = await import('git-semver-tags');
-      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockRejectedValue(new Error('No names found'));
+      mockGetSemverTags.mockImplementation(() => {
+        throw new Error('No names found');
+      });
 
       const result = await getLatestTag();
 
@@ -134,11 +136,7 @@ describe('tagsAndBranches', () => {
     });
 
     it('should sort multi-segment-prefixed tags by semver (not as 0.0.0)', async () => {
-      const mockGetSemverTags = await import('git-semver-tags');
-      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-        'release/v0.21.0',
-        'release/v0.22.0',
-      ]);
+      mockGetSemverTags.mockReturnValue(['release/v0.21.0', 'release/v0.22.0']);
 
       const result = await getLatestTag('release/v');
 
@@ -321,13 +319,7 @@ describe('tagsAndBranches', () => {
 
   describe('getLatestTag semantic ordering', () => {
     it('should return semantically latest tag when misordered chronologically', async () => {
-      const mockGetSemverTags = await import('git-semver-tags');
-      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-        'v1.0.5',
-        'v1.2.0',
-        'v1.1.0',
-        'v1.0.0',
-      ]);
+      mockGetSemverTags.mockReturnValue(['v1.0.5', 'v1.2.0', 'v1.1.0', 'v1.0.0']);
 
       const result = await getLatestTag('v');
 
@@ -340,12 +332,7 @@ describe('tagsAndBranches', () => {
     });
 
     it('should treat a stable release as higher than a prerelease', async () => {
-      const mockGetSemverTags = await import('git-semver-tags');
-      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-        'v1.0.0-rc.1',
-        'v1.0.0',
-        'v1.0.0-beta.2',
-      ]);
+      mockGetSemverTags.mockReturnValue(['v1.0.0-rc.1', 'v1.0.0', 'v1.0.0-beta.2']);
 
       const result = await getLatestTag('v');
 
@@ -353,13 +340,7 @@ describe('tagsAndBranches', () => {
     });
 
     it('should handle invalid semver versions in sorting gracefully', async () => {
-      const mockGetSemverTags = await import('git-semver-tags');
-      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-        'v1.0.0-invalid-semver-',
-        'v1.2.0',
-        'invalid-tag-format',
-        'v1.1.0',
-      ]);
+      mockGetSemverTags.mockReturnValue(['v1.0.0-invalid-semver-', 'v1.2.0', 'invalid-tag-format', 'v1.1.0']);
 
       const result = await getLatestTag('v');
 
@@ -367,13 +348,7 @@ describe('tagsAndBranches', () => {
     });
 
     it('should handle double-digit version components', async () => {
-      const mockGetSemverTags = await import('git-semver-tags');
-      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-        'v10.0.0',
-        'v2.0.0',
-        'v1.10.0',
-        'v1.2.10',
-      ]);
+      mockGetSemverTags.mockReturnValue(['v10.0.0', 'v2.0.0', 'v1.10.0', 'v1.2.10']);
 
       const result = await getLatestTag('v');
 
@@ -381,27 +356,24 @@ describe('tagsAndBranches', () => {
     });
 
     it('should pass the version prefix through to getSemverTags', async () => {
-      const mockGetSemverTags = await import('git-semver-tags');
-      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue(['release-1.0.0']);
+      mockGetSemverTags.mockReturnValue(['release-1.0.0']);
 
       await getLatestTag('release-');
 
-      expect(mockGetSemverTags.getSemverTags).toHaveBeenCalledWith({ tagPrefix: 'release-' });
+      expect(mockGetSemverTags).toHaveBeenCalledWith({ prefix: 'release-' });
     });
 
     it('should handle an undefined version prefix', async () => {
-      const mockGetSemverTags = await import('git-semver-tags');
-      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue(['v1.0.0', 'v2.0.0']);
+      mockGetSemverTags.mockReturnValue(['v1.0.0', 'v2.0.0']);
 
       const result = await getLatestTag(undefined);
 
       expect(result).toBe('v2.0.0');
-      expect(mockGetSemverTags.getSemverTags).toHaveBeenCalledWith({ tagPrefix: undefined });
+      expect(mockGetSemverTags).toHaveBeenCalledWith({ prefix: undefined });
     });
 
     it('should not log an ordering difference when there is only one tag', async () => {
-      const mockGetSemverTags = await import('git-semver-tags');
-      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue(['v1.0.0']);
+      mockGetSemverTags.mockReturnValue(['v1.0.0']);
 
       const result = await getLatestTag('v');
 

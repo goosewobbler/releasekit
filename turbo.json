@@ -9,6 +9,11 @@
     "TURBO_TOKEN",
     "TURBO_TEAM"
   ],
+  "globalPassThroughEnv": [
+    "GITHUB_OUTPUT",
+    "GITHUB_STEP_SUMMARY",
+    "PNPM_HOME"
+  ],
   "tasks": {
     "build": {
       "dependsOn": [

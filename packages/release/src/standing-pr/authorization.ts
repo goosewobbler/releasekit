@@ -45,7 +45,7 @@ export function getEventActor(): EventActor {
 }
 
 function isBot(login: string | undefined, type: string | undefined): boolean {
-  return type === 'Bot' || (login !== undefined && login.endsWith('[bot]'));
+  return type === 'Bot' || login?.endsWith('[bot]') === true;
 }
 
 function parseTeamRef(entry: string): { org: string; team: string } | undefined {

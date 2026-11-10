@@ -1,5 +1,5 @@
+import { ConventionalGitClient } from '@conventional-changelog/git-client';
 import { createGitCli, type Git } from '@releasekit/git';
-import { getSemverTags } from 'git-semver-tags';
 import semver from 'semver';
 import { escapeRegExp } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
@@ -38,8 +38,8 @@ export function refExists(ref: string, cwd?: string, git: Git = createGitCli()):
 }
 
 /**
- * Unlike `getLatestTag` (git-semver-tags, bare semver tags only), `git describe` also finds per-package
- * tags (`pkg@vX.Y.Z`, `release/vX.Y.Z`) and is reachable by construction, as a `<tag>..HEAD` floor needs.
+ * Unlike `getLatestTag` (bare semver tags only), `git describe` also finds per-package tags
+ * (`pkg@vX.Y.Z`, `release/vX.Y.Z`) and is reachable by construction, as a `<tag>..HEAD` floor needs.
  */
 export async function getNearestReachableTag(cwd?: string, git: Git = createGitCli()): Promise<string> {
   try {
@@ -49,12 +49,19 @@ export async function getNearestReachableTag(cwd?: string, git: Git = createGitC
   }
 }
 
+async function getSemverTags(versionPrefix?: string): Promise<string[]> {
+  const client = new ConventionalGitClient(process.cwd());
+  const tags: string[] = [];
+  for await (const tag of client.getSemverTags({ prefix: versionPrefix })) {
+    tags.push(tag);
+  }
+  return tags;
+}
+
 /** Sorted semantically, not chronologically, so a tag created out of order (e.g. v0.7.1 after v0.8.0) can't win. */
 export async function getLatestTag(versionPrefix?: string): Promise<string> {
   try {
-    const tags: string[] = await getSemverTags({
-      tagPrefix: versionPrefix,
-    });
+    const tags = await getSemverTags(versionPrefix);
 
     if (tags.length === 0) {
       return '';
@@ -98,7 +105,7 @@ export async function getLatestTag(versionPrefix?: string): Promise<string> {
 
 /**
  * Global tags (e.g. `v1.2.0`), most-recently-created first. Lists `git tag` directly because
- * git-semver-tags only sees tags reachable from HEAD.
+ * the conventional git client only sees tags reachable from HEAD.
  */
 export async function listGlobalTags(versionPrefix?: string, git: Git = createGitCli()): Promise<string[]> {
   let allTags: string[] = [];
@@ -228,7 +235,7 @@ export async function getLatestStableTagForPackage(
 
 export async function getLatestStableTag(versionPrefix?: string): Promise<string> {
   try {
-    const tags: string[] = await getSemverTags({ tagPrefix: versionPrefix });
+    const tags = await getSemverTags(versionPrefix);
     const stripPrefix = (tag: string) =>
       versionPrefix && tag.startsWith(versionPrefix) ? tag.slice(versionPrefix.length) : tag;
 

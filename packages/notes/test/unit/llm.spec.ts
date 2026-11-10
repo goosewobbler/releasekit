@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { ChangelogEntry, CompleteOptions } from '../../src/core/types.js';
-import { LLMError } from '../../src/errors/index.js';
 import type { CompleteResult, LLMMessage } from '../../src/llm/messages.js';
 import type { LLMProvider } from '../../src/llm/provider.js';
 import { categorizeEntries } from '../../src/llm/tasks/categorize.js';

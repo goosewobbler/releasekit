@@ -80,7 +80,7 @@ export function isBotComment(comment: Pick<ForgeComment, 'user'>): boolean {
   if (!user) {
     return true;
   }
-  return user.type === 'Bot' || (user.login !== undefined && user.login.endsWith('[bot]'));
+  return user.type === 'Bot' || user.login?.endsWith('[bot]') === true;
 }
 
 export interface NewPullRequest {
