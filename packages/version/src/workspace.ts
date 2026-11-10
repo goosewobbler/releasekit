@@ -15,23 +15,18 @@ export async function getWorkspacePackageNames(options: { cwd?: string; configPa
   return packages.map((p) => p.packageJson.name).filter((name): name is string => Boolean(name));
 }
 
-/**
- * On-disk version of every workspace package (npm, cargo & pub) - the ground truth of what a publish
- * ships. Standing-PR publish compares it against the release manifest's claims to refuse a forged one.
- */
-export async function getWorkspacePackageVersions(
+/** Directory of every workspace package (npm, cargo & pub), keyed by name. */
+export async function getWorkspacePackageDirs(
   options: { cwd?: string; configPath?: string } = {},
 ): Promise<Record<string, string>> {
   const config = loadConfig({ cwd: options.cwd, configPath: options.configPath });
   const engine = new VersionEngine(config, { dryRun: true });
   const { packages } = await engine.getWorkspacePackages(options.cwd);
-  const versions: Record<string, string> = {};
+  const dirs: Record<string, string> = {};
   for (const p of packages) {
-    const name = p.packageJson.name;
-    const version = p.packageJson.version;
-    if (name && version) {
-      versions[name] = version;
+    if (p.packageJson.name) {
+      dirs[p.packageJson.name] = p.dir;
     }
   }
-  return versions;
+  return dirs;
 }

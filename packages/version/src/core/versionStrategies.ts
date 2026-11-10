@@ -151,10 +151,13 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         // packages.root === packages[0].dir) - otherwise its native manifests are versioned twice.
         processedPaths.add(rootPkgPath);
 
+        // In a single-package repo the root is the package, so its manifests take the name discovery knows it by.
+        const rootPackage = packages.packages.find((p) => p.dir === packages.root);
         const rootNativeFiles = updateNativeManifests(packages.root, nextVersion, config, {
           dryRun,
           repoRoot,
           isRoot: true,
+          recordAs: rootPackage?.packageJson.name,
         });
         // Track a native-only root bump: the loop skips this path in a single-package repo, so the early
         // return below would otherwise abandon the written file.

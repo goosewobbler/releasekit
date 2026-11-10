@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { type CIConfig, loadConfig as loadReleaseKitConfig, runFormatCommand } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
 import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
@@ -1437,26 +1438,39 @@ async function assertManifestMatchesSource(
   configPath: string | undefined,
   prNumber: number,
 ): Promise<void> {
-  const { getWorkspacePackageVersions } = await import('@releasekit/version');
-  const onDisk = await getWorkspacePackageVersions({ cwd, configPath });
+  const { getWorkspacePackageDirs, readManifestVersion } = await import('@releasekit/version');
+  const packageDirs = await getWorkspacePackageDirs({ cwd, configPath });
   const publishable = publishableUpdates(manifest.versionOutput);
 
   const validatedVersions: string[] = [];
   for (const update of publishable) {
-    const actual = onDisk[update.packageName];
-    if (actual === undefined) {
+    const dir = packageDirs[update.packageName];
+    if (dir === undefined) {
       throw new Error(
         `Refusing to publish PR #${prNumber}: the release manifest lists package '${update.packageName}', which is ` +
           `not in the workspace at the merged commit. The manifest does not match the source — it may have been ` +
           `edited. Re-run 'standing-pr update' to regenerate it.`,
       );
     }
-    if (actual !== update.newVersion) {
-      throw new Error(
-        `Refusing to publish PR #${prNumber}: the release manifest claims '${update.packageName}@${update.newVersion}', ` +
-          `but the merged source has '${update.packageName}@${actual}'. The manifest does not match what was merged — ` +
-          `it may have been edited. Re-run 'standing-pr update' to regenerate it.`,
-      );
+    for (const file of update.files ?? [update.filePath]) {
+      const manifestPath = path.resolve(cwd, file);
+      // Another package's manifest would vouch for a version this package doesn't have.
+      if (path.dirname(manifestPath) !== path.resolve(dir)) {
+        throw new Error(
+          `Refusing to publish PR #${prNumber}: the release manifest lists '${file}' for '${update.packageName}', ` +
+            `which is not in that package's directory at the merged commit. The manifest does not match the source — ` +
+            `it may have been edited. Re-run 'standing-pr update' to regenerate it.`,
+        );
+      }
+      const actual = readManifestVersion(manifestPath);
+      if (actual !== update.newVersion) {
+        throw new Error(
+          `Refusing to publish PR #${prNumber}: the release manifest claims '${update.packageName}@${update.newVersion}', ` +
+            `but the merged source has '${update.packageName}@${actual}' in ${path.relative(cwd, manifestPath)}. The ` +
+            `manifest does not match what was merged — it may have been edited. Re-run 'standing-pr update' to ` +
+            `regenerate it.`,
+        );
+      }
     }
     validatedVersions.push(update.newVersion);
   }
