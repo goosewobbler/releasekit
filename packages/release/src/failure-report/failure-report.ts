@@ -144,7 +144,6 @@ function pushesPerPackage(versionOutput: VersionOutput): boolean {
   return versionOutput.updates.some((update) => !!update.tag);
 }
 
-/** The branch the release commit reached, when a tag push after it failed. */
 function branchPushedWithoutTags(publishOutput: PublishOutput | undefined): string | undefined {
   return publishOutput?.git.pushed === true ? undefined : publishOutput?.git.branch;
 }
@@ -193,7 +192,9 @@ function tagsToRestore(versionOutput: VersionOutput, publishOutput: PublishOutpu
 
 function renderRollForward(versionOutput: VersionOutput, publishOutput: PublishOutput): string[] {
   const lines = [
-    'Roll forward with the next release. It bumps past this release, which gets no GitHub Release. Do not re-run this workflow run: the re-run creates a second release commit that cannot be pushed over the one already on the remote, so it fails every time.',
+    "Roll forward with the next release. It bumps past this release, which gets no GitHub Release. Don't re-run the release: a re-run creates a second release commit that can't be pushed over the one already on the remote, so it fails every time.",
+    '',
+    "Restore the missing tags before the next release. Without them it counts from the previous tag, so its changelog repeats this release's entries and its bump counts this release's commits again. Under `mismatchStrategy: 'error'` it can also throw a version mismatch if this release moved onto or off a prerelease.",
   ];
   const tags = tagsToRestore(versionOutput, publishOutput);
   const sha = publishOutput.git.commitSha;
@@ -201,7 +202,7 @@ function renderRollForward(versionOutput: VersionOutput, publishOutput: PublishO
   if (sha && tags.length > 0) {
     lines.push(
       '',
-      'Optionally, restore the missing tags on the release commit:',
+      'Run these, skipping the `git tag` line for any tag that already exists:',
       '',
       '```sh',
       `git fetch ${remote}`,
@@ -210,10 +211,6 @@ function renderRollForward(versionOutput: VersionOutput, publishOutput: PublishO
       '```',
     );
   }
-  lines.push(
-    '',
-    "Under `mismatchStrategy: 'error'`, the next release can throw a version mismatch if this release moved onto or off a prerelease. Restore the tags first, or set `mismatchStrategy` to `'warn'` for that release.",
-  );
   return lines;
 }
 

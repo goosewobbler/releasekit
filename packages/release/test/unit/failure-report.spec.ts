@@ -315,7 +315,7 @@ describe('renderFailureReport', () => {
       });
       expect(body).toContain('The release commit reached `main`, but a tag push failed');
       expect(body).toContain('Roll forward with the next release. It bumps past this release');
-      expect(body).toContain('Do not re-run this workflow run');
+      expect(body).toContain("Don't re-run the release");
       expect(body).not.toContain('Re-run failed jobs');
       expect(body).not.toContain('Re-run the release workflow');
       expect(body).not.toContain('Retrying is safe');
@@ -334,7 +334,7 @@ describe('renderFailureReport', () => {
       });
       expect(body).toContain(
         [
-          'Optionally, restore the missing tags on the release commit:',
+          'Run these, skipping the `git tag` line for any tag that already exists:',
           '',
           '```sh',
           'git fetch upstream',
@@ -347,7 +347,7 @@ describe('renderFailureReport', () => {
       );
     });
 
-    it("should note the mismatchStrategy 'error' caveat and how to avoid it", () => {
+    it('should say why the tags need restoring before the next release', () => {
       const body = renderFailureReport({
         versionOutput: syncRelease,
         publishOutput: branchOnly,
@@ -356,11 +356,11 @@ describe('renderFailureReport', () => {
         recovery: { mode: 'direct' },
       });
       expect(body).toContain(
-        "Under `mismatchStrategy: 'error'`, the next release can throw a version mismatch if this release moved onto or off a prerelease. Restore the tags first, or set `mismatchStrategy` to `'warn'` for that release.",
+        "Restore the missing tags before the next release. Without them it counts from the previous tag, so its changelog repeats this release's entries and its bump counts this release's commits again. Under `mismatchStrategy: 'error'` it can also throw a version mismatch if this release moved onto or off a prerelease.",
       );
     });
 
-    it("should restore only the published package's tag when the first per-package tag push fails", () => {
+    it("should restore the published package's tag and the baseline tag when the first per-package tag push fails", () => {
       const tagged = versionOutputFor([
         { name: '@scope/a', version: '1.0.0' },
         { name: '@scope/b', version: '1.0.0' },
