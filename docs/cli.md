@@ -54,6 +54,8 @@ git add CHANGELOG.md   # or each package's changelog in `packages` mode
 releasekit publish --input version.json
 ```
 
+`publish` runs [`git.formatCommand`](./configuration.md#git) only on the manifests in its input, so format the changelogs before you stage them.
+
 `publish` also reads stdin, so `releasekit version --json | releasekit publish` works when no notes step is needed.
 
 A bare `VersionOutput` is still accepted. Feeding a failed stage's envelope forward fails as an input error (exit 3) whose message names that stage's code, rather than a schema error about missing fields.

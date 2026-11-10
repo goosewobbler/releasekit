@@ -87,6 +87,7 @@ vi.mock('@releasekit/config', () => ({
     git: { branch: 'main' },
     release: { ci: { skipPatterns: ['chore: release '] } },
   }),
+  runFormatCommand: vi.fn(),
 }));
 
 // Resolves declared primaries against the workspace; empty (no primaries → flat render) unless a test opts in.
@@ -3381,6 +3382,70 @@ describe('publishFromManifest', () => {
     await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ '@scope/core': 'EDITED AT MERGE' });
+  });
+
+  describe('with git.formatCommand set', () => {
+    beforeEach(async () => {
+      const { loadConfig } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true } },
+        git: { branch: 'main', formatCommand: 'prettier --write' },
+      } as ReturnType<typeof loadConfig>);
+      const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+      vi.mocked(runNotesStep).mockResolvedValue({
+        packageNotes: {},
+        releaseNotes: { '@scope/core': '- notes' },
+        files: ['release-notes/1.2.3.md'],
+      });
+      vi.mocked(runPublishStep).mockResolvedValue({
+        git: { committed: false, tags: [], pushed: true },
+      } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
+      setupGit({ status: '?? release-notes/1.2.3.md' });
+      await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    });
+
+    it('should format the new release-notes files before committing them', async () => {
+      const { runFormatCommand } = await import('@releasekit/config');
+      let commitsWhenFormatted: number | undefined;
+      vi.mocked(runFormatCommand).mockImplementation(async () => {
+        commitsWhenFormatted = fakeGit.committed.length;
+      });
+
+      await publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(runFormatCommand).toHaveBeenCalledWith('prettier --write', ['release-notes/1.2.3.md'], '/test');
+      expect(commitsWhenFormatted).toBe(0);
+      expect(fakeGit.committed.map((c) => c.message)).toEqual(['chore: release notes for v1.2.3']);
+    });
+
+    it('should use publish.git.formatCommand over git.formatCommand', async () => {
+      const { loadConfig, runFormatCommand } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true } },
+        git: { branch: 'main', formatCommand: 'prettier --write' },
+        publish: { git: { formatCommand: 'npx biome format --write' } },
+      } as ReturnType<typeof loadConfig>);
+
+      await publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(runFormatCommand).toHaveBeenCalledWith('npx biome format --write', ['release-notes/1.2.3.md'], '/test');
+    });
+
+    it('should stop before the notes commit, tags and publish when the formatter fails', async () => {
+      const { runFormatCommand } = await import('@releasekit/config');
+      vi.mocked(runFormatCommand).mockRejectedValue(
+        new Error('git.formatCommand `prettier --write` exited with code 2'),
+      );
+
+      await expect(
+        publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+      ).rejects.toThrow('git.formatCommand `prettier --write` exited with code 2');
+
+      const { runPublishStep } = await import('../../src/steps.js');
+      expect(fakeGit.committed).toEqual([]);
+      expect(fakeGit.tagged).toEqual([]);
+      expect(runPublishStep).not.toHaveBeenCalled();
+    });
   });
 
   it('should publish a sync monorepo notes edit from the PR body', async () => {

@@ -197,6 +197,12 @@ describe('GitCli queries', () => {
     expect(calls[0].options.cwd).toBe('/r/crates');
   });
 
+  it('should list only modified and untracked, non-ignored files when asked for changed files', async () => {
+    const { run, calls } = makeRunner({ stdout: 'package.json\0CHANGELOG.md\0' });
+    expect(await new GitCli(run).lsFiles({ changed: true, cwd: '/r' })).toEqual(['package.json', 'CHANGELOG.md']);
+    expect(calls[0].args).toEqual(['ls-files', '-z', '--modified', '--others', '--exclude-standard']);
+  });
+
   it('should answer isIgnored via check-ignore -q exit code, passing the file after --', async () => {
     const ignored = makeRunner();
     expect(await new GitCli(ignored.run).isIgnored('/r/Cargo.lock', '/r')).toBe(true);

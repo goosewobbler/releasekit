@@ -206,6 +206,9 @@ export class GitCli implements Git {
 
   async lsFiles(opts: GitLsFilesOptions = {}): Promise<string[]> {
     const args = ['ls-files', '-z'];
+    if (opts.changed) {
+      args.push('--modified', '--others', '--exclude-standard');
+    }
     if (opts.paths && opts.paths.length > 0) {
       args.push('--', ...opts.paths);
     }
