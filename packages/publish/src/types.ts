@@ -123,6 +123,8 @@ export interface GitResult {
    * tags are pushed, as in standing-PR mode.
    */
   branch?: string;
+  /** The configured remote `branch` was pushed to. */
+  remote?: string;
   /** The release commit this run tagged. Unset in dry runs, and when the caller made the tags (standing-PR mode). */
   commitSha?: string;
 }

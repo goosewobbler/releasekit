@@ -286,7 +286,9 @@ describe('a tag push that fails after the branch push', () => {
       ),
     ).rejects.toMatchObject({
       failedStage: 'git-push',
-      partialOutput: { git: { branch: 'main', pushed: false, commitSha: 'abc1234', tags: ['v0.2.0'] } },
+      partialOutput: {
+        git: { branch: 'main', remote: 'origin', pushed: false, commitSha: 'abc1234', tags: ['v0.2.0'] },
+      },
     });
   });
 
@@ -306,7 +308,7 @@ describe('a tag push that fails after the branch push', () => {
       ),
     ).rejects.toMatchObject({
       failedStage: 'git-push',
-      partialOutput: { git: { branch: 'main', pushed: false, commitSha: 'abc1234' } },
+      partialOutput: { git: { branch: 'main', remote: 'origin', pushed: false, commitSha: 'abc1234' } },
     });
     expect(publishedLabels()).toEqual(['npm publish lib@0.2.0']);
   });

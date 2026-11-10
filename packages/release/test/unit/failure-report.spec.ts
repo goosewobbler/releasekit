@@ -324,7 +324,10 @@ describe('renderFailureReport', () => {
     it('should print the commands to restore the missing tags on the release commit', () => {
       const body = renderFailureReport({
         versionOutput: syncRelease,
-        publishOutput: { ...branchOnly, git: { ...branchOnly.git, tags: ['v1.2.0', 'release/v1.2.0', 'v1.2.0'] } },
+        publishOutput: {
+          ...branchOnly,
+          git: { ...branchOnly.git, tags: ['v1.2.0', 'release/v1.2.0', 'v1.2.0'], remote: 'upstream' },
+        },
         failedStage: 'git-push',
         errorMessage: 'tag push rejected',
         recovery: { mode: 'direct' },
@@ -334,11 +337,11 @@ describe('renderFailureReport', () => {
           'Optionally, restore the missing tags on the release commit:',
           '',
           '```sh',
-          'git fetch origin',
+          'git fetch upstream',
           'git tag v1.2.0 abc1234',
           'git tag release/v1.2.0 abc1234',
-          'git push origin v1.2.0',
-          'git push origin release/v1.2.0',
+          'git push upstream v1.2.0',
+          'git push upstream release/v1.2.0',
           '```',
         ].join('\n'),
       );
@@ -363,6 +366,7 @@ describe('renderFailureReport', () => {
         { name: '@scope/b', version: '1.0.0' },
       ]);
       tagged.updates = tagged.updates.map((u) => ({ ...u, tag: `${u.packageName}@v${u.newVersion}` }));
+      tagged.baselineTags = ['v1.0.0'];
       const body = renderFailureReport({
         versionOutput: tagged,
         publishOutput: {
@@ -380,7 +384,14 @@ describe('renderFailureReport', () => {
         recovery: { mode: 'direct' },
       });
       expect(body).toContain('Roll forward with the next release. It bumps past this release');
-      expect(body).toContain('git tag @scope/a@v1.0.0 abc1234\ngit push origin @scope/a@v1.0.0');
+      expect(body).toContain(
+        [
+          'git tag @scope/a@v1.0.0 abc1234',
+          'git tag v1.0.0 abc1234',
+          'git push origin @scope/a@v1.0.0',
+          'git push origin v1.0.0',
+        ].join('\n'),
+      );
       expect(body).not.toContain('@scope/b@v1.0.0');
       expect(body).not.toContain('Re-run failed jobs');
     });

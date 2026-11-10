@@ -184,7 +184,11 @@ function tagsToRestore(versionOutput: VersionOutput, publishOutput: PublishOutpu
       .filter((entry) => entry.status === 'published' || entry.status === 'skipped')
       .map((entry) => entry.packageName),
   );
-  return versionOutput.updates.flatMap((update) => (update.tag && reached.has(update.packageName) ? [update.tag] : []));
+  const packageTags = versionOutput.updates.flatMap((update) =>
+    update.tag && reached.has(update.packageName) ? [update.tag] : [],
+  );
+  // Baseline tags are pushed only at the end, so a failed per-package run never pushed them.
+  return [...new Set([...packageTags, ...(versionOutput.baselineTags ?? [])])];
 }
 
 function renderRollForward(versionOutput: VersionOutput, publishOutput: PublishOutput): string[] {
@@ -193,15 +197,16 @@ function renderRollForward(versionOutput: VersionOutput, publishOutput: PublishO
   ];
   const tags = tagsToRestore(versionOutput, publishOutput);
   const sha = publishOutput.git.commitSha;
+  const remote = publishOutput.git.remote ?? 'origin';
   if (sha && tags.length > 0) {
     lines.push(
       '',
       'Optionally, restore the missing tags on the release commit:',
       '',
       '```sh',
-      'git fetch origin',
+      `git fetch ${remote}`,
       ...tags.map((tag) => `git tag ${tag} ${sha}`),
-      ...tags.map((tag) => `git push origin ${tag}`),
+      ...tags.map((tag) => `git push ${remote} ${tag}`),
       '```',
     );
   }

@@ -98,7 +98,14 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
   }
 
   if (!dryRun) {
-    ctx.output.git.commitSha = await git.headSha(cwd);
+    try {
+      ctx.output.git.commitSha = await git.headSha(cwd);
+    } catch (error) {
+      throw createPublishError(
+        PublishErrorCode.GIT_COMMIT_ERROR,
+        `Failed to read release commit SHA: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   // Baseline tags share the release commit but stay separate on VersionOutput so github-release can skip them.
