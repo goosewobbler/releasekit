@@ -18,6 +18,7 @@ import type {
 } from '../core/types.js';
 
 // A true statement, so it reads fine even when published unedited (automated modes).
+// biome-ignore lint/suspicious/noTemplateCurlyInString: intentional template-placeholder syntax
 const DEFAULT_FIRST_RELEASE_TEXT = '_First release of ${packageName}._';
 
 export function firstReleaseLine(context: TemplateContext, config?: FirstReleaseConfig | false): string | undefined {
@@ -25,6 +26,7 @@ export function firstReleaseLine(context: TemplateContext, config?: FirstRelease
     return undefined;
   }
   const template = config?.text ?? DEFAULT_FIRST_RELEASE_TEXT;
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: replacing literal template placeholders
   return template.replaceAll('${packageName}', context.packageName).replaceAll('${version}', context.version);
 }
 

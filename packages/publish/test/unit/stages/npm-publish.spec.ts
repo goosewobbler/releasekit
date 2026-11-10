@@ -292,7 +292,7 @@ describe('npm-publish stage', () => {
   it('should treat EPUBLISHCONFLICT publish errors as already-published', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     // Pre-check (execCommandSafe) says not-published; npm publish then rejects.
-    vi.mocked(execCommand).mockImplementation(async (file, args) => {
+    vi.mocked(execCommand).mockImplementation(async (_file, args) => {
       if ((args as string[])?.includes('publish')) {
         throw Object.assign(new Error('Command failed: pnpm publish'), {
           stdout: '',

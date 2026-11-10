@@ -9,6 +9,9 @@
     "TURBO_TOKEN",
     "TURBO_TEAM"
   ],
+  "globalPassThroughEnv": [
+    "PNPM_HOME"
+  ],
   "tasks": {
     "build": {
       "dependsOn": [

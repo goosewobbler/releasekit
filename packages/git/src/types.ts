@@ -48,6 +48,8 @@ export interface GitCheckoutOptions {
 
 export interface GitListTagsOptions {
   sort?: string;
+  /** Only tags reachable from this ref (`--merged`). */
+  merged?: string;
   cwd?: string;
 }
 
