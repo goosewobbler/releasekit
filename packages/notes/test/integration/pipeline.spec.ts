@@ -246,6 +246,32 @@ describe('Parser: conventional-changelog', () => {
     expect(apiEntry?.issueIds).toContain('#42');
   });
 
+  it('should mark entries under a Breaking section as breaking, with or without the marker', () => {
+    const result = parseConventionalChangelog(
+      [
+        '## [2.0.0] - 2026-01-15',
+        '',
+        '### Breaking',
+        '- **BREAKING** **config**: Reject old presets',
+        '- Drop node 18',
+        '',
+        '### Fixed',
+        '- Patch serializer',
+        '',
+        '### Breaking changes:',
+        '- Rename connect()',
+      ].join('\n'),
+      'my-lib',
+    );
+
+    expect(result.packages[0]?.entries).toEqual([
+      expect.objectContaining({ type: 'changed', scope: 'config', description: 'Reject old presets', breaking: true }),
+      expect.objectContaining({ type: 'changed', description: 'Drop node 18', breaking: true }),
+      expect.objectContaining({ type: 'fixed', description: 'Patch serializer', breaking: undefined }),
+      expect.objectContaining({ type: 'changed', description: 'Rename connect()', breaking: true }),
+    ]);
+  });
+
   it('should round-trip: parse → render → contains version', () => {
     const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
     const contexts = result.packages.map(createTemplateContext);

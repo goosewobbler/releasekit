@@ -37,8 +37,20 @@ const SECTION_TYPE_MAP: Record<string, ChangelogEntry['type']> = {
   security: 'security',
 };
 
-function normalizeSectionType(header: string): ChangelogEntry['type'] {
-  return SECTION_TYPE_MAP[header.toLowerCase().trim()] ?? 'changed';
+// The renderer moves breaking entries here out of their type section, so the original type is gone.
+const BREAKING_SECTIONS = new Set(['breaking', 'breaking changes']);
+
+interface Section {
+  type: ChangelogEntry['type'];
+  breaking: boolean;
+}
+
+function parseSection(header: string): Section {
+  const name = header.toLowerCase().trim().replace(/:$/, '');
+  if (BREAKING_SECTIONS.has(name)) {
+    return { type: 'changed', breaking: true };
+  }
+  return { type: SECTION_TYPE_MAP[name] ?? 'changed', breaking: false };
 }
 
 function extractIssueIds(text: string): { description: string; issueIds: string[] } {
@@ -60,7 +72,7 @@ function extractIssueIds(text: string): { description: string; issueIds: string[
   return { description, issueIds };
 }
 
-function parseEntry(line: string, sectionType: ChangelogEntry['type']): ChangelogEntry | null {
+function parseEntry(line: string, section: Section): ChangelogEntry | null {
   const bulletMatch = line.match(BULLET);
   if (!bulletMatch) {
     return null;
@@ -68,7 +80,7 @@ function parseEntry(line: string, sectionType: ChangelogEntry['type']): Changelo
 
   let rawText = bulletMatch[1] ?? '';
   let scope: string | undefined;
-  let breaking = false;
+  let breaking = section.breaking;
 
   if (/^\*\*BREAKING\*\*/i.test(rawText) || /^BREAKING CHANGE/i.test(rawText)) {
     breaking = true;
@@ -86,7 +98,7 @@ function parseEntry(line: string, sectionType: ChangelogEntry['type']): Changelo
   const { description, issueIds } = extractIssueIds(rawText);
 
   return {
-    type: sectionType,
+    type: section.type,
     description,
     scope,
     breaking: breaking || undefined,
@@ -105,7 +117,8 @@ function parseVersionBlocks(content: string): VersionBlock[] {
   const blocks: VersionBlock[] = [];
 
   let currentBlock: VersionBlock | null = null;
-  let currentSectionType: ChangelogEntry['type'] = 'changed';
+  const defaultSection: Section = { type: 'changed', breaking: false };
+  let currentSection = defaultSection;
 
   for (const line of lines) {
     const versionMatch = line.match(VERSION_HEADER);
@@ -118,7 +131,7 @@ function parseVersionBlocks(content: string): VersionBlock[] {
       const date = versionMatch[2] ?? new Date().toISOString().split('T')[0] ?? '';
 
       currentBlock = { version, date, entries: [] };
-      currentSectionType = 'changed';
+      currentSection = defaultSection;
       continue;
     }
 
@@ -128,11 +141,11 @@ function parseVersionBlocks(content: string): VersionBlock[] {
 
     const sectionMatch = line.match(SECTION_HEADER);
     if (sectionMatch) {
-      currentSectionType = normalizeSectionType(sectionMatch[1] ?? '');
+      currentSection = parseSection(sectionMatch[1] ?? '');
       continue;
     }
 
-    const entry = parseEntry(line, currentSectionType);
+    const entry = parseEntry(line, currentSection);
     if (entry) {
       currentBlock.entries.push(entry);
     }
