@@ -441,7 +441,7 @@ describe('Gate', () => {
         mockFetchPRLabels.mockImplementation(async (_forge: unknown, prNumber: number) => prs[prNumber]?.labels ?? []);
       }
 
-      it('should refuse to release it, without a notify comment', async () => {
+      it('should not release it or post a notify comment', async () => {
         mockLoadReleaseKitConfig.mockReturnValue(standingPrConfig());
         mockFindMergedPRsSinceLastRelease.mockResolvedValue([42]);
         seedPRs({ 42: { body: '', labels: ['release:immediate', 'bump:minor'], headRef: 'release/next' } });
