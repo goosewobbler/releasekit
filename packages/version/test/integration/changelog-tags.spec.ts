@@ -1,5 +1,5 @@
 /**
- * Runs the built CLI against a temp git repo, so each strategy's real tag and changelog output is checked.
+ * Runs the built CLI against a temp git repo.
  * Requires `pnpm build` in @releasekit/version first.
  */
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';

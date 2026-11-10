@@ -152,9 +152,9 @@ function getTitleFromTag(
 }
 
 /**
- * Returns the only filled key among the changelogs that record the tag. Input without changelog tags uses the owning
- * update's package, else the package the tag names; a shared or version-only tag falls back to the only filled key,
- * unless that package has a different tag.
+ * Returns the only filled key among the changelogs that record the tag. Older input without changelog tags falls back
+ * to the owning update's package, then the package the tag names, then (for a shared or version-only tag) the only
+ * filled key, unless that package has a different tag.
  */
 function resolveTagKey(
   { tag, owner, shared, input }: ReleaseTag,

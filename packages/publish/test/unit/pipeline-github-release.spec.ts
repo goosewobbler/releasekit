@@ -414,7 +414,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
       },
     );
 
-    it('should give a tag several packages share the notes of the only one that has any', async () => {
+    it('should use the notes of the only package that has any when several share a tag', async () => {
       await runPipeline(sharedTagInput(), getDefaultConfig(), {
         ...options,
         releaseNotes: { 'pkg-a': 'A', 'pkg-c': 'C' },
@@ -423,7 +423,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
       expect(releaseBodies()).toEqual({ 'release-1.2.3': 'A', 'pkg-c-v1.2.3': 'C' });
     });
 
-    it("should not give a tag several packages share one package's notes when another's has notes too", async () => {
+    it('should use generated notes when more than one package sharing a tag has notes', async () => {
       await runPipeline(sharedTagInput(), getDefaultConfig(), {
         ...options,
         releaseNotes: { 'pkg-a': 'A', 'pkg-b': 'B', 'pkg-c': 'C' },
