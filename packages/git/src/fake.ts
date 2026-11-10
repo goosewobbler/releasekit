@@ -17,6 +17,7 @@ export interface FakeCommitRecord {
   message: string;
   paths?: string[];
   skipHooks?: boolean;
+  allowEmpty?: boolean;
 }
 
 export interface FakeTagRecord {
@@ -203,7 +204,7 @@ export class FakeGit implements Git {
   }
 
   async commit(message: string, opts: GitCommitOptions = {}): Promise<void> {
-    this.committed.push({ message, paths: opts.paths, skipHooks: opts.skipHooks });
+    this.committed.push({ message, paths: opts.paths, skipHooks: opts.skipHooks, allowEmpty: opts.allowEmpty });
   }
 
   async tag(name: string, opts: GitTagOptions = {}): Promise<void> {

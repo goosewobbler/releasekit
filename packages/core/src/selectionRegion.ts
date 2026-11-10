@@ -17,10 +17,13 @@ export function rkPreMarker(packageName: string): string {
   return `<!-- rk-pre:${packageName} -->`;
 }
 
-/** A prerelease row's nested "graduate to stable" toggle. */
+/** A prerelease row's nested "graduate to stable" toggle, or the row offering an unchanged prerelease's graduation. */
 export function rkGradMarker(packageName: string): string {
   return `<!-- rk-grad:${packageName} -->`;
 }
+
+/** A sync release's single "graduate to stable" checkbox; a sync body has no selection region. */
+export const RK_GRAD_SYNC_MARKER = '<!-- rk-grad-sync -->';
 
 export function wrapSelectionRegion(content: string): string {
   return wrapMarkerRegion(content, SELECTION_MARKER, SELECTION_MARKER_END);

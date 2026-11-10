@@ -1,5 +1,7 @@
 import path from 'node:path';
-import type { VersionPackageUpdate } from '@releasekit/core';
+import type { CIConfig } from '@releasekit/config';
+import type { VersionChangelogEntry, VersionPackageChangelog, VersionPackageUpdate } from '@releasekit/core';
+import { matchesPackageTarget } from '@releasekit/core';
 import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
 import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
@@ -8,6 +10,7 @@ import { renderNotesRegion } from '../../src/standing-pr/notes-region.js';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
 import {
   createReleaseTags,
+  fetchStandingPRSnapshot,
   findLatestMergedStandingPR,
   parseManifest,
   publishFromManifest,
@@ -17,6 +20,7 @@ import {
   STANDING_PR_BODY_CAP,
   serializeManifest,
 } from '../../src/standing-pr/standing-pr.js';
+import type { ReleaseOptions } from '../../src/types.js';
 
 class ControllableGit extends FakeGit {
   /** The last value sticks once drained, so a test can vary the HEAD subject across the two guard calls. */
@@ -96,8 +100,13 @@ const mockGetWorkspacePackageNames = vi.fn<(...args: unknown[]) => Promise<strin
 // The publish path validates the manifest against the merged tree, where each package sits in
 // `/test/packages/<name>` and its manifests carry the version set here.
 let mergedVersions: Record<string, string> = {};
+// The update reads each package's current version to find the ones on a prerelease line.
+const mockGetWorkspacePackageVersions = vi
+  .fn<(...args: unknown[]) => Promise<Record<string, string>>>()
+  .mockResolvedValue({});
 vi.mock('@releasekit/version', () => ({
   getWorkspacePackageNames: (...args: unknown[]) => mockGetWorkspacePackageNames(...args),
+  getWorkspacePackageVersions: (...args: unknown[]) => mockGetWorkspacePackageVersions(...args),
   getWorkspacePackageDirs: async () =>
     Object.fromEntries(Object.keys(mergedVersions).map((name) => [name, `/test/packages/${name}`])),
   readManifestVersion: (file: string) => mergedVersions[path.relative('/test/packages', path.dirname(file))],
@@ -374,6 +383,7 @@ describe('runStandingPRUpdate', () => {
 
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue(defaultConfig as ReturnType<typeof loadConfig>);
+    mockGetWorkspacePackageVersions.mockResolvedValue({});
 
     // HEAD SHA defaults to 'abc123' (the status-check sha the gate assertions key on); the HEAD
     // subject defaults to a non-release commit so the skip-pattern guards pass.
@@ -2472,6 +2482,596 @@ describe('runStandingPRUpdate', () => {
       // The label name must survive the 140-char status truncation.
       expect(lastStatus?.description).toContain('graduate:@scope/b');
       expect(lastStatus?.description).toContain('channel:prerelease');
+    });
+  });
+
+  describe('graduation rows', () => {
+    interface Queued {
+      packageName: string;
+      newVersion: string;
+      entries?: VersionChangelogEntry[];
+    }
+
+    // Each run honours exclude, stable and graduate like the engine: a graduating prerelease lands on its stable base,
+    // with or without queued changes; anything else releases only its queued change.
+    const fakeEngine =
+      (versions: Record<string, string>, queued: Queued[] = [], groups: Record<string, string[]> = {}) =>
+      async (opts: ReleaseOptions) => {
+        const excluded = new Set(opts.exclude ?? []);
+        const scope = opts.graduate ?? [];
+        const graduating = (name: string) => {
+          const mates = Object.values(groups).find((members) => members.includes(name)) ?? [name];
+          return !!opts.stable || mates.some((m) => scope.some((t) => matchesPackageTarget(m, t)));
+        };
+        const updates: VersionPackageUpdate[] = [];
+        const changelogs: VersionPackageChangelog[] = [];
+        for (const [name, current] of Object.entries(versions)) {
+          const change = queued.find((q) => q.packageName === name);
+          if (excluded.has(name)) {
+            continue;
+          }
+          const graduates = graduating(name) && current.includes('-');
+          if (!graduates && !change) {
+            continue;
+          }
+          const newVersion = graduates ? (current.split('-')[0] as string) : (change?.newVersion as string);
+          updates.push({
+            packageName: name,
+            newVersion,
+            filePath: `packages/${name}/package.json`,
+            action: graduates ? 'graduated' : 'bumped',
+            channel: newVersion.includes('-') ? 'prerelease' : 'stable',
+          });
+          changelogs.push({
+            packageName: name,
+            version: newVersion,
+            previousVersion: null,
+            revisionRange: 'HEAD',
+            repoUrl: null,
+            entries: change?.entries ?? [{ type: 'added', description: `prerelease work in ${name}` }],
+          });
+        }
+        const sync = !!opts.sync;
+        return {
+          dryRun: opts.dryRun,
+          strategy: sync ? ('sync' as const) : ('async' as const),
+          updates,
+          // Sync records one shared changelog, under `monorepo` when there's no mainPackage, as the engine does.
+          changelogs:
+            sync && changelogs.length > 0
+              ? [
+                  {
+                    ...(changelogs[0] as VersionPackageChangelog),
+                    packageName: 'monorepo',
+                    entries: changelogs.flatMap((c) => c.entries),
+                  },
+                ]
+              : changelogs,
+          tags: sync
+            ? updates.slice(0, 1).map((u) => `v${u.newVersion}`)
+            : updates.map((u) => `${u.packageName}@v${u.newVersion}`),
+          sharedEntries: [],
+        };
+      };
+
+    async function setup(opts: {
+      versions: Record<string, string>;
+      queued?: Queued[];
+      groups?: Record<string, string[]>;
+      standingPr?: Partial<typeof defaultConfig.ci.standingPr> & Record<string, unknown>;
+      sync?: boolean;
+      labels?: string[];
+      body?: string;
+      manifest?: Partial<StandingPRManifest>;
+      actorPermissions?: Record<string, 'admin' | 'write'>;
+      open?: boolean;
+    }) {
+      const { loadConfig } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ...defaultConfig,
+        ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, ...opts.standingPr } },
+        version: {
+          sync: opts.sync,
+          groups: Object.fromEntries(
+            Object.entries(opts.groups ?? {}).map(([name, packages]) => [name, { sync: 'linked', packages }]),
+          ),
+        },
+      } as unknown as ReturnType<typeof loadConfig>);
+      mockGetWorkspacePackageVersions.mockResolvedValue(opts.versions);
+
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      vi.mocked(runVersionStep).mockImplementation(
+        fakeEngine(opts.versions, opts.queued, opts.groups) as unknown as typeof runVersionStep,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+      const open = opts.open ?? opts.body !== undefined;
+      const forge = await mockForge({
+        standingPR: open ? openStandingPR(99, opts.labels ?? ['release']) : null,
+        pullRequests: open ? { 99: { body: opts.body ?? '', labels: [] } } : {},
+        comments: opts.manifest
+          ? [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, schemaVersion: 2, ...opts.manifest }) }]
+          : [],
+        actorPermissions: opts.actorPermissions,
+      });
+      const writeCall = () => vi.mocked(runVersionStep).mock.calls.at(-1)?.[0] as ReleaseOptions;
+      const body = () =>
+        (forge.updatedPullRequests.at(-1)?.changes.body ?? forge.createdPullRequests.at(-1)?.body) as string;
+      const manifest = () => {
+        const writes = [...forge.createdComments, ...forge.updatedComments].map((c) => c.body);
+        return parseManifest(writes.find((b) => b.includes(MANIFEST_MARKER)) as string);
+      };
+      return { forge, writeCall, body, manifest };
+    }
+
+    const run = (extra: { reconcile?: boolean } = {}) =>
+      runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false, ...extra });
+
+    const graduationBody = (rows: Record<string, boolean>, releaseRows: string[] = []) =>
+      [
+        '<!-- releasekit-selection -->',
+        ...releaseRows,
+        ...Object.entries(rows).map(
+          ([name, ticked]) =>
+            `- [${ticked ? 'x' : ' '}] \`${name}\` graduate to stable → 1.0.0 <!-- rk-grad:${name} -->`,
+        ),
+        '<!-- releasekit-selection-end -->',
+      ].join('\n');
+
+    it('should offer an unchanged prerelease as an unticked graduation row beside the queued changes', async () => {
+      const { forge, writeCall, body, manifest } = await setup({
+        versions: { a: '1.0.0', c: '2.1.0-next.3' },
+        queued: [{ packageName: 'a', newVersion: '1.1.0' }],
+      });
+
+      await run();
+
+      expect(body()).toContain('- [x] `a` → 1.1.0 <!-- rk-sel:a -->');
+      expect(body()).toContain('#### Graduate to stable');
+      expect(body()).toContain('- [ ] `c` graduate to stable → 2.1.0 <!-- rk-grad:c -->');
+      expect(writeCall().graduate).toBeUndefined();
+      expect(manifest().versionOutput.updates.map((u) => u.packageName)).toEqual(['a']);
+      expect(forge.commitStatuses.at(-1)?.state).toBe('success');
+      expect(forge.createdLabels.some((l) => l.name === 'graduate:c')).toBe(true);
+    });
+
+    it('should graduate a ticked row and publish its stable version from the manifest', async () => {
+      const { forge, writeCall, body, manifest } = await setup({
+        versions: { a: '1.0.0', c: '2.1.0-next.3' },
+        queued: [{ packageName: 'a', newVersion: '1.1.0' }],
+        body: graduationBody({ c: true }, ['- [x] `a` → 1.1.0 <!-- rk-sel:a -->']),
+      });
+
+      await run();
+
+      expect(writeCall().graduate).toEqual(['c']);
+      expect(body()).toContain('- [x] `c` graduate to stable → 2.1.0 <!-- rk-grad:c -->');
+      const written = manifest();
+      expect(written.graduated).toEqual(['c']);
+      expect(written.versionOutput.updates.find((u) => u.packageName === 'c')?.newVersion).toBe('2.1.0');
+
+      const { runPublishStep } = await import('../../src/steps.js');
+      vi.mocked(runPublishStep).mockResolvedValue({} as Awaited<ReturnType<typeof runPublishStep>>);
+      mergedVersions = { a: '1.1.0', c: '2.1.0' };
+      await mockForge({
+        comments: [{ id: 6, prNumber: 99, body: serializeManifest(written) }],
+        pullRequests: { 99: { body: body(), labels: forge.setLabelsCalls.at(-1)?.labels ?? [] } },
+      });
+
+      await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const published = vi.mocked(runPublishStep).mock.calls[0]?.[0];
+      expect(published?.updates.find((u) => u.packageName === 'c')?.newVersion).toBe('2.1.0');
+      expect(published?.tags).toContain('c@v2.1.0');
+    });
+
+    it('should open the PR with only graduation rows after a release empties the queue, pending until one is ticked', async () => {
+      fakeGit.subjects = ['chore: release 2 package(s) (#98)'];
+      const { forge, body, manifest } = await setup({ versions: { c: '2.1.0-next.3', d: '0.4.0-next.1' } });
+
+      const result = await run({ reconcile: true });
+
+      expect(result.action).toBe('created');
+      expect(forge.createdPullRequests[0]?.title).toBe('chore: release preparation');
+      expect(fakeGit.committed.at(-1)).toMatchObject({ message: 'chore: release preparation', allowEmpty: true });
+      expect(body()).toContain('Tick a package to graduate it to stable');
+      expect(body()).toContain('- [ ] `c` graduate to stable → 2.1.0 <!-- rk-grad:c -->');
+      expect(body()).toContain('- [ ] `d` graduate to stable → 0.4.0 <!-- rk-grad:d -->');
+      expect(body()).not.toContain('#### Graduate to stable');
+      expect(body()).not.toContain('<!-- rk-sel:');
+      expect(manifest().versionOutput.updates).toEqual([]);
+      expect(forge.commitStatuses.at(-1)).toMatchObject({ state: 'pending' });
+      expect(forge.commitStatuses.at(-1)?.description).toContain('tick a graduation row');
+    });
+
+    it('should clear the pending status once a graduation row is ticked with nothing else queued', async () => {
+      const { forge, body } = await setup({ versions: { c: '2.1.0-next.3' }, body: graduationBody({ c: true }) });
+
+      await run();
+
+      expect(forge.updatedPullRequests[0]?.changes.title).toBe('chore: release 1 package(s)');
+      expect(body()).toContain('- [x] `c` graduate to stable → 2.1.0 <!-- rk-grad:c -->');
+      expect(forge.commitStatuses.at(-1)?.state).toBe('success');
+    });
+
+    it('should still close the PR when nothing is queued and no package is on a prerelease line', async () => {
+      const { forge } = await setup({ versions: { a: '1.0.0' }, open: true });
+
+      const result = await run();
+
+      expect(result.action).toBe('closed');
+      expect(forge.createdPullRequests).toHaveLength(0);
+    });
+
+    it('should turn a graduation row back into a prerelease row once the package gains changes', async () => {
+      const { writeCall, body } = await setup({
+        versions: { c: '2.1.0-next.3' },
+        queued: [{ packageName: 'c', newVersion: '2.1.0-next.4' }],
+        body: graduationBody({ c: true }),
+      });
+
+      await run();
+
+      expect(writeCall().graduate).toBeUndefined();
+      expect(body()).toContain('- [x] `c` → 2.1.0-next.4 · `next` <!-- rk-sel:c -->');
+      expect(body()).not.toContain('<!-- rk-grad:c -->');
+    });
+
+    it('should graduate a changed prerelease, changes and all, through its nested toggle', async () => {
+      const { forge, writeCall } = await setup({
+        versions: { c: '2.1.0-next.3' },
+        queued: [{ packageName: 'c', newVersion: '2.1.0-next.4' }],
+        standingPr: { channelToggle: true },
+        body: [
+          '<!-- releasekit-selection -->',
+          '- [x] `c` → 2.1.0-next.4 · `next` <!-- rk-sel:c -->',
+          '  - [x] graduate to stable → `2.1.0` <!-- rk-grad:c -->',
+          '<!-- releasekit-selection-end -->',
+        ].join('\n'),
+      });
+
+      await run();
+
+      expect(writeCall().graduate).toEqual(['c']);
+      expect(forge.commitStatuses.at(-1)?.state).toBe('success');
+    });
+
+    it('should graduate a changed prerelease through a graduate:<package> label', async () => {
+      const { writeCall, manifest } = await setup({
+        versions: { c: '2.1.0-next.3' },
+        queued: [{ packageName: 'c', newVersion: '2.1.0-next.4' }],
+        labels: ['release', 'graduate:c'],
+        open: true,
+      });
+
+      await run();
+
+      expect(writeCall().graduate).toEqual(['c']);
+      expect(manifest().versionOutput.updates).toMatchObject([{ packageName: 'c', newVersion: '2.1.0' }]);
+    });
+
+    it('should hold the status, naming the package, when its queued changes need more than the line’s bump', async () => {
+      const { forge } = await setup({
+        versions: { c: '2.1.0-next.3' },
+        queued: [
+          {
+            packageName: 'c',
+            newVersion: '2.1.0-next.4',
+            entries: [{ type: 'changed', description: 'drop the old API', breaking: true }],
+          },
+        ],
+        labels: ['release', 'graduate:c'],
+        open: true,
+      });
+
+      await run();
+
+      const status = forge.commitStatuses.at(-1);
+      expect(status?.state).toBe('pending');
+      expect(status?.description).toContain("`c` can't graduate");
+      expect(status?.description).toContain('`bump:major` + `channel:prerelease`');
+    });
+
+    it('should let a graduate:<package> label tick the row, and drop the tick once the label goes', async () => {
+      const ticked = await setup({ versions: { c: '2.1.0-next.3' }, labels: ['release', 'graduate:c'], open: true });
+
+      await run();
+
+      expect(ticked.writeCall().graduate).toEqual(['c']);
+      const labelledBody = ticked.body();
+      expect(labelledBody).toContain('- [x] `c` graduate to stable → 2.1.0 <!-- rk-grad:c -->');
+
+      const removed = await setup({
+        versions: { c: '2.1.0-next.3' },
+        labels: ['release'],
+        body: labelledBody,
+        manifest: { overrideLabels: ['graduate:c'], graduated: ['c'] },
+      });
+
+      await run();
+
+      expect(removed.writeCall().graduate).toBeUndefined();
+      expect(removed.body()).toContain('- [ ] `c` graduate to stable → 2.1.0 <!-- rk-grad:c -->');
+    });
+
+    it('should graduate linked group members together from one ticked row', async () => {
+      const { writeCall, body } = await setup({
+        versions: { c: '2.1.0-next.3', d: '2.1.0-next.3' },
+        groups: { family: ['c', 'd'] },
+        body: graduationBody({ c: true, d: false }),
+      });
+
+      await run();
+
+      expect(writeCall().graduate).toEqual(['c', 'd']);
+      expect(body()).toContain('- [x] `d` graduate to stable → 2.1.0 <!-- rk-grad:d -->');
+    });
+
+    it("should ungraduate a linked group when any member's row is unticked", async () => {
+      const { writeCall, body } = await setup({
+        versions: { c: '2.1.0-next.3', d: '2.1.0-next.3' },
+        groups: { family: ['c', 'd'] },
+        body: graduationBody({ c: false, d: true }),
+        manifest: { graduated: ['c', 'd'], graduationRows: ['c', 'd'] },
+      });
+
+      await run();
+
+      expect(writeCall().graduate).toBeUndefined();
+      expect(body()).toContain('- [ ] `d` graduate to stable → 2.1.0 <!-- rk-grad:d -->');
+    });
+
+    it('should not offer a linked member its own row while a group-mate has queued changes', async () => {
+      const { body } = await setup({
+        versions: { c: '2.1.0-next.3', d: '2.1.0-next.3' },
+        groups: { family: ['c', 'd'] },
+        queued: [{ packageName: 'c', newVersion: '2.1.0-next.4' }],
+      });
+
+      await run();
+
+      expect(body()).not.toContain('<!-- rk-grad:d -->');
+    });
+
+    it('should keep the approved graduation across a push-triggered update under authorization', async () => {
+      const { writeCall, body, manifest } = await setup({
+        versions: { c: '2.1.0-next.3' },
+        standingPr: { authorization: { requiredPermission: 'admin' } },
+        body: graduationBody({ c: false }),
+        manifest: { graduated: ['c'] },
+      });
+
+      await run();
+
+      expect(writeCall().graduate).toEqual(['c']);
+      expect(body()).toContain('- [x] `c` graduate to stable → 2.1.0 <!-- rk-grad:c -->');
+      expect(manifest().graduationRows).toEqual(['c']);
+    });
+
+    it('should not carry an approved graduation row over to changes that arrive later', async () => {
+      const { writeCall } = await setup({
+        versions: { c: '2.1.0-next.3' },
+        queued: [{ packageName: 'c', newVersion: '2.1.0-next.4' }],
+        standingPr: { authorization: { requiredPermission: 'admin' }, channelToggle: true },
+        body: graduationBody({ c: true }),
+        manifest: { graduated: ['c'], graduationRows: ['c'] },
+      });
+
+      await run();
+
+      expect(writeCall().graduate).toBeUndefined();
+    });
+
+    it('should revert an unauthorized graduation tick and post a notice', async () => {
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({ action: 'edited', sender: { login: 'rando', type: 'User' } }),
+      );
+      process.env.GITHUB_EVENT_NAME = 'pull_request';
+      process.env.GITHUB_EVENT_PATH = '/event.json';
+      const { forge, writeCall, body } = await setup({
+        versions: { c: '2.1.0-next.3' },
+        standingPr: { authorization: { requiredPermission: 'admin' } },
+        body: graduationBody({ c: true }),
+        manifest: {},
+        actorPermissions: { rando: 'write' },
+      });
+
+      await run();
+
+      expect(writeCall().graduate).toBeUndefined();
+      expect(body()).toContain('- [ ] `c` graduate to stable → 2.1.0 <!-- rk-grad:c -->');
+      expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(true);
+    });
+
+    it('should report a PR with nothing ticked as pending in the feeder previews’ snapshot', async () => {
+      const { manifest } = await setup({ versions: { c: '2.1.0-next.3' } });
+      await run();
+
+      const forge = await mockForge({
+        standingPR: openStandingPR(42),
+        comments: [{ id: 6, prNumber: 42, body: serializeManifest(manifest()) }],
+      });
+      const snapshot = await fetchStandingPRSnapshot(forge, defaultConfig.ci as unknown as CIConfig);
+
+      expect(snapshot).toMatchObject({ gateState: 'pending', gateReason: 'Nothing ticked to release' });
+    });
+
+    it('should start the minAge wait when changes arrive, not when the graduation-only PR opened', async () => {
+      const { forge } = await setup({
+        versions: { a: '1.0.0', c: '2.1.0-next.3' },
+        queued: [{ packageName: 'a', newVersion: '1.1.0' }],
+        standingPr: { minAge: '1d' },
+        open: true,
+        manifest: {
+          firstUpdatedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+          versionOutput: { ...baseManifest.versionOutput, updates: [] },
+        },
+      });
+
+      await run();
+
+      expect(forge.commitStatuses.at(-1)).toMatchObject({
+        state: 'pending',
+        description: expect.stringMatching(/Waiting .+ for minAge/),
+      });
+    });
+
+    it('should report a graduation hold as pending in the feeder previews’ snapshot', async () => {
+      const { manifest } = await setup({
+        versions: { c: '2.1.0-next.3' },
+        queued: [
+          {
+            packageName: 'c',
+            newVersion: '2.1.0-next.4',
+            entries: [{ type: 'changed', description: 'drop the old API', breaking: true }],
+          },
+        ],
+        labels: ['release', 'graduate:c'],
+        open: true,
+      });
+      await run();
+
+      const forge = await mockForge({
+        standingPR: openStandingPR(42),
+        comments: [{ id: 6, prNumber: 42, body: serializeManifest(manifest()) }],
+      });
+      const snapshot = await fetchStandingPRSnapshot(forge, defaultConfig.ci as unknown as CIConfig);
+
+      expect(snapshot).toMatchObject({
+        gateState: 'pending',
+        gateReason: expect.stringContaining("`c` can't graduate"),
+      });
+    });
+
+    it('should offer graduation rows below minPackages, holding the queued changes back', async () => {
+      const { writeCall, body } = await setup({
+        versions: { a: '1.0.0', c: '2.1.0-next.3' },
+        queued: [{ packageName: 'a', newVersion: '1.1.0' }],
+        standingPr: { minPackages: 2 },
+      });
+
+      const result = await run();
+
+      expect(result.action).toBe('created');
+      expect(writeCall().exclude).toEqual(['a']);
+      expect(body()).not.toContain('<!-- rk-sel:a -->');
+      expect(body()).toContain('- [ ] `c` graduate to stable → 2.1.0 <!-- rk-grad:c -->');
+    });
+
+    describe('sync releases', () => {
+      const syncVersions = { a: '1.1.0-next.3', b: '1.1.0-next.3' };
+      const queuedSync = [
+        { packageName: 'a', newVersion: '1.1.0-next.4' },
+        { packageName: 'b', newVersion: '1.1.0-next.4' },
+      ];
+
+      it('should open the PR with only the graduation checkbox when nothing is queued', async () => {
+        const { forge, writeCall, body } = await setup({ versions: syncVersions, sync: true });
+
+        const result = await run({ reconcile: true });
+
+        expect(result.action).toBe('created');
+        expect(writeCall().stable).toBeUndefined();
+        expect(body()).toContain('- [ ] graduate to stable → v1.1.0 <!-- rk-grad-sync -->');
+        expect(body()).not.toContain('Merging this PR will publish');
+        expect(forge.commitStatuses.at(-1)?.state).toBe('pending');
+      });
+
+      it('should graduate everything once the checkbox is ticked', async () => {
+        const { forge, writeCall, body, manifest } = await setup({
+          versions: syncVersions,
+          sync: true,
+          body: '- [x] graduate to stable → v1.1.0 <!-- rk-grad-sync -->',
+        });
+
+        await run();
+
+        expect(writeCall().stable).toBe(true);
+        expect(body()).toContain('Merging this PR will publish **v1.1.0**');
+        expect(body()).toContain('- [x] graduate to stable → v1.1.0 <!-- rk-grad-sync -->');
+        expect(manifest().graduated).toEqual(['a', 'b']);
+        expect(manifest().graduationRows).toEqual(['a', 'b']);
+        expect(forge.commitStatuses.at(-1)?.state).toBe('success');
+      });
+
+      it('should drop a tick given with nothing queued once changes are queued', async () => {
+        const { writeCall, body } = await setup({
+          versions: syncVersions,
+          sync: true,
+          queued: queuedSync,
+          standingPr: { channelToggle: true },
+          body: '- [x] graduate to stable → v1.1.0 <!-- rk-grad-sync -->',
+          manifest: { graduated: ['a', 'b'], graduationRows: ['a', 'b'] },
+        });
+
+        await run();
+
+        expect(writeCall().stable).toBeUndefined();
+        expect(body()).toContain('- [ ] graduate to stable → v1.1.0 <!-- rk-grad-sync -->');
+      });
+
+      it('should leave the checkbox out when changes are queued without channelToggle', async () => {
+        const { body } = await setup({ versions: syncVersions, sync: true, queued: queuedSync });
+
+        await run();
+
+        expect(body()).toContain('Merging this PR will publish **v1.1.0-next.4**');
+        expect(body()).not.toContain('<!-- rk-grad-sync -->');
+      });
+
+      it('should offer the checkbox under queued changes with channelToggle, graduating instead of the next prerelease', async () => {
+        const { writeCall, body } = await setup({
+          versions: syncVersions,
+          sync: true,
+          queued: queuedSync,
+          standingPr: { channelToggle: true },
+          body: '- [x] graduate to stable → v1.1.0 <!-- rk-grad-sync -->',
+        });
+
+        await run();
+
+        expect(writeCall().stable).toBe(true);
+        expect(body()).toContain('Merging this PR will publish **v1.1.0**');
+        expect(body()).toContain('- [x] graduate to stable → v1.1.0 <!-- rk-grad-sync -->');
+      });
+
+      it('should hold the status when the queued changes need more than the line’s bump', async () => {
+        const { forge } = await setup({
+          versions: syncVersions,
+          sync: true,
+          queued: [
+            {
+              packageName: 'a',
+              newVersion: '1.1.0-next.4',
+              entries: [{ type: 'changed', description: 'drop the old API', breaking: true }],
+            },
+            { packageName: 'b', newVersion: '1.1.0-next.4' },
+          ],
+          standingPr: { channelToggle: true },
+          body: '- [x] graduate to stable → v1.1.0 <!-- rk-grad-sync -->',
+        });
+
+        await run();
+
+        const status = forge.commitStatuses.at(-1);
+        expect(status?.state).toBe('pending');
+        expect(status?.description).toContain("The release can't graduate: its queued changes need a major bump");
+      });
+
+      it('should tick the checkbox from release:graduate', async () => {
+        const { writeCall, body } = await setup({
+          versions: syncVersions,
+          sync: true,
+          labels: ['release', 'release:graduate'],
+          open: true,
+        });
+
+        await run();
+
+        expect(writeCall().stable).toBe(true);
+        expect(body()).toContain('- [x] graduate to stable → v1.1.0 <!-- rk-grad-sync -->');
+      });
     });
   });
 

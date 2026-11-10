@@ -11,7 +11,8 @@ Every input in the body is delimited by an HTML comment marker. **The markers ar
 | `<!-- releasekit-notes:<pkg> -->` … `<!-- releasekit-notes-end:<pkg> -->` | Editable release notes, one region per releasing package, keyed by package name even when only one package releases. A `sync` release without `packageSpecificTags` has a single region, keyed by `version.mainPackage`, else `monorepo` | Text inside **replaces** the generated release notes for that package, at publish |
 | `<!-- rk-sel:<pkg> -->` | A row in the **Packages to release** checklist | Unticking asks the bot to hold that package back from the next release |
 | `<!-- rk-pre:<pkg> -->` | Channel toggle on a stable row | Ticking asks the bot to ship that package as a prerelease |
-| `<!-- rk-grad:<pkg> -->` | Channel toggle on a prerelease row | Ticking asks the bot to graduate that package to stable |
+| `<!-- rk-grad:<pkg> -->` | Channel toggle on a prerelease row, or the row offering an unchanged prerelease's graduation | Ticking asks the bot to graduate that package to stable |
+| `<!-- rk-grad-sync -->` | A sync release's graduation checkbox | Ticking asks the bot to graduate the release to stable |
 | `<!-- releasekit-manifest -->` | The release manifest, in a bot comment | **Bot-owned.** Drives the entire publish |
 
 The checklist rows live inside `<!-- releasekit-selection -->` … `<!-- releasekit-selection-end -->`, and the manifest lives in its own comment rather than the body.
@@ -20,10 +21,11 @@ The checklist rows live inside `<!-- releasekit-selection -->` … `<!-- release
 
 A tick or untick takes effect only when the next `standing-pr update` run rebuilds the PR: immediately if your workflow listens for `pull_request: edited` (the [example](../examples/ci/standing-pr/standing-pr.yml) does), otherwise on the next push or scheduled run. Merge only after the rebuilt body shows the change — publish reads the manifest, not the body, so merging earlier ships the previous selection. With [`authorization`](#who-can-change-what) set, only an `edited`-triggered run by an authorized actor applies it.
 
-- Sync releases have no checklist — they ship as one unit.
+- Sync releases have no checklist — they ship as one unit. On a prerelease line they get the `rk-grad-sync` checkbox instead.
+- A package on a prerelease line with nothing queued gets an `rk-grad` row of its own, with or without the toggles below. A `graduate:<pkg>` or `release:graduate` label ticks it while the label is on. See [Graduation rows](../packages/release/docs/ci-setup.md#label-semantics-in-standing-pr-mode).
 - In the flat and granular lists, a member of a `fixed` or `linked` group can't be held back on its own; its untick is ignored and the row re-ticks.
 - With [`ci.standingPr.primaryPackages`](./configuration.md#cistandingpr) in the default `streamlined` mode, only primaries (and packages outside every unit) have checkboxes; unticking a primary holds back its unit, except members it shares with another selected primary.
-- The `rk-pre` / `rk-grad` toggles appear only with `ci.standingPr.channelToggle: true`. A toggle moves the package's whole group, a held-back row's toggle is ignored, and a package set to both prerelease and graduate (say, `rk-pre` plus a `graduate:` label) goes prerelease.
+- The nested `rk-pre` / `rk-grad` toggles appear only with `ci.standingPr.channelToggle: true`. A toggle moves the package's whole group, a held-back row's toggle is ignored, and a package set to both prerelease and graduate (say, `rk-pre` plus a `graduate:` label) goes prerelease.
 
 ### Editable release notes
 

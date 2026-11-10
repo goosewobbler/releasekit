@@ -23,20 +23,25 @@ import { forgeFor } from '../github.js';
 import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS, graduatedPackageFromLabel, isGraduatePackageLabel } from '../label-utils.js';
 import { markFeederPreviewsStale } from '../preview/stale.js';
-import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
+import { type NotesStepResult, runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
 import { changelogRenderOptions, makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
+import { graduationOvershoot, lockstepGroupOf } from './graduation.js';
 import { extractNotesRegions, mergeNotesRegions, notesRegionKeys, renderNotesRegion } from './notes-region.js';
 import {
+  type ChannelSelection,
   type ChannelToggleConfig,
   cascadeDeselection,
   computeHierarchy,
   extractChannelSelection,
   extractSelection,
+  extractSyncGraduation,
+  type GraduationRowsConfig,
   type PrimaryConfig,
   renderSelectionRegion,
+  renderSyncGraduation,
   resolveChannelConflicts,
   selectionWarnings,
   validatePrimaryPackages,
@@ -94,6 +99,8 @@ const ManifestSchema = z
     overrideLabels: z.array(z.string()).optional(),
     deselected: z.array(z.string()).optional(),
     graduated: z.array(z.string()).optional(),
+    graduationRows: z.array(z.string()).optional(),
+    graduationHolds: z.array(z.string()).optional(),
     prereleased: z.array(z.string()).optional(),
   })
   .passthrough();
@@ -152,6 +159,10 @@ export interface StandingPRManifest {
    * absent, consumers re-derive from each update's `channel`/`action`.
    */
   graduated?: string[];
+  /** The `graduated` packages ticked as graduation rows: approved without changes, so the tick lapses once they have some. */
+  graduationRows?: string[];
+  /** Why a graduation can't merge yet, for the feeder previews' snapshot, which can't recompute it. */
+  graduationHolds?: string[];
   /**
    * Packages (and their groups) shifted onto a prerelease line by the per-row channel toggle. Provenance & round-trip
    * only - `versionOutput` already holds the prerelease versions.
@@ -247,6 +258,7 @@ async function commitAndForcePush(
   cwd: string,
   skipHooks: boolean,
   formatCommand: string | undefined,
+  allowEmpty: boolean,
 ): Promise<void> {
   const git = createGitCli();
   if (formatCommand) {
@@ -256,8 +268,8 @@ async function commitAndForcePush(
   await git.addAll(cwd);
 
   const status = (await git.status({ porcelain: true, cwd })).trim();
-  if (status) {
-    await git.commit(subject, { cwd, skipHooks });
+  if (status || allowEmpty) {
+    await git.commit(subject, { cwd, skipHooks, allowEmpty });
   }
 
   await git.push({ remote: 'origin', ref: branch, forceWithLease: true, cwd });
@@ -404,13 +416,16 @@ interface RenderPrBodyOptions {
   notesRegion?: string;
   /** Undefined for sync releases, which publish atomically so carry no selection region. */
   renderSelectionBlock?: (withChangelogs: boolean) => string;
+  /** A sync release's own graduation checkbox, in place of the selection region's rows. */
+  syncGraduation?: string;
   footer: string;
   summaryLine?: string;
   summaryTable?: string;
 }
 
 function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions): string {
-  const { supersedeWarning, notesRegion, renderSelectionBlock, footer, summaryLine, summaryTable } = options;
+  const { supersedeWarning, notesRegion, renderSelectionBlock, syncGraduation, footer, summaryLine, summaryTable } =
+    options;
 
   // Parameterised so the cap fallback can re-render with progressively trimmed changelogs and notes.
   const build = (
@@ -439,11 +454,19 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
 
     if (selectionBlock) {
       lines.push(selectionBlock);
-    } else if (versionOutput.strategy === 'sync') {
+    } else if (versionOutput.strategy === 'sync' || syncGraduation) {
       // One shared version, so lead with it rather than repeat it per row.
-      lines.push(`Merging this PR will publish **${syncVersionDisplay(versionOutput)}**:`, '');
-      for (const update of updates) {
-        lines.push(`- \`${update.packageName}\``);
+      if (updates.length > 0) {
+        lines.push(`Merging this PR will publish **${syncVersionDisplay(versionOutput)}**:`, '');
+        for (const update of updates) {
+          lines.push(`- \`${update.packageName}\``);
+        }
+      }
+      if (syncGraduation) {
+        if (updates.length > 0) {
+          lines.push('');
+        }
+        lines.push(syncGraduation);
       }
     } else {
       lines.push(
@@ -635,6 +658,12 @@ export async function fetchStandingPRSnapshot(
   if (overrides.conflicts.length > 0) {
     gateState = 'pending';
     gateReason = overrides.conflicts.join('; ');
+  } else if (publishableUpdates(manifest.versionOutput).length === 0) {
+    gateState = 'pending';
+    gateReason = 'Nothing ticked to release';
+  } else if (manifest.graduationHolds?.length) {
+    gateState = 'pending';
+    gateReason = manifest.graduationHolds.join('; ');
   } else if (minAge !== undefined && manifest.firstUpdatedAt) {
     const minAgeMs = parseDuration(minAge);
     if (minAgeMs !== null) {
@@ -945,8 +974,10 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // Fed to the version write step, not the dry run, so the projected-channel render keeps the marker that round-trips
   // the tick. Reset to the manifest's channels for an unauthorized editor at the write wiring.
   const channelToggleEnabled = standingPrConfig?.channelToggle === true;
-  let channelSelection =
-    channelToggleEnabled && liveBody ? extractChannelSelection(liveBody) : { prereleased: [], graduated: [] };
+  const bodyChannel: ChannelSelection = liveBody
+    ? extractChannelSelection(liveBody)
+    : { prereleased: [], graduated: [], graduationRows: [] };
+  const bodySyncGraduation = !!liveBody && extractSyncGraduation(liveBody);
   const authz = standingPrConfig?.authorization;
   // Resolved once so the selection gate and the channel-toggle gate share one permission lookup.
   let eventActor: EventActor | undefined;
@@ -1045,17 +1076,61 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         includePrerequisites,
       };
 
-  info('Running version analysis (dry run)...');
-  const dryRunOptions = buildBaseReleaseOptions(options, true, buildExtras);
-  const versionOutputDry = await runVersionStep(dryRunOptions);
+  const { getWorkspacePackageVersions } = await import('@releasekit/version');
+  const workspaceVersions = await getWorkspacePackageVersions({ cwd, configPath: options.config });
+  const prereleaseLine = Object.entries(workspaceVersions)
+    .filter(([, version]) => deriveReleaseChannel(version) === 'prerelease')
+    .map(([name]) => name);
 
-  if (versionOutputDry.updates.length === 0) {
-    return closeEmptyQueue(existingStandingPr, forge);
-  }
+  info('Running version analysis (dry run)...');
+  // Without label graduation, so the dry run is just the queue: an unchanged prerelease a label would graduate is
+  // offered as a graduation row rather than mistaken for a change.
+  const queueExtras: BuildOptionsExtras =
+    prereleaseLine.length > 0 ? { ...buildExtras, stable: undefined, graduate: undefined } : buildExtras;
+  const versionOutputDry = await runVersionStep(buildBaseReleaseOptions(options, true, queueExtras));
+  const queuedNames = new Set(versionOutputDry.updates.map((u) => u.packageName));
 
   const minPackages = standingPrConfig?.minPackages;
   const publishableCount = publishableUpdates(versionOutputDry).length;
-  if (minPackages !== undefined && publishableCount < minPackages) {
+  const queued = versionOutputDry.updates.length > 0;
+  const belowMinPackages = queued && minPackages !== undefined && publishableCount < minPackages;
+  const queueEmpty = !queued || belowMinPackages;
+  const groups = releaseKitConfig.version?.groups ?? {};
+
+  // A lockstep group with a changed member graduates through that member's row, so its unchanged mates get none.
+  const changedLockstepGroups = new Set([...queuedNames].map((name) => lockstepGroupOf(name, groups)));
+  const candidates = sync
+    ? []
+    : prereleaseLine.filter((name) => {
+        const group = lockstepGroupOf(name, groups);
+        return !queuedNames.has(name) && (group === undefined || !changedLockstepGroups.has(group));
+      });
+  // A sync release can't hold its queued changes back, so below minPackages it offers nothing.
+  const syncGraduationOffered =
+    sync && prereleaseLine.length > 0 && !belowMinPackages && (!queued || channelToggleEnabled);
+
+  // Graduates every unchanged prerelease, so each graduation row can show its stable version and changelog.
+  let versionOutputRows = versionOutputDry;
+  const labelGraduation = !!buildExtras.stable || (buildExtras.graduate?.length ?? 0) > 0;
+  if (sync ? syncGraduationOffered : prereleaseLine.length > 0 && (candidates.length > 0 || labelGraduation)) {
+    info('Running graduation analysis (dry run)...');
+    const graduationExtras: BuildOptionsExtras =
+      sync || buildExtras.stable
+        ? { ...buildExtras, stable: true }
+        : { ...buildExtras, graduate: [...(buildExtras.graduate ?? []), ...candidates] };
+    versionOutputRows = await runVersionStep(buildBaseReleaseOptions(options, true, graduationExtras));
+  }
+  const candidateSet = new Set(candidates);
+  const graduationUpdates = sync
+    ? []
+    : publishableUpdates(versionOutputRows).filter((u) => candidateSet.has(u.packageName));
+  const graduationNames = graduationUpdates.map((u) => u.packageName);
+  const graduationGroups = new Map(graduationNames.map((name) => [name, lockstepGroupOf(name, groups)]));
+
+  if (queueEmpty && graduationUpdates.length === 0 && !syncGraduationOffered) {
+    if (!queued) {
+      return closeEmptyQueue(existingStandingPr, forge);
+    }
     info(`Package count (${publishableCount}) is below minPackages threshold (${minPackages}), skipping`);
     if (existingStandingPr) {
       await forge.createComment(
@@ -1067,6 +1142,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       return { action: 'closed', prNumber: existingStandingPr.number, prUrl: existingStandingPr.url };
     }
     return { action: 'noop' };
+  }
+  if (belowMinPackages) {
+    info(
+      `Package count (${publishableCount}) is below minPackages threshold (${minPackages}); offering graduation only`,
+    );
   }
 
   info(`Resetting release branch '${branch}' to origin/${base}...`);
@@ -1084,8 +1164,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  const dryUpdates = publishableUpdates(versionOutputDry);
-  const groups = releaseKitConfig.version?.groups ?? {};
+  const dryUpdates = belowMinPackages
+    ? []
+    : publishableUpdates(versionOutputRows).filter((u) => !candidateSet.has(u.packageName));
   const changedNames = new Set(dryUpdates.map((u) => u.packageName));
   const primaryPackages = standingPrConfig?.primaryPackages ?? [];
   const selectionMode = standingPrConfig?.selection ?? 'streamlined';
@@ -1148,26 +1229,87 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return [...out];
   };
 
+  // Fixed/linked members share one version, so a graduation row's tick moves its whole group.
+  const expandGraduationRows = (names: Iterable<string>): string[] => {
+    const out = new Set<string>();
+    for (const name of names) {
+      out.add(name);
+      const group = graduationGroups.get(name);
+      if (group === undefined) {
+        continue;
+      }
+      for (const [mate, mateGroup] of graduationGroups) {
+        if (mateGroup === group) {
+          out.add(mate);
+        }
+      }
+    }
+    return [...out];
+  };
+
+  // A label renders its graduation ticked, so once the label goes, that tick mustn't outlive it as a user's own.
+  const priorLabels = resolveStandingPrLabelOverrides(existingManifest?.overrideLabels ?? [], ciConfig);
+  const priorLabelsApplied = priorLabels.conflicts.length === 0;
+  const priorLabelGraduated = (name: string): boolean =>
+    priorLabelsApplied && (!!priorLabels.stable || shouldMatchPackageTargets(name, priorLabels.graduate ?? []));
+  const priorForced = new Set([
+    ...expandGraduationRows(graduationNames.filter(priorLabelGraduated)),
+    ...expandToGroup([...changedNames].filter(priorLabelGraduated)),
+  ]);
+  const priorSyncForced = priorLabelsApplied && !!priorLabels.stable;
+  // The sync checkbox looks the same with or without queued changes, so a tick given with none lapses once some arrive.
+  const priorSyncLapsed = sync && queued && (existingManifest?.graduationRows?.length ?? 0) > 0;
+  const userTicks = (names: Iterable<string>, among: Iterable<string>): string[] => {
+    const allowed = new Set(among);
+    return [...names].filter((name) => allowed.has(name) && !priorForced.has(name));
+  };
+
+  // Nested toggles count only with channelToggle; graduation rows and the sync checkbox always show.
+  let channelPrereleasedTicks = channelToggleEnabled ? bodyChannel.prereleased : [];
+  let channelGraduatedTicks = channelToggleEnabled ? userTicks(bodyChannel.graduated, changedNames) : [];
+  let graduationRowTicks = userTicks([...bodyChannel.graduated, ...bodyChannel.graduationRows], graduationNames);
+  // Ticking any member's row graduates its group, so unticking any member's row ungraduates it.
+  const bodyRowTicks = new Set(graduationRowTicks);
+  const untickedRows = (existingManifest?.graduationRows ?? []).filter(
+    (name) => graduationNames.includes(name) && !bodyRowTicks.has(name),
+  );
+  const ungraduated = new Set(expandGraduationRows(untickedRows));
+  graduationRowTicks = graduationRowTicks.filter((name) => !ungraduated.has(name));
+  let syncGraduationTick = bodySyncGraduation && !priorSyncForced && !priorSyncLapsed;
+
   // As with the selection gate, only an authorized edit may change channels; otherwise reset to the manifest's.
   // The manifest stores group-expanded sets but the body holds raw ticks, so expand the body before comparing or
   // untoggled group-mates misfire the notice.
-  if (channelToggleEnabled && authz && existingStandingPr && eventActor && !authorizedBodyEdit) {
-    const manifestPrereleased = existingManifest?.prereleased ?? [];
+  if (authz && existingStandingPr && eventActor && !authorizedBodyEdit) {
+    const manifestPrereleased = channelToggleEnabled ? (existingManifest?.prereleased ?? []) : [];
     const manifestGraduated = existingManifest?.graduated ?? [];
-    const bodyPrereleased = new Set(expandToGroup(channelSelection.prereleased));
-    const bodyGraduated = new Set(expandToGroup(channelSelection.graduated));
-    // Graduation also comes from `graduate:*` labels that never appear as body toggles, so only added graduate
-    // toggles count (a strict compare would misfire on a label-only graduation). This only gates the notice.
+    const manifestRowTicks = new Set(existingManifest?.graduationRows ?? []);
+    const manifestNested = channelToggleEnabled
+      ? userTicks(
+          manifestGraduated.filter((name) => !manifestRowTicks.has(name)),
+          changedNames,
+        )
+      : [];
+    const manifestRows = userTicks(manifestGraduated, graduationNames);
+    const manifestSync = sync && manifestGraduated.length > 0 && !priorSyncForced && !priorSyncLapsed;
+    const bodyPrereleased = new Set(expandToGroup(channelPrereleasedTicks));
+    const bodyGraduated = new Set(expandToGroup(channelGraduatedTicks));
+    // Only added graduate toggles count: this only gates the notice.
     const prereleaseChanged = !setsEqual(bodyPrereleased, new Set(manifestPrereleased));
-    const graduateAdded = [...bodyGraduated].some((name) => !manifestGraduated.includes(name));
-    channelSelection = { prereleased: manifestPrereleased, graduated: manifestGraduated };
-    if (eventActor.action === 'edited' && (prereleaseChanged || graduateAdded)) {
+    const graduateAdded = [...bodyGraduated].some((name) => !manifestNested.includes(name));
+    const rowsChanged = !setsEqual(new Set(expandGraduationRows(graduationRowTicks)), new Set(manifestRows));
+    const syncChanged = syncGraduationOffered && syncGraduationTick !== manifestSync;
+    channelPrereleasedTicks = manifestPrereleased;
+    channelGraduatedTicks = manifestNested;
+    graduationRowTicks = manifestRows;
+    syncGraduationTick = manifestSync;
+    if (eventActor.action === 'edited' && (prereleaseChanged || graduateAdded || rowsChanged || syncChanged)) {
       const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
       await forge
         .upsertMarkerComment(
           existingStandingPr.number,
           CHANNEL_DENIED_MARKER,
-          `${CHANNEL_DENIED_MARKER}\n\n> ⚠️ **Channel change ignored.** Only authorized maintainers (\`${authz.requiredPermission}\`+${allowClause}) can move a package between the stable and prerelease channels. The per-row channel toggles have been reset to the approved selection.`,
+          `${CHANNEL_DENIED_MARKER}\n\n> ⚠️ **Channel change ignored.** Only authorized maintainers (\`${authz.requiredPermission}\`+${allowClause}) can move a package between the stable and prerelease channels. The channel toggles and graduation rows have been reset to the approved selection.`,
         )
         .catch((err) =>
           warn(`Could not post channel-denied notice: ${err instanceof Error ? err.message : String(err)}`),
@@ -1175,15 +1317,22 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  const channelPrereleased = channelSelection.prereleased.filter((n) => !effectiveDeselected.has(n));
-  const channelGraduated = channelSelection.graduated.filter((n) => !effectiveDeselected.has(n));
+  const channelPrereleased = channelPrereleasedTicks.filter((n) => !effectiveDeselected.has(n));
+  const channelGraduated = channelGraduatedTicks.filter((n) => !effectiveDeselected.has(n));
   const writePrereleaseScope = expandToGroup(channelPrereleased);
-  const graduateTargets = [...new Set([...(buildExtras.graduate ?? []), ...expandToGroup(channelGraduated)])];
+  const labelGraduatedRows = graduationNames.filter(
+    (name) => !!buildExtras.stable || shouldMatchPackageTargets(name, buildExtras.graduate ?? []),
+  );
+  const graduationRowsTicked = new Set(expandGraduationRows([...graduationRowTicks, ...labelGraduatedRows]));
+  const syncGraduated = !!buildExtras.stable || (syncGraduationOffered && syncGraduationTick);
+  const graduateTargets = [
+    ...new Set([...(buildExtras.graduate ?? []), ...expandToGroup(channelGraduated), ...graduationRowsTicked]),
+  ];
   // Targets can be globs (`graduate:@scope/*`); expand them so the conflict check drops only the packages a
   // prerelease toggle also names, not the whole glob.
-  const graduateAll = dryUpdates
-    .map((u) => u.packageName)
-    .filter((name) => shouldMatchPackageTargets(name, graduateTargets));
+  const graduateAll = [...changedNames, ...graduationNames].filter((name) =>
+    shouldMatchPackageTargets(name, graduateTargets),
+  );
   const { graduate: writeGraduate, conflicts: channelConflicts } = resolveChannelConflicts(
     graduateAll,
     writePrereleaseScope,
@@ -1199,15 +1348,18 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   info('Writing version bumps...');
   const writeOptions = buildBaseReleaseOptions(options, false, {
     ...buildExtras,
-    exclude: [...effectiveDeselected],
+    stable: syncGraduated || undefined,
+    exclude: [...effectiveDeselected, ...(belowMinPackages ? queuedNames : [])],
     graduate: writeGraduate.length > 0 ? writeGraduate : undefined,
     prereleaseScope: writePrereleaseScope.length > 0 ? writePrereleaseScope : undefined,
   });
   const versionOutput = await runVersionStep(writeOptions);
 
   // The write can come back empty when a release landed on `base` mid-run (a reconcile race the skip-pattern bail
-  // exempts), which would render a degenerate body. Publishable-only so a sync root-only bump is caught too.
-  if (publishableUpdates(versionOutput).length === 0) {
+  // exempts), which would render a degenerate body. Publishable-only so a sync root-only bump is caught too. Offered
+  // graduations keep the PR open with nothing ticked.
+  const graduationOffered = graduationUpdates.length > 0 || syncGraduationOffered;
+  if (publishableUpdates(versionOutput).length === 0 && !graduationOffered) {
     return closeEmptyQueue(existingStandingPr, forge);
   }
 
@@ -1222,28 +1374,34 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const allNotesKeysHaveRegions = notesKeys.length > 0 && notesKeys.every((key) => Object.hasOwn(editedNotes, key));
   const generateReleaseNotes = previewNotesEnabled && !allNotesKeysHaveRegions;
   const notesOptions = { ...writeOptions, skipNotes: false, skipReleaseNotes: !generateReleaseNotes };
-  const notesResult = await runNotesStep(versionOutput, notesOptions);
-
   const countableUpdates = publishableUpdates(versionOutput);
   const count = countableUpdates.length;
+  const notesResult: NotesStepResult =
+    count > 0 ? await runNotesStep(versionOutput, notesOptions) : { packageNotes: {}, files: [] };
+
   const firstUpdate = countableUpdates[0];
   const isSync = versionOutput.strategy === 'sync';
   /* biome-ignore lint/suspicious/noTemplateCurlyInString: template string uses config variable */
   const defaultTitle = isSync ? 'chore: release ${tag}' : 'chore: release ${count} package(s)';
   const titleTemplate = standingPrConfig?.title ?? defaultTitle;
-  const renderedTitle = titleTemplate
-    .replace(/\$\{count\}/g, String(count))
-    .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '')
-    .replace(/\$\{tag\}/g, syncVersionDisplay(versionOutput));
+  const renderedTitle =
+    count > 0
+      ? titleTemplate
+          .replace(/\$\{count\}/g, String(count))
+          .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '')
+          .replace(/\$\{tag\}/g, syncVersionDisplay(versionOutput))
+      : FALLBACK_TITLE;
 
   const title = safeStandingPrTitle(renderedTitle, skipPatterns);
   info(`Committing and pushing '${branch}'...`);
+  // With nothing ticked there's nothing to commit, and GitHub won't open a PR with no commits.
   await commitAndForcePush(
     branch,
     title,
     cwd,
     releaseKitConfig.git?.skipHooks ?? false,
     releaseKitConfig.git?.formatCommand,
+    count === 0,
   );
 
   const releaseBranchSha = await getHeadSha(cwd);
@@ -1286,20 +1444,21 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // Rendered from the dry run's full changed set so a held-back package still shows as an unticked row with its
   // changelog; the write output omits held-back packages entirely.
   let renderSelectionBlock: ((withChangelogs: boolean) => string) | undefined;
-  if (versionOutputDry.strategy !== 'sync') {
+  if (!sync && versionOutputDry.strategy !== 'sync') {
     const warnings = selectionWarnings(dryUpdates, effectiveDeselected, groups);
     for (const w of warnings) {
       warn(`Selection: ${w.reason}`);
     }
     const warningSuffix = warnings.length > 0 ? `\n\n${warnings.map((w) => `> ⚠️ ${w.reason}`).join('\n')}` : '';
-    const rowChangelog = makeRowChangelogRenderer(versionOutputDry.changelogs, changelogRefsMode, demoteScopes);
+    const rowChangelog = makeRowChangelogRenderer(versionOutputRows.changelogs, changelogRefsMode, demoteScopes);
     const channelToggle: ChannelToggleConfig | undefined = channelToggleEnabled
       ? {
-          prereleased: new Set(channelSelection.prereleased),
-          graduated: new Set(channelSelection.graduated),
+          prereleased: new Set(channelPrereleasedTicks),
+          graduated: new Set(channelGraduatedTicks),
           prereleaseIdentifier: releaseKitConfig.version?.prereleaseIdentifier ?? 'next',
         }
       : undefined;
+    const graduation: GraduationRowsConfig = { updates: graduationUpdates, ticked: graduationRowsTicked };
     renderSelectionBlock = (withChangelogs) =>
       renderSelectionRegion(
         dryUpdates,
@@ -1307,8 +1466,12 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         primaryConfig,
         withChangelogs ? rowChangelog : undefined,
         channelToggle,
+        graduation,
       ) + warningSuffix;
   }
+  const syncGraduation = syncGraduationOffered
+    ? renderSyncGraduation(syncVersionDisplay(versionOutputRows), syncGraduated)
+    : undefined;
 
   // From the write output, so it mirrors what publishes. The toggle only removes redundancy, never data: sync has no
   // per-row changelogs so always gets the footer, and non-sync keeps shared entries, which have no per-row home.
@@ -1320,8 +1483,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   let summaryLine: string | undefined;
   let summaryTable: string | undefined;
-  if (versionOutput.strategy !== 'sync') {
-    const heldBackCount = Math.max(0, dryUpdates.length - publishableUpdates(versionOutput).length);
+  if (versionOutput.strategy !== 'sync' && count > 0) {
+    const publishingChanged = countableUpdates.filter((u) => changedNames.has(u.packageName)).length;
+    const heldBackCount = Math.max(0, dryUpdates.length - publishingChanged);
     summaryLine = renderReleaseSummaryLine(versionOutput, { heldBackCount });
     if (standingPrConfig?.summaryTable) {
       summaryTable = renderVersionSummaryTable(versionOutput);
@@ -1332,6 +1496,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     supersedeWarning,
     notesRegion,
     renderSelectionBlock,
+    syncGraduation,
     footer,
     summaryLine,
     summaryTable,
@@ -1357,7 +1522,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   try {
     // A label must exist before a maintainer can apply it, so seed `graduate:<package>` for each prerelease package.
-    await syncLabels(forge, deriveLabelDefinitions(ciConfig, prereleasePackageNames(versionOutput)));
+    const graduatable = [...new Set([...prereleasePackageNames(versionOutput), ...graduationNames])];
+    await syncLabels(forge, deriveLabelDefinitions(ciConfig, graduatable));
   } catch (err) {
     warn(`Could not ensure ReleaseKit labels exist: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -1375,11 +1541,43 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   }
 
   let firstUpdatedAt = new Date().toISOString();
-  if (existingManifest) {
+  // A PR holding only unticked graduation rows had nothing to release, so its minAge wait hasn't started.
+  if (existingManifest && publishableUpdates(existingManifest.versionOutput).length > 0) {
     firstUpdatedAt = existingManifest.firstUpdatedAt ?? existingManifest.createdAt;
   }
 
   const graduatedPackages = graduatedPackageNames(versionOutput);
+  const rowGraduated =
+    sync && syncGraduated && !queued
+      ? graduatedPackages
+      : graduatedPackages.filter((name) => graduationRowsTicked.has(name));
+
+  const queuedEntries = new Map(versionOutputDry.changelogs.map((cl) => [cl.packageName, cl.entries]));
+  // A sync release records its changes once, in its shared changelog, and graduates as one.
+  const graduationChecks = sync
+    ? graduatedPackages.slice(0, 1).map((name) => ({
+        subject: 'The release',
+        entries: versionOutputDry.changelogs.flatMap((cl) => cl.entries),
+        current: workspaceVersions[name],
+      }))
+    : graduatedPackages.map((name) => ({
+        subject: `\`${name}\``,
+        entries: queuedEntries.get(name),
+        current: workspaceVersions[name],
+      }));
+  const graduationHolds: string[] = [];
+  for (const { subject, entries, current } of graduationChecks) {
+    const needed =
+      entries && current ? graduationOvershoot(entries, current, releaseKitConfig.version?.zeroMajor) : undefined;
+    if (needed) {
+      const bumpLabel = needed === 'major' ? overrideLabelNames.major : overrideLabelNames.minor;
+      const hold =
+        `${subject} can't graduate: its queued changes need a ${needed} bump. Start a new line with ` +
+        `\`${bumpLabel}\` + \`${overrideLabelNames.prerelease}\``;
+      warn(hold);
+      graduationHolds.push(hold);
+    }
+  }
 
   const manifest: StandingPRManifest = {
     schemaVersion: 2,
@@ -1393,22 +1591,33 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     overrideLabels: extractOverrideLabels(effectiveLabels, ciConfig),
     deselected: effectiveDeselected.size > 0 ? [...effectiveDeselected].sort() : undefined,
     graduated: graduatedPackages.length > 0 ? graduatedPackages : undefined,
+    graduationRows: rowGraduated.length > 0 ? rowGraduated : undefined,
+    graduationHolds: graduationHolds.length > 0 ? graduationHolds : undefined,
     prereleased: writePrereleaseScope.length > 0 ? [...writePrereleaseScope].sort() : undefined,
   };
 
   await forge.upsertMarkerComment(prNumber, MANIFEST_MARKER, serializeManifest(manifest));
   success(`Manifest written to PR #${prNumber}`);
 
+  const holds = [...overrides.conflicts, ...graduationHolds];
+  if (count === 0) {
+    holds.push(
+      sync
+        ? 'Nothing to release: tick "graduate to stable" to graduate the prerelease'
+        : 'Nothing to release: tick a graduation row to ship its stable version',
+    );
+  }
+
   const minAge = standingPrConfig?.minAge;
   let statusState: 'success' | 'pending' = 'success';
   let statusDescription = 'Ready to merge';
 
-  if (overrides.conflicts.length > 0) {
+  if (holds.length > 0) {
     statusState = 'pending';
-    statusDescription = overrides.conflicts.join('; ').slice(0, 140);
+    statusDescription = holds.join('; ').slice(0, 140);
   }
 
-  if (minAge !== undefined && overrides.conflicts.length === 0) {
+  if (minAge !== undefined && holds.length === 0) {
     const minAgeMs = parseDuration(minAge);
     if (minAgeMs === null) {
       warn(

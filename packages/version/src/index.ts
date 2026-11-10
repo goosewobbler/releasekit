@@ -19,4 +19,4 @@ export {
   type VersionActionInput,
   type VersionActionResult,
 } from './utils/versionAction.js';
-export { getWorkspacePackageDirs, getWorkspacePackageNames } from './workspace.js';
+export { getWorkspacePackageDirs, getWorkspacePackageNames, getWorkspacePackageVersions } from './workspace.js';

@@ -69,6 +69,7 @@ export { isPathWithinRoot } from './paths.js';
 export { type PrerequisiteResolution, resolvePrerequisites } from './prerequisites.js';
 export {
   extractSelectionRegion,
+  RK_GRAD_SYNC_MARKER,
   rkGradMarker,
   rkPreMarker,
   rkSelMarker,

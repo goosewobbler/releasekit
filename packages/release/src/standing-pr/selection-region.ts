@@ -3,6 +3,7 @@ import {
   deriveReleaseChannel,
   extractSelectionRegion,
   matchesPackageTarget,
+  RK_GRAD_SYNC_MARKER,
   rkGradMarker,
   rkPreMarker,
   rkSelMarker,
@@ -23,6 +24,10 @@ const REGION_HEADING = '### Packages to release';
 const REGION_HINT =
   '> Untick a package to hold it back from the next release, then save — the bot re-runs and updates this PR. ' +
   'Keep the `<!-- rk-sel... -->` marker comments; they identify each row.';
+const GRADUATION_HINT =
+  '> Tick a package to graduate it to stable on the next release, then save — the bot re-runs and updates this PR. ' +
+  'Keep the `<!-- rk-grad... -->` marker comments; they identify each row.';
+const GRADUATION_HEADING = '#### Graduate to stable';
 
 const CHANNEL_ORDER: readonly ReleaseChannel[] = ['stable', 'prerelease'] as const;
 
@@ -460,15 +465,36 @@ function renderHierarchical(
   }
 }
 
+/** Unchanged prereleases offered for graduation. A row defaults to unticked, so it carries `rk-grad`, not `rk-sel`. */
+export interface GraduationRowsConfig {
+  updates: Update[];
+  ticked: ReadonlySet<string>;
+}
+
+function renderGraduationRows(
+  lines: string[],
+  graduation: GraduationRowsConfig,
+  rowChangelog: RowChangelogRenderer | undefined,
+): void {
+  for (const update of [...graduation.updates].sort((a, b) => a.packageName.localeCompare(b.packageName))) {
+    const name = update.packageName;
+    lines.push(
+      `- ${checkbox(graduation.ticked.has(name))} \`${name}\` graduate to stable → ${update.newVersion} ${rkGradMarker(name)}`,
+    );
+    attachChangelog(lines, rowChangelog, [name], false, '  ');
+  }
+}
+
 export function renderSelectionRegion(
   updates: VersionOutput['updates'],
   deselected: ReadonlySet<string>,
   primary?: PrimaryConfig,
   rowChangelog?: RowChangelogRenderer,
   channelToggle?: ChannelToggleConfig,
+  graduation?: GraduationRowsConfig,
 ): string {
   const selected = (name: string) => !deselected.has(name);
-  const lines: string[] = [REGION_HEADING, '', REGION_HINT, ''];
+  const lines: string[] = [REGION_HEADING, '', updates.length > 0 ? REGION_HINT : GRADUATION_HINT, ''];
 
   if (primary && primary.primaryPackages.length > 0) {
     renderHierarchical(lines, updates, selected, primary, rowChangelog, channelToggle);
@@ -476,7 +502,26 @@ export function renderSelectionRegion(
     renderFlat(lines, updates, selected, rowChangelog, channelToggle);
   }
 
+  if (graduation && graduation.updates.length > 0) {
+    if (updates.length > 0) {
+      if (lines[lines.length - 1] !== '') {
+        lines.push('');
+      }
+      lines.push(GRADUATION_HEADING, '');
+    }
+    renderGraduationRows(lines, graduation, rowChangelog);
+  }
+
   return wrapSelectionRegion(lines.join('\n'));
+}
+
+export function renderSyncGraduation(version: string, ticked: boolean): string {
+  return `- ${checkbox(ticked)} graduate to stable → ${version} ${RK_GRAD_SYNC_MARKER}`;
+}
+
+export function extractSyncGraduation(body: string): boolean {
+  const line = body.split('\n').find((l) => l.includes(RK_GRAD_SYNC_MARKER));
+  return !!line && line.slice(0, line.indexOf(RK_GRAD_SYNC_MARKER)).includes('[x]');
 }
 
 /** `undefined` when the body has no selection region (a sync release, or a body predating the feature). */
@@ -529,22 +574,33 @@ function markerHits(region: string, marker: string): Array<{ name: string; ticke
   return hits;
 }
 
+export interface ChannelSelection {
+  prereleased: string[];
+  /** Ticked `rk-grad` toggles nested under a release row. */
+  graduated: string[];
+  /** Ticked `rk-grad` graduation rows, told apart from the nested toggles by having no `rk-sel` row of their own. */
+  graduationRows: string[];
+}
+
 /** A held-back row's channel toggle is dropped: its channel is moot. */
-export function extractChannelSelection(body: string): { prereleased: string[]; graduated: string[] } {
+export function extractChannelSelection(body: string): ChannelSelection {
   const region = extractSelectionRegion(body);
   if (region === undefined) {
-    return { prereleased: [], graduated: [] };
+    return { prereleased: [], graduated: [], graduationRows: [] };
   }
-  const heldBack = new Set(
-    markerHits(region, 'rk-sel')
-      .filter((h) => h.unticked)
-      .map((h) => h.name),
-  );
+  const rows = markerHits(region, 'rk-sel');
+  const heldBack = new Set(rows.filter((h) => h.unticked).map((h) => h.name));
+  const hasRow = new Set(rows.map((h) => h.name));
   const pick = (marker: string): string[] =>
     markerHits(region, marker)
       .filter((h) => h.ticked && !heldBack.has(h.name))
       .map((h) => h.name);
-  return { prereleased: pick('rk-pre'), graduated: pick('rk-grad') };
+  const graduated = pick('rk-grad');
+  return {
+    prereleased: pick('rk-pre'),
+    graduated: graduated.filter((name) => hasRow.has(name)),
+    graduationRows: graduated.filter((name) => !hasRow.has(name)),
+  };
 }
 
 /**

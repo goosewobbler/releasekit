@@ -228,6 +228,15 @@ jobs:
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
+      - name: Update standing release PR
+        # Opens the next standing PR straight away, e.g. to offer graduation of the prereleases that just shipped.
+        # `--reconcile` because HEAD is the release commit, which a plain update skips. The release has succeeded
+        # by now, so a failure here waits for the next push instead of failing the job.
+        continue-on-error: true
+        run: pnpm exec releasekit standing-pr update --reconcile
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
   retry-publish:
     name: Retry Publish
     # After a partial-publish failure, apply `release:retry` to the MERGED standing

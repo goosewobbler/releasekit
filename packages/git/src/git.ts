@@ -271,6 +271,9 @@ export class GitCli implements Git {
     if (opts.skipHooks) {
       args.push('--no-verify');
     }
+    if (opts.allowEmpty) {
+      args.push('--allow-empty');
+    }
     if (opts.paths && opts.paths.length > 0) {
       args.push('--', ...opts.paths);
     }
