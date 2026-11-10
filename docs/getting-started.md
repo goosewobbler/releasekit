@@ -148,7 +148,7 @@ The most common setup releases on every push to `main`. Copy [`release.yml`](../
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-If you publish with an npm token rather than OIDC, drop its `rm -f .npmrc` step.
+If you publish with an npm token rather than OIDC, drop its `rm -f .npmrc` step and uncomment its `NODE_AUTH_TOKEN` line.
 
 For other setups, see [`examples/`](../examples/README.md) (which also covers npm instead of pnpm) and the [CI setup guide](../packages/release/docs/ci-setup.md):
 

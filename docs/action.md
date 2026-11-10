@@ -261,6 +261,6 @@ jobs:
           apply: ${{ inputs.apply }}
 ```
 
-Set `version.versionPrefix` to match your tags (`v` for `v1.2.3`). By default backfill leaves bodies that already have notes alone. The Action has no `force` input, so to replace notes releasekit published, add `only-missing: "true"`: it rewrites every body backfill didn't write, hand edits included.
+Set `version.versionPrefix` to match your tags (`v` for `v1.2.3`). By default backfill fills empty bodies and rewrites the ones it wrote before, hand edits included, and leaves every other body alone. The Action has no `force` input, so to replace notes releasekit published, add `only-missing: "true"`: it rewrites every body backfill didn't write, hand edits included.
 
 [`examples/ci/backfill`](../examples/ci/backfill/backfill.yml) has a full `workflow_dispatch` workflow that runs backfill through the CLI, with a `force` input.
