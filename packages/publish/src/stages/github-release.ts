@@ -223,13 +223,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
   const tagsToRelease = config.githubRelease.perPackage ? tags : [firstTag];
 
   const skipPackages = config.githubRelease.skipPackages ?? [];
-  const { updates, strategy } = ctx.input;
-  const syncTag = strategy ? strategy === 'sync' : updates.length > 0 && updates.every((u) => !u.tag);
-  const listed = ({ packageName }: VersionPackageUpdate) =>
-    skipPackages.some((name) => matchesPackageName(name, packageName));
-  const packageUpdates = updates.filter((u) => !u.isRoot);
-  const syncSkipped =
-    syncTag && updates.length > 0 && (packageUpdates.length > 0 ? packageUpdates : updates).every(listed);
+  const syncTag = ctx.input.updates.length > 0 && ctx.input.updates.every((u) => !u.tag);
   const titlePackageNames = [
     ...new Set([...ctx.input.changelogs.map((c) => c.packageName), ...Object.keys(ctx.releaseNotes ?? {})]),
   ];
@@ -252,15 +246,16 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       continue;
     }
 
-    const owners = updates.filter((u) => u.tag === tag);
+    const owners = ctx.input.updates.filter((u) => u.tag === tag);
     const owner = owners.length === 1 ? owners[0] : undefined;
 
     // Tags are still created (the next release's changelog range needs them) and npm publish still runs.
     if (skipPackages.length > 0) {
-      const skipped =
-        owners.length > 0 ? owners.every(listed) : resolveTagPackage(tag, skipPackages) !== null || syncSkipped;
+      const skipped = owner
+        ? skipPackages.find((name) => matchesPackageName(name, owner.packageName))
+        : resolveTagPackage(tag, skipPackages)?.packageName;
       if (skipped) {
-        debug(`Skipping GitHub release for ${tag} (its packages are listed in githubRelease.skipPackages)`);
+        debug(`Skipping GitHub release for ${skipped} (listed in githubRelease.skipPackages)`);
         continue;
       }
     }

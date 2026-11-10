@@ -195,7 +195,7 @@ Use `skipPackages` to suppress GitHub Release creation for specific packages whi
 }
 ```
 
-A tag's sanitized name, e.g. `my-org-internal-utils`, also matches. A tag several packages share is skipped only when all of them are listed.
+A tag's sanitized name, e.g. `my-org-internal-utils`, also matches.
 
 Tags are still created for skipped packages — this is required so that changelog range detection works correctly on the next release.
 

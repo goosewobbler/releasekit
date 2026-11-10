@@ -212,7 +212,7 @@ GitHub Release configuration.
 | `prerelease` | boolean \| `"auto"` | `"auto"` | Mark as prerelease |
 | `body` | `"auto"` \| `"releaseNotes"` \| `"changelog"` \| `"generated"` \| `"none"` | `"auto"` | Source for GitHub release body. 'auto': use release notes if enabled, else changelog, else GitHub auto. 'releaseNotes': use LLM-generated release notes. 'changelog': use changelog entries. 'generated': GitHub auto-generated. 'none': no body. |
 | `titleTemplate` | string | `"${packageName}: ${version}"` | Template for the GitHub release title when a package name is resolved. Available variables: ${packageName} (original scoped name, e.g. '@scope/pkg'), ${version} (the package's new version, with a 'v' when its tag has one, e.g. 'v1.0.0'). Version-only tags always use the tag string directly. |
-| `skipPackages` | `string[]` | `[]` | Package names to exclude from GitHub release creation. A tag's sanitized name, e.g. 'scope-pkg', also matches. A tag several packages share is skipped only when all of them are listed. |
+| `skipPackages` | `string[]` | `[]` | Package names to exclude from GitHub release creation. A tag's sanitized name, e.g. 'scope-pkg', also matches. |
 
 ### `publish.verify`
 

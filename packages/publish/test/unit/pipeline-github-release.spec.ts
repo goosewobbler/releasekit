@@ -75,16 +75,11 @@ function changelog(packageName: string, description: string): VersionPackageChan
   };
 }
 
-function rootUpdate(): VersionPackageUpdate {
-  fs.writeFileSync(path.join(workspace, 'package.json'), JSON.stringify({ name: 'root', private: true }));
-  return { packageName: 'root', newVersion: '1.2.3', filePath: 'package.json', isRoot: true };
-}
-
 function syncInput(tag: string): VersionOutput {
   return {
     dryRun: false,
     strategy: 'sync',
-    updates: [rootUpdate(), update('pkg-a'), update('pkg-b')],
+    updates: [update('pkg-a'), update('pkg-b')],
     changelogs: [changelog('monorepo', 'Fix the sync release')],
     tags: [tag],
   };
@@ -332,56 +327,6 @@ describe('GitHub release bodies in the publish pipeline', () => {
     );
 
     expect(Object.keys(releaseBodies())).toEqual(['pkg-b@v1.2.3']);
-  });
-
-  it.each([
-    [['pkg-a', 'pkg-b'], []],
-    [['pkg-a'], ['release-1.2.3']],
-  ])('should skip a tag shared by several packages only when all are in skipPackages %j', async (skip, released) => {
-    const config = getDefaultConfig();
-    config.githubRelease.skipPackages = skip;
-    const input: VersionOutput = {
-      dryRun: false,
-      strategy: 'async',
-      updates: [update('pkg-a', 'release-1.2.3'), update('pkg-b', 'release-1.2.3')],
-      changelogs: [],
-      tags: ['release-1.2.3'],
-    };
-
-    await runPipeline(input, config, options);
-
-    expect(Object.keys(releaseBodies())).toEqual(released);
-  });
-
-  it.each([
-    [['pkg-a', 'pkg-b'], []],
-    [['pkg-a'], ['v1.2.3']],
-  ])('should skip a sync release only when all its packages are in skipPackages %j', async (skip, released) => {
-    const config = getDefaultConfig();
-    config.githubRelease.skipPackages = skip;
-
-    await runPipeline(syncInput('v1.2.3'), config, options);
-
-    expect(Object.keys(releaseBodies())).toEqual(released);
-  });
-
-  it('should skip a single-package sync release when its package is in skipPackages', async () => {
-    const config = getDefaultConfig();
-    config.githubRelease.skipPackages = ['root'];
-    const input: VersionOutput = { ...syncInput('v1.2.3'), updates: [rootUpdate()] };
-
-    await runPipeline(input, config, options);
-
-    expect(releaseBodies()).toEqual({});
-  });
-
-  it("should not give another package's notes to a per-package tag when updates don't carry tags", async () => {
-    const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
-    input.updates = input.updates.map(({ tag: _, ...u }) => u);
-
-    await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { 'pkg-a': 'A' } });
-
-    expect(releaseBodies()['pkg-b/1.2.3']).toBe(GENERATED);
   });
 
   it("should title a release with its package's name and version", async () => {

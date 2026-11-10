@@ -245,7 +245,7 @@ export const GitHubReleaseConfigSchema = z.object({
     .array(z.string())
     .default([])
     .describe(
-      "Package names to exclude from GitHub release creation. A tag's sanitized name, e.g. 'scope-pkg', also matches. A tag several packages share is skipped only when all of them are listed.",
+      "Package names to exclude from GitHub release creation. A tag's sanitized name, e.g. 'scope-pkg', also matches.",
     ),
 });
 
