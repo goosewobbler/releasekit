@@ -1,11 +1,10 @@
-import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { isPubspecYaml } from '@releasekit/config';
-import { debug } from '@releasekit/core';
+import type { VersionPackageUpdate } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { hasPubTokenAuth } from '../utils/auth.js';
 import { execCommand } from '../utils/exec.js';
+import { findBumpedManifest } from '../utils/manifests.js';
 import { detectPubCommand, isPubPackagePublished, parsePubspec } from '../utils/pub.js';
 import type { Registry, RegistryTarget } from './types.js';
 
@@ -38,10 +37,7 @@ export const pubRegistry: Registry<PubTarget, void> = {
   async authCheck(): Promise<void> {},
 
   async discover(ctx: PipelineContext): Promise<PubTarget[]> {
-    const packages = findPubPackages(
-      ctx.input.updates.map((u) => ({ dir: path.dirname(path.resolve(ctx.cwd, u.filePath)), ...u })),
-    );
-    return orderPubPackages(packages, ctx.config.pub.publishOrder);
+    return orderPubPackages(findPubPackages(ctx.cwd, ctx.input.updates), ctx.config.pub.publishOrder);
   },
 
   async prepare(ctx: PipelineContext): Promise<void> {
@@ -80,20 +76,13 @@ export const pubRegistry: Registry<PubTarget, void> = {
   },
 };
 
-function findPubPackages(
-  updates: Array<{ packageName: string; newVersion: string; filePath: string; files?: string[]; dir: string }>,
-): PubTarget[] {
+function findPubPackages(cwd: string, updates: VersionPackageUpdate[]): PubTarget[] {
   const packages: PubTarget[] = [];
   const seen = new Set<string>();
 
   for (const update of updates) {
-    const pubspecPath = path.join(update.dir, 'pubspec.yaml');
-    if (!fs.existsSync(pubspecPath) || seen.has(pubspecPath)) {
-      continue;
-    }
-    // Publishing a pubspec the version step left alone (e.g. `version.pub.enabled: false`) would ship a stale version.
-    if (update.files && !update.files.some(isPubspecYaml)) {
-      debug(`Skipping ${pubspecPath}: the version step didn't bump it`);
+    const pubspecPath = findBumpedManifest(cwd, update, 'pubspec.yaml');
+    if (!pubspecPath || seen.has(pubspecPath)) {
       continue;
     }
     seen.add(pubspecPath);
@@ -108,7 +97,7 @@ function findPubPackages(
         packageName: pubspec.name,
         updatePackageName: update.packageName,
         version: update.newVersion,
-        dir: update.dir,
+        dir: path.dirname(pubspecPath),
         command: detectPubCommand(pubspec.environment as Record<string, unknown> | undefined),
         publishTo: pubspec.publish_to,
       });

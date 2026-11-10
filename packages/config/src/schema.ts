@@ -64,7 +64,7 @@ export const VersionPubConfigSchema = z.object({
     .boolean()
     .default(true)
     .describe(
-      'Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out, which also stops a pubspec.yaml beside a package.json from publishing.',
+      'Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out.',
     ),
   paths: z
     .array(z.string())

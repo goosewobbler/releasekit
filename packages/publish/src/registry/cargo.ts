@@ -1,13 +1,19 @@
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { isCratePublishable } from '@releasekit/config';
-import { buildDependencyGraph, debug, findCargoPathDependencies, type GraphPackage } from '@releasekit/core';
+import {
+  buildDependencyGraph,
+  debug,
+  findCargoPathDependencies,
+  type GraphPackage,
+  type VersionPackageUpdate,
+} from '@releasekit/core';
 import { createGitCli } from '@releasekit/git';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { hasCargoAuth } from '../utils/auth.js';
 import { CRATES_IO_API_TIMEOUT_MS, CRATES_IO_USER_AGENT, parseCargoToml } from '../utils/cargo.js';
 import { execCommand } from '../utils/exec.js';
+import { findBumpedManifest } from '../utils/manifests.js';
 import type { Registry, RegistryTarget } from './types.js';
 
 const ALREADY_PUBLISHED_PATTERN = /already exists on crates\.io index|already uploaded/i;
@@ -73,10 +79,7 @@ export const cargoRegistry: Registry<CargoTarget, CargoSession> = {
   },
 
   async discover(ctx: PipelineContext): Promise<CargoTarget[]> {
-    const crates = findCrates(
-      ctx.input.updates.map((u) => ({ dir: path.dirname(path.resolve(ctx.cwd, u.filePath)), ...u })),
-    );
-    return orderCrates(crates, ctx.config.cargo.publishOrder);
+    return orderCrates(findCrates(ctx.cwd, ctx.input.updates), ctx.config.cargo.publishOrder);
   },
 
   async prepare(ctx: PipelineContext, session: CargoSession): Promise<void> {
@@ -113,14 +116,12 @@ export const cargoRegistry: Registry<CargoTarget, CargoSession> = {
   },
 };
 
-function findCrates(
-  updates: Array<{ packageName: string; newVersion: string; filePath: string; dir: string }>,
-): CargoTarget[] {
+function findCrates(cwd: string, updates: VersionPackageUpdate[]): CargoTarget[] {
   const crates: CargoTarget[] = [];
 
   for (const update of updates) {
-    const cargoPath = path.join(update.dir, 'Cargo.toml');
-    if (!fs.existsSync(cargoPath)) {
+    const cargoPath = findBumpedManifest(cwd, update, 'Cargo.toml');
+    if (!cargoPath) {
       continue;
     }
 
@@ -139,7 +140,7 @@ function findCrates(
         packageName: cargo.package.name,
         updatePackageName: update.packageName,
         version: update.newVersion,
-        dir: update.dir,
+        dir: path.dirname(cargoPath),
         manifestPath: cargoPath,
         pathDepDirs: findCargoPathDependencies(cargoPath)
           .filter((dependency) => dependency.kind !== 'dev-dependencies')

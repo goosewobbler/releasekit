@@ -77,7 +77,7 @@ List npm package and crate directories together in `version.packages`:
 }
 ```
 
-releasekit discovers a crate from its `Cargo.toml`, within the repo-root `Cargo.toml`'s `[workspace] members` if it has any. A `Cargo.toml` beside a `package.json` is versioned with that package.
+releasekit discovers a crate from its `Cargo.toml`, within the repo-root `Cargo.toml`'s `[workspace] members` if it has any. A `Cargo.toml` beside a `package.json` is versioned with that package. With `version.cargo.enabled: false` it's neither versioned nor published.
 
 ---
 

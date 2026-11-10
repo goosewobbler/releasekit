@@ -325,6 +325,45 @@ describe('Publish pipeline e2e (non-dry-run guards)', () => {
       message: expect.stringMatching(/CARGO_REGISTRY_TOKEN/),
     });
   });
+
+  it("should neither re-bump nor publish a hybrid's crate the version step didn't bump", async () => {
+    delete process.env.CARGO_REGISTRY_TOKEN;
+
+    const dir = mkTemp('hybrid-unbumped-crate');
+    writeNpmPackage(dir, 'releasekit-e2e-hybrid', '1.1.0');
+    writeCrate(dir, 'releasekit-e2e-hybrid', '1.0.0');
+    process.chdir(dir);
+
+    const config = makeConfig((c) => {
+      c.cargo.enabled = true;
+    });
+    // What the version step records for a hybrid with `version.cargo.enabled: false`.
+    const input = {
+      dryRun: false,
+      updates: [
+        {
+          packageName: 'releasekit-e2e-hybrid',
+          newVersion: '1.1.0',
+          filePath: 'package.json',
+          files: ['package.json'],
+        },
+      ],
+      changelogs: [],
+      tags: [],
+    };
+    const options = makeCliOptions({
+      registry: 'cargo',
+      skipGit: true,
+      skipGithubRelease: true,
+      skipVerification: true,
+    });
+
+    const output = await runPipeline(input, config, options);
+
+    expect(output.cargo).toHaveLength(0);
+    expect(fs.readFileSync(path.join(dir, 'Cargo.toml'), 'utf-8')).toContain('version = "1.0.0"');
+    expect(output.publishSucceeded).toBe(true);
+  });
 });
 
 // ===========================================================================

@@ -150,7 +150,7 @@ Dart/Flutter pub configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out, which also stops a pubspec.yaml beside a package.json from publishing. |
+| `enabled` | boolean | `true` | Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out. |
 | `paths` | `string[]` | — | Directories, relative to each package, to bump a pubspec.yaml in instead of the package's own directory. Not searched recursively. Ignored in group mode. |
 
 ---

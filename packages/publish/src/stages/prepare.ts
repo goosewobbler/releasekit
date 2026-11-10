@@ -4,6 +4,7 @@ import { type CargoLockBump, debug, info, isPathWithinRoot } from '@releasekit/c
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { syncCargoLockfiles, updateCargoVersion } from '../utils/cargo.js';
+import { findBumpedManifest } from '../utils/manifests.js';
 
 export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
   const { input, config, cliOptions, cwd } = ctx;
@@ -58,10 +59,8 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
     // that records a bump. A no-op in the standing-PR flow, which stages with `git add -A`.
     const bumps: Array<Omit<CargoLockBump, 'name'>> = [];
     for (const update of input.updates) {
-      const pkgDir = path.dirname(path.resolve(cwd, update.filePath));
-      const cargoPath = path.join(pkgDir, 'Cargo.toml');
-
-      if (!fs.existsSync(cargoPath)) {
+      const cargoPath = findBumpedManifest(cwd, update, 'Cargo.toml');
+      if (!cargoPath) {
         continue;
       }
 
@@ -76,7 +75,7 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
     }
 
     const lockfiles = await syncCargoLockfiles(cwd, bumps);
-    // A hybrid package's update names only its package.json, so stage its Cargo.toml explicitly.
+    // Version output without `files` names only a hybrid's package.json, so stage its Cargo.toml explicitly.
     const written = [...bumps.map((bump) => bump.cargoTomlPath), ...lockfiles];
     if (written.length > 0) {
       ctx.additionalFiles = [...new Set([...(ctx.additionalFiles ?? []), ...written])];

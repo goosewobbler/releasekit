@@ -5,6 +5,7 @@ import { createGitCli, type Git } from '@releasekit/git';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { runGit } from '../utils/git.js';
+import { updateManifests } from '../utils/manifests.js';
 
 async function hasStagedChanges(git: Git, cwd: string): Promise<boolean> {
   try {
@@ -54,9 +55,7 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
   }
 
   if (!skipCommit) {
-    const filePaths = [...new Set(input.updates.flatMap((u) => u.files ?? [u.filePath]))].map((f) =>
-      path.resolve(cwd, f),
-    );
+    const filePaths = [...new Set(input.updates.flatMap((u) => updateManifests(u)))].map((f) => path.resolve(cwd, f));
     if (ctx.additionalFiles) {
       filePaths.push(...ctx.additionalFiles.map((f) => path.resolve(cwd, f)));
     }
