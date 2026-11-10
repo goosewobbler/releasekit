@@ -21,6 +21,12 @@ export function wrapNotesRegion(content: string, pkgKey?: string): string {
   return wrapMarkerRegion(neutralizeMarkers(content), openMarker(pkgKey), closeMarker(pkgKey));
 }
 
+/** `undefined` for an unterminated region too, which would otherwise run on into later regions and the footer. */
 export function extractNotesRegion(body: string, pkgKey?: string): string | undefined {
-  return extractMarkerRegion(body, openMarker(pkgKey), closeMarker(pkgKey));
+  const region = extractMarkerRegion(body, openMarker(pkgKey), closeMarker(pkgKey));
+  return region?.closed ? region.content : undefined;
+}
+
+export function hasUnterminatedNotesRegion(body: string, pkgKey?: string): boolean {
+  return extractMarkerRegion(body, openMarker(pkgKey), closeMarker(pkgKey))?.closed === false;
 }

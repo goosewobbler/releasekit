@@ -456,6 +456,42 @@ describe('publishFromDraft', () => {
     );
   });
 
+  it('should publish the drafted notes, not the rest of the body, when a region lost its end marker', async () => {
+    const { warn } = await import('@releasekit/core');
+    const { renderNotesRegion } = await import('../../src/standing-pr/notes-region.js');
+    const twoPackages: VersionOutput = {
+      ...versionOutput,
+      changelogs: ['@scope/a', '@scope/b'].map((packageName) => ({
+        packageName,
+        version: '1.2.0',
+        previousVersion: '1.1.0',
+        revisionRange: 'v1.1.0..HEAD',
+        repoUrl: null,
+        entries: [],
+      })),
+    };
+    mockRunRelease.mockResolvedValue({ versionOutput: twoPackages, notesGenerated: true });
+    const drafted = { ...manifest, versionOutput: twoPackages, releaseNotes: { '@scope/a': '- drafted A' } };
+    const body = renderNotesRegion({ '@scope/a': '- EDIT A', '@scope/b': '- EDIT B' }).replace(
+      '<!-- releasekit-notes-end:@scope/a -->',
+      '',
+    );
+    const forge = createFakeForge({
+      issues: { 9: { body, title: 't', labels: ['release:draft'], isPullRequest: false } },
+      comments: [{ id: 1, body: serializeManifest(drafted, draftMarker), prNumber: 9, user: botAuthor }],
+      openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
+    });
+    mockForgeFor.mockReturnValue(forge);
+
+    await publishFromDraft(9, baseOptions);
+
+    expect(mockRunRelease).toHaveBeenCalledWith(
+      expect.objectContaining({ editedNotes: { '@scope/a': '- drafted A', '@scope/b': '- EDIT B' } }),
+    );
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('`@scope/a` is missing its end marker'));
+    expect(vi.mocked(warn)).not.toHaveBeenCalledWith(expect.stringContaining('Could not read'));
+  });
+
   it('should throw when the issue has no manifest comment', async () => {
     const forge = createFakeForge({
       issues: { 9: { body: 'x', title: 't', labels: [], isPullRequest: false } },
