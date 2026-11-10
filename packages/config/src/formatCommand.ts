@@ -43,7 +43,6 @@ export function parseCommand(command: string): string[] {
   return args;
 }
 
-/** Runs `command` with `files` appended as arguments, without a shell. */
 export async function runFormatCommand(command: string, files: string[], cwd: string): Promise<void> {
   if (files.length === 0) {
     return;

@@ -23,7 +23,7 @@ function write(path: string, content: string): void {
   writeFileSync(path, content);
 }
 
-// Logs the files it's given, then re-indents JSON with tabs and marks every other file.
+// Logs the files it's given, then re-indents JSON with tabs and appends a `# formatted` line to the rest.
 const FORMATTER = `import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 const [log, ...files] = process.argv.slice(2);
 appendFileSync(log, files.map((file) => file + '\\n').join(''));
