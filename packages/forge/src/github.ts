@@ -144,8 +144,8 @@ export class GitHubForge implements Forge {
     await this.octokit.rest.pulls.update({ ...this.base, pull_number: prNumber, ...changes });
   }
 
-  async mergePullRequest(prNumber: number, method: MergeMethod): Promise<void> {
-    await this.octokit.rest.pulls.merge({ ...this.base, pull_number: prNumber, merge_method: method });
+  async mergePullRequest(prNumber: number, method: MergeMethod, sha?: string): Promise<void> {
+    await this.octokit.rest.pulls.merge({ ...this.base, pull_number: prNumber, merge_method: method, sha });
   }
 
   async createIssue(issue: NewIssue): Promise<IssueRef> {

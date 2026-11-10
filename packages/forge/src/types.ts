@@ -161,7 +161,8 @@ export interface Forge {
   getPullRequest(prNumber: number): Promise<PullRequestDetails>;
   createPullRequest(pr: NewPullRequest): Promise<PullRequestRef>;
   updatePullRequest(prNumber: number, changes: PullRequestChanges): Promise<void>;
-  mergePullRequest(prNumber: number, method: MergeMethod): Promise<void>;
+  /** With `sha`, the merge fails unless the PR's head is still that commit. */
+  mergePullRequest(prNumber: number, method: MergeMethod, sha?: string): Promise<void>;
 
   createIssue(issue: NewIssue): Promise<IssueRef>;
   updateIssue(issueNumber: number, changes: IssueChanges): Promise<void>;

@@ -2319,6 +2319,21 @@ describe('runStandingPRUpdate', () => {
       expect(manifest.baseSha).toBe('base-tip');
     });
 
+    it('should record the pushed release-branch commit as the manifest headSha', async () => {
+      const { forge } = await setupWithStandingPRLabels(['release']);
+      const headSha = vi.spyOn(fakeGit, 'headSha').mockResolvedValue('base-tip');
+      vi.spyOn(fakeGit, 'status').mockResolvedValue(' M package.json\n');
+      vi.spyOn(fakeGit, 'commit').mockImplementation(async () => {
+        headSha.mockResolvedValue('release-tip');
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const writes = [...forge.createdComments.map((c) => c.body), ...forge.updatedComments.map((c) => c.body)];
+      const manifest = parseManifest(writes.find((b) => b.includes(MANIFEST_MARKER)) as string);
+      expect(manifest.headSha).toBe('release-tip');
+    });
+
     it('should drop the bump under release:graduate (graduation is bump-less, matching the SSOT)', async () => {
       const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:major', 'release:graduate']);
 
@@ -4391,6 +4406,15 @@ describe('publishFromManifest', () => {
 
 describe('runStandingPRMerge', () => {
   const originalEnv = { ...process.env };
+  const options = { projectDir: '/test', verbose: false, quiet: false, json: false };
+
+  function mergeableForge(seed: FakeForgeSeed = {}) {
+    return mockForge({
+      standingPR: openStandingPR(42),
+      comments: [{ id: 1, body: serializeManifest({ ...baseManifest, headSha: MERGED_HEAD }) }],
+      ...seed,
+    });
+  }
 
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -4418,18 +4442,13 @@ describe('runStandingPRMerge', () => {
     delete process.env.GITHUB_REPOSITORY;
     delete process.env.GITHUB_TOKEN;
 
-    await expect(
-      runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
-    ).rejects.toThrow(/No GitHub context/);
+    await expect(runStandingPRMerge(options)).rejects.toThrow(/No GitHub context/);
   });
 
   it('should return null when no open standing PR found', async () => {
     const forge = await mockForge({ standingPR: null });
 
-    const result = await runStandingPRMerge(
-      { projectDir: '/test', verbose: false, quiet: false, json: false },
-      { publish: false },
-    );
+    const result = await runStandingPRMerge(options);
 
     expect(result).toBeNull();
     expect(forge.mergedPullRequests).toHaveLength(0);
@@ -4444,11 +4463,11 @@ describe('runStandingPRMerge', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    const forge = await mockForge({ standingPR: openStandingPR(42) });
+    const forge = await mergeableForge();
 
-    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
+    await runStandingPRMerge(options);
 
-    expect(forge.mergedPullRequests).toContainEqual({ prNumber: 42, method: 'squash' });
+    expect(forge.mergedPullRequests).toEqual([{ prNumber: 42, method: 'squash', sha: MERGED_HEAD }]);
   });
 
   it('should default to merge method when config omits mergeMethod', async () => {
@@ -4460,142 +4479,48 @@ describe('runStandingPRMerge', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    const forge = await mockForge({ standingPR: openStandingPR(42) });
+    const forge = await mergeableForge();
 
-    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
+    await runStandingPRMerge(options);
 
     expect(forge.mergedPullRequests).toContainEqual(expect.objectContaining({ method: 'merge' }));
   });
 
   it('should throw clear error message on 405 response', async () => {
-    const forge = await mockForge({ standingPR: openStandingPR(42) });
+    const forge = await mergeableForge();
     vi.spyOn(forge, 'mergePullRequest').mockRejectedValue({
       status: 405,
       response: { data: { message: 'Required status checks have not passed' } },
     });
 
-    await expect(
-      runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
-    ).rejects.toThrow(/GitHub rejected the merge/);
-
-    await expect(
-      runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
-    ).rejects.toThrow(/Required status checks have not passed/);
+    await expect(runStandingPRMerge(options)).rejects.toThrow(
+      /GitHub rejected the merge \(Required status checks have not passed\)/,
+    );
   });
 
-  it('should re-throw non-405 errors unchanged', async () => {
-    const forge = await mockForge({ standingPR: openStandingPR(42) });
+  it('should say the release branch moved when GitHub refuses the pinned head', async () => {
+    const forge = await mergeableForge();
+    vi.spyOn(forge, 'mergePullRequest').mockRejectedValue({ status: 409 });
+
+    await expect(runStandingPRMerge(options)).rejects.toThrow(
+      /'release\/next' has moved since the release manifest was written/,
+    );
+  });
+
+  it('should re-throw other errors unchanged', async () => {
+    const forge = await mergeableForge();
     const originalError = new Error('Network error');
     vi.spyOn(forge, 'mergePullRequest').mockRejectedValue(originalError);
 
-    await expect(
-      runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
-    ).rejects.toThrow('Network error');
+    await expect(runStandingPRMerge(options)).rejects.toThrow('Network error');
   });
 
-  it('should return a merge result without publishing when publish flag is false', async () => {
-    await mockForge({ standingPR: openStandingPR(42) });
+  it('should leave the release branch for the publish to delete', async () => {
+    await mergeableForge();
 
-    const result = await runStandingPRMerge(
-      { projectDir: '/test', verbose: false, quiet: false, json: false },
-      { publish: false },
-    );
+    const result = await runStandingPRMerge(options);
 
     expect(result).toEqual({ merged: true, prNumber: 42 });
-  });
-
-  it('should call publishFromManifest when publish flag is true and manifest exists', async () => {
-    await mockForge({
-      standingPR: openStandingPR(42),
-      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
-    });
-
-    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
-    vi.mocked(runNotesStep).mockResolvedValue({
-      packageNotes: {},
-      releaseNotes: { '@scope/core': '- regenerated' },
-      files: ['RELEASE_NOTES.md'],
-    });
-    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
-      ReturnType<typeof runPublishStep>
-    >);
-
-    const result = await runStandingPRMerge(
-      { projectDir: '/test', verbose: false, quiet: false, json: false },
-      { publish: true },
-    );
-
-    expect(result).not.toBeNull();
-    expect(vi.mocked(runPublishStep)).toHaveBeenCalledWith(
-      expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
-      expect.objectContaining({ skipGitCommit: true }),
-      { '@scope/core': '- regenerated' },
-      expect.arrayContaining(['RELEASE_NOTES.md', ...baseManifest.notesFiles]),
-    );
-  });
-
-  it('should delete branch after publish when deleteBranchOnMerge is true', async () => {
-    await mockForge({
-      standingPR: openStandingPR(42),
-      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
-      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
-    });
-
-    const { runPublishStep } = await import('../../src/steps.js');
-    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
-      ReturnType<typeof runPublishStep>
-    >);
-
-    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: true });
-
-    const deleteCalls = branchDeletePushes();
-    expect(deleteCalls).toHaveLength(1);
-    expect(deleteCalls[0]?.ref).toBe(':release/next');
-  });
-
-  it('should skip branch deletion when deleteBranchOnMerge is false', async () => {
-    const { loadConfig } = await import('@releasekit/config');
-    vi.mocked(loadConfig).mockReturnValue({
-      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: false } },
-      git: { branch: 'main' },
-    } as ReturnType<typeof loadConfig>);
-
-    await mockForge({
-      standingPR: openStandingPR(42),
-      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
-      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
-    });
-
-    const { runPublishStep } = await import('../../src/steps.js');
-    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
-      ReturnType<typeof runPublishStep>
-    >);
-
-    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: true });
-
-    expect(branchDeletePushes()).toHaveLength(0);
-  });
-
-  it('should delete branch even when publish flag is false and deleteBranchOnMerge is true', async () => {
-    await mockForge({ standingPR: openStandingPR(42) });
-
-    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
-
-    const deleteCalls = branchDeletePushes();
-    expect(deleteCalls).toHaveLength(1);
-    expect(deleteCalls[0]?.ref).toBe(':release/next');
-  });
-
-  it('should skip branch deletion when publish flag is false and deleteBranchOnMerge is false', async () => {
-    const { loadConfig } = await import('@releasekit/config');
-    vi.mocked(loadConfig).mockReturnValue({
-      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: false } },
-      git: { branch: 'main' },
-    } as ReturnType<typeof loadConfig>);
-    await mockForge({ standingPR: openStandingPR(42) });
-
-    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
-
     expect(branchDeletePushes()).toHaveLength(0);
   });
 });

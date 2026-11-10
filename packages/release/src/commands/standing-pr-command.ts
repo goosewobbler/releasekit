@@ -97,12 +97,7 @@ export function createStandingPRCommand(): Command {
     }
   });
 
-  sharedOptions(
-    cmd
-      .command('merge')
-      .description('Merge the open standing release PR, optionally publishing immediately')
-      .option('--publish', 'Publish packages immediately after merging', false),
-  ).action(async (opts) => {
+  sharedOptions(cmd.command('merge').description('Merge the open standing release PR')).action(async (opts) => {
     const options: StandingPROptions = {
       config: opts.config,
       projectDir: opts.projectDir,
@@ -113,7 +108,7 @@ export function createStandingPRCommand(): Command {
     };
 
     try {
-      const result = await runStandingPRMerge(options, { publish: opts.publish });
+      const result = await runStandingPRMerge(options);
       emitResult(result, { json: opts.json, output: opts.output, changed: result != null });
     } catch (err) {
       emitError(err, { json: opts.json, output: opts.output });

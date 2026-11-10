@@ -71,7 +71,7 @@ export class FakeForge implements Forge {
   readonly upsertedComments: Array<{ prNumber: number; marker: string; body: string }> = [];
   readonly createdPullRequests: NewPullRequest[] = [];
   readonly updatedPullRequests: Array<{ prNumber: number; changes: PullRequestChanges }> = [];
-  readonly mergedPullRequests: Array<{ prNumber: number; method: MergeMethod }> = [];
+  readonly mergedPullRequests: Array<{ prNumber: number; method: MergeMethod; sha?: string }> = [];
   readonly createdIssues: NewIssue[] = [];
   readonly updatedIssues: Array<{ issueNumber: number; changes: IssueChanges }> = [];
   readonly createdLabels: NewLabel[] = [];
@@ -157,8 +157,8 @@ export class FakeForge implements Forge {
     this.updatedPullRequests.push({ prNumber, changes });
   }
 
-  async mergePullRequest(prNumber: number, method: MergeMethod): Promise<void> {
-    this.mergedPullRequests.push({ prNumber, method });
+  async mergePullRequest(prNumber: number, method: MergeMethod, sha?: string): Promise<void> {
+    this.mergedPullRequests.push({ prNumber, method, sha });
   }
 
   async createIssue(issue: NewIssue): Promise<IssueRef> {
