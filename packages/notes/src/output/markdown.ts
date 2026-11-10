@@ -93,39 +93,27 @@ function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts:
     }
   }
 
-  if (groupedScopes.size === 0) {
-    blocks.push(entries.map((entry) => formatEntry(entry, refOpts)).join('\n'));
-  } else {
-    // Scope groups are expanded at the position of their first member.
-    // Ungrouped entries that fall between two members of the same group
-    // will appear after that group, not at their literal original position.
-    const byScope = new Map<string, ChangelogEntry[]>();
-    for (const entry of entries) {
-      if (entry.scope && groupedScopes.has(entry.scope)) {
-        const group = byScope.get(entry.scope) ?? [];
-        group.push(entry);
-        byScope.set(entry.scope, group);
-      }
+  // Ungrouped entries go first: after a group's list, Markdown would read them as part of that group.
+  const ungrouped: ChangelogEntry[] = [];
+  const byScope = new Map<string, ChangelogEntry[]>();
+  for (const entry of entries) {
+    if (entry.scope && groupedScopes.has(entry.scope)) {
+      const group = byScope.get(entry.scope) ?? [];
+      group.push(entry);
+      byScope.set(entry.scope, group);
+    } else {
+      ungrouped.push(entry);
     }
+  }
 
-    // An ungrouped entry after a group stays in its list: a blank line would merge the two into one loose list.
-    let list: string[] = [];
-    const renderedScopes = new Set<string>();
-    for (const entry of entries) {
-      if (entry.scope && groupedScopes.has(entry.scope)) {
-        if (!renderedScopes.has(entry.scope)) {
-          renderedScopes.add(entry.scope);
-          if (list.length > 0) {
-            blocks.push(list.join('\n'));
-          }
-          blocks.push(`**${escapeChangelogMentions(entry.scope)}**:`);
-          list = (byScope.get(entry.scope) ?? []).map((e) => formatEntry(e, { ...refOpts, hideScope: true }));
-        }
-      } else {
-        list.push(formatEntry(entry, refOpts));
-      }
-    }
-    blocks.push(list.join('\n'));
+  if (ungrouped.length > 0) {
+    blocks.push(ungrouped.map((entry) => formatEntry(entry, refOpts)).join('\n'));
+  }
+  for (const [scope, group] of byScope) {
+    blocks.push(
+      `**${escapeChangelogMentions(scope)}**:`,
+      group.map((entry) => formatEntry(entry, { ...refOpts, hideScope: true })).join('\n'),
+    );
   }
 
   return blocks;
