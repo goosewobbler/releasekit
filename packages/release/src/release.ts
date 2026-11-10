@@ -1,5 +1,5 @@
 import type { CIConfig, ReleaseConfig } from '@releasekit/config';
-import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
+import { assertLlmModel, loadConfig as loadReleaseKitConfig, runsLlmTasks } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
@@ -276,6 +276,12 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   if (releaseConfig?.ci?.minChanges !== undefined && publishableCount < releaseConfig.ci.minChanges) {
     info(`Skipping release: ${publishableCount} package(s) to update, minimum is ${releaseConfig.ci.minChanges}`);
     return null;
+  }
+
+  // Before the writes land, so a missing model leaves the working tree untouched.
+  const llm = releaseKitConfig.notes?.releaseNotes ? releaseKitConfig.notes.releaseNotes.llm : undefined;
+  if (!options.skipNotes && llm && runsLlmTasks(llm, options.skipReleaseNotes)) {
+    assertLlmModel(llm);
   }
 
   // All guards passed: land the captured writes exactly once.

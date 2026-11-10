@@ -516,8 +516,9 @@ const LLMConfigBaseSchema = z.object({
     .string()
     // Otherwise "model": "" passes load and only fails deep in the pipeline.
     .min(1, 'model must be a non-empty string — set it to a model the provider serves.')
+    .optional()
     .describe(
-      'Model identifier for the selected provider. Required — releasekit ships no default, so enabling LLM enhancement needs an explicit, current model (a missing model fails config validation).',
+      'Model identifier for the selected provider; releasekit ships no default. Checked only when a run calls the LLM, so other runs work without it.',
     ),
   baseURL: z.string().optional().describe('Custom API base URL. Required for the openai-compatible provider.'),
   apiKey: z

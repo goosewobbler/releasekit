@@ -730,7 +730,7 @@
                     "model": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "Model identifier for the selected provider. Required — releasekit ships no default, so enabling LLM enhancement needs an explicit, current model (a missing model fails config validation)."
+                      "description": "Model identifier for the selected provider; releasekit ships no default. Checked only when a run calls the LLM, so other runs work without it."
                     },
                     "baseURL": {
                       "type": "string",
@@ -987,8 +987,7 @@
                     }
                   },
                   "required": [
-                    "provider",
-                    "model"
+                    "provider"
                   ],
                   "description": "LLM configuration for release notes"
                 },

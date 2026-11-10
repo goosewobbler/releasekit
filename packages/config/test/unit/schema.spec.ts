@@ -337,10 +337,8 @@ describe('LLMConfigSchema', () => {
     expect(result.model).toBe('gpt-4');
   });
 
-  it('should require a non-empty model for every provider (releasekit ships no default)', () => {
-    expect(() => LLMConfigSchema.parse({ provider: 'anthropic' })).toThrow();
-    expect(() => LLMConfigSchema.parse({ provider: 'openai' })).toThrow();
-    expect(() => LLMConfigSchema.parse({ provider: 'ollama' })).toThrow();
+  it('should leave a missing model to the run that uses the LLM, but reject an empty one', () => {
+    expect(LLMConfigSchema.parse({ provider: 'ollama' }).model).toBeUndefined();
     expect(() => LLMConfigSchema.parse({ provider: 'openai', model: '' })).toThrow(/non-empty/);
   });
 

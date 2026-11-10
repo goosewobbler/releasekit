@@ -194,6 +194,47 @@ describe('loadConfig', () => {
     const result = loadConfig();
     expect(result.git?.remote).toBe('test-origin');
   });
+
+  describe('validation errors', () => {
+    function mockConfig(config: unknown): void {
+      mockedFs.existsSync.mockReturnValue(true);
+      mockedFs.readFileSync.mockReturnValue(JSON.stringify(config));
+    }
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('should report the nested failure inside a false-or-object union', () => {
+      mockConfig({ notes: { releaseNotes: { llm: { provider: 'openai-compatible', model: 'local' } } } });
+
+      expect(() => loadConfig()).toThrow(
+        'Config validation errors:\n  notes.releaseNotes.llm.baseURL: baseURL is required when provider is "openai-compatible".',
+      );
+    });
+
+    it('should keep the union-level error when no branch matches the value type', () => {
+      mockConfig({ notes: { releaseNotes: true } });
+
+      expect(() => loadConfig()).toThrow('Config validation errors:\n  notes.releaseNotes: Invalid input');
+    });
+
+    it('should name the unset {env:} variable a required field came from', () => {
+      vi.stubEnv('LLM_PROVIDER', undefined);
+      mockConfig({ notes: { releaseNotes: { llm: { provider: '{env:LLM_PROVIDER}', model: 'm' } } } });
+
+      expect(() => loadConfig()).toThrow(
+        'Config validation errors:\n  notes.releaseNotes.llm.provider: {env:LLM_PROVIDER} is not set',
+      );
+    });
+
+    it('should load with llm.model from an unset {env:} variable', () => {
+      vi.stubEnv('OLLAMA_MODEL', undefined);
+      mockConfig({ notes: { releaseNotes: { llm: { provider: 'ollama', model: '{env:OLLAMA_MODEL}' } } } });
+
+      expect(loadConfig().notes?.releaseNotes).toMatchObject({ llm: { provider: 'ollama', model: undefined } });
+    });
+  });
 });
 
 describe('loadVersionConfig', () => {

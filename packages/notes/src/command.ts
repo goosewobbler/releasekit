@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
-import { LLMConfigSchema, loadConfig, saveAuth } from '@releasekit/config';
+import { copyUnsetEnv, LLMConfigSchema, loadConfig, saveAuth } from '@releasekit/config';
 import { EXIT_CODES, error, info, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import { Command } from 'commander';
 import { runPipeline } from './core/pipeline.js';
@@ -132,7 +132,7 @@ export function createNotesCommand(): Command {
               };
             }
 
-            // Validate so a bad --llm-provider or a missing --llm-model fails loud here instead of being
+            // Validate so a bad --llm-provider or --llm-base-url fails loud here instead of being
             // swallowed by the pipeline's soft-fail as a silent degradation to non-LLM notes.
             let validatedLlm: import('./core/types.js').LLMConfig;
             try {
@@ -144,6 +144,9 @@ export function createNotesCommand(): Command {
               const detail =
                 issues?.map((i) => i.message).join('; ') ?? (err instanceof Error ? err.message : String(err));
               throw new Error(`Invalid LLM configuration from --llm-* flags: ${detail}`);
+            }
+            if (existingLlm) {
+              copyUnsetEnv(existingLlm, validatedLlm);
             }
             config.releaseNotes = {
               ...existingRn,

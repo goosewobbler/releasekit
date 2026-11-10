@@ -338,7 +338,7 @@ LLM configuration for release notes.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `provider` | `"openai"` \| `"openai-compatible"` \| `"anthropic"` \| `"ollama"` | — | LLM provider |
-| `model` | string | — | Model identifier for the selected provider. Required — releasekit ships no default, so enabling LLM enhancement needs an explicit, current model (a missing model fails config validation). |
+| `model` | string | — | Model identifier for the selected provider; releasekit ships no default. Checked only when a run calls the LLM, so other runs work without it. |
 | `baseURL` | string | — | Custom API base URL. Required for the openai-compatible provider. |
 | `apiKey` | string | — | API key. When unset, releasekit uses the key saved by releasekit-notes auth, then the provider's environment variable (e.g. OPENAI_API_KEY); prefer either to an inline key. |
 | `concurrency` | integer | — | Maximum packages processed at once and, separately, entries a package's standalone enhance task rewrites at once. Default: 5. |
