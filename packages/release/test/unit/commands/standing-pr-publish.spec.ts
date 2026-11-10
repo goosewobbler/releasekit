@@ -156,5 +156,15 @@ describe('standing-pr publish', () => {
       ]);
       expect(runPublishStep).not.toHaveBeenCalled();
     });
+
+    it('should check filePath when an edited manifest empties files', async () => {
+      const envelope = await publish([{ ...update('@scope/core', ['packages/core/package.json']), files: [] }]);
+
+      expect(envelope).toMatchObject({ status: 'error' });
+      expect(envelope.errors).toMatchObject([
+        { message: expect.stringContaining("the merged source has '@scope/core@1.0.0'") },
+      ]);
+      expect(runPublishStep).not.toHaveBeenCalled();
+    });
   });
 });
