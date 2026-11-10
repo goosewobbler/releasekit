@@ -89,6 +89,10 @@ export function createVersionCommand(): Command {
         log(`Config packages: ${JSON.stringify(config.packages)}`, 'debug');
         log(`Config sync: ${config.sync}`, 'debug');
 
+        if (resolvedCount === 0) {
+          throw new Error('No packages found in workspace');
+        }
+
         const hasGroups = config.groups && Object.keys(config.groups).length > 0;
         const effectiveSync = options.sync || config.sync;
         if (hasGroups && !effectiveSync) {
@@ -106,8 +110,6 @@ export function createVersionCommand(): Command {
           }
           engine.setStrategy('single');
           await engine.run(pkgsResult);
-        } else if (resolvedCount === 0) {
-          throw new Error('No packages found in workspace');
         } else {
           log('Using async versioning strategy.', 'info');
           if (cliTargets.length > 0) {

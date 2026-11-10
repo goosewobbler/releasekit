@@ -33,22 +33,18 @@ export function filterPackagesByConfig(packages: Package[], configTargets: strin
 }
 
 export function filterByDirectoryPattern(packages: Package[], pattern: string, workspaceRoot: string): Package[] {
-  if (pattern === './' || pattern === '.') {
-    return packages.filter((pkg) => pkg.dir === workspaceRoot);
-  }
-
-  const normalizedPattern = pattern.replace(/\\/g, '/');
+  const normalizedPattern = normalizeDirectoryPattern(pattern);
 
   return packages.filter((pkg) => {
-    const relativePath = path.relative(workspaceRoot, pkg.dir);
-    const normalizedRelativePath = relativePath.replace(/\\/g, '/');
-
-    if (normalizedPattern === normalizedRelativePath) {
+    if (matchesDirectoryExactly(pkg, normalizedPattern, workspaceRoot)) {
       return true;
+    }
+    if (normalizedPattern === '.') {
+      return false;
     }
 
     try {
-      return minimatch(normalizedRelativePath, normalizedPattern, {
+      return minimatch(relativeDirectory(pkg, workspaceRoot), normalizedPattern, {
         dot: true,
       });
     } catch (error) {
@@ -56,6 +52,26 @@ export function filterByDirectoryPattern(packages: Package[], pattern: string, w
       return false;
     }
   });
+}
+
+export function matchesDirectoryExactly(pkg: Package, pattern: string, workspaceRoot: string): boolean {
+  const normalizedPattern = normalizeDirectoryPattern(pattern);
+  if (normalizedPattern === '.') {
+    return pkg.dir === workspaceRoot;
+  }
+  return normalizedPattern === relativeDirectory(pkg, workspaceRoot);
+}
+
+function normalizeDirectoryPattern(pattern: string): string {
+  const slashed = pattern.replace(/\\/g, '/');
+  if (slashed === '.' || slashed === './') {
+    return '.';
+  }
+  return slashed.replace(/^(?:\.\/)+/, '').replace(/(?<=[^/])\/+$/, '');
+}
+
+function relativeDirectory(pkg: Package, workspaceRoot: string): string {
+  return path.relative(workspaceRoot, pkg.dir).replace(/\\/g, '/');
 }
 
 function filterByPackageNamePattern(packages: Package[], pattern: string): Package[] {
