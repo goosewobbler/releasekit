@@ -1,8 +1,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
+  BREAKING_SECTION,
   type ChangelogRefsMode,
   escapeChangelogMentions,
+  groupChangelogSections,
   info,
   neutralizeDescriptionRefs,
   renderIssueRefs,
@@ -30,32 +32,7 @@ export function firstReleaseLine(context: TemplateContext, config?: FirstRelease
   return template.replaceAll('${packageName}', context.packageName).replaceAll('${version}', context.version);
 }
 
-const TYPE_ORDER: ChangelogEntry['type'][] = ['added', 'changed', 'deprecated', 'removed', 'fixed', 'security'];
-
-const TYPE_LABELS: Record<ChangelogEntry['type'], string> = {
-  added: 'Added',
-  changed: 'Changed',
-  deprecated: 'Deprecated',
-  removed: 'Removed',
-  fixed: 'Fixed',
-  security: 'Security',
-};
-
-function groupEntriesByType(entries: ChangelogEntry[]): Map<ChangelogEntry['type'], ChangelogEntry[]> {
-  const grouped = new Map<ChangelogEntry['type'], ChangelogEntry[]>();
-
-  for (const type of TYPE_ORDER) {
-    grouped.set(type, []);
-  }
-
-  for (const entry of entries) {
-    const existing = grouped.get(entry.type) ?? [];
-    existing.push(entry);
-    grouped.set(entry.type, existing);
-  }
-
-  return grouped;
-}
+const SECTION_ORDER = ['Added', 'Changed', 'Deprecated', 'Removed', 'Fixed', 'Security'];
 
 interface EntryRefOptions {
   hideScope?: boolean;
@@ -172,11 +149,11 @@ function rerouteBreakingEntries(categories: EnhancedCategory[]): EnhancedCategor
     }),
   }));
 
-  const breakingCatIdx = stripped.findIndex((c) => c.name === 'Breaking');
+  const breakingCatIdx = stripped.findIndex((c) => c.name === BREAKING_SECTION);
   if (breakingCatIdx >= 0) {
     return stripped.map((c, i) => (i === breakingCatIdx ? { ...c, entries: [...breakingEntries, ...c.entries] } : c));
   }
-  return [{ name: 'Breaking', entries: breakingEntries }, ...stripped.filter((c) => c.entries.length > 0)];
+  return [{ name: BREAKING_SECTION, entries: breakingEntries }, ...stripped.filter((c) => c.entries.length > 0)];
 }
 
 function applyOrder(categories: EnhancedCategory[], order: string[]): EnhancedCategory[] {
@@ -186,7 +163,7 @@ function applyOrder(categories: EnhancedCategory[], order: string[]): EnhancedCa
   return [...categories].sort((a, b) => {
     const ai = order.indexOf(a.name);
     const bi = order.indexOf(b.name);
-    const rank = (name: string, idx: number) => (idx === -1 ? (name === 'Breaking' ? -1 : order.length) : idx);
+    const rank = (name: string, idx: number) => (idx === -1 ? (name === BREAKING_SECTION ? -1 : order.length) : idx);
     return rank(a.name, ai) - rank(b.name, bi);
   });
 }
@@ -330,15 +307,9 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
       lines.push('');
     }
   } else {
-    const grouped = groupEntriesByType(context.entries);
-
-    for (const [type, entries] of grouped) {
-      if (entries.length === 0) {
-        continue;
-      }
-
-      lines.push(`### ${TYPE_LABELS[type]}`);
-      for (const entry of entries) {
+    for (const section of groupChangelogSections(context.entries, (e) => e, SECTION_ORDER)) {
+      lines.push(`### ${section.label}`);
+      for (const entry of section.items) {
         lines.push(formatEntry(entry, refOpts));
       }
       lines.push('');

@@ -2,6 +2,7 @@ import { DEFAULT_DEMOTE_SCOPES } from '@releasekit/config';
 import {
   type ChangelogRefsMode,
   escapeChangelogMentions,
+  groupChangelogSections,
   neutralizeDescriptionRefs,
   renderIssueRefs,
   type VersionChangelogEntry,
@@ -14,41 +15,6 @@ import type { RowChangelogRenderer } from './selection-region.js';
  * two units deliberately appears under each, and the combined footer ({@link renderCombinedFooter}), listing every
  * change once. Both read structured entries and never parse prose.
  */
-
-/** Several types fold onto one label (feat/added → Added), so entries group by label, not raw type. */
-const CHANGELOG_TYPE_LABELS: Record<string, string> = {
-  feat: 'Added',
-  fix: 'Fixed',
-  added: 'Added',
-  changed: 'Changed',
-  fixed: 'Fixed',
-  perf: 'Performance',
-  refactor: 'Refactored',
-  security: 'Security',
-  docs: 'Documentation',
-  chore: 'Chores',
-  test: 'Tests',
-  build: 'Build',
-  ci: 'CI',
-  revert: 'Reverts',
-  style: 'Styles',
-};
-
-const LABEL_ORDER: string[] = (() => {
-  const seen = new Set<string>();
-  const order: string[] = [];
-  for (const label of Object.values(CHANGELOG_TYPE_LABELS)) {
-    if (!seen.has(label)) {
-      seen.add(label);
-      order.push(label);
-    }
-  }
-  return order;
-})();
-
-function labelFor(type: string): string {
-  return CHANGELOG_TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1);
-}
 
 interface AttributedEntry {
   entry: VersionChangelogEntry;
@@ -127,69 +93,29 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
   }
   const attribution = distinct.size > 1;
 
-  const demote = demoteScopes.length > 0;
-  const breaking: DedupedEntry[] = [];
-  const promoted: DedupedEntry[] = [];
-  const demoted: DedupedEntry[] = [];
-  for (const d of deduped) {
-    if (d.entry.breaking) {
-      breaking.push(d);
-    } else if (demote && d.entry.scope !== undefined && demoteScopes.includes(d.entry.scope)) {
-      demoted.push(d);
-    } else {
-      promoted.push(d);
-    }
-  }
-
-  const byLabel = new Map<string, DedupedEntry[]>();
-  for (const d of promoted) {
-    const label = labelFor(d.entry.type);
-    let list = byLabel.get(label);
-    if (!list) {
-      list = [];
-      byLabel.set(label, list);
-    }
-    list.push(d);
-  }
+  // A breaking change in a demoted scope still leads, under Breaking.
+  const isDemoted = (d: DedupedEntry): boolean =>
+    !d.entry.breaking && d.entry.scope !== undefined && demoteScopes.includes(d.entry.scope);
+  const demoted = deduped.filter(isDemoted);
 
   const lines: string[] = [];
-  const emit = (label: string): void => {
-    const list = byLabel.get(label);
-    if (!list?.length) {
-      return;
-    }
+  const emitSection = (heading: string, list: DedupedEntry[]): void => {
     // A heading, not bold: inside the blockquote bold text collapses to near-zero spacing between sections.
-    lines.push(`#### ${label}`, '');
+    lines.push(`#### ${heading}`, '');
     for (const d of list) {
       lines.push(entryLine(d, attribution, refOpts));
     }
     lines.push('');
   };
-  // First and apart from their commit type, as in the published changelog and release notes.
-  if (breaking.length > 0) {
-    lines.push('#### Breaking', '');
-    for (const d of breaking) {
-      lines.push(entryLine(d, attribution, refOpts));
-    }
-    lines.push('');
-  }
-  const rendered = new Set<string>();
-  for (const label of LABEL_ORDER) {
-    emit(label);
-    rendered.add(label);
-  }
-  for (const label of byLabel.keys()) {
-    if (!rendered.has(label)) {
-      emit(label);
-    }
+  for (const section of groupChangelogSections(
+    deduped.filter((d) => !isDemoted(d)),
+    (d) => d.entry,
+  )) {
+    emitSection(section.label, section.items);
   }
   // Last, so low-signal dependency churn never crowds the user-facing changes.
   if (demoted.length > 0) {
-    lines.push(`#### ${DEMOTED_HEADING}`, '');
-    for (const d of demoted) {
-      lines.push(entryLine(d, attribution, refOpts));
-    }
-    lines.push('');
+    emitSection(DEMOTED_HEADING, demoted);
   }
   if (lines[lines.length - 1] === '') {
     lines.pop();

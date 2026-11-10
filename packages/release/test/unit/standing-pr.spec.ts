@@ -1458,6 +1458,47 @@ describe('runStandingPRUpdate', () => {
     expect(footer).toContain('_(a, b)_');
   });
 
+  it('should lead the per-row changelog and the footer with breaking changes, even from a demoted scope', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '2.0.0' }]),
+      strategy: 'async' as const,
+      changelogs: [
+        {
+          packageName: '@scope/core',
+          version: '2.0.0',
+          previousVersion: '1.2.2',
+          revisionRange: 'v1.2.2..HEAD',
+          repoUrl: null,
+          entries: [
+            { type: 'fix', description: 'Fix broken export' },
+            { type: 'changed', description: 'Bump lodash', scope: 'deps' },
+            { type: 'changed', description: 'Require node 22', scope: 'deps', breaking: true },
+          ],
+        },
+      ],
+    };
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: null });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = forge.createdPullRequests[0]?.body ?? '';
+    const footerStart = body.indexOf('Show all changes');
+    for (const pane of [body.slice(0, footerStart), body.slice(footerStart)]) {
+      const breaking = pane.indexOf('#### Breaking');
+      expect(breaking).toBeGreaterThanOrEqual(0);
+      expect(pane.indexOf('**BREAKING** Require node 22')).toBeGreaterThan(breaking);
+      expect(pane.indexOf('**BREAKING** Require node 22')).toBeLessThan(pane.indexOf('#### Fixed'));
+      expect(pane.indexOf('#### Dependencies & version bumps')).toBeGreaterThan(pane.indexOf('Fix broken export'));
+      expect(pane.split('Require node 22').length - 1).toBe(1);
+    }
+  });
+
   it('should omit the combined footer when ci.standingPr.combinedChangelogFooter is false', async () => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValueOnce({

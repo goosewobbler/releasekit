@@ -189,7 +189,8 @@ function formatChangelogForTag(release: ReleaseTag): string | undefined {
   }
 
   const lines: string[] = [];
-  for (const entry of target.entries) {
+  const breakingFirst = [...target.entries.filter((e) => e.breaking), ...target.entries.filter((e) => !e.breaking)];
+  for (const entry of breakingFirst) {
     const scope = entry.scope ? `**${entry.scope}:** ` : '';
     lines.push(`- ${entry.breaking ? '**BREAKING** ' : ''}${scope}${entry.description}`);
   }

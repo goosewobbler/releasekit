@@ -1,6 +1,7 @@
 import {
   type ChangelogRefsMode,
   escapeChangelogMentions,
+  groupChangelogSections,
   neutralizeDescriptionRefs,
   renderIssueRefs,
   type VersionChangelogEntry,
@@ -15,24 +16,6 @@ import { publishableUpdates, syncVersionDisplay, syncVersionRange, toDisplayVers
 import type { MergedRow } from './merge.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr';
-
-const TYPE_LABELS: Record<string, string> = {
-  added: 'Added',
-  changed: 'Changed',
-  fixed: 'Fixed',
-  security: 'Security',
-  docs: 'Documentation',
-  chore: 'Chores',
-  test: 'Tests',
-  feat: 'Features',
-  fix: 'Bug Fixes',
-  perf: 'Performance',
-  refactor: 'Refactoring',
-  style: 'Styles',
-  build: 'Build',
-  ci: 'CI',
-  revert: 'Reverts',
-};
 
 export interface LabelContext {
   trigger: 'commit' | 'label';
@@ -459,36 +442,9 @@ function renderMergeTable(rows: MergedRow[]): string[] {
 }
 
 function renderEntries(entries: VersionChangelogEntry[], refs: ChangelogRefsMode, repoUrl: string | null): string[] {
-  const lines: string[] = [];
-  const breaking = entries.filter((e) => e.breaking);
-  // First and apart from their commit type, as in the published changelog and release notes.
-  if (breaking.length > 0) {
-    lines.push(...formatEntryGroup('Breaking', breaking, refs, repoUrl));
-  }
-  const grouped = new Map<string, VersionChangelogEntry[]>();
-  for (const entry of entries) {
-    if (entry.breaking) {
-      continue;
-    }
-    if (!grouped.has(entry.type)) {
-      grouped.set(entry.type, []);
-    }
-    grouped.get(entry.type)?.push(entry);
-  }
-  const renderedTypes = new Set<string>();
-  for (const type of Object.keys(TYPE_LABELS)) {
-    const group = grouped.get(type);
-    if (group && group.length > 0) {
-      lines.push(...formatEntryGroup(labelForType(type), group, refs, repoUrl));
-      renderedTypes.add(type);
-    }
-  }
-  for (const [type, group] of grouped) {
-    if (!renderedTypes.has(type) && group.length > 0) {
-      lines.push(...formatEntryGroup(labelForType(type), group, refs, repoUrl));
-    }
-  }
-  return lines;
+  return groupChangelogSections(entries, (e) => e).flatMap((section) =>
+    formatEntryGroup(section.label, section.items, refs, repoUrl),
+  );
 }
 
 function formatPackageChangelog(changelog: VersionPackageChangelog, refs: ChangelogRefsMode): string[] {
@@ -500,10 +456,6 @@ function formatPackageChangelog(changelog: VersionPackageChangelog, refs: Change
   lines.push(...blockquote(renderEntries(changelog.entries, refs, changelog.repoUrl)));
   lines.push('', '</details>', '');
   return lines;
-}
-
-function labelForType(type: string): string {
-  return TYPE_LABELS[type] ?? capitalize(type);
 }
 
 function formatEntryGroup(
@@ -535,10 +487,6 @@ function formatEntryGroup(
 
   lines.push('');
   return lines;
-}
-
-function capitalize(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 /** Blank lines keep a bare `>` so the quote stays one contiguous block. */

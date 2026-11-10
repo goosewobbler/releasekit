@@ -7,7 +7,7 @@
 <%= version.enhanced.releaseNotes %>
 <% } else { %>
 <% if (version.entries.length > 0) { %>
-<% version.entries.forEach(function(entry) { %>
+<% [...version.entries.filter((e) => e.breaking), ...version.entries.filter((e) => !e.breaking)].forEach(function(entry) { %>
 - <% if (entry.breaking) { %>**BREAKING** <% } %><% if (entry.scope) { %>**<%= entry.scope %>**: <% } %><%= entry.description %><% if (entry.issueIds) { %> (<%= entry.issueIds.join(', ') %>)<% } %>
 
 <% }); %>

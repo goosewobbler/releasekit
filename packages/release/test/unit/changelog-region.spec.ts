@@ -387,6 +387,18 @@ describe('changelog-region', () => {
       expect(demoted).toBeGreaterThan(block.indexOf('#### Fixed'));
     });
 
+    it('should lead with a breaking change from a demoted scope instead of demoting it', () => {
+      const render = makeRowChangelogRenderer([
+        cl('@scope/app', [
+          { type: 'changed', description: 'bump lodash', scope: 'deps' },
+          { type: 'changed', description: 'require node 22', scope: 'deps', breaking: true },
+        ]),
+      ]);
+      expect(render(['@scope/app'], false, '')).toContain(
+        '> #### Breaking\n>\n> - **BREAKING** require node 22 (`deps`)\n>\n> #### Dependencies & version bumps\n>\n> - bump lodash (`deps`)',
+      );
+    });
+
     it('should give the demoted subsection a bare heading — no count, no descriptor', () => {
       const render = makeRowChangelogRenderer([
         cl('@scope/app', [{ type: 'changed', description: 'bump deps', scope: 'deps' }]),

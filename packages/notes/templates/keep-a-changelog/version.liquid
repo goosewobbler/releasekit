@@ -3,52 +3,61 @@
 [Full Changelog]({{ version.compareUrl }})
 {% endif %}
 
-{% assign added = version.entries | where: "type", "added" %}
-{% assign changed = version.entries | where: "type", "changed" %}
-{% assign deprecated = version.entries | where: "type", "deprecated" %}
-{% assign removed = version.entries | where: "type", "removed" %}
-{% assign fixed = version.entries | where: "type", "fixed" %}
-{% assign security = version.entries | where: "type", "security" %}
+{% assign breaking = version.entries | where: "breaking" %}
+{% assign nonBreaking = version.entries | reject: "breaking" %}
+{% assign added = nonBreaking | where: "type", "added" %}
+{% assign changed = nonBreaking | where: "type", "changed" %}
+{% assign deprecated = nonBreaking | where: "type", "deprecated" %}
+{% assign removed = nonBreaking | where: "type", "removed" %}
+{% assign fixed = nonBreaking | where: "type", "fixed" %}
+{% assign security = nonBreaking | where: "type", "security" %}
 
+{% if breaking.size > 0 %}
+### Breaking
+{% for entry in breaking %}
+- **BREAKING** {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+
+{% endfor %}
+{% endif %}
 {% if added.size > 0 %}
 ### Added
 {% for entry in added %}
-- {% if entry.breaking %}**BREAKING** {% endif %}{% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 
 {% endfor %}
 {% endif %}
 {% if changed.size > 0 %}
 ### Changed
 {% for entry in changed %}
-- {% if entry.breaking %}**BREAKING** {% endif %}{% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 
 {% endfor %}
 {% endif %}
 {% if deprecated.size > 0 %}
 ### Deprecated
 {% for entry in deprecated %}
-- {% if entry.breaking %}**BREAKING** {% endif %}{% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 
 {% endfor %}
 {% endif %}
 {% if removed.size > 0 %}
 ### Removed
 {% for entry in removed %}
-- {% if entry.breaking %}**BREAKING** {% endif %}{% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 
 {% endfor %}
 {% endif %}
 {% if fixed.size > 0 %}
 ### Fixed
 {% for entry in fixed %}
-- {% if entry.breaking %}**BREAKING** {% endif %}{% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 
 {% endfor %}
 {% endif %}
 {% if security.size > 0 %}
 ### Security
 {% for entry in security %}
-- {% if entry.breaking %}**BREAKING** {% endif %}{% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 
 {% endfor %}
 {% endif %}
