@@ -1,3 +1,4 @@
+import { DEFAULT_DEMOTE_SCOPES } from '@releasekit/config';
 import {
   type ChangelogRefsMode,
   escapeChangelogMentions,
@@ -49,6 +50,7 @@ export interface FormatOptions {
   labelContext?: LabelContext;
   supersedeWarning?: string[];
   refs?: ChangelogRefsMode;
+  demoteScopes?: readonly string[];
 }
 
 function getNoChangesMessage(strategy: ReleaseStrategy): string {
@@ -282,7 +284,10 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   const effectiveStrategy = labelContext?.immediate ? 'direct' : strategy;
   lines.push(getIntroMessage(effectiveStrategy, options?.standingPrNumber), '');
 
-  const refs = options?.refs ?? 'link';
+  const render: EntryRenderOptions = {
+    refs: options?.refs ?? 'link',
+    demoteScopes: options?.demoteScopes ?? DEFAULT_DEMOTE_SCOPES,
+  };
   // All packages share one repo, so any changelog's repoUrl serves the shared entries.
   const sharedRepoUrl = versionOutput.changelogs.find((cl) => cl.repoUrl)?.repoUrl ?? null;
   const sharedEntries = versionOutput.sharedEntries?.length ? versionOutput.sharedEntries : undefined;
@@ -299,13 +304,13 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
 
     if (sharedEntries) {
       lines.push('<details>', '<summary><b>Project-wide changes</b></summary>', '');
-      lines.push(...blockquote(renderEntries(sharedEntries, refs, sharedRepoUrl)));
+      lines.push(...blockquote(renderEntries(sharedEntries, render, sharedRepoUrl)));
       lines.push('', '</details>', '');
     }
 
     for (const changelog of versionOutput.changelogs) {
       if (hasRealEntries(changelog)) {
-        lines.push(...formatPackageChangelog(changelog, refs));
+        lines.push(...formatPackageChangelog(changelog, render));
       }
     }
 
@@ -441,19 +446,28 @@ function renderMergeTable(rows: MergedRow[]): string[] {
   return lines;
 }
 
-function renderEntries(entries: VersionChangelogEntry[], refs: ChangelogRefsMode, repoUrl: string | null): string[] {
-  return groupChangelogSections(entries, (e) => e).flatMap((section) =>
+interface EntryRenderOptions {
+  refs: ChangelogRefsMode;
+  demoteScopes: readonly string[];
+}
+
+function renderEntries(
+  entries: VersionChangelogEntry[],
+  { refs, demoteScopes }: EntryRenderOptions,
+  repoUrl: string | null,
+): string[] {
+  return groupChangelogSections(entries, (e) => e, { demoteScopes }).flatMap((section) =>
     formatEntryGroup(section.label, section.items, refs, repoUrl),
   );
 }
 
-function formatPackageChangelog(changelog: VersionPackageChangelog, refs: ChangelogRefsMode): string[] {
+function formatPackageChangelog(changelog: VersionPackageChangelog, render: EntryRenderOptions): string[] {
   const lines: string[] = [];
   const prevVersion = changelog.previousVersion ? toDisplayVersion(changelog.previousVersion) : 'N/A';
   const summary = `<b>${changelog.packageName}</b> ${prevVersion} → ${changelog.version}`;
 
   lines.push('<details>', `<summary>${summary}</summary>`, '');
-  lines.push(...blockquote(renderEntries(changelog.entries, refs, changelog.repoUrl)));
+  lines.push(...blockquote(renderEntries(changelog.entries, render, changelog.repoUrl)));
   lines.push('', '</details>', '');
   return lines;
 }

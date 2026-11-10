@@ -245,6 +245,23 @@ describe('formatPreviewComment', () => {
     expect(comment).not.toContain('#### Bug Fixes');
   });
 
+  it('should demote deps-scoped entries into a trailing subsection, as the standing PR does', () => {
+    const output = structuredClone(releaseOutput);
+    const changelog = output.versionOutput.changelogs[0];
+    if (changelog) {
+      changelog.entries = [
+        { type: 'changed', description: 'Bump lodash', scope: 'deps' },
+        { type: 'fix', description: 'Conventional fix' },
+      ];
+    }
+
+    const comment = formatPreviewComment(output);
+    expect(comment).toContain(
+      '> #### Fixed\n>\n> - Conventional fix\n>\n> #### Dependencies & version bumps\n>\n> - Bump lodash (`deps`)',
+    );
+    expect(formatPreviewComment(output, { demoteScopes: [] })).toContain('> #### Changed\n>\n> - Bump lodash (`deps`)');
+  });
+
   it('should render bare #NNN refs per the refs mode', () => {
     expect(formatPreviewComment(releaseOutput, { refs: 'escape' })).toContain(
       '- Fix prerelease sorting (`semver`) (\\#42)',

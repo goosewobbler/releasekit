@@ -1,5 +1,8 @@
 export const BREAKING_SECTION = 'Breaking';
 
+/** No "shared across packages" descriptor: it isn't reliably true (`Update version to X` is package-specific). */
+const DEMOTED_SECTION = 'Dependencies & version bumps';
+
 /** Several types fold onto one label (feat/added → Added), so entries group by label, not raw type. */
 const CHANGELOG_TYPE_LABELS: Record<string, string> = {
   feat: 'Added',
@@ -21,15 +24,25 @@ const CHANGELOG_TYPE_LABELS: Record<string, string> = {
   style: 'Styles',
 };
 
-export const CHANGELOG_LABEL_ORDER: readonly string[] = [...new Set(Object.values(CHANGELOG_TYPE_LABELS))];
+const CHANGELOG_LABEL_ORDER: readonly string[] = [...new Set(Object.values(CHANGELOG_TYPE_LABELS))];
 
-export function changelogTypeLabel(type: string): string {
-  return CHANGELOG_TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1);
+function changelogTypeLabel(type: string): string {
+  // hasOwn, so a commit type such as `constructor` doesn't resolve to an Object.prototype member.
+  return Object.hasOwn(CHANGELOG_TYPE_LABELS, type)
+    ? (CHANGELOG_TYPE_LABELS[type] as string)
+    : type.charAt(0).toUpperCase() + type.slice(1);
 }
 
-export interface ChangelogSection<T> {
-  label: string;
-  items: T[];
+interface SectionEntry {
+  type: string;
+  scope?: string;
+  breaking?: boolean;
+}
+
+interface GroupChangelogOptions {
+  labelOrder?: readonly string[];
+  /** Non-breaking entries in these scopes move to a trailing section; a breaking one still leads. */
+  demoteScopes?: readonly string[];
 }
 
 /**
@@ -38,27 +51,31 @@ export interface ChangelogSection<T> {
  */
 export function groupChangelogSections<T>(
   items: readonly T[],
-  entryOf: (item: T) => { type: string; breaking?: boolean },
-  labelOrder: readonly string[] = CHANGELOG_LABEL_ORDER,
-): ChangelogSection<T>[] {
+  entryOf: (item: T) => SectionEntry,
+  { labelOrder = CHANGELOG_LABEL_ORDER, demoteScopes = [] }: GroupChangelogOptions = {},
+): { label: string; items: T[] }[] {
+  const demote = new Set(demoteScopes);
   const breaking: T[] = [];
+  const demoted: T[] = [];
   const byLabel = new Map<string, T[]>();
   for (const item of items) {
     const entry = entryOf(item);
     if (entry.breaking) {
       breaking.push(item);
-      continue;
-    }
-    const label = changelogTypeLabel(entry.type);
-    const list = byLabel.get(label);
-    if (list) {
-      list.push(item);
+    } else if (entry.scope !== undefined && demote.has(entry.scope)) {
+      demoted.push(item);
     } else {
-      byLabel.set(label, [item]);
+      const label = changelogTypeLabel(entry.type);
+      const list = byLabel.get(label);
+      if (list) {
+        list.push(item);
+      } else {
+        byLabel.set(label, [item]);
+      }
     }
   }
 
-  const sections: ChangelogSection<T>[] = [];
+  const sections: { label: string; items: T[] }[] = [];
   if (breaking.length > 0) {
     sections.push({ label: BREAKING_SECTION, items: breaking });
   }
@@ -72,5 +89,17 @@ export function groupChangelogSections<T>(
   for (const [label, list] of byLabel) {
     sections.push({ label, items: list });
   }
+  if (demoted.length > 0) {
+    sections.push({ label: DEMOTED_SECTION, items: demoted });
+  }
   return sections;
+}
+
+export function breakingFirst<T extends { breaking?: boolean }>(entries: readonly T[]): T[] {
+  const breaking: T[] = [];
+  const rest: T[] = [];
+  for (const entry of entries) {
+    (entry.breaking ? breaking : rest).push(entry);
+  }
+  return [...breaking, ...rest];
 }

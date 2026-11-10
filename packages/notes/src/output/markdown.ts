@@ -307,7 +307,7 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
       lines.push('');
     }
   } else {
-    for (const section of groupChangelogSections(context.entries, (e) => e, SECTION_ORDER)) {
+    for (const section of groupChangelogSections(context.entries, (e) => e, { labelOrder: SECTION_ORDER })) {
       lines.push(`### ${section.label}`);
       for (const entry of section.items) {
         lines.push(formatEntry(entry, refOpts));

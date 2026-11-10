@@ -80,9 +80,6 @@ function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOpti
   return `- ${entry.breaking ? '**BREAKING** ' : ''}${description}${scope}${issues}${attr}`;
 }
 
-/** No "shared across packages" descriptor: it isn't reliably true (`Update version to X` is package-specific). */
-const DEMOTED_HEADING = 'Dependencies & version bumps';
-
 /** Demoted entries are moved, never removed, so the caller's de-duplicated change count still holds. */
 function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demoteScopes: readonly string[]): string[] {
   const distinct = new Set<string>();
@@ -93,29 +90,14 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
   }
   const attribution = distinct.size > 1;
 
-  // A breaking change in a demoted scope still leads, under Breaking.
-  const isDemoted = (d: DedupedEntry): boolean =>
-    !d.entry.breaking && d.entry.scope !== undefined && demoteScopes.includes(d.entry.scope);
-  const demoted = deduped.filter(isDemoted);
-
   const lines: string[] = [];
-  const emitSection = (heading: string, list: DedupedEntry[]): void => {
+  for (const section of groupChangelogSections(deduped, (d) => d.entry, { demoteScopes })) {
     // A heading, not bold: inside the blockquote bold text collapses to near-zero spacing between sections.
-    lines.push(`#### ${heading}`, '');
-    for (const d of list) {
+    lines.push(`#### ${section.label}`, '');
+    for (const d of section.items) {
       lines.push(entryLine(d, attribution, refOpts));
     }
     lines.push('');
-  };
-  for (const section of groupChangelogSections(
-    deduped.filter((d) => !isDemoted(d)),
-    (d) => d.entry,
-  )) {
-    emitSection(section.label, section.items);
-  }
-  // Last, so low-signal dependency churn never crowds the user-facing changes.
-  if (demoted.length > 0) {
-    emitSection(DEMOTED_HEADING, demoted);
   }
   if (lines[lines.length - 1] === '') {
     lines.pop();

@@ -17,6 +17,7 @@ const mockLoadCIConfig = vi.fn();
 const mockLoadConfig = vi.fn();
 
 vi.mock('@releasekit/config', () => ({
+  DEFAULT_DEMOTE_SCOPES: ['deps', 'deps-dev'],
   loadCIConfig: (...args: unknown[]) => mockLoadCIConfig(...args),
   loadConfig: (...args: unknown[]) => mockLoadConfig(...args),
 }));
@@ -136,6 +137,32 @@ describe('runPreview', () => {
         }),
       );
       expect(mockPostOrUpdateComment).toHaveBeenCalled();
+    });
+
+    it('should demote the scopes configured in notes.changelog.demoteScopes', async () => {
+      mockLoadConfig.mockReturnValue({ notes: { changelog: { demoteScopes: ['tooling'] } } });
+      mockRunRelease.mockResolvedValue({
+        versionOutput: {
+          ...versionOutputWithChanges,
+          changelogs: [
+            {
+              ...versionOutputWithChanges.changelogs[0],
+              entries: [
+                { type: 'changed', description: 'Bump lodash', scope: 'deps' },
+                { type: 'changed', description: 'Swap linter', scope: 'tooling' },
+              ],
+            },
+          ],
+        },
+        notesGenerated: false,
+      });
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      const body = mockPostOrUpdateComment.mock.calls[0]?.[2] as string;
+      expect(body).toContain(
+        '> #### Changed\n>\n> - Bump lodash (`deps`)\n>\n> #### Dependencies & version bumps\n>\n> - Swap linter (`tooling`)',
+      );
     });
 
     it('should skip when CI config disables preview', async () => {

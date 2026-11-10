@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import type { CIConfig } from '@releasekit/config';
-import { loadCIConfig, loadConfig } from '@releasekit/config';
+import { DEFAULT_DEMOTE_SCOPES, loadCIConfig, loadConfig } from '@releasekit/config';
 import { type ChangelogRefsMode, info, success, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
@@ -120,6 +120,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
 
   let result = null;
   let refs: ChangelogRefsMode = 'link';
+  let demoteScopes = DEFAULT_DEMOTE_SCOPES;
   if (!labelContext.skip && !labelContext.noBumpLabel) {
     const releaseConfig = loadConfig({ cwd: effectiveOptions.projectDir, configPath: effectiveOptions.config });
     // Advisory mode scopes the analysis to this PR's commits.
@@ -133,6 +134,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
       : undefined;
     const changelogConfig = releaseConfig.notes?.changelog;
     refs = (changelogConfig ? changelogConfig.refs : undefined) ?? 'link';
+    demoteScopes = (changelogConfig ? changelogConfig.demoteScopes : undefined) ?? DEFAULT_DEMOTE_SCOPES;
     const prereleaseFlag = resolvePrerelease(
       effectiveOptions,
       releaseConfig.version?.packages ?? [],
@@ -182,6 +184,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     labelContext,
     supersedeWarning,
     refs,
+    demoteScopes,
   });
 
   if (!context || !forge) {
