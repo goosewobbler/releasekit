@@ -649,7 +649,7 @@
                   "items": {
                     "type": "string"
                   },
-                  "description": "Conventional-commit scopes whose changelog entries are demoted into a trailing \"Dependencies & version bumps\" subsection instead of interleaving with Added / Fixed / Changed. A breaking change still leads the list under Breaking. Applies to the standing-PR changelogs — each releasable row and the \"Show all changes\" footer — and the release preview comment. Nothing is hidden or dropped: low-signal dependency bumps just stop crowding the user-facing changes at the top, and a reader who wants the exact per-package deps expands the subsection. The de-duplicated change count is unchanged. Default: [\"deps\", \"deps-dev\"] (the scopes Dependabot uses for production and development bumps). Set to [] to render every scope inline."
+                  "description": "Conventional-commit scopes whose changelog entries move to a trailing \"Dependencies & version bumps\" subsection instead of mixing with Added / Fixed / Changed. A breaking change still comes first, under Breaking. Applies to the release preview comment and the standing-PR changelogs (each releasable row and the \"Show all changes\" footer). Entries are moved, not dropped, so the de-duplicated change count is unchanged. Default: [\"deps\", \"deps-dev\"], the scopes Dependabot uses. Set to [] to render every scope inline."
                 }
               },
               "description": "Changelog file configuration"
@@ -1267,7 +1267,7 @@
             "combinedChangelogFooter": {
               "type": "boolean",
               "default": true,
-              "description": "Append the de-duplicated combined-changelog footer to the standing PR: every change listed once, flat across packages and grouped by change type (Added/Fixed/Changed), with breaking changes first under Breaking. It complements the per-row changelogs co-located with each releasable row. Set false to suppress this redundant per-package summary — the per-row changelogs remain, project-wide (shared) changes are still shown in their own block, and sync releases (which have no per-row changelogs) always show the combined changelog regardless of this setting."
+              "description": "Append the de-duplicated combined-changelog footer to the standing PR: every change listed once, flat across packages and grouped by change type (Added/Fixed/Changed), breaking changes first. It complements the per-row changelogs co-located with each releasable row. Set false to suppress this redundant per-package summary — the per-row changelogs remain, project-wide (shared) changes are still shown in their own block, and sync releases (which have no per-row changelogs) always show the combined changelog regardless of this setting."
             },
             "channelToggle": {
               "type": "boolean",

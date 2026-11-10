@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import type { CIConfig } from '@releasekit/config';
-import { DEFAULT_DEMOTE_SCOPES, loadCIConfig, loadConfig } from '@releasekit/config';
-import { type ChangelogRefsMode, info, success, warn } from '@releasekit/core';
+import { loadCIConfig, loadConfig } from '@releasekit/config';
+import { info, success, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
@@ -11,6 +11,7 @@ import { getHeadParents } from '../git.js';
 import { fetchPRLabels, forgeFor, postOrUpdateComment } from '../github.js';
 import { composeBumpFromLabels, DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
 import { runRelease } from '../release.js';
+import { type ChangelogRenderOptions, changelogRenderOptions } from '../standing-pr/changelog-region.js';
 import {
   fetchStandingPRSnapshot,
   findLatestMergedStandingPR,
@@ -119,8 +120,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   }
 
   let result = null;
-  let refs: ChangelogRefsMode = 'link';
-  let demoteScopes = DEFAULT_DEMOTE_SCOPES;
+  let changelogRender: ChangelogRenderOptions | undefined;
   if (!labelContext.skip && !labelContext.noBumpLabel) {
     const releaseConfig = loadConfig({ cwd: effectiveOptions.projectDir, configPath: effectiveOptions.config });
     // Advisory mode scopes the analysis to this PR's commits.
@@ -132,9 +132,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
           releaseConfig.git?.remote ?? 'origin',
         )
       : undefined;
-    const changelogConfig = releaseConfig.notes?.changelog;
-    refs = (changelogConfig ? changelogConfig.refs : undefined) ?? 'link';
-    demoteScopes = (changelogConfig ? changelogConfig.demoteScopes : undefined) ?? DEFAULT_DEMOTE_SCOPES;
+    changelogRender = changelogRenderOptions(releaseConfig);
     const prereleaseFlag = resolvePrerelease(
       effectiveOptions,
       releaseConfig.version?.packages ?? [],
@@ -183,8 +181,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     mergedRows,
     labelContext,
     supersedeWarning,
-    refs,
-    demoteScopes,
+    ...changelogRender,
   });
 
   if (!context || !forge) {

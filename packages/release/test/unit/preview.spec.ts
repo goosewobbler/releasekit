@@ -165,6 +165,27 @@ describe('runPreview', () => {
       );
     });
 
+    it('should fall back to the default demoted scopes when notes.changelog is false', async () => {
+      mockLoadConfig.mockReturnValue({ notes: { changelog: false } });
+      mockRunRelease.mockResolvedValue({
+        versionOutput: {
+          ...versionOutputWithChanges,
+          changelogs: [
+            {
+              ...versionOutputWithChanges.changelogs[0],
+              entries: [{ type: 'changed', description: 'Bump lodash', scope: 'deps' }],
+            },
+          ],
+        },
+        notesGenerated: false,
+      });
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      const body = mockPostOrUpdateComment.mock.calls[0]?.[2] as string;
+      expect(body).toContain('> #### Dependencies & version bumps\n>\n> - Bump lodash (`deps`)');
+    });
+
     it('should skip when CI config disables preview', async () => {
       mockLoadCIConfig.mockReturnValue({ prPreview: { enabled: false, markStaleAfterRelease: false } });
 

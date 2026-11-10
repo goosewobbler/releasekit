@@ -11,6 +11,7 @@ import {
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration } from '../duration.js';
 import { MARKER } from '../github.js';
+import type { ChangelogRenderOptions } from '../standing-pr/changelog-region.js';
 import type { StandingPRSnapshot } from '../standing-pr/standing-pr.js';
 import type { ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay, syncVersionRange, toDisplayVersion } from '../version-display.js';
@@ -42,15 +43,13 @@ export interface LabelContext {
   immediate?: boolean;
 }
 
-export interface FormatOptions {
+export interface FormatOptions extends Partial<ChangelogRenderOptions> {
   strategy?: ReleaseStrategy;
   standingPrNumber?: number;
   standingPrSnapshot?: StandingPRSnapshot;
   mergedRows?: MergedRow[];
   labelContext?: LabelContext;
   supersedeWarning?: string[];
-  refs?: ChangelogRefsMode;
-  demoteScopes?: readonly string[];
 }
 
 function getNoChangesMessage(strategy: ReleaseStrategy): string {
@@ -284,7 +283,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   const effectiveStrategy = labelContext?.immediate ? 'direct' : strategy;
   lines.push(getIntroMessage(effectiveStrategy, options?.standingPrNumber), '');
 
-  const render: EntryRenderOptions = {
+  const render: ChangelogRenderOptions = {
     refs: options?.refs ?? 'link',
     demoteScopes: options?.demoteScopes ?? DEFAULT_DEMOTE_SCOPES,
   };
@@ -446,14 +445,9 @@ function renderMergeTable(rows: MergedRow[]): string[] {
   return lines;
 }
 
-interface EntryRenderOptions {
-  refs: ChangelogRefsMode;
-  demoteScopes: readonly string[];
-}
-
 function renderEntries(
   entries: VersionChangelogEntry[],
-  { refs, demoteScopes }: EntryRenderOptions,
+  { refs, demoteScopes }: ChangelogRenderOptions,
   repoUrl: string | null,
 ): string[] {
   return groupChangelogSections(entries, (e) => e, { demoteScopes }).flatMap((section) =>
@@ -461,7 +455,7 @@ function renderEntries(
   );
 }
 
-function formatPackageChangelog(changelog: VersionPackageChangelog, render: EntryRenderOptions): string[] {
+function formatPackageChangelog(changelog: VersionPackageChangelog, render: ChangelogRenderOptions): string[] {
   const lines: string[] = [];
   const prevVersion = changelog.previousVersion ? toDisplayVersion(changelog.previousVersion) : 'N/A';
   const summary = `<b>${changelog.packageName}</b> ${prevVersion} → ${changelog.version}`;

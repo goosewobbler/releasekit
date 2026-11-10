@@ -27,7 +27,7 @@ const CHANGELOG_TYPE_LABELS: Record<string, string> = {
 const CHANGELOG_LABEL_ORDER: readonly string[] = [...new Set(Object.values(CHANGELOG_TYPE_LABELS))];
 
 function changelogTypeLabel(type: string): string {
-  // hasOwn, so a commit type such as `constructor` doesn't resolve to an Object.prototype member.
+  // hasOwn: a commit type like `constructor` would otherwise hit Object.prototype.
   return Object.hasOwn(CHANGELOG_TYPE_LABELS, type)
     ? (CHANGELOG_TYPE_LABELS[type] as string)
     : type.charAt(0).toUpperCase() + type.slice(1);
@@ -41,7 +41,7 @@ interface SectionEntry {
 
 interface GroupChangelogOptions {
   labelOrder?: readonly string[];
-  /** Non-breaking entries in these scopes move to a trailing section; a breaking one still leads. */
+  /** Non-breaking entries in these scopes go last, in their own section. */
   demoteScopes?: readonly string[];
 }
 

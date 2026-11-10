@@ -1,4 +1,4 @@
-import { DEFAULT_DEMOTE_SCOPES } from '@releasekit/config';
+import { DEFAULT_DEMOTE_SCOPES, type ReleaseKitConfig } from '@releasekit/config';
 import {
   type ChangelogRefsMode,
   escapeChangelogMentions,
@@ -15,6 +15,17 @@ import type { RowChangelogRenderer } from './selection-region.js';
  * two units deliberately appears under each, and the combined footer ({@link renderCombinedFooter}), listing every
  * change once. Both read structured entries and never parse prose.
  */
+
+export interface ChangelogRenderOptions {
+  refs: ChangelogRefsMode;
+  demoteScopes: readonly string[];
+}
+
+/** `notes.changelog: false` gets the defaults: the standing PR and preview render changelogs regardless. */
+export function changelogRenderOptions(config: ReleaseKitConfig): ChangelogRenderOptions {
+  const changelog = config.notes?.changelog || undefined;
+  return { refs: changelog?.refs ?? 'link', demoteScopes: changelog?.demoteScopes ?? DEFAULT_DEMOTE_SCOPES };
+}
 
 interface AttributedEntry {
   entry: VersionChangelogEntry;
