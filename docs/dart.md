@@ -80,30 +80,7 @@ releasekit discovers a Dart package from its `pubspec.yaml`, within your `pnpm-w
 
 ## Config reference
 
-### `version.pub`
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Discover and bump `pubspec.yaml` files. When `false`, a `pubspec.yaml` beside a `package.json` isn't published either. |
-| `paths` | string[] | — | Directories, relative to each package, to bump a `pubspec.yaml` in instead of the package's own directory. Ignored in group mode. |
-
-### `publish.pub`
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Publish detected packages to pub.dev. Set `false` to version and tag only. |
-| `publishOrder` | string[] | `[]` | Explicit package publish order by package name. Packages not listed are appended at the end in discovery order. |
-
-### `publish.verify.pub`
-
-Controls how releasekit polls pub.dev after each publish to confirm the version is visible.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Poll pub.dev after publish to verify the version appears. |
-| `maxAttempts` | integer | `10` | Maximum number of polling attempts. |
-| `initialDelay` | integer (ms) | `30000` | Delay before the first check (30 seconds). |
-| `backoffMultiplier` | number | `2` | Exponential backoff multiplier applied between attempts. |
+The Dart keys are [`version.pub`](./configuration.md#versionpub), [`publish.pub`](./configuration.md#publishpub) and [`publish.verify.pub`](./configuration.md#publishverifypub) in the configuration reference.
 
 ---
 

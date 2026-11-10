@@ -202,7 +202,7 @@ You do not need `mode` or `file` configured for this task — the generated text
 
 ### Links section
 
-When LLM categorisation is active, you can configure the built-in renderer to append a links section (migration guides, changelogs, etc.) to each release. This is configured on `notes.releaseNotes.links`, not inside `llm`. See [notes.releaseNotes.links](./configuration.md#notesreleasenoteslinks) in the configuration reference.
+When LLM categorisation is active, you can configure the built-in renderer to append a links section (migration guides, changelogs, etc.) to each release. This is configured on `notes.releaseNotes.links`, not inside `llm`. See [notes.releaseNotes.links](../../../docs/configuration.md#notesreleasenoteslinks) in the configuration reference.
 
 ---
 

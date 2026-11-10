@@ -196,7 +196,7 @@ If you use the [label-based trigger](../packages/release/docs/ci-setup.md#label-
 - **[Configuration reference](./configuration.md)** — all `releasekit.config.json` options
 - **[Troubleshooting](./troubleshooting.md)** — symptom-indexed error guide
 - **[@releasekit/notes — LLM providers](../packages/notes/docs/llm-providers.md)** — add AI-enhanced release notes
-- **[@releasekit/notes — configuration](../packages/notes/docs/configuration.md)** — changelog and release notes options
+- **[Notes configuration](./configuration.md#notes)** — changelog and release notes options
 - **[@releasekit/publish — GitHub Releases](../packages/publish/docs/github-releases.md)** — release body options
 - **[Rust / Cargo guide](./rust.md)** — Rust crate versioning and crates.io publishing
 - **[Migration guide](./migration.md)** — from semantic-release or changesets
