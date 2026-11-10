@@ -4,6 +4,7 @@ import {
   escapeChangelogMentions,
   groupChangelogSections,
   neutralizeDescriptionRefs,
+  neutralizeMarkers,
   renderIssueRefs,
   type VersionChangelogEntry,
   type VersionPackageChangelog,
@@ -490,7 +491,8 @@ function formatEntryGroup(
     if (renderedRefs) {
       line += ` ${renderedRefs}`;
     }
-    lines.push(line);
+    // Last and over the whole line: the scope is commit text too, and dropping a ref can close up a split marker.
+    lines.push(neutralizeMarkers(line));
   }
 
   lines.push('');

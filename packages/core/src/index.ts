@@ -51,7 +51,7 @@ export {
   trace,
   warn,
 } from './logger.js';
-export { extractMarkerRegion, type MarkerData, markerData, wrapMarkerRegion } from './marker.js';
+export { extractMarkerRegion, type MarkerData, markerData, neutralizeMarkers, wrapMarkerRegion } from './marker.js';
 export {
   extractNotesRegion,
   hasUnterminatedNotesRegion,

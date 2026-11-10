@@ -4,6 +4,7 @@ import {
   escapeChangelogMentions,
   groupChangelogSections,
   neutralizeDescriptionRefs,
+  neutralizeMarkers,
   renderIssueRefs,
   type VersionChangelogEntry,
   type VersionOutput,
@@ -88,7 +89,8 @@ function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOpti
   const refs = renderIssueRefs(entry.issueIds ?? [], refOpts.refs, refOpts.repoUrl, entry.prNumber);
   const issues = refs ? ` ${refs}` : '';
   const attr = attribution && pkgs.size > 0 ? ` _(${[...pkgs].map(shortName).sort().join(', ')})_` : '';
-  return `- ${entry.breaking ? '**BREAKING** ' : ''}${description}${scope}${issues}${attr}`;
+  // Last and over the whole line: the scope is commit text too, and dropping a ref can close up a split marker.
+  return neutralizeMarkers(`- ${entry.breaking ? '**BREAKING** ' : ''}${description}${scope}${issues}${attr}`);
 }
 
 /** Demoted entries are moved, never removed, so the caller's de-duplicated change count still holds. */

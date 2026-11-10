@@ -1,4 +1,4 @@
-import { markerData, type VersionOutput } from '@releasekit/core';
+import { markerData, neutralizeMarkers, type VersionOutput } from '@releasekit/core';
 import type { PublishOutput, PublishResult } from '@releasekit/publish';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
@@ -356,7 +356,7 @@ export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
     ? `Retry it via \`release:retry\` on ${prRef}`
     : `Retry it by dispatching the release workflow against ${prRef}`;
   return [
-    `> ⚠️ **Previous release ${previousLabel} is partially published** (${published}/${total} packages on the registry).`,
+    `> ⚠️ **Previous release ${neutralizeMarkers(previousLabel)} is partially published** (${published}/${total} packages on the registry).`,
     `> ${retryHint}, **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.`,
     '',
   ];
