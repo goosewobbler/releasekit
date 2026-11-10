@@ -116,6 +116,51 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).toThrow(/version\.tagTemplate: tagTemplate can't contain a version before/);
   });
 
+  it('should reject an unknown key, naming its full path', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ ci: { labels: { stable: 'release:stable' } } }));
+
+    expect(() => loadConfig()).toThrow(ConfigError);
+    expect(() => loadConfig()).toThrow(/^Config validation errors:\n {2}ci\.labels\.stable: unknown key$/);
+  });
+
+  it('should report every unknown key, including top-level, union-branch and map-value keys', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        typo: true,
+        ci: { prPreview: { enabled: true, stale: true } },
+        notes: { changelog: { mode: 'root', bogus: 1, other: 2 } },
+        version: { sync: false, groups: { core: { packages: ['@scope/*'], sync: 'fixed', extra: 1 } } },
+      }),
+    );
+
+    expect(() => loadConfig()).toThrow(
+      [
+        'Config validation errors:',
+        '  version.groups.core.extra: unknown key',
+        '  notes.changelog.bogus: unknown key',
+        '  notes.changelog.other: unknown key',
+        '  ci.prPreview.stale: unknown key',
+        '  typo: unknown key',
+      ].join('\n'),
+    );
+  });
+
+  it('should accept arbitrary keys in free-form maps', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        version: { sync: false, groups: { 'any-name': { packages: ['@scope/*'], sync: 'linked' } } },
+        ci: { scopeLabels: { 'scope:anything': '@scope/*' } },
+      }),
+    );
+
+    const result = loadConfig();
+    expect(result.version?.groups?.['any-name']?.sync).toBe('linked');
+    expect(result.ci?.scopeLabels).toEqual({ 'scope:anything': '@scope/*' });
+  });
+
   it('should throw a migration error for the renamed ci.prPreview.refreshAfterRelease', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ ci: { prPreview: { refreshAfterRelease: true } } }));

@@ -41,6 +41,10 @@ function flattenIssues(issues: readonly ZodIssue[], prefix: PropertyKey[] = []):
         return flattenIssues(matched[0], path);
       }
     }
+    // One line per unknown key, with the key in the path, so the message names the setting to fix.
+    if (issue.code === 'unrecognized_keys') {
+      return issue.keys.map((key) => ({ path: [...path, key], message: 'unknown key' }));
+    }
     return [{ path, message: issue.message }];
   });
 }

@@ -126,8 +126,7 @@ function loadConfigFile(configPath: string): ReleaseKitConfig {
     const substituted = substituteInObject(parsed, path.dirname(configPath), (refPath, name) =>
       unsetEnv.push({ path: refPath, name }),
     );
-    // Zod would silently strip removed keys (diverging from the JSON schema, which rejects them) and could turn off
-    // a user's file output without a word, so fail loudly with migration guidance.
+    // Before parsing, so a removed key gets migration guidance instead of the generic unknown-key error.
     assertNoRemovedReleaseNotesFields(substituted);
     assertNoRemovedVersionFields(substituted);
     assertNoRemovedTopLevelFields(substituted);

@@ -10,7 +10,7 @@ import { z } from 'zod';
 /** Dependabot's default commit scopes. */
 export const DEFAULT_DEMOTE_SCOPES: readonly string[] = ['deps', 'deps-dev'];
 
-export const GitConfigSchema = z.object({
+export const GitConfigSchema = z.strictObject({
   remote: z.string().default('origin').describe('Git remote name'),
   branch: z
     .string()
@@ -30,12 +30,12 @@ export const GitConfigSchema = z.object({
     ),
 });
 
-export const MonorepoConfigSchema = z.object({
+export const MonorepoConfigSchema = z.strictObject({
   rootPath: z.string().optional().describe('Path to root changelog'),
   packagesPath: z.string().optional().describe('Path to packages directory'),
 });
 
-export const VersionNpmConfigSchema = z.object({
+export const VersionNpmConfigSchema = z.strictObject({
   enabled: z
     .boolean()
     .default(true)
@@ -44,7 +44,7 @@ export const VersionNpmConfigSchema = z.object({
     ),
 });
 
-export const VersionCargoConfigSchema = z.object({
+export const VersionCargoConfigSchema = z.strictObject({
   enabled: z
     .boolean()
     .default(true)
@@ -59,7 +59,7 @@ export const VersionCargoConfigSchema = z.object({
     ),
 });
 
-export const VersionPubConfigSchema = z.object({
+export const VersionPubConfigSchema = z.strictObject({
   enabled: z
     .boolean()
     .default(true)
@@ -74,7 +74,7 @@ export const VersionPubConfigSchema = z.object({
     ),
 });
 
-export const VersionGroupSchema = z.object({
+export const VersionGroupSchema = z.strictObject({
   packages: z
     .array(z.string())
     .min(1)
@@ -91,7 +91,7 @@ export const VersionGroupSchema = z.object({
 export const PresetSchema = z.enum(['angular', 'conventionalcommits']);
 export const DEFAULT_PRESET: Preset = 'conventionalcommits';
 
-const VersionConfigBaseSchema = z.object({
+const VersionConfigBaseSchema = z.strictObject({
   tagTemplate: z
     .string()
     .regex(/\$\{version\}$/, {
@@ -214,7 +214,7 @@ export const VersionConfigSchema = VersionConfigBaseSchema.superRefine((cfg, ctx
   }
 });
 
-export const NpmConfigSchema = z.object({
+export const NpmConfigSchema = z.strictObject({
   enabled: z
     .boolean()
     .default(true)
@@ -233,7 +233,7 @@ export const NpmConfigSchema = z.object({
     .describe('Explicit publish order for npm packages; empty auto-sorts dependencies first'),
 });
 
-export const CargoPublishConfigSchema = z.object({
+export const CargoPublishConfigSchema = z.strictObject({
   enabled: z
     .boolean()
     .default(true)
@@ -255,7 +255,7 @@ export const CargoPublishConfigSchema = z.object({
   clean: z.boolean().default(false).describe("Run cargo clean in each crate's directory before publishing."),
 });
 
-export const PubPublishConfigSchema = z.object({
+export const PubPublishConfigSchema = z.strictObject({
   enabled: z
     .boolean()
     .default(true)
@@ -268,7 +268,7 @@ export const PubPublishConfigSchema = z.object({
     .describe('Package names to publish first, in this order; the rest follow in discovery order.'),
 });
 
-export const PublishGitConfigSchema = z.object({
+export const PublishGitConfigSchema = z.strictObject({
   push: z
     .boolean()
     .optional()
@@ -281,7 +281,7 @@ export const PublishGitConfigSchema = z.object({
   formatCommand: z.string().optional().describe('Format command override'),
 });
 
-export const GitHubReleaseConfigSchema = z.object({
+export const GitHubReleaseConfigSchema = z.strictObject({
   enabled: z.boolean().default(true).describe('Enable GitHub releases'),
   draft: z.boolean().default(true).describe('Create as draft release'),
   perPackage: z.boolean().default(true).describe('Create separate release per package'),
@@ -308,7 +308,7 @@ export const GitHubReleaseConfigSchema = z.object({
     ),
 });
 
-export const VerifyRegistryNpmConfigSchema = z.object({
+export const VerifyRegistryNpmConfigSchema = z.strictObject({
   enabled: z.boolean().default(true).describe('Verify NPM publish'),
   maxAttempts: z.number().int().positive().default(5).describe('Maximum verification attempts'),
   initialDelay: z
@@ -320,7 +320,7 @@ export const VerifyRegistryNpmConfigSchema = z.object({
   backoffMultiplier: z.number().positive().default(2).describe('Exponential backoff multiplier'),
 });
 
-export const VerifyRegistryCargoConfigSchema = z.object({
+export const VerifyRegistryCargoConfigSchema = z.strictObject({
   enabled: z.boolean().default(true).describe('Verify Cargo publish'),
   maxAttempts: z.number().int().positive().default(10).describe('Maximum verification attempts'),
   initialDelay: z
@@ -332,7 +332,7 @@ export const VerifyRegistryCargoConfigSchema = z.object({
   backoffMultiplier: z.number().positive().default(2).describe('Exponential backoff multiplier'),
 });
 
-export const VerifyRegistryPubConfigSchema = z.object({
+export const VerifyRegistryPubConfigSchema = z.strictObject({
   enabled: z.boolean().default(true).describe('Verify Dart pub publish'),
   maxAttempts: z.number().int().positive().default(10).describe('Maximum verification attempts'),
   initialDelay: z
@@ -344,7 +344,7 @@ export const VerifyRegistryPubConfigSchema = z.object({
   backoffMultiplier: z.number().positive().default(2).describe('Exponential backoff multiplier'),
 });
 
-export const VerifyConfigSchema = z.object({
+export const VerifyConfigSchema = z.strictObject({
   npm: VerifyRegistryNpmConfigSchema.default({
     enabled: true,
     maxAttempts: 5,
@@ -367,7 +367,7 @@ export const VerifyConfigSchema = z.object({
   }).describe('Poll pub.dev after each publish until the new version is visible.'),
 });
 
-export const PublishConfigSchema = z.object({
+export const PublishConfigSchema = z.strictObject({
   git: PublishGitConfigSchema.optional().describe('Git publishing options'),
   npm: NpmConfigSchema.default({
     enabled: true,
@@ -421,7 +421,7 @@ export const PublishConfigSchema = z.object({
   }).describe('Registry verification configuration'),
 });
 
-export const TemplateConfigSchema = z.object({
+export const TemplateConfigSchema = z.strictObject({
   path: z.string().optional().describe('Template file, or a directory of composable templates.'),
   engine: z
     .enum(['handlebars', 'liquid', 'ejs'])
@@ -432,12 +432,12 @@ export const TemplateConfigSchema = z.object({
 export const LocationModeSchema = z.enum(['root', 'packages', 'both']);
 
 // Release notes are not a changelog, so they get a dedicated `file` config rather than the changelog's `mode` enum.
-export const ReleaseNotesFileConfigSchema = z.object({
+export const ReleaseNotesFileConfigSchema = z.strictObject({
   dir: z.string().default('release-notes').describe('Directory for the per-version release-notes files.'),
 });
 
 export const ChangelogConfigSchema = z
-  .object({
+  .strictObject({
     mode: LocationModeSchema.optional().describe(
       "Where to write changelog files: 'root' (the default) at the repo root, 'packages' in each package (monorepos only), or 'both'.",
     ),
@@ -458,7 +458,7 @@ export const ChangelogConfigSchema = z
   })
   .describe('Changelog file configuration');
 
-export const LLMOptionsSchema = z.object({
+export const LLMOptionsSchema = z.strictObject({
   timeout: z
     .number()
     .int()
@@ -468,7 +468,7 @@ export const LLMOptionsSchema = z.object({
   temperature: z.number().optional().describe('Sampling temperature. Default: 0.7; the anthropic provider ignores it.'),
 });
 
-export const LLMRetryConfigSchema = z.object({
+export const LLMRetryConfigSchema = z.strictObject({
   maxAttempts: z
     .number()
     .int()
@@ -485,7 +485,7 @@ export const LLMRetryConfigSchema = z.object({
   backoffFactor: z.number().positive().optional().describe('Delay multiplier per attempt. Default: 2.'),
 });
 
-export const LLMTasksConfigSchema = z.object({
+export const LLMTasksConfigSchema = z.strictObject({
   summarize: z.boolean().optional().describe('Write a 2–3 sentence summary of the release.'),
   enhance: z.boolean().optional().describe("Rewrite each entry's description to be clearer for users."),
   categorize: z.boolean().optional().describe('Group entries into the configured categories.'),
@@ -495,13 +495,13 @@ export const LLMTasksConfigSchema = z.object({
     .describe('Write prose release notes for the GitHub Release body and any release-notes files.'),
 });
 
-export const LLMCategorySchema = z.object({
+export const LLMCategorySchema = z.strictObject({
   name: z.string().describe("Category label shown in release notes (e.g. 'Features')"),
   description: z.string().describe('LLM instruction describing what commits belong in this category'),
   scopes: z.array(z.string()).optional().describe('Conventional commit scopes assigned to this category'),
 });
 
-export const ScopeRulesSchema = z.object({
+export const ScopeRulesSchema = z.strictObject({
   allowed: z
     .array(z.string())
     .optional()
@@ -516,7 +516,7 @@ export const ScopeRulesSchema = z.object({
   fallbackScope: z.string().optional().describe("Scope substituted when invalidScopeAction is 'fallback'"),
 });
 
-export const ScopeConfigSchema = z.object({
+export const ScopeConfigSchema = z.strictObject({
   mode: z
     .enum(['restricted', 'packages', 'none', 'unrestricted'])
     .default('unrestricted')
@@ -526,7 +526,7 @@ export const ScopeConfigSchema = z.object({
   rules: ScopeRulesSchema.optional().describe('Scope validation and transformation rules'),
 });
 
-export const LLMPromptOverridesSchema = z.object({
+export const LLMPromptOverridesSchema = z.strictObject({
   enhance: z.string().optional().describe('For the enhance task when categorize is off.'),
   categorize: z.string().optional().describe('For the categorize task when enhance is off.'),
   enhanceAndCategorize: z
@@ -537,13 +537,13 @@ export const LLMPromptOverridesSchema = z.object({
   releaseNotes: z.string().optional().describe('For the releaseNotes task.'),
 });
 
-export const LLMPromptsConfigSchema = z.object({
+export const LLMPromptsConfigSchema = z.strictObject({
   instructions: LLMPromptOverridesSchema.optional().describe(
     "Extra instructions appended to a task's built-in system prompt. The task's output format is unchanged.",
   ),
 });
 
-const LLMConfigBaseSchema = z.object({
+const LLMConfigBaseSchema = z.strictObject({
   provider: z.enum(['openai', 'openai-compatible', 'anthropic', 'ollama']).describe('LLM provider'),
   model: z
     .string()
@@ -603,7 +603,7 @@ const LLMConfigBaseSchema = z.object({
       "Number of the project's past GitHub Releases (0–5) used as style examples in the combined enhance and categorize prompt and the releaseNotes prompt. Needs GITHUB_TOKEN or GH_TOKEN.",
     ),
   context: z
-    .object({
+    .strictObject({
       pullRequests: z
         .boolean()
         .default(true)
@@ -638,7 +638,7 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((cfg, ctx) => {
 });
 
 export const ReleaseNotesConfigSchema = z
-  .object({
+  .strictObject({
     file: ReleaseNotesFileConfigSchema.optional().describe(
       'Optional in-repo file output. Omit to keep release notes only on the GitHub release body (the default). When set, writes one immutable Markdown file per version under `dir` — release-notes/<package>/<version>.md in a monorepo, release-notes/<version>.md in a single-package repo — giving a browsable, provider-independent per-release history.',
     ),
@@ -647,10 +647,10 @@ export const ReleaseNotesConfigSchema = z
     ),
     llm: LLMConfigSchema.optional().describe('LLM configuration for release notes'),
     links: z
-      .object({
+      .strictObject({
         items: z
           .array(
-            z.object({
+            z.strictObject({
               label: z.string().describe('Link text'),
               url: z.string().url().describe('Link URL'),
             }),
@@ -672,7 +672,7 @@ export const ReleaseNotesConfigSchema = z
     firstRelease: z
       .union([
         z.literal(false).describe('Set to false to disable the first-release placeholder intro.'),
-        z.object({
+        z.strictObject({
           text: z.string().optional().describe(
             // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
             "Placeholder intro line for a package's first release. Supports ${packageName} and ${version}. Default: '_First release of ${packageName}._'.",
@@ -686,12 +686,12 @@ export const ReleaseNotesConfigSchema = z
   })
   .describe('Release notes configuration');
 
-export const NotesInputConfigSchema = z.object({
+export const NotesInputConfigSchema = z.strictObject({
   source: z.string().optional(),
   file: z.string().optional(),
 });
 
-export const NotesConfigSchema = z.object({
+export const NotesConfigSchema = z.strictObject({
   changelog: z
     .union([z.literal(false).describe('Set to false to disable changelog generation'), ChangelogConfigSchema])
     .optional()
@@ -710,7 +710,7 @@ export const NotesConfigSchema = z.object({
     ),
 });
 
-export const CILabelsConfigSchema = z.object({
+export const CILabelsConfigSchema = z.strictObject({
   graduate: z
     .string()
     .default('release:graduate')
@@ -758,7 +758,7 @@ export const CILabelsConfigSchema = z.object({
     ),
 });
 
-export const StandingPrConfigSchema = z.object({
+export const StandingPrConfigSchema = z.strictObject({
   branch: z
     .string()
     .default('release/next')
@@ -802,7 +802,7 @@ export const StandingPrConfigSchema = z.object({
       'Minimum number of packages with releasable changes required to create or maintain the standing PR. Below this threshold the PR is closed and no new PR is opened.',
     ),
   authorization: z
-    .object({
+    .strictObject({
       requiredPermission: z
         .enum(['admin', 'maintain', 'write'])
         .default('admin')
@@ -864,7 +864,7 @@ export const StandingPrConfigSchema = z.object({
     ),
 });
 
-export const CIConfigSchema = z.object({
+export const CIConfigSchema = z.strictObject({
   releaseStrategy: z
     .enum(['manual', 'direct', 'standing-pr'])
     .default('direct')
@@ -880,7 +880,7 @@ export const CIConfigSchema = z.object({
   prPreview: z
     .union([
       z.boolean(),
-      z.object({
+      z.strictObject({
         enabled: z.boolean().default(true).describe('Whether PR preview comments are posted.'),
         markStaleAfterRelease: z
           .boolean()
@@ -923,7 +923,7 @@ export const CIConfigSchema = z.object({
   ),
 });
 
-export const ReleaseCIConfigSchema = z.object({
+export const ReleaseCIConfigSchema = z.strictObject({
   skipPatterns: z
     .array(z.string().min(1))
     .optional()
@@ -940,7 +940,7 @@ export const ReleaseCIConfigSchema = z.object({
   notes: z.literal(false).optional().describe('Set to false to disable changelog generation in CI'),
 });
 
-export const ReleaseConfigSchema = z.object({
+export const ReleaseConfigSchema = z.strictObject({
   steps: z
     .array(z.enum(['notes', 'publish']))
     .min(1)
@@ -950,7 +950,7 @@ export const ReleaseConfigSchema = z.object({
 });
 
 export const ReleaseKitConfigSchema = z
-  .object({
+  .strictObject({
     $schema: z.string().optional().describe('JSON schema reference URL'),
     git: GitConfigSchema.optional().describe('Git configuration'),
     monorepo: MonorepoConfigSchema.optional().describe('Monorepo configuration'),
