@@ -34,13 +34,16 @@ Without LLM, the built-in renderer groups entries by their conventional commit t
 ## [2.0.0] - 2026-01-15
 
 ### Changed
+
 - rename connect() to initialize() across public API
 
 ### Added
+
 - add triggerDeeplink() for deep link testing
 - add mock IPC handler support
 
 ### Fixed
+
 - null pointer in renderer process memory management
 ```
 
@@ -50,14 +53,18 @@ With `enhance + categorize` enabled, the same commits produce:
 ## [2.0.0] - 2026-01-15
 
 ### Breaking
+
 - **BREAKING** **API rename**: Rename connect() to initialize()
 
 ### New
+
 **ipc**:
+
 - **Deeplink testing**: Add deep link support via triggerDeeplink()
 - Add mock IPC support
 
 ### Fixed
+
 - Resolve memory leak in renderer process
 ```
 
@@ -236,7 +243,9 @@ When the built-in markdown renderer encounters a category where **two or more en
 
 ```markdown
 ### New
+
 **ipc**:
+
 - **Deeplink testing**: Add deep link support via triggerDeeplink()
 - Add mock IPC support
 ```
@@ -351,6 +360,7 @@ Rendered output:
 
 ```markdown
 ### Migration guide
+
 - [v2.0 migration](https://docs.example.com/migrate-v2)
 - [Full guide](https://docs.example.com/full-guide)
 ```
@@ -439,20 +449,26 @@ Note that `links` is a property of `releaseNotes`, not `llm`.
 ## [2.0.0] - 2026-01-15
 
 ### Breaking
+
 - **BREAKING** **API rename**: Rename connect() to initialize()
 
 ### New
+
 **ipc**:
+
 - **Deeplink testing**: Add deep link support via triggerDeeplink()
 - Add mock IPC support
 
 ### Fixed
+
 - Resolve memory leak in renderer process
 
 ### Developer
+
 - Migrate bundler to esbuild 0.20
 
 ### Links
+
 - [v2.0 migration guide](https://docs.example.com/migrate-v2)
 ```
 

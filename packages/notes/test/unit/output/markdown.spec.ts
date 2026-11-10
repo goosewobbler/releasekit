@@ -231,7 +231,7 @@ describe('formatVersion: breaking changes section', () => {
     });
 
     expect(formatVersion(ctx)).toContain(
-      '### Breaking\n- **BREAKING** Reject the old preset\n\n### Added\n- New flag\n\n### Fixed\n- Patch serializer\n',
+      '### Breaking\n\n- **BREAKING** Reject the old preset\n\n### Added\n\n- New flag\n\n### Fixed\n\n- Patch serializer\n',
     );
   });
 
@@ -724,5 +724,139 @@ describe('formatVersion: first-release intro', () => {
     const result = formatVersion(firstReleaseCtx());
 
     expect(result).not.toContain('<!-- releasekit-notes');
+  });
+});
+
+describe('renderMarkdown: Markdown spacing', () => {
+  const HEADER = `# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+`;
+
+  it('should put one blank line around every heading and list and between releases', async () => {
+    const { renderMarkdown } = await import('../../../src/output/markdown.js');
+
+    const result = renderMarkdown([
+      makeContext({
+        version: '1.1.0',
+        previousVersion: '1.0.0',
+        compareUrl: 'https://github.com/acme/app/compare/v1.0.0...v1.1.0',
+        entries: [
+          { type: 'fixed', description: 'Patch serializer' },
+          { type: 'added', description: 'Drop the old flag', breaking: true },
+          { type: 'added', description: 'New flag' },
+          { type: 'added', description: 'Other flag' },
+        ],
+      }),
+      makeContext({ previousVersion: null, isFirstRelease: true }),
+    ]);
+
+    expect(result).toBe(`${HEADER}
+## [1.1.0] - 2026-01-01
+
+[Full Changelog](https://github.com/acme/app/compare/v1.0.0...v1.1.0)
+
+### Breaking
+
+- **BREAKING** Drop the old flag
+
+### Added
+
+- New flag
+- Other flag
+
+### Fixed
+
+- Patch serializer
+
+## 1.0.0 - 2026-01-01
+
+_First release of test-pkg._
+
+### Added
+
+- New feature
+`);
+  });
+
+  it('should space LLM categories, scope groups and the links section the same way', async () => {
+    const { renderMarkdown } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        summary: 'A faster parser.',
+        categories: [
+          {
+            name: 'New',
+            entries: [
+              { type: 'added', description: 'Stream input' },
+              { type: 'added', description: 'Batch writes', scope: 'api' },
+              { type: 'added', description: 'Retry hook', scope: 'api' },
+              { type: 'added', description: 'Watch mode', scope: 'cli' },
+              { type: 'added', description: 'Dark theme', scope: 'ui' },
+              { type: 'added', description: 'Compact view', scope: 'ui' },
+            ],
+          },
+          {
+            name: 'Changed',
+            entries: [
+              { type: 'changed', description: 'Faster start', scope: 'core' },
+              { type: 'changed', description: 'Smaller bundle', scope: 'core' },
+            ],
+          },
+          {
+            name: 'Fixed',
+            entries: [
+              { type: 'fixed', description: 'Leak on close' },
+              { type: 'fixed', description: 'Race on start', scope: 'core' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = renderMarkdown([ctx], {
+      links: { items: [{ label: 'Migration guide', url: 'https://example.com/migrate' }] },
+    });
+
+    expect(result).toBe(`${HEADER}
+## [1.0.0] - 2026-01-01
+
+A faster parser.
+
+### New
+
+- Stream input
+
+**api**:
+
+- Batch writes
+- Retry hook
+- **cli**: Watch mode
+
+**ui**:
+
+- Dark theme
+- Compact view
+
+### Changed
+
+**core**:
+
+- Faster start
+- Smaller bundle
+
+### Fixed
+
+- Leak on close
+- **core**: Race on start
+
+### Links
+
+- [Migration guide](https://example.com/migrate)
+`);
   });
 });
