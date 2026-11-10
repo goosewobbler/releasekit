@@ -119,8 +119,14 @@ export interface GitResult {
   committed: boolean;
   tags: string[];
   pushed: boolean;
-  /** The release branch pushed, dry runs included. Unset when only tags are pushed, as in standing-PR mode. */
+  /**
+   * Set once the release branch push succeeds, dry runs included, even if a tag push after it fails. Unset when only
+   * tags are pushed, as in standing-PR mode.
+   */
   branch?: string;
+  remote?: string;
+  /** The release commit this run tagged. Unset in dry runs, and when the caller made the tags (standing-PR mode). */
+  commitSha?: string;
 }
 
 export interface PublishOutput {

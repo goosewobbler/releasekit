@@ -226,6 +226,7 @@ What was pushed depends on the mode. The order is in [Publish order and partial 
 
 - **Batch mode** (one shared tag): nothing is pushed. In a direct release the version commit is still local. Re-run; packages already on the registry are skipped, then the branch, tags, and GitHub Releases are pushed.
 - **Per-package mode** (each update has its own tag): the release commit and the tags of packages that published are already on the remote. No GitHub Release was created. Roll forward with the next release. Do not delete those tags.
+- **A tag push failed after the branch push** (direct release, either mode): the release commit is on the remote, but its tags are not. A re-run fails every time, because its new release commit can't be pushed over this one. Roll forward with the next release; this version gets no GitHub Release. Before that release, restore the tags with the commands from the failure report. Without them it counts from the previous tag, so its changelog repeats this release's entries and its bump counts this release's commits again. Under `mismatchStrategy: 'error'` it can also throw a version mismatch if this release moved onto or off a prerelease.
 - **Standing-PR mode:** the merge already put the version commit on `main`. Add `release:retry` to the merged standing PR (below). Do not delete a tag whose version was published.
 
 ### The failure report
@@ -243,7 +244,7 @@ The report contains a per-package ledger (✅ published / ⏭ skipped / ❌ fail
 Re-run when the failed run was batch mode or a standing-PR publish. The publish path skips versions already on the registry. In batch mode the retry then pushes the branch, tags, and GitHub Releases. In per-package mode the commit and earlier tags are already on the remote — roll forward instead of trying to undo them.
 
 - **Standing-pr mode:** add the **`release:retry`** label to the merged standing PR. A workflow validates that the PR is a merged standing PR, dispatches the manifest-driven publish for it, and removes the label — so each application is exactly one retry and you can re-apply the label to retry again. (Applying it to a non-standing or unmerged PR is a no-op: the workflow leaves a comment explaining why and removes the label.) Equivalently, dispatch the release workflow yourself targeting the merged standing PR (`standing-pr publish --pr <number>`). The label name is configurable via `ci.labels.retry`.
-- **Direct / label mode:** use GitHub's **"Re-run failed jobs"** on the failed workflow run.
+- **Direct / label mode:** use GitHub's **"Re-run failed jobs"** on the failed workflow run, unless the branch push landed (above).
 
 A successful retry marks the failure report resolved and clears the supersede warning described below.
 

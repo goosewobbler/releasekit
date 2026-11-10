@@ -73,23 +73,23 @@ function publishedLabels(): string[] {
     .filter((label) => /^(npm|cargo) publish /.test(label));
 }
 
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(execCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+  vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 });
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 404 } as Response));
+  fakeGit = createFakeGit({ currentBranch: 'main' });
+  workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-per-package-'));
+  process.chdir(workspace);
+});
+
+afterEach(() => {
+  process.chdir(originalCwd);
+  vi.unstubAllGlobals();
+  fs.rmSync(workspace, { recursive: true, force: true });
+});
+
 describe('per-package publish pipeline', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(execCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
-    vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 404 } as Response));
-    fakeGit = createFakeGit({ currentBranch: 'main' });
-    workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-per-package-'));
-    process.chdir(workspace);
-  });
-
-  afterEach(() => {
-    process.chdir(originalCwd);
-    vi.unstubAllGlobals();
-    fs.rmSync(workspace, { recursive: true, force: true });
-  });
-
   it('should publish a crate after its path dependency when it is listed first', async () => {
     write('crates/app/Cargo.toml', cargoToml('app-crate', CORE_PATH_DEP));
     write('crates/core/Cargo.toml', cargoToml('core-crate'));
@@ -255,5 +255,61 @@ describe('per-package publish pipeline', () => {
 
     expect(publishedLabels()).toEqual(['npm publish lib@0.2.0']);
     expect(push.mock.calls.map(([opts]) => opts.ref)).toEqual(['main']);
+  });
+});
+
+describe('a tag push that fails after the branch push', () => {
+  function rejectTagPushes(): void {
+    fakeGit = createFakeGit({ currentBranch: 'main', headSha: 'abc1234' });
+    vi.spyOn(fakeGit, 'push').mockImplementation(async ({ ref }) => {
+      if (ref?.startsWith('refs/tags/')) {
+        throw new Error('remote: error: GH013: Repository rule violations found for refs/tags');
+      }
+    });
+  }
+
+  it('should record the pushed branch and release commit in batch mode', async () => {
+    write('packages/lib/package.json', packageJson('lib'));
+    rejectTagPushes();
+
+    await expect(
+      runPipeline(
+        {
+          dryRun: false,
+          updates: [{ packageName: 'lib', newVersion: '0.2.0', filePath: 'packages/lib/package.json' }],
+          changelogs: [],
+          tags: ['v0.2.0'],
+          commitMessage: 'chore: release v0.2.0',
+        },
+        getDefaultConfig(),
+        { ...options, skipGit: false },
+      ),
+    ).rejects.toMatchObject({
+      failedStage: 'git-push',
+      partialOutput: {
+        git: { branch: 'main', remote: 'origin', pushed: false, commitSha: 'abc1234', tags: ['v0.2.0'] },
+      },
+    });
+  });
+
+  it("should record the pushed branch when the first package's tag push fails in per-package mode", async () => {
+    write('packages/lib/package.json', packageJson('lib'));
+    write('packages/app/package.json', packageJson('app', { lib: '^0.1.0' }));
+    rejectTagPushes();
+
+    await expect(
+      runPipeline(
+        {
+          ...perPackageInput([update('app', 'packages/app/package.json'), update('lib', 'packages/lib/package.json')]),
+          commitMessage: 'chore: release',
+        },
+        getDefaultConfig(),
+        { ...options, skipGit: false },
+      ),
+    ).rejects.toMatchObject({
+      failedStage: 'git-push',
+      partialOutput: { git: { branch: 'main', remote: 'origin', pushed: false, commitSha: 'abc1234' } },
+    });
+    expect(publishedLabels()).toEqual(['npm publish lib@0.2.0']);
   });
 });

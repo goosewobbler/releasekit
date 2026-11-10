@@ -281,7 +281,7 @@ describe('renderFailureReport', () => {
     expect(body).not.toContain('Retrying is safe');
   });
 
-  it('should say the branch may be on the remote after a direct push failure', () => {
+  it('should keep retry instructions when the branch push itself failed', () => {
     const committed = { ...publishOutput, git: { ...publishOutput.git, committed: true, pushed: false } };
     const body = renderFailureReport({
       versionOutput: versionOutputFor([{ name: '@scope/a', version: '1.0.0' }]),
@@ -290,9 +290,111 @@ describe('renderFailureReport', () => {
       errorMessage: 'push rejected',
       recovery: { mode: 'direct' },
     });
-    expect(body).toContain('The branch may already be on the remote');
+    expect(body).toContain('failed before the branch was pushed');
     expect(body).toContain('Re-run failed jobs');
-    expect(body).not.toContain('Nothing was pushed');
+    expect(body).not.toContain('Roll forward');
+  });
+
+  describe('when the branch push landed but a tag push failed', () => {
+    const syncRelease = versionOutputFor([{ name: '@scope/a', version: '1.2.0' }], {
+      strategy: 'sync',
+      tags: ['v1.2.0'],
+    });
+    const branchOnly = {
+      ...publishOutputFor([npmResult({ packageName: '@scope/a', version: '1.2.0' })]),
+      git: { committed: true, tags: ['v1.2.0'], pushed: false, branch: 'main', commitSha: 'abc1234' },
+    };
+
+    it.each(['direct', 'manual'] as const)('should recommend rolling forward, not a re-run (%s)', (mode) => {
+      const body = renderFailureReport({
+        versionOutput: syncRelease,
+        publishOutput: branchOnly,
+        failedStage: 'git-push',
+        errorMessage: 'GH013: Repository rule violations found for refs/tags/v1.2.0',
+        recovery: { mode },
+      });
+      expect(body).toContain('The release commit reached `main`, but a tag push failed');
+      expect(body).toContain('Roll forward with the next release. It bumps past this release');
+      expect(body).toContain("Don't re-run the release");
+      expect(body).not.toContain('Re-run failed jobs');
+      expect(body).not.toContain('Re-run the release workflow');
+      expect(body).not.toContain('Retrying is safe');
+    });
+
+    it('should print the commands to restore the missing tags on the release commit', () => {
+      const body = renderFailureReport({
+        versionOutput: syncRelease,
+        publishOutput: {
+          ...branchOnly,
+          git: { ...branchOnly.git, tags: ['v1.2.0', 'release/v1.2.0', 'v1.2.0'], remote: 'upstream' },
+        },
+        failedStage: 'git-push',
+        errorMessage: 'tag push rejected',
+        recovery: { mode: 'direct' },
+      });
+      expect(body).toContain(
+        [
+          'Run these, skipping the `git tag` line for any tag that already exists:',
+          '',
+          '```sh',
+          'git fetch upstream',
+          'git tag v1.2.0 abc1234',
+          'git tag release/v1.2.0 abc1234',
+          'git push upstream v1.2.0',
+          'git push upstream release/v1.2.0',
+          '```',
+        ].join('\n'),
+      );
+    });
+
+    it('should say why the tags need restoring before the next release', () => {
+      const body = renderFailureReport({
+        versionOutput: syncRelease,
+        publishOutput: branchOnly,
+        failedStage: 'git-push',
+        errorMessage: 'tag push rejected',
+        recovery: { mode: 'direct' },
+      });
+      expect(body).toContain(
+        "Restore the missing tags before the next release. Without them it counts from the previous tag, so its changelog repeats this release's entries and its bump counts this release's commits again. Under `mismatchStrategy: 'error'` it can also throw a version mismatch if this release moved onto or off a prerelease.",
+      );
+    });
+
+    it("should restore the published package's tag and the baseline tag when the first per-package tag push fails", () => {
+      const tagged = versionOutputFor([
+        { name: '@scope/a', version: '1.0.0' },
+        { name: '@scope/b', version: '1.0.0' },
+      ]);
+      tagged.updates = tagged.updates.map((u) => ({ ...u, tag: `${u.packageName}@v${u.newVersion}` }));
+      tagged.baselineTags = ['v1.0.0'];
+      const body = renderFailureReport({
+        versionOutput: tagged,
+        publishOutput: {
+          ...publishOutputFor([npmResult({ packageName: '@scope/a', version: '1.0.0' })]),
+          git: {
+            committed: true,
+            tags: ['@scope/a@v1.0.0', '@scope/b@v1.0.0'],
+            pushed: false,
+            branch: 'main',
+            commitSha: 'abc1234',
+          },
+        },
+        failedStage: 'git-push',
+        errorMessage: 'tag push rejected',
+        recovery: { mode: 'direct' },
+      });
+      expect(body).toContain('Roll forward with the next release. It bumps past this release');
+      expect(body).toContain(
+        [
+          'git tag @scope/a@v1.0.0 abc1234',
+          'git tag v1.0.0 abc1234',
+          'git push origin @scope/a@v1.0.0',
+          'git push origin v1.0.0',
+        ].join('\n'),
+      );
+      expect(body).not.toContain('@scope/b@v1.0.0');
+      expect(body).not.toContain('Re-run failed jobs');
+    });
   });
 
   it('should keep retry instructions when a per-package run pushed nothing', () => {
