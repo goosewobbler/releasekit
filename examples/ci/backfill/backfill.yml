@@ -11,9 +11,6 @@ on:
       path:
         description: Directory of the package to backfill (blank = every workspace package)
         required: false
-      package:
-        description: Package name, if the directory at path has no package.json (e.g. a Cargo crate)
-        required: false
       from:
         description: Earliest version to backfill (inclusive)
         required: false
@@ -54,9 +51,7 @@ jobs:
       # never runs them as code.
       - run: |
           args=(--update-releases)
-          if [ -n "$PACKAGE" ] && [ -z "$PKG_PATH" ]; then echo '::error::Set path too: package only names the package at path'; exit 1; fi
           if [ -n "$PKG_PATH" ]; then args+=(--path "$PKG_PATH"); else args+=(--all); fi
-          if [ -n "$PACKAGE" ]; then args+=(--package "$PACKAGE"); fi
           if [ -n "$FROM" ]; then args+=(--from "$FROM"); fi
           if [ -n "$TO" ]; then args+=(--to "$TO"); fi
           if [ "$FORCE" = 'true' ]; then args+=(--force); fi
@@ -65,7 +60,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PKG_PATH: ${{ inputs.path }}
-          PACKAGE: ${{ inputs.package }}
           FROM: ${{ inputs.from }}
           TO: ${{ inputs.to }}
           FORCE: ${{ inputs.force }}

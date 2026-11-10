@@ -31,11 +31,9 @@ function isCheckout(step: Step): boolean {
   return typeof step.uses === 'string' && step.uses.startsWith('actions/checkout');
 }
 
-/** A `releasekit` command, not a mention such as the standing-pr banner's `releasekit-processing` marker. */
-export const RELEASEKIT_INVOCATION = /(?:^|[\s;&|(])releasekit(?:-release)?(?=\s|$)/m;
-
+/** An invocation, not a mention: the standing-pr banner step's `releasekit-processing` marker must not end extraction. */
 function isReleasekitRun(step: Step): boolean {
-  return typeof step.run === 'string' && RELEASEKIT_INVOCATION.test(step.run);
+  return typeof step.run === 'string' && /\breleasekit(?:\s|$)/m.test(step.run);
 }
 
 /** `gh api` steps (e.g. the standing-pr retry label removal) need real secrets and a real repo. */
