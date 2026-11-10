@@ -130,11 +130,13 @@ jobs:
   trigger-immediate:
     name: Trigger immediate release via release.yml
     # action == 'closed': a label added to the already-merged PR also satisfies merged == true and
-    # would dispatch a second publish.
+    # would dispatch a second publish. The head.ref check keeps the standing PR out, since a
+    # dispatched `releasekit release` can't see the PR to refuse it.
     if: >
       github.event_name == 'pull_request' &&
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
+      github.event.pull_request.head.ref != 'release/next' &&
       contains(github.event.pull_request.labels.*.name, 'release:immediate')
     runs-on: ubuntu-latest
     permissions:
