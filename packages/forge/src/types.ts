@@ -53,6 +53,7 @@ export interface PullRequestDetails {
   body: string;
   labels: string[];
   headSha?: string;
+  headRef?: string;
   baseRef?: string;
 }
 

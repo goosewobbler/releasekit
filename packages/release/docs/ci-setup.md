@@ -488,7 +488,7 @@ Standing-pr mode handles both batched and one-off releases through a single work
 
 - A PR merged **without** `release:immediate` → `standing-pr update` accumulates the change into the standing PR. Any `bump:*` / `scope:*` / `channel:*` labels on the feeder PR are advisory only (see [Label semantics](#label-semantics-in-standing-pr-mode) above).
 - A PR merged **with** `release:immediate` → the `immediate-release` job in `standing-pr.yml` runs `releasekit release` directly (honouring companion `bump:*` / `scope:*` / `channel:*` labels), then `refresh-after-release` to reconcile the standing PR.
-- The standing PR itself only publishes when its own branch (`release/next`) is merged by a maintainer — there's no double-publish risk.
+- The standing PR itself only publishes when its own branch (`release/next`) is merged by a maintainer. `release:immediate` on it doesn't trigger a second release: `gate` ignores it and `release` fails.
 
 **Decision guide:**
 
