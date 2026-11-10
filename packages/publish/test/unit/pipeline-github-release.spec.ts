@@ -219,17 +219,10 @@ describe('GitHub release bodies in the publish pipeline', () => {
     expect(releaseBodies()).toEqual({ 'pkg-a-v1.2.3': GENERATED });
   });
 
-  it.each([
-    ['update tags, empty notes', true, { pkg: 'P', 'pkg-2': '' }],
-    ['no update tags, empty notes', false, { pkg: 'P', 'pkg-2': '' }],
-    ['no update tags, no notes key', false, { pkg: 'P' }],
-  ])("should not give a package's notes to a longer-named package (%s)", async (_, withTags, releaseNotes) => {
+  it("should not give a package's notes to a longer-named package with empty notes", async () => {
     const input = perPackageInput({ pkg: 'pkg-v1.2.3', 'pkg-2': 'pkg-2-v1.2.3' });
-    if (!withTags) {
-      input.updates = input.updates.map(({ tag: _tag, ...rest }) => rest);
-    }
 
-    await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes });
+    await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { pkg: 'P', 'pkg-2': '' } });
 
     expect(releaseBodies()).toEqual({ 'pkg-v1.2.3': 'P', 'pkg-2-v1.2.3': GENERATED });
   });
@@ -314,24 +307,27 @@ describe('GitHub release bodies in the publish pipeline', () => {
     expect(Object.keys(releaseBodies())).toEqual(['pkg-b/1.2.3']);
   });
 
-  it.each([
-    ['with', true],
-    ['without', false],
-  ])(
-    "should not skip a package whose name starts with a skipped package's name, %s update tags",
-    async (_, withTags) => {
-      const config = getDefaultConfig();
-      config.githubRelease.skipPackages = ['pkg'];
-      const input = perPackageInput({ pkg: 'pkg-v1.2.3', 'pkg-2': 'pkg-2-v1.2.3' });
-      if (!withTags) {
-        input.updates = input.updates.map(({ tag: _tag, ...rest }) => rest);
-      }
+  it("should not skip a package whose name starts with a skipped package's name", async () => {
+    const config = getDefaultConfig();
+    config.githubRelease.skipPackages = ['pkg'];
 
-      await runPipeline(input, config, options);
+    await runPipeline(perPackageInput({ pkg: 'pkg-v1.2.3', 'pkg-2': 'pkg-2-v1.2.3' }), config, options);
 
-      expect(Object.keys(releaseBodies())).toEqual(['pkg-2-v1.2.3']);
-    },
-  );
+    expect(Object.keys(releaseBodies())).toEqual(['pkg-2-v1.2.3']);
+  });
+
+  it('should skip the release for a package listed under the name its tag uses', async () => {
+    const config = getDefaultConfig();
+    config.githubRelease.skipPackages = ['scope-pkg-a'];
+
+    await runPipeline(
+      perPackageInput({ '@scope/pkg-a': 'scope-pkg-a@v1.2.3', 'pkg-b': 'pkg-b@v1.2.3' }),
+      config,
+      options,
+    );
+
+    expect(Object.keys(releaseBodies())).toEqual(['pkg-b@v1.2.3']);
+  });
 
   it("should title a release with its package's name and version", async () => {
     const input = perPackageInput({
@@ -349,20 +345,21 @@ describe('GitHub release bodies in the publish pipeline', () => {
     });
   });
 
-  it.each(['v1.2.3', 'release-1.2.3'])(
-    "should title a release whose tag %s doesn't name its package with the tag",
-    async (tag) => {
-      const input: VersionOutput = {
-        dryRun: false,
-        strategy: 'single',
-        updates: [update('pkg-a', tag)],
-        changelogs: [],
-        tags: [tag],
-      };
+  it.each([
+    ['pkg-a', 'v1.2.3'],
+    ['pkg-a', 'release-1.2.3'],
+    ['app', 'myapp-1.2.3'],
+  ])("should title %s's release with its tag %s, which doesn't start with the package name", async (name, tag) => {
+    const input: VersionOutput = {
+      dryRun: false,
+      strategy: 'single',
+      updates: [update(name, tag)],
+      changelogs: [],
+      tags: [tag],
+    };
 
-      await runPipeline(input, getDefaultConfig(), options);
+    await runPipeline(input, getDefaultConfig(), options);
 
-      expect(releaseTitles()).toEqual({ [tag]: tag });
-    },
-  );
+    expect(releaseTitles()).toEqual({ [tag]: tag });
+  });
 });

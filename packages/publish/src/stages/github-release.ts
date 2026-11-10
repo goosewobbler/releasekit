@@ -8,7 +8,10 @@ type BodySource = 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
 
 interface ReleaseTag {
   tag: string;
-  owners: VersionPackageUpdate[];
+  /** The update that carries the tag, when only one does. */
+  owner?: VersionPackageUpdate;
+  /** A sync release's tag, or one several updates carry. */
+  shared: boolean;
   input: VersionOutput;
 }
 
@@ -104,6 +107,12 @@ function resolveTagPackage(tag: string, packageNames: string[]): TagResolution |
   return null;
 }
 
+function startsWithPackageName(tag: string, packageName: string): boolean {
+  return [packageName, sanitizePackageName(packageName)].some(
+    (name) => tag.startsWith(name) && /^[^a-z0-9]/i.test(tag.slice(name.length)),
+  );
+}
+
 /** Titles use the unsanitized package name, e.g. "releasekit-version-v0.4.1" → "@releasekit/version: v0.4.1". */
 function getTitleFromTag(
   tag: string,
@@ -114,7 +123,7 @@ function getTitleFromTag(
   const applyTemplate = (packageName: string, version: string): string =>
     titleTemplate.replace(/\$\{packageName\}/g, packageName).replace(/\$\{version\}/g, version);
 
-  if (owner && (tag.includes(owner.packageName) || tag.includes(sanitizePackageName(owner.packageName)))) {
+  if (owner && startsWithPackageName(tag, owner.packageName)) {
     const withV = `v${owner.newVersion}`;
     const tagHasV = tag.endsWith(withV) && !/[a-z0-9]/i.test(tag.charAt(tag.length - withV.length - 1));
     return applyTemplate(owner.packageName, tagHasV ? withV : owner.newVersion);
@@ -132,29 +141,16 @@ function getTitleFromTag(
   return applyTemplate(tag.slice(0, atIndex), tag.slice(atIndex + 1));
 }
 
-function isOtherPackagesKey(key: string, { tag, input }: ReleaseTag): boolean {
-  const update = input.updates.find((u) => u.packageName === key);
-  if (!update) {
-    return false;
-  }
-  if (update.tag) {
-    return update.tag !== tag;
-  }
-  const named = resolveTagPackage(
-    tag,
-    input.updates.map((u) => u.packageName),
-  )?.packageName;
-  return named !== undefined && named !== key;
-}
-
 /**
  * The update that carries a tag decides; parsing the tag covers input without that mapping. A shared or version-only
  * tag that's neither falls back to the sole `filled` key, unless that key is another package's.
  */
-function resolveTagKey(release: ReleaseTag, keys: string[], filled: string[]): string | undefined {
-  const { tag, owners, input } = release;
-  const [owner] = owners;
-  if (owner && owners.length === 1) {
+function resolveTagKey(
+  { tag, owner, shared, input }: ReleaseTag,
+  keys: string[],
+  filled: string[],
+): string | undefined {
+  if (owner) {
     return keys.includes(owner.packageName) ? owner.packageName : undefined;
   }
   const parsed = resolveTagPackage(tag, keys)?.packageName;
@@ -162,10 +158,9 @@ function resolveTagKey(release: ReleaseTag, keys: string[], filled: string[]): s
     return parsed;
   }
   const sole = filled.length === 1 ? filled[0] : undefined;
-  if (sole === undefined || isOtherPackagesKey(sole, release)) {
+  if (sole === undefined || input.updates.some((u) => u.packageName === sole && u.tag && u.tag !== tag)) {
     return undefined;
   }
-  const shared = owners.length > 1 || (input.updates.length > 0 && input.updates.every((u) => !u.tag));
   return shared || isVersionOnlyTag(tag) ? sole : undefined;
 }
 
@@ -228,6 +223,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
   const tagsToRelease = config.githubRelease.perPackage ? tags : [firstTag];
 
   const skipPackages = config.githubRelease.skipPackages ?? [];
+  const syncTag = ctx.input.updates.length > 0 && ctx.input.updates.every((u) => !u.tag);
   const titlePackageNames = [
     ...new Set([...ctx.input.changelogs.map((c) => c.packageName), ...Object.keys(ctx.releaseNotes ?? {})]),
   ];
@@ -256,7 +252,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     // Tags are still created (the next release's changelog range needs them) and npm publish still runs.
     if (skipPackages.length > 0) {
       const skipped = owner
-        ? skipPackages.find((name) => name === owner.packageName)
+        ? skipPackages.find((name) => name === owner.packageName || name === sanitizePackageName(owner.packageName))
         : resolveTagPackage(tag, skipPackages)?.packageName;
       if (skipped) {
         debug(`Skipping GitHub release for ${skipped} (listed in githubRelease.skipPackages)`);
@@ -297,7 +293,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     const releaseNotesEnabled = !!(ctx.releaseNotes && Object.keys(ctx.releaseNotes).length > 0);
     const { body, useGithubNotes } = resolveNotes(
       config.githubRelease.body,
-      { tag, owners, input: ctx.input },
+      { tag, owner, shared: owners.length > 1 || (owners.length === 0 && syncTag), input: ctx.input },
       releaseNotesEnabled,
       ctx.releaseNotes,
     );
