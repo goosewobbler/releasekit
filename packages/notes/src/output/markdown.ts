@@ -98,7 +98,9 @@ function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts:
   const byScope = new Map<string, ChangelogEntry[]>();
   for (const entry of entries) {
     if (entry.scope && groupedScopes.has(entry.scope)) {
-      byScope.set(entry.scope, [...(byScope.get(entry.scope) ?? []), entry]);
+      const group = byScope.get(entry.scope) ?? [];
+      group.push(entry);
+      byScope.set(entry.scope, group);
     } else {
       ungrouped.push(entry);
     }
