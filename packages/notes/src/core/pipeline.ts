@@ -70,15 +70,15 @@ function isVersionStartAt(tag: string, i: number): boolean {
   return false;
 }
 
-function generateCompareUrl(repoUrl: string, from: string, to: string, packageName?: string): string {
+function generateCompareUrl(repoUrl: string, from: string, to: string, packageName?: string, tag?: string): string {
   const isPackageSpecific = from.includes('@') && packageName && from.includes(packageName);
 
-  let fromVersion: string;
   let toVersion: string;
 
-  if (isPackageSpecific) {
+  if (tag) {
+    toVersion = tag;
+  } else if (isPackageSpecific) {
     // to: 0.2.0-next.10 -> @releasekit/version@v0.2.0-next.10
-    fromVersion = from;
     toVersion = `${packageName}@${to.startsWith('v') ? '' : 'v'}${to}`;
   } else {
     // Index-based string operations instead of regex to avoid ReDoS on inputs with many repeated digits.
@@ -89,33 +89,29 @@ function generateCompareUrl(repoUrl: string, from: string, to: string, packageNa
       // Sanitized package-specific tag: "<de-scoped-name>@[v]<version>" (e.g. "scope-pkg@v1.2.3").
       // formatTag always strips the "@scope/", so the raw package name never appears literally and
       // the isPackageSpecific check above can't match it.
-      fromVersion = from;
       toVersion = `${from.slice(0, atPos + 1)}${from[atPos + 1] === 'v' ? 'v' : ''}${toClean}`;
     } else if (dashVPos > 0 && from.charCodeAt(dashVPos + 2) >= 48 && from.charCodeAt(dashVPos + 2) <= 57) {
       // Compound tag with "v" prefix (e.g. "scope-pkg-v1.2.3")
-      fromVersion = from;
       toVersion = `${from.slice(0, dashVPos + 1)}v${toClean}`;
     } else {
       const sepPos = findCompoundTagSepPos(from);
       if (sepPos > 0) {
-        fromVersion = from;
         toVersion = `${from.slice(0, sepPos + 1)}${toClean}`;
       } else {
         // Plain version tag (e.g. "v1.2.3" or "1.2.3")
-        fromVersion = from.replace(/^v/, '');
-        toVersion = toClean;
+        toVersion = `${from.startsWith('v') ? 'v' : ''}${toClean}`;
       }
     }
   }
 
   if (/gitlab\.com/i.test(repoUrl)) {
-    return `${repoUrl}/-/compare/${fromVersion}...${toVersion}`;
+    return `${repoUrl}/-/compare/${from}...${toVersion}`;
   }
   if (/bitbucket\.org/i.test(repoUrl)) {
-    return `${repoUrl}/branches/compare/${fromVersion}..${toVersion}`;
+    return `${repoUrl}/branches/compare/${from}..${toVersion}`;
   }
   // GitHub and generic git hosts
-  return `${repoUrl}/compare/${fromVersion}...${toVersion}`;
+  return `${repoUrl}/compare/${from}...${toVersion}`;
 }
 
 export type RawCategory = { category: string; entries: import('./types.js').ChangelogEntry[] };
@@ -139,7 +135,7 @@ export function buildOrderedCategories(
 export function createTemplateContext(pkg: PackageChangelog): TemplateContext {
   const compareUrl =
     pkg.repoUrl && pkg.previousVersion
-      ? generateCompareUrl(pkg.repoUrl, pkg.previousVersion, pkg.version, pkg.packageName)
+      ? generateCompareUrl(pkg.repoUrl, pkg.previousVersion, pkg.version, pkg.packageName, pkg.tag)
       : undefined;
 
   return {

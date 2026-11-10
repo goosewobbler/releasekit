@@ -68,7 +68,40 @@ describe('Pipeline: version output → markdown', () => {
     const contexts = input.packages.map(createTemplateContext);
     const markdown = renderMarkdown(contexts);
 
-    expect(markdown).toContain('[Full Changelog](https://github.com/acme/my-lib/compare/1.0.0...2.0.0)');
+    expect(markdown).toContain('[Full Changelog](https://github.com/acme/my-lib/compare/v1.0.0...v2.0.0)');
+  });
+
+  it('should link to the tag the changelog records', () => {
+    const input = parseVersionOutput(
+      JSON.stringify({
+        ...versionOutputFixture,
+        changelogs: [{ ...versionOutputFixture.changelogs[0], previousVersion: 'my-lib/1.0.0', tag: 'my-lib/2.0.0' }],
+        tags: ['other/1.0.0', 'my-lib/2.0.0'],
+      }),
+    );
+    const [ctx] = input.packages.map(createTemplateContext);
+
+    expect(ctx?.compareUrl).toBe('https://github.com/acme/my-lib/compare/my-lib/1.0.0...my-lib/2.0.0');
+  });
+
+  it.each([
+    [
+      "the update's tag",
+      { updates: [{ packageName: 'my-lib', newVersion: '2.0.0', filePath: 'package.json', tag: 'my-lib/2.0.0' }] },
+    ],
+    ['the only tag when there are no updates', { updates: undefined }],
+  ])('should fall back to %s for older version output', (_, extra) => {
+    const input = parseVersionOutput(
+      JSON.stringify({
+        ...versionOutputFixture,
+        ...extra,
+        changelogs: [{ ...versionOutputFixture.changelogs[0], previousVersion: 'my-lib/1.0.0' }],
+        tags: ['my-lib/2.0.0'],
+      }),
+    );
+    const [ctx] = input.packages.map(createTemplateContext);
+
+    expect(ctx?.compareUrl).toBe('https://github.com/acme/my-lib/compare/my-lib/1.0.0...my-lib/2.0.0');
   });
 
   it('should populate compareUrls in document context', () => {
@@ -77,17 +110,17 @@ describe('Pipeline: version output → markdown', () => {
     const doc = createDocumentContext(contexts, 'https://github.com/acme/my-lib');
 
     expect(doc.compareUrls).toBeDefined();
-    expect(doc.compareUrls?.['2.0.0']).toBe('https://github.com/acme/my-lib/compare/1.0.0...2.0.0');
+    expect(doc.compareUrls?.['2.0.0']).toBe('https://github.com/acme/my-lib/compare/v1.0.0...v2.0.0');
   });
 });
 
 describe('compareUrl: platform detection', () => {
-  function makeCtx(repoUrl: string) {
+  function makeCtx(repoUrl: string, previousVersion = 'v1.0.0') {
     return createTemplateContext({
       packageName: 'pkg',
       version: '2.0.0',
-      previousVersion: 'v1.0.0',
-      revisionRange: 'v1.0.0..HEAD',
+      previousVersion,
+      revisionRange: `${previousVersion}..HEAD`,
       repoUrl,
       date: '2026-01-01',
       entries: [],
@@ -96,17 +129,29 @@ describe('compareUrl: platform detection', () => {
 
   it('should generate GitHub compare URL', () => {
     const ctx = makeCtx('https://github.com/org/repo');
-    expect(ctx.compareUrl).toBe('https://github.com/org/repo/compare/1.0.0...2.0.0');
+    expect(ctx.compareUrl).toBe('https://github.com/org/repo/compare/v1.0.0...v2.0.0');
   });
 
   it('should generate GitLab compare URL', () => {
     const ctx = makeCtx('https://gitlab.com/org/repo');
-    expect(ctx.compareUrl).toBe('https://gitlab.com/org/repo/-/compare/1.0.0...2.0.0');
+    expect(ctx.compareUrl).toBe('https://gitlab.com/org/repo/-/compare/v1.0.0...v2.0.0');
   });
 
   it('should generate Bitbucket compare URL', () => {
     const ctx = makeCtx('https://bitbucket.org/org/repo');
-    expect(ctx.compareUrl).toBe('https://bitbucket.org/org/repo/branches/compare/1.0.0..2.0.0');
+    expect(ctx.compareUrl).toBe('https://bitbucket.org/org/repo/branches/compare/v1.0.0..v2.0.0');
+  });
+
+  it('should keep unprefixed tags unprefixed', () => {
+    expect(makeCtx('https://github.com/org/repo', '1.0.0').compareUrl).toBe(
+      'https://github.com/org/repo/compare/1.0.0...2.0.0',
+    );
+    expect(makeCtx('https://gitlab.com/org/repo', '1.0.0').compareUrl).toBe(
+      'https://gitlab.com/org/repo/-/compare/1.0.0...2.0.0',
+    );
+    expect(makeCtx('https://bitbucket.org/org/repo', '1.0.0').compareUrl).toBe(
+      'https://bitbucket.org/org/repo/branches/compare/1.0.0..2.0.0',
+    );
   });
 
   it('should generate compare URL for package-specific version tags', () => {
