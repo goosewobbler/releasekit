@@ -346,6 +346,18 @@ describe('loadPublishConfig', () => {
     const result = loadPublishConfig();
     expect(result?.git?.skipHooks).toBe(false);
   });
+
+  it('should allow publish git to override top-level formatCommand', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        git: { formatCommand: 'biome format --write' },
+        publish: { git: { formatCommand: 'prettier --write' } },
+      }),
+    );
+
+    expect(loadPublishConfig().git?.formatCommand).toBe('prettier --write');
+  });
 });
 
 describe('loadNotesConfig', () => {

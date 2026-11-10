@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { runFormatCommand } from '@releasekit/config';
 import { info, success } from '@releasekit/core';
 import { createGitCli, type Git } from '@releasekit/git';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
@@ -63,6 +64,23 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
     if (filePaths.length === 0) {
       info('No files to commit');
       return;
+    }
+
+    const { formatCommand } = config.git;
+    if (formatCommand) {
+      const files = [...new Set(filePaths)].map((f) => path.relative(cwd, f));
+      if (dryRun) {
+        info(`[DRY RUN] Would run git.formatCommand on ${files.length} file(s)`);
+      } else {
+        try {
+          await runFormatCommand(formatCommand, files, cwd);
+        } catch (error) {
+          throw createPublishError(
+            PublishErrorCode.GIT_COMMIT_ERROR,
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }
     }
 
     try {

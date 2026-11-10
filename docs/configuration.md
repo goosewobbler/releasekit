@@ -37,6 +37,7 @@ Git configuration.
 | `push` | boolean | — | Whether to push changes to remote |
 | `httpsTokenEnv` | string | — | Environment variable name containing a GitHub token for HTTPS pushes |
 | `skipHooks` | boolean | — | Skip Git hooks when committing |
+| `formatCommand` | string | — | Formatter to run on the files a release writes, before committing them, e.g. `biome format --write`. ReleaseKit appends the changelog, manifest and lockfile paths and runs the command without a shell, so quote an argument that contains spaces. Pass a flag that skips files the formatter can't handle, e.g. Prettier's `--ignore-unknown`. A non-zero exit fails the release before anything is committed. |
 
 ---
 
@@ -164,6 +165,7 @@ Git publishing options.
 | `branch` | string | — | Branch name override |
 | `httpsTokenEnv` | string | — | Environment variable name containing a GitHub token for HTTPS pushes |
 | `skipHooks` | boolean | — | Skip Git hooks when committing |
+| `formatCommand` | string | — | Format command override |
 
 ### `publish.npm`
 

@@ -32,6 +32,7 @@ export interface GitConfig {
   branch: string | undefined;
   httpsTokenEnv?: string;
   skipHooks?: boolean;
+  formatCommand?: string;
 }
 
 export interface GitHubReleaseConfig {
@@ -167,6 +168,7 @@ export function toPublishConfig(config: BasePublishConfig): PublishConfig {
       branch: git?.branch,
       httpsTokenEnv: git?.httpsTokenEnv,
       skipHooks: git?.skipHooks ?? false,
+      formatCommand: git?.formatCommand,
     },
     githubRelease,
     verify,

@@ -168,6 +168,7 @@ export function loadPublishConfig(options?: LoadOptions): PublishConfig {
           branch: mergedGit.branch,
           httpsTokenEnv: mergedGit.httpsTokenEnv,
           skipHooks: mergedGit.skipHooks,
+          formatCommand: mergedGit.formatCommand,
         }
       : undefined,
   };

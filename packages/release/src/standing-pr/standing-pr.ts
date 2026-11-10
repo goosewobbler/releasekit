@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
+import { type CIConfig, loadConfig as loadReleaseKitConfig, runFormatCommand } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
 import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
 import { VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
@@ -240,8 +240,18 @@ function safeStandingPrTitle(rendered: string, skipPatterns: string[]): string {
   return title;
 }
 
-async function commitAndForcePush(branch: string, subject: string, cwd: string, skipHooks: boolean): Promise<void> {
+async function commitAndForcePush(
+  branch: string,
+  subject: string,
+  cwd: string,
+  skipHooks: boolean,
+  formatCommand: string | undefined,
+): Promise<void> {
   const git = createGitCli();
+  if (formatCommand) {
+    // The branch was just reset to the base, so every change is a file this update wrote.
+    await runFormatCommand(formatCommand, await git.lsFiles({ changed: true, cwd }), cwd);
+  }
   await git.addAll(cwd);
 
   const status = (await git.status({ porcelain: true, cwd })).trim();
@@ -254,7 +264,7 @@ async function commitAndForcePush(branch: string, subject: string, cwd: string, 
 
 /**
  * Commits the publish-time LLM-enhanced notes, so the release tags created next land on a commit that includes them.
- * Never throws: the caller's catch is for LLM failures and would misreport a git error as one.
+ * Never throws: a failed notes commit only warns, and the publish goes ahead.
  */
 async function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: string): Promise<void> {
   if (files.length === 0) {
@@ -1223,7 +1233,13 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const title = safeStandingPrTitle(renderedTitle, skipPatterns);
   info(`Committing and pushing '${branch}'...`);
-  await commitAndForcePush(branch, title, cwd, releaseKitConfig.git?.skipHooks ?? false);
+  await commitAndForcePush(
+    branch,
+    title,
+    cwd,
+    releaseKitConfig.git?.skipHooks ?? false,
+    releaseKitConfig.git?.formatCommand,
+  );
 
   const releaseBranchSha = await getHeadSha(cwd);
 
@@ -1611,21 +1627,26 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   let releaseNotes: Record<string, string> = {};
   let notesFiles: string[] = [...manifest.notesFiles];
+  // Changelogs are already on main from the merge; only new per-version notes files need committing.
+  let newFiles: string[] = [];
   try {
     info('Generating release notes (with LLM enhancement)...');
     const notesResult = await runNotesStep(manifest.versionOutput, notesGenerationOptions);
     releaseNotes = notesResult.releaseNotes ?? {};
-    // Changelogs are already on main from the merge; only new per-version notes files need committing.
-    const newFiles = notesResult.files.filter((f) => !manifest.notesFiles.includes(f));
+    newFiles = notesResult.files.filter((f) => !manifest.notesFiles.includes(f));
     notesFiles = [...notesFiles, ...newFiles];
-
-    // So main matches the GitHub release body.
-    if (newFiles.length > 0) {
-      await commitNotesFiles(newFiles, manifest.versionOutput, cwd);
-    }
   } catch (err) {
     warn(`Release notes generation failed: ${err instanceof Error ? err.message : String(err)}`);
     warn('Publish will proceed with empty release notes; GitHub release will use auto-generated notes.');
+  }
+
+  // So main matches the GitHub release body.
+  if (newFiles.length > 0) {
+    const formatCommand = releaseKitConfig.git?.formatCommand;
+    if (formatCommand) {
+      await runFormatCommand(formatCommand, newFiles, cwd);
+    }
+    await commitNotesFiles(newFiles, manifest.versionOutput, cwd);
   }
 
   // Outside the try so edited notes survive a regeneration failure.

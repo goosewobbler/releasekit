@@ -1,5 +1,6 @@
 export { type CargoManifest, isCargoToml, isCratePublishable, parseCargoToml } from './cargo.js';
 export { ConfigError } from './errors.js';
+export { runFormatCommand } from './formatCommand.js';
 export {
   type LoadOptions,
   loadCIConfig,

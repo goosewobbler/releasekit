@@ -68,6 +68,8 @@ export interface GitForEachRefOptions {
 export interface GitLsFilesOptions {
   /** Pathspec magic such as `:(top,glob)` is allowed. */
   paths?: string[];
+  /** Only modified and untracked files, leaving out ignored ones. */
+  changed?: boolean;
   cwd?: string;
 }
 
