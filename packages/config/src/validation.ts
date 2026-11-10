@@ -75,7 +75,7 @@ export function rememberUnsetEnv(config: unknown, unsetEnv: UnsetEnvReference[])
   }
 }
 
-/** Carries `from`'s unset references to `to`, a copy of it built after load. */
+/** For an object copied after load, so `assertLlmModel` can still name its unset variable. */
 export function copyUnsetEnv(from: object, to: object): void {
   const refs = unsetEnvByOwner.get(from);
   if (refs) {
@@ -83,7 +83,6 @@ export function copyUnsetEnv(from: object, to: object): void {
   }
 }
 
-/** Whether a notes run calls the LLM: at least one task is on, and neither CHANGELOG_NO_LLM nor the run skips it. */
 export function runsLlmTasks(llm: { tasks?: object } | undefined, skipReleaseNotes?: boolean): boolean {
   return (
     llm !== undefined &&

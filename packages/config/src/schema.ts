@@ -459,7 +459,7 @@ const LLMConfigBaseSchema = z.object({
     .min(1, 'model must be a non-empty string — set it to a model the provider serves.')
     .optional()
     .describe(
-      'Model identifier for the selected provider; releasekit ships no default. Required when a run uses the LLM, and only checked then, so runs that skip release notes work without it.',
+      'Model identifier for the selected provider; releasekit ships no default. Checked only when a run calls the LLM, so other runs work without it.',
     ),
   baseURL: z.string().optional().describe('Custom API base URL. Required for the openai-compatible provider.'),
   apiKey: z.string().optional().describe('API key'),

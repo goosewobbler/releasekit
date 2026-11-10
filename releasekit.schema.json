@@ -718,7 +718,7 @@
                     "model": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "Model identifier for the selected provider; releasekit ships no default. Required when a run uses the LLM, and only checked then, so runs that skip release notes work without it."
+                      "description": "Model identifier for the selected provider; releasekit ships no default. Checked only when a run calls the LLM, so other runs work without it."
                     },
                     "baseURL": {
                       "type": "string",
