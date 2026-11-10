@@ -16,6 +16,7 @@ import {
   type VersionConfig,
 } from './schema.js';
 import { substituteInObject } from './substitute.js';
+import { rememberUnsetEnv, type UnsetEnvReference, zodConfigError } from './validation.js';
 
 export interface LoadOptions {
   cwd?: string;
@@ -117,22 +118,26 @@ function loadConfigFile(configPath: string): ReleaseKitConfig {
     return {};
   }
 
+  const unsetEnv: UnsetEnvReference[] = [];
   try {
     const content = fs.readFileSync(configPath, 'utf-8');
     const parsed = parseJsonc(content);
     // Confine {file:} substitution to the config file's directory so a config can't read files outside the tree.
-    const substituted = substituteInObject(parsed, path.dirname(configPath));
+    const substituted = substituteInObject(parsed, path.dirname(configPath), (refPath, name) =>
+      unsetEnv.push({ path: refPath, name }),
+    );
     // Zod would silently strip removed keys (diverging from the JSON schema, which rejects them) and could turn off
     // a user's file output without a word, so fail loudly with migration guidance.
     assertNoRemovedReleaseNotesFields(substituted);
     assertNoRemovedVersionFields(substituted);
     assertNoRemovedTopLevelFields(substituted);
     assertNoRemovedMonorepoMode(substituted);
-    return ReleaseKitConfigSchema.parse(substituted);
+    const config = ReleaseKitConfigSchema.parse(substituted);
+    rememberUnsetEnv(config, unsetEnv);
+    return config;
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      const issues = error.issues.map((i: z.ZodIssue) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
-      throw new ConfigError(`Config validation errors:\n${issues}`);
+      throw zodConfigError(error, unsetEnv);
     }
     if (error instanceof SyntaxError) {
       throw new ConfigError(`Invalid JSON in config file: ${error.message}`);

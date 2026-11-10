@@ -49,7 +49,7 @@ export interface CategorizedEntries {
 }
 
 export function createProvider(config: LLMConfig): LLMProvider {
-  // The Zod schema enforces this at config load; this guard covers configs assembled in-process.
+  // runPipeline checks this before any LLM task; this guard covers direct callers.
   if (!config.model) {
     throw new LLMError(
       `llm.model is required for the '${config.provider}' provider — set it to a model the provider serves.`,

@@ -22,6 +22,7 @@ This is an internal package that handles configuration loading, schema validatio
 | `loadGitConfig(options)` | Load shared git config |
 | `loadMonorepoConfig(options)` | Load monorepo config |
 | `loadCIConfig(options)` | Load CI automation config |
+| `assertLlmModel(llm)` | Throw a `ConfigError` naming `llm.model` (and its unset `{env:}` variable) if it's missing; call before running an LLM task |
 
 ### Schema Types
 
@@ -48,7 +49,7 @@ This is an internal package that handles configuration loading, schema validatio
 | Export | Description |
 |--------|-------------|
 | `parseJsonc(content)` | Parse JSON with comments |
-| `substituteInObject(obj, rootDir)` | Substitute `{env:VAR}` and `{file:path}` (file reads confined to `rootDir`) |
+| `substituteInObject(obj, rootDir, onUnsetEnv?)` | Substitute `{env:VAR}` and `{file:path}` (file reads confined to `rootDir`); `onUnsetEnv` gets the path of each sole `{env:}` reference left unset |
 | `deepMerge(target, source)` | Deep merge objects |
 | `mergeGitConfig(top, pkg)` | Merge git config layers |
 

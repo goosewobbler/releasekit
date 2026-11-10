@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { assertLlmModel } from '@releasekit/config';
 import { type ChangelogRefsMode, debug, info, parseGitHubOwnerRepo, success, warn } from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
 import { withContentHashCache } from '../llm/cache.js';
@@ -173,7 +174,7 @@ export function createDocumentContext(contexts: TemplateContext[], repoUrl?: str
 
 async function processWithLLM(
   context: TemplateContext,
-  llmConfig: LLMConfig,
+  llmConfig: LLMConfig & { model: string },
   examples: Example[],
   packageNames: string[],
 ): Promise<TemplateContext> {
@@ -393,6 +394,7 @@ export async function runPipeline(
 
   const llmConfig = releaseNotesConfig?.llm;
   if (llmConfig && !process.env.CHANGELOG_NO_LLM && !pipelineOptions?.skipReleaseNotes) {
+    assertLlmModel(llmConfig);
     info('Processing with LLM enhancement');
 
     const examplesCount = llmConfig.examples ?? 3;

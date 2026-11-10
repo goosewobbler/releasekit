@@ -152,7 +152,7 @@ export interface TemplateConfig {
 
 export interface LLMConfig {
   provider: 'openai' | 'openai-compatible' | 'anthropic' | 'ollama';
-  model: string;
+  model?: string;
   baseURL?: string;
   apiKey?: string;
   options?: {

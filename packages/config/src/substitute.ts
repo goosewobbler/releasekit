@@ -46,31 +46,42 @@ export function substituteVariables(value: string, rootDir: string = process.cwd
   return result;
 }
 
-const SOLE_REFERENCE_PATTERN = /^\{(?:env|file):[^}]+\}$/;
+const SOLE_REFERENCE_PATTERN = /^\{(env|file):([^}]+)\}$/;
 
-export function substituteInObject<T>(obj: T, rootDir: string = process.cwd()): T {
-  if (typeof obj === 'string') {
-    const result = substituteVariables(obj, rootDir);
+type UnsetEnvHandler = (path: PropertyKey[], name: string) => void;
+
+/** `onUnsetEnv` gets the path of each value that was a sole `{env:NAME}` reference to an unset or empty variable. */
+export function substituteInObject<T>(obj: T, rootDir: string = process.cwd(), onUnsetEnv?: UnsetEnvHandler): T {
+  return substituteAt(obj, rootDir, [], onUnsetEnv) as T;
+}
+
+function substituteAt(value: unknown, rootDir: string, path: PropertyKey[], onUnsetEnv?: UnsetEnvHandler): unknown {
+  if (typeof value === 'string') {
+    const result = substituteVariables(value, rootDir);
+    const sole = SOLE_REFERENCE_PATTERN.exec(value);
     // A sole reference that resolved to nothing becomes undefined so downstream ?? fallbacks apply.
-    if (result === '' && SOLE_REFERENCE_PATTERN.test(obj)) {
-      return undefined as T;
+    if (result === '' && sole) {
+      if (sole[1] === 'env') {
+        onUnsetEnv?.(path, sole[2]);
+      }
+      return undefined;
     }
-    return result as T;
+    return result;
   }
 
-  if (Array.isArray(obj)) {
-    return obj.map((item) => substituteInObject(item, rootDir)) as T;
+  if (Array.isArray(value)) {
+    return value.map((item, index) => substituteAt(item, rootDir, [...path, index], onUnsetEnv));
   }
 
-  if (obj && typeof obj === 'object') {
+  if (value && typeof value === 'object') {
     const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      result[key] = substituteInObject(value, rootDir);
+    for (const [key, item] of Object.entries(value)) {
+      result[key] = substituteAt(item, rootDir, [...path, key], onUnsetEnv);
     }
-    return result as T;
+    return result;
   }
 
-  return obj;
+  return value;
 }
 
 const AUTH_DIR = path.join(os.homedir(), '.config', 'releasekit');

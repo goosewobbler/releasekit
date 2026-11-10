@@ -132,7 +132,7 @@ export function createNotesCommand(): Command {
               };
             }
 
-            // Validate so a bad --llm-provider or a missing --llm-model fails loud here instead of being
+            // Validate so a bad --llm-provider or --llm-base-url fails loud here instead of being
             // swallowed by the pipeline's soft-fail as a silent degradation to non-LLM notes.
             let validatedLlm: import('./core/types.js').LLMConfig;
             try {
