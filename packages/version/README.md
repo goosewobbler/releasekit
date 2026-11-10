@@ -135,22 +135,7 @@ Configure via `releasekit.config.json`:
 }
 ```
 
-### Key Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `preset` | Commit convention preset: `"conventionalcommits"` or `"angular"` | `"conventionalcommits"` |
-| `versionPrefix` | Tag version prefix | `"v"` |
-| `tagTemplate` | Git tag template | `"${prefix}${version}"` |
-| `commitMessage` | Commit message template | `"chore: release ${packageName} v${version}"` |
-| `sync` | Version all packages together | `false` |
-| `packages` | Package name patterns to include | all |
-| `skip` | Package name patterns to exclude | `[]` |
-| `mainPackage` | Package to drive version calculation | — |
-| `packageSpecificTags` | Create per-package tags | `false` |
-| `strictReachable` | Only use reachable git tags | `false` |
-| `cargo.enabled` | Update Cargo.toml files | `true` |
-| `cargo.paths` | Directories containing Cargo.toml | auto-detect |
+Every `version.*` key and its default is in the [configuration reference](../../docs/configuration.md#version).
 
 ## Using in CI
 

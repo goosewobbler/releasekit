@@ -123,6 +123,33 @@ function emitBlank(): void {
   lines.push('');
 }
 
+function objectSchema(prop: SchemaProperty): SchemaProperty | undefined {
+  if (prop.type === 'object' && prop.properties) {
+    return prop;
+  }
+  return prop.oneOf?.find((s) => s.type === 'object' && s.properties);
+}
+
+/** Scalar keys go in one table; each object-valued key gets its own section rather than an opaque `object` row. */
+function renderProps(path: string, properties: Record<string, SchemaProperty>, level: number): void {
+  const scalars = Object.fromEntries(Object.entries(properties).filter(([, p]) => !objectSchema(p)));
+  if (Object.keys(scalars).length > 0) {
+    emit(propsTable(scalars));
+    emitBlank();
+  }
+  for (const [key, prop] of Object.entries(properties)) {
+    const obj = objectSchema(prop);
+    if (!obj) {
+      continue;
+    }
+    emit(`${'#'.repeat(level)} \`${path}.${key}\``, '');
+    if (prop.description) {
+      emit(ensurePeriod(prop.description), '');
+    }
+    renderProps(`${path}.${key}`, obj.properties ?? {}, Math.min(level + 1, 6));
+  }
+}
+
 function renderGit(prop: SchemaProperty): void {
   emit('## `git`', '');
   emit(ensurePeriod(prop.description), '');
@@ -141,9 +168,8 @@ function renderVersion(prop: SchemaProperty): void {
   emit('## `version`', '');
   emit(ensurePeriod(prop.description), '');
 
-  const topProps = Object.fromEntries(
-    Object.entries(prop.properties ?? {}).filter(([k]) => k !== 'cargo' && k !== 'groups'),
-  );
+  const sectioned = ['groups', 'npm', 'cargo', 'pub'];
+  const topProps = Object.fromEntries(Object.entries(prop.properties ?? {}).filter(([k]) => !sectioned.includes(k)));
   emit(propsTable(topProps));
   emitBlank();
 
@@ -218,20 +244,14 @@ function renderVersion(prop: SchemaProperty): void {
     );
   }
 
-  const npm = prop.properties?.npm;
-  if (npm) {
-    emit('### `version.npm`', '');
-    emit(ensurePeriod(npm.description), '');
-    emit(propsTable(npm.properties ?? {}));
-    emitBlank();
-  }
-
-  const cargo = prop.properties?.cargo;
-  if (cargo) {
-    emit('### `version.cargo`', '');
-    emit(ensurePeriod(cargo.description), '');
-    emit(propsTable(cargo.properties ?? {}));
-    emitBlank();
+  for (const key of ['npm', 'cargo', 'pub']) {
+    const ecosystem = prop.properties?.[key];
+    if (ecosystem) {
+      emit(`### \`version.${key}\``, '');
+      emit(ensurePeriod(ecosystem.description), '');
+      emit(propsTable(ecosystem.properties ?? {}));
+      emitBlank();
+    }
   }
 }
 
@@ -286,25 +306,14 @@ function renderPublish(prop: SchemaProperty): void {
     emit(ensurePeriod(verify.description), '');
     emitBlank();
 
-    const verifyNpm = verify.properties?.npm;
-    if (verifyNpm) {
-      emit('#### `publish.verify.npm`', '');
-      emit(propsTable(verifyNpm.properties ?? {}));
-      emitBlank();
-    }
-
-    const verifyCargo = verify.properties?.cargo;
-    if (verifyCargo) {
-      emit('#### `publish.verify.cargo`', '');
-      emit(propsTable(verifyCargo.properties ?? {}));
-      emitBlank();
-    }
-
-    const verifyPub = verify.properties?.pub;
-    if (verifyPub) {
-      emit('#### `publish.verify.pub`', '');
-      emit(propsTable(verifyPub.properties ?? {}));
-      emitBlank();
+    for (const key of ['npm', 'cargo', 'pub']) {
+      const registry = verify.properties?.[key];
+      if (registry) {
+        emit(`#### \`publish.verify.${key}\``, '');
+        emit(ensurePeriod(registry.description), '');
+        emit(propsTable(registry.properties ?? {}));
+        emitBlank();
+      }
     }
   }
 }
@@ -315,86 +324,25 @@ function renderOneOfBooleanObject(key: string, schemaProp: SchemaProperty): void
     return;
   }
 
-  emit('Set to `false` to disable.', '');
-
-  const topProps = Object.fromEntries(
-    Object.entries(objSchema.properties ?? {}).filter(([k]) => k !== 'templates' && k !== 'llm'),
-  );
-  if (Object.keys(topProps).length > 0) {
-    emit(propsTable(topProps));
-    emitBlank();
+  if (schemaProp.description) {
+    emit(ensurePeriod(schemaProp.description), '');
   }
 
-  const tpl = objSchema.properties?.templates;
-  if (tpl) {
-    emit(`**\`${key}.templates\`** — ${ensurePeriod(tpl.description)}`, '');
-    emit(propsTable(tpl.properties ?? {}));
-    emitBlank();
-  }
+  const props = Object.fromEntries(Object.entries(objSchema.properties ?? {}).filter(([k]) => k !== 'llm'));
+  renderProps(key, props, 4);
 }
 
 function renderLlm(llm: SchemaProperty): void {
   emit('### `notes.releaseNotes.llm`', '');
   emit(ensurePeriod(llm.description), '');
-  emitBlank();
 
-  const skip = new Set(['options', 'tasks', 'categories', 'scopes', 'retry', 'prompts']);
-  const topProps = Object.fromEntries(Object.entries(llm.properties ?? {}).filter(([k]) => !skip.has(k)));
-  emit(propsTable(topProps));
-  emitBlank();
+  const { categories, ...props } = llm.properties ?? {};
+  renderProps('notes.releaseNotes.llm', props, 4);
 
-  const options = llm.properties?.options;
-  if (options) {
-    emit('#### `notes.releaseNotes.llm.options`', '');
-    emit(propsTable(options.properties ?? {}));
-    emitBlank();
-  }
-
-  const tasks = llm.properties?.tasks;
-  if (tasks) {
-    emit('#### `notes.releaseNotes.llm.tasks`', '');
-    emit('Enable or disable individual LLM processing tasks.', '');
-    emit(propsTable(tasks.properties ?? {}));
-    emitBlank();
-  }
-
-  const categories = llm.properties?.categories;
   if (categories?.items?.properties) {
     emit('#### `notes.releaseNotes.llm.categories`', '');
-    emit('Array of category objects used for commit categorization. Each item has:', '');
+    emit(`${ensurePeriod(categories.description)} Each item has:`, '');
     emit(propsTable(categories.items.properties));
-    emitBlank();
-  }
-
-  const scopes = llm.properties?.scopes;
-  if (scopes) {
-    emit('#### `notes.releaseNotes.llm.scopes`', '');
-    emit('Scope validation configuration.', '');
-    const scopesTopProps = Object.fromEntries(Object.entries(scopes.properties ?? {}).filter(([k]) => k !== 'rules'));
-    emit(propsTable(scopesTopProps));
-    emitBlank();
-
-    const rules = scopes.properties?.rules;
-    if (rules) {
-      emit('**`notes.releaseNotes.llm.scopes.rules`**', '');
-      emit(propsTable(rules.properties ?? {}));
-      emitBlank();
-    }
-  }
-
-  const retry = llm.properties?.retry;
-  if (retry) {
-    emit('#### `notes.releaseNotes.llm.retry`', '');
-    emit('Retry behaviour for failed LLM requests.', '');
-    emit(propsTable(retry.properties ?? {}));
-    emitBlank();
-  }
-
-  const prompts = llm.properties?.prompts;
-  if (prompts) {
-    emit('#### `notes.releaseNotes.llm.prompts`', '');
-    emit('Override built-in prompt instructions per task.', '');
-    emit(propsTable(prompts.properties ?? {}));
     emitBlank();
   }
 }
@@ -444,9 +392,7 @@ function renderCi(prop: SchemaProperty): void {
   const prPreview = prop.properties?.prPreview;
   if (prPreview?.oneOf) {
     emit('### `ci.prPreview`', '');
-    emit(ensurePeriod(prPreview.description), '');
     renderOneOfBooleanObject('ci.prPreview', prPreview);
-    emitBlank();
   }
 
   const labels = prop.properties?.labels;
@@ -461,8 +407,7 @@ function renderCi(prop: SchemaProperty): void {
   if (standingPr) {
     emit('### `ci.standingPr`', '');
     emit(ensurePeriod(standingPr.description), '');
-    emit(propsTable(standingPr.properties ?? {}));
-    emitBlank();
+    renderProps('ci.standingPr', standingPr.properties ?? {}, 4);
   }
 }
 
