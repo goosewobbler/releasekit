@@ -278,24 +278,39 @@ describe('release.liquid template', () => {
 });
 
 describe('Built-in templates', () => {
-  it.each(['keep-a-changelog', 'angular', 'github-release/release.md.ejs'])(
-    'should mark a breaking change in %s',
-    (name) => {
-      const ctx: DocumentContext = {
-        project: { name: 'test-pkg' },
-        versions: [
-          {
-            ...sampleContext,
-            entries: [{ type: 'fixed', description: 'Reject old presets', scope: 'config', breaking: true }],
-          },
+  const breakingCtx: DocumentContext = {
+    project: { name: 'test-pkg' },
+    versions: [
+      {
+        ...sampleContext,
+        entries: [
+          { type: 'fixed', description: 'Patch serializer' },
+          { type: 'fixed', description: 'Reject old presets', scope: 'config', breaking: true },
         ],
-      };
+      },
+    ],
+  };
 
-      const { content } = renderTemplate(path.join(process.cwd(), 'templates', name), ctx);
+  it.each(['keep-a-changelog', 'angular', 'github-release/release.md.ejs'])(
+    'should mark a breaking change and list it first in %s',
+    (name) => {
+      const { content } = renderTemplate(path.join(process.cwd(), 'templates', name), breakingCtx);
 
-      expect(content).toContain('- **BREAKING** **config**: Reject old presets');
+      const breaking = content.indexOf('- **BREAKING** **config**: Reject old presets');
+      expect(breaking).toBeGreaterThanOrEqual(0);
+      expect(breaking).toBeLessThan(content.indexOf('- Patch serializer'));
+      expect(content.split('Reject old presets').length - 1).toBe(1);
     },
   );
+
+  it('should list a breaking change under a leading Breaking section in keep-a-changelog', () => {
+    const { content } = renderTemplate(path.join(process.cwd(), 'templates', 'keep-a-changelog'), breakingCtx);
+
+    const breakingHeading = content.indexOf('### Breaking');
+    expect(breakingHeading).toBeGreaterThanOrEqual(0);
+    expect(content.indexOf('Reject old presets')).toBeGreaterThan(breakingHeading);
+    expect(content.indexOf('Reject old presets')).toBeLessThan(content.indexOf('### Fixed'));
+  });
 });
 
 describe('Template Loader', () => {

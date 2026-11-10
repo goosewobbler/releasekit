@@ -1,6 +1,8 @@
+import { DEFAULT_DEMOTE_SCOPES } from '@releasekit/config';
 import {
   type ChangelogRefsMode,
   escapeChangelogMentions,
+  groupChangelogSections,
   neutralizeDescriptionRefs,
   renderIssueRefs,
   type VersionChangelogEntry,
@@ -9,30 +11,13 @@ import {
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration } from '../duration.js';
 import { MARKER } from '../github.js';
+import type { ChangelogRenderOptions } from '../standing-pr/changelog-region.js';
 import type { StandingPRSnapshot } from '../standing-pr/standing-pr.js';
 import type { ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay, syncVersionRange, toDisplayVersion } from '../version-display.js';
 import type { MergedRow } from './merge.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr';
-
-const TYPE_LABELS: Record<string, string> = {
-  added: 'Added',
-  changed: 'Changed',
-  fixed: 'Fixed',
-  security: 'Security',
-  docs: 'Documentation',
-  chore: 'Chores',
-  test: 'Tests',
-  feat: 'Features',
-  fix: 'Bug Fixes',
-  perf: 'Performance',
-  refactor: 'Refactoring',
-  style: 'Styles',
-  build: 'Build',
-  ci: 'CI',
-  revert: 'Reverts',
-};
 
 export interface LabelContext {
   trigger: 'commit' | 'label';
@@ -58,14 +43,13 @@ export interface LabelContext {
   immediate?: boolean;
 }
 
-export interface FormatOptions {
+export interface FormatOptions extends Partial<ChangelogRenderOptions> {
   strategy?: ReleaseStrategy;
   standingPrNumber?: number;
   standingPrSnapshot?: StandingPRSnapshot;
   mergedRows?: MergedRow[];
   labelContext?: LabelContext;
   supersedeWarning?: string[];
-  refs?: ChangelogRefsMode;
 }
 
 function getNoChangesMessage(strategy: ReleaseStrategy): string {
@@ -299,7 +283,10 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   const effectiveStrategy = labelContext?.immediate ? 'direct' : strategy;
   lines.push(getIntroMessage(effectiveStrategy, options?.standingPrNumber), '');
 
-  const refs = options?.refs ?? 'link';
+  const render: ChangelogRenderOptions = {
+    refs: options?.refs ?? 'link',
+    demoteScopes: options?.demoteScopes ?? DEFAULT_DEMOTE_SCOPES,
+  };
   // All packages share one repo, so any changelog's repoUrl serves the shared entries.
   const sharedRepoUrl = versionOutput.changelogs.find((cl) => cl.repoUrl)?.repoUrl ?? null;
   const sharedEntries = versionOutput.sharedEntries?.length ? versionOutput.sharedEntries : undefined;
@@ -316,13 +303,13 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
 
     if (sharedEntries) {
       lines.push('<details>', '<summary><b>Project-wide changes</b></summary>', '');
-      lines.push(...blockquote(renderEntries(sharedEntries, refs, sharedRepoUrl)));
+      lines.push(...blockquote(renderEntries(sharedEntries, render, sharedRepoUrl)));
       lines.push('', '</details>', '');
     }
 
     for (const changelog of versionOutput.changelogs) {
       if (hasRealEntries(changelog)) {
-        lines.push(...formatPackageChangelog(changelog, refs));
+        lines.push(...formatPackageChangelog(changelog, render));
       }
     }
 
@@ -458,49 +445,33 @@ function renderMergeTable(rows: MergedRow[]): string[] {
   return lines;
 }
 
-function renderEntries(entries: VersionChangelogEntry[], refs: ChangelogRefsMode, repoUrl: string | null): string[] {
-  const lines: string[] = [];
-  const grouped = new Map<string, VersionChangelogEntry[]>();
-  for (const entry of entries) {
-    if (!grouped.has(entry.type)) {
-      grouped.set(entry.type, []);
-    }
-    grouped.get(entry.type)?.push(entry);
-  }
-  const renderedTypes = new Set<string>();
-  for (const type of Object.keys(TYPE_LABELS)) {
-    const group = grouped.get(type);
-    if (group && group.length > 0) {
-      lines.push(...formatEntryGroup(type, group, refs, repoUrl));
-      renderedTypes.add(type);
-    }
-  }
-  for (const [type, group] of grouped) {
-    if (!renderedTypes.has(type) && group.length > 0) {
-      lines.push(...formatEntryGroup(type, group, refs, repoUrl));
-    }
-  }
-  return lines;
+function renderEntries(
+  entries: VersionChangelogEntry[],
+  { refs, demoteScopes }: ChangelogRenderOptions,
+  repoUrl: string | null,
+): string[] {
+  return groupChangelogSections(entries, (e) => e, { demoteScopes }).flatMap((section) =>
+    formatEntryGroup(section.label, section.items, refs, repoUrl),
+  );
 }
 
-function formatPackageChangelog(changelog: VersionPackageChangelog, refs: ChangelogRefsMode): string[] {
+function formatPackageChangelog(changelog: VersionPackageChangelog, render: ChangelogRenderOptions): string[] {
   const lines: string[] = [];
   const prevVersion = changelog.previousVersion ? toDisplayVersion(changelog.previousVersion) : 'N/A';
   const summary = `<b>${changelog.packageName}</b> ${prevVersion} → ${changelog.version}`;
 
   lines.push('<details>', `<summary>${summary}</summary>`, '');
-  lines.push(...blockquote(renderEntries(changelog.entries, refs, changelog.repoUrl)));
+  lines.push(...blockquote(renderEntries(changelog.entries, render, changelog.repoUrl)));
   lines.push('', '</details>', '');
   return lines;
 }
 
 function formatEntryGroup(
-  type: string,
+  label: string,
   entries: { description: string; scope?: string; issueIds?: string[]; prNumber?: string; breaking?: boolean }[],
   refs: ChangelogRefsMode,
   repoUrl: string | null,
 ): string[] {
-  const label = TYPE_LABELS[type] ?? capitalize(type);
   const lines: string[] = [`#### ${label}`, ''];
 
   for (const entry of entries) {
@@ -524,10 +495,6 @@ function formatEntryGroup(
 
   lines.push('');
   return lines;
-}
-
-function capitalize(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 /** Blank lines keep a bare `>` so the quote stays one contiguous block. */

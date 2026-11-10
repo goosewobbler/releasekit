@@ -219,6 +219,22 @@ describe('formatVersion: breaking changes section', () => {
     expect(result).toContain('- **BREAKING** Breaking change');
   });
 
+  it('should lead with a Breaking section without LLM categories', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      entries: [
+        { type: 'fixed', description: 'Patch serializer' },
+        { type: 'fixed', description: 'Reject the old preset', breaking: true },
+        { type: 'added', description: 'New flag' },
+      ],
+    });
+
+    expect(formatVersion(ctx)).toContain(
+      '### Breaking\n- **BREAKING** Reject the old preset\n\n### Added\n- New flag\n\n### Fixed\n- Patch serializer\n',
+    );
+  });
+
   it('should not render a Breaking section when no entries have breaking: true', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
 

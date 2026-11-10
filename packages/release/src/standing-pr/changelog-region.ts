@@ -1,7 +1,8 @@
-import { DEFAULT_DEMOTE_SCOPES } from '@releasekit/config';
+import { DEFAULT_DEMOTE_SCOPES, type ReleaseKitConfig } from '@releasekit/config';
 import {
   type ChangelogRefsMode,
   escapeChangelogMentions,
+  groupChangelogSections,
   neutralizeDescriptionRefs,
   renderIssueRefs,
   type VersionChangelogEntry,
@@ -15,39 +16,15 @@ import type { RowChangelogRenderer } from './selection-region.js';
  * change once. Both read structured entries and never parse prose.
  */
 
-/** Several types fold onto one label (feat/added → Added), so entries group by label, not raw type. */
-const CHANGELOG_TYPE_LABELS: Record<string, string> = {
-  feat: 'Added',
-  fix: 'Fixed',
-  added: 'Added',
-  changed: 'Changed',
-  fixed: 'Fixed',
-  perf: 'Performance',
-  refactor: 'Refactored',
-  security: 'Security',
-  docs: 'Documentation',
-  chore: 'Chores',
-  test: 'Tests',
-  build: 'Build',
-  ci: 'CI',
-  revert: 'Reverts',
-  style: 'Styles',
-};
+export interface ChangelogRenderOptions {
+  refs: ChangelogRefsMode;
+  demoteScopes: readonly string[];
+}
 
-const LABEL_ORDER: string[] = (() => {
-  const seen = new Set<string>();
-  const order: string[] = [];
-  for (const label of Object.values(CHANGELOG_TYPE_LABELS)) {
-    if (!seen.has(label)) {
-      seen.add(label);
-      order.push(label);
-    }
-  }
-  return order;
-})();
-
-function labelFor(type: string): string {
-  return CHANGELOG_TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1);
+/** `notes.changelog: false` gets the defaults: the standing PR and preview render changelogs regardless. */
+export function changelogRenderOptions(config: ReleaseKitConfig): ChangelogRenderOptions {
+  const changelog = config.notes?.changelog || undefined;
+  return { refs: changelog?.refs ?? 'link', demoteScopes: changelog?.demoteScopes ?? DEFAULT_DEMOTE_SCOPES };
 }
 
 interface AttributedEntry {
@@ -114,9 +91,6 @@ function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOpti
   return `- ${entry.breaking ? '**BREAKING** ' : ''}${description}${scope}${issues}${attr}`;
 }
 
-/** No "shared across packages" descriptor: it isn't reliably true (`Update version to X` is package-specific). */
-const DEMOTED_HEADING = 'Dependencies & version bumps';
-
 /** Demoted entries are moved, never removed, so the caller's de-duplicated change count still holds. */
 function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demoteScopes: readonly string[]): string[] {
   const distinct = new Set<string>();
@@ -127,55 +101,11 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
   }
   const attribution = distinct.size > 1;
 
-  const demote = demoteScopes.length > 0;
-  const promoted: DedupedEntry[] = [];
-  const demoted: DedupedEntry[] = [];
-  for (const d of deduped) {
-    if (demote && d.entry.scope !== undefined && demoteScopes.includes(d.entry.scope)) {
-      demoted.push(d);
-    } else {
-      promoted.push(d);
-    }
-  }
-
-  const byLabel = new Map<string, DedupedEntry[]>();
-  for (const d of promoted) {
-    const label = labelFor(d.entry.type);
-    let list = byLabel.get(label);
-    if (!list) {
-      list = [];
-      byLabel.set(label, list);
-    }
-    list.push(d);
-  }
-
   const lines: string[] = [];
-  const emit = (label: string): void => {
-    const list = byLabel.get(label);
-    if (!list?.length) {
-      return;
-    }
+  for (const section of groupChangelogSections(deduped, (d) => d.entry, { demoteScopes })) {
     // A heading, not bold: inside the blockquote bold text collapses to near-zero spacing between sections.
-    lines.push(`#### ${label}`, '');
-    for (const d of list) {
-      lines.push(entryLine(d, attribution, refOpts));
-    }
-    lines.push('');
-  };
-  const rendered = new Set<string>();
-  for (const label of LABEL_ORDER) {
-    emit(label);
-    rendered.add(label);
-  }
-  for (const label of byLabel.keys()) {
-    if (!rendered.has(label)) {
-      emit(label);
-    }
-  }
-  // Last, so low-signal dependency churn never crowds the user-facing changes.
-  if (demoted.length > 0) {
-    lines.push(`#### ${DEMOTED_HEADING}`, '');
-    for (const d of demoted) {
+    lines.push(`#### ${section.label}`, '');
+    for (const d of section.items) {
       lines.push(entryLine(d, attribution, refOpts));
     }
     lines.push('');

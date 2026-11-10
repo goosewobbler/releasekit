@@ -83,13 +83,20 @@ describe('changelog-region', () => {
       expect(footer).toContain('_(a, b)_');
     });
 
-    it('should mark a breaking change', () => {
+    it('should list a breaking change under a leading Breaking heading, not its commit type', () => {
       const footer = renderCombinedFooter(
         output({
-          changelogs: [cl('@scope/a', [{ type: 'fix', description: 'Reject the old preset', breaking: true }])],
+          changelogs: [
+            cl('@scope/a', [
+              { type: 'fix', description: 'Patch serializer' },
+              { type: 'fix', description: 'Reject the old preset', breaking: true },
+            ]),
+          ],
         }),
       );
-      expect(footer).toContain('- **BREAKING** Reject the old preset');
+      expect(footer).toContain(
+        '> #### Breaking\n>\n> - **BREAKING** Reject the old preset\n>\n> #### Fixed\n>\n> - Patch serializer',
+      );
     });
 
     it('should keep a breaking change apart from a non-breaking one with the same subject', () => {
@@ -378,6 +385,18 @@ describe('changelog-region', () => {
       const demoted = block.indexOf('#### Dependencies & version bumps');
       expect(demoted).toBeGreaterThan(block.indexOf('#### Added'));
       expect(demoted).toBeGreaterThan(block.indexOf('#### Fixed'));
+    });
+
+    it('should lead with a breaking change from a demoted scope instead of demoting it', () => {
+      const render = makeRowChangelogRenderer([
+        cl('@scope/app', [
+          { type: 'changed', description: 'bump lodash', scope: 'deps' },
+          { type: 'changed', description: 'require node 22', scope: 'deps', breaking: true },
+        ]),
+      ]);
+      expect(render(['@scope/app'], false, '')).toContain(
+        '> #### Breaking\n>\n> - **BREAKING** require node 22 (`deps`)\n>\n> #### Dependencies & version bumps\n>\n> - bump lodash (`deps`)',
+      );
     });
 
     it('should give the demoted subsection a bare heading — no count, no descriptor', () => {

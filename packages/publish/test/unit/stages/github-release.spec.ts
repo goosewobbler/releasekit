@@ -263,7 +263,7 @@ describe('github-release stage', () => {
     expect(args).not.toContain('--notes');
   });
 
-  it('should mark a breaking change in a changelog body', async () => {
+  it('should mark a breaking change and list it first in a changelog body', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const config = getDefaultConfig();
     config.githubRelease.body = 'changelog';
@@ -280,7 +280,10 @@ describe('github-release stage', () => {
             previousVersion: '0.9.0',
             revisionRange: 'v0.9.0..HEAD',
             repoUrl: null,
-            entries: [{ type: 'fixed', description: 'Reject the old preset', scope: 'config', breaking: true }],
+            entries: [
+              { type: 'fixed', description: 'Patch serializer' },
+              { type: 'fixed', description: 'Reject the old preset', scope: 'config', breaking: true },
+            ],
           },
         ],
         tags: ['pkg-a@v1.0.0'],
@@ -298,7 +301,9 @@ describe('github-release stage', () => {
     await runGithubReleaseStage(ctx);
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args[args.indexOf('--notes') + 1]).toBe('- **BREAKING** **config:** Reject the old preset');
+    expect(args[args.indexOf('--notes') + 1]).toBe(
+      '- **BREAKING** **config:** Reject the old preset\n- Patch serializer',
+    );
   });
 
   it('should match sanitized tag format (scope-pkg-vX.Y.Z) to scoped package name', async () => {

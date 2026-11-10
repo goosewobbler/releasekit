@@ -138,7 +138,7 @@ When no custom template is configured, the built-in markdown renderer applies th
 
 **Scope grouping:** Within a category, entries sharing the same scope value (two or more) are rendered under a `**scope**:` group header. Entries with a unique scope render with the scope inline (`**scope**: description`). Entries with no scope render as plain bullets.
 
-**Breaking change re-routing:** Any entry with `breaking: true` is moved to a `Breaking` category at render time, regardless of which category the LLM assigned it to. If no `Breaking` category exists, one is created and prepended before all other categories.
+**Breaking change re-routing:** Any entry with `breaking: true` is moved to a `Breaking` category at render time, regardless of which category the LLM assigned it to. If no `Breaking` category exists, one is created and prepended before all other categories. Output without LLM categories gets the same leading `Breaking` section.
 
 **`leadIn` prefix:** Entries with a `leadIn` value render as `**leadIn**: description`. Combined with `breaking: true`, the format is `**BREAKING** **leadIn**: description`.
 

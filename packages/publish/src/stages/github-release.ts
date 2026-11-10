@@ -1,5 +1,14 @@
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
-import { assertNotOption, debug, info, matchesPackageName, sanitizePackageName, success, warn } from '@releasekit/core';
+import {
+  assertNotOption,
+  breakingFirst,
+  debug,
+  info,
+  matchesPackageName,
+  sanitizePackageName,
+  success,
+  warn,
+} from '@releasekit/core';
 import type { GitHubReleaseResult, PipelineContext } from '../types.js';
 import { execCommand, execCommandSafe } from '../utils/exec.js';
 import { isPrerelease } from '../utils/semver.js';
@@ -189,7 +198,7 @@ function formatChangelogForTag(release: ReleaseTag): string | undefined {
   }
 
   const lines: string[] = [];
-  for (const entry of target.entries) {
+  for (const entry of breakingFirst(target.entries)) {
     const scope = entry.scope ? `**${entry.scope}:** ` : '';
     lines.push(`- ${entry.breaking ? '**BREAKING** ' : ''}${scope}${entry.description}`);
   }

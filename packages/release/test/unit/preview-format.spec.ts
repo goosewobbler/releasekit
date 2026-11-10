@@ -213,7 +213,7 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('- Migrate to Vitest');
   });
 
-  it('should mark a breaking change', () => {
+  it('should list a breaking change under a leading Breaking heading', () => {
     const output = structuredClone(releaseOutput);
     const entry = output.versionOutput.changelogs
       .flatMap((c) => c.entries)
@@ -222,7 +222,44 @@ describe('formatPreviewComment', () => {
       entry.breaking = true;
     }
 
-    expect(formatPreviewComment(output)).toContain('- **BREAKING** New dry-run flag (`cli`)');
+    const comment = formatPreviewComment(output);
+    expect(comment).toContain('> #### Breaking\n>\n> - **BREAKING** New dry-run flag (`cli`)');
+    expect(comment.split('New dry-run flag').length - 1).toBe(1);
+  });
+
+  it('should group conventional types under the same labels as the standing PR', () => {
+    const output = structuredClone(releaseOutput);
+    const changelog = output.versionOutput.changelogs[0];
+    if (changelog) {
+      changelog.entries = [
+        { type: 'feat', description: 'Conventional feature' },
+        { type: 'added', description: 'Keep-a-changelog feature' },
+        { type: 'fix', description: 'Conventional fix' },
+      ];
+    }
+
+    const comment = formatPreviewComment(output);
+    expect(comment).toContain('> #### Added\n>\n> - Conventional feature\n> - Keep-a-changelog feature');
+    expect(comment).toContain('> #### Fixed\n>\n> - Conventional fix');
+    expect(comment).not.toContain('#### Features');
+    expect(comment).not.toContain('#### Bug Fixes');
+  });
+
+  it('should demote deps-scoped entries into a trailing subsection, as the standing PR does', () => {
+    const output = structuredClone(releaseOutput);
+    const changelog = output.versionOutput.changelogs[0];
+    if (changelog) {
+      changelog.entries = [
+        { type: 'changed', description: 'Bump lodash', scope: 'deps' },
+        { type: 'fix', description: 'Conventional fix' },
+      ];
+    }
+
+    const comment = formatPreviewComment(output);
+    expect(comment).toContain(
+      '> #### Fixed\n>\n> - Conventional fix\n>\n> #### Dependencies & version bumps\n>\n> - Bump lodash (`deps`)',
+    );
+    expect(formatPreviewComment(output, { demoteScopes: [] })).toContain('> #### Changed\n>\n> - Bump lodash (`deps`)');
   });
 
   it('should render bare #NNN refs per the refs mode', () => {

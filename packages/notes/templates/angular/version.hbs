@@ -4,5 +4,12 @@
 {{/if}}
 
 {{#each entries}}
+{{#if breaking}}
 {{> entry}}
+{{/if}}
+{{/each}}
+{{#each entries}}
+{{#unless breaking}}
+{{> entry}}
+{{/unless}}
 {{/each}}

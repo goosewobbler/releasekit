@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { type CIConfig, DEFAULT_DEMOTE_SCOPES, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
+import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
 import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
 import { VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
@@ -26,7 +26,7 @@ import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
-import { makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
+import { changelogRenderOptions, makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
 import { extractNotesRegions, mergeNotesRegions, notesRegionKeys, renderNotesRegion } from './notes-region.js';
 import {
   type ChannelToggleConfig,
@@ -874,10 +874,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const branch = standingPrConfig?.branch ?? 'release/next';
   const base = releaseKitConfig.git?.branch ?? 'main';
-  // The standing PR renders changelogs even when `notes.changelog` is `false`, so that falls back to the defaults too.
-  const changelogConfig = releaseKitConfig.notes?.changelog;
-  const changelogRefsMode = (changelogConfig ? changelogConfig.refs : undefined) ?? 'link';
-  const demoteScopes = (changelogConfig ? changelogConfig.demoteScopes : undefined) ?? DEFAULT_DEMOTE_SCOPES;
+  const { refs: changelogRefsMode, demoteScopes } = changelogRenderOptions(releaseKitConfig);
   const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
 
   const bypassSkipGuard = options.reconcile || isStandingPrEventRun();
