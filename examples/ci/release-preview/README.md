@@ -8,6 +8,7 @@ release if it merged, updated in place on each push or label change.
 | File | Copy to |
 |------|---------|
 | [`release-preview.yml`](./release-preview.yml) | `.github/workflows/release-preview.yml` |
+| [`releasekit.config.json`](./releasekit.config.json) | repo root, unless your release workflow already has one |
 
 ## Assumptions
 

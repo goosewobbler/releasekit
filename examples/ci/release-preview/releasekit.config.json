@@ -14,7 +14,6 @@
   },
   "ci": {
     "releaseStrategy": "direct",
-    "releaseTrigger": "commit",
-    "prPreview": true
+    "releaseTrigger": "commit"
   }
 }
