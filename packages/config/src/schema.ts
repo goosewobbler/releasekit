@@ -239,9 +239,14 @@ export const GitHubReleaseConfigSchema = z.object({
   /* biome-ignore lint/suspicious/noTemplateCurlyInString: default template value */
   titleTemplate: z.string().default('${packageName}: ${version}').describe(
     // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
-    "Template for the GitHub release title when a package name is resolved. Available variables: ${packageName} (original scoped name, e.g. '@scope/pkg'), ${version} (e.g. 'v1.0.0'). Version-only tags always use the tag string directly.",
+    "Template for the GitHub release title when a package name is resolved. Available variables: ${packageName} (original scoped name, e.g. '@scope/pkg'), ${version} (the package's new version, with a 'v' when its tag has one, e.g. 'v1.0.0'). Version-only tags always use the tag string directly.",
   ),
-  skipPackages: z.array(z.string()).default([]).describe('Package names to exclude from GitHub release creation'),
+  skipPackages: z
+    .array(z.string())
+    .default([])
+    .describe(
+      "Package names to exclude from GitHub release creation. A tag's sanitized name, e.g. 'scope-pkg', also matches. A tag several packages share is skipped only when all of them are listed.",
+    ),
 });
 
 export const VerifyRegistryNpmConfigSchema = z.object({

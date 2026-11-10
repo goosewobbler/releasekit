@@ -329,6 +329,25 @@ describe('GitHub release bodies in the publish pipeline', () => {
     expect(Object.keys(releaseBodies())).toEqual(['pkg-b@v1.2.3']);
   });
 
+  it.each([
+    [['pkg-a', 'pkg-b'], []],
+    [['pkg-a'], ['release-1.2.3']],
+  ])('should skip a tag shared by several packages only when all are in skipPackages %j', async (skip, released) => {
+    const config = getDefaultConfig();
+    config.githubRelease.skipPackages = skip;
+    const input: VersionOutput = {
+      dryRun: false,
+      strategy: 'async',
+      updates: [update('pkg-a', 'release-1.2.3'), update('pkg-b', 'release-1.2.3')],
+      changelogs: [],
+      tags: ['release-1.2.3'],
+    };
+
+    await runPipeline(input, config, options);
+
+    expect(Object.keys(releaseBodies())).toEqual(released);
+  });
+
   it("should title a release with its package's name and version", async () => {
     const input = perPackageInput({
       'pkg-a': 'pkg-a/1.2.3',

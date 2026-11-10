@@ -251,11 +251,14 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
 
     // Tags are still created (the next release's changelog range needs them) and npm publish still runs.
     if (skipPackages.length > 0) {
-      const skipped = owner
-        ? skipPackages.find((name) => name === owner.packageName || name === sanitizePackageName(owner.packageName))
-        : resolveTagPackage(tag, skipPackages)?.packageName;
+      const skipped =
+        owners.length > 0
+          ? owners.every(({ packageName }) =>
+              skipPackages.some((name) => name === packageName || name === sanitizePackageName(packageName)),
+            )
+          : resolveTagPackage(tag, skipPackages) !== null;
       if (skipped) {
-        debug(`Skipping GitHub release for ${skipped} (listed in githubRelease.skipPackages)`);
+        debug(`Skipping GitHub release for ${tag} (its packages are listed in githubRelease.skipPackages)`);
         continue;
       }
     }
