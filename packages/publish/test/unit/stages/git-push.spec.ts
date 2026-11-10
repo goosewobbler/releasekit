@@ -345,7 +345,6 @@ describe('pushPackageTag', () => {
       expect.objectContaining({ remote: 'origin', ref: 'main' }),
       expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' }),
     ]);
-    expect(ctx.output.git.tags).toContain('pkg-a@v1.0.0');
     expect(ctx.output.git.pushed).toBe(true);
     expect(ctx.output.git.branch).toBe('main');
   });
@@ -412,24 +411,6 @@ describe('pushPackageTag', () => {
       expect.objectContaining({ remote: 'origin', ref: 'main' }),
       expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' }),
     ]);
-  });
-
-  it('should accumulate pushed tags on ctx.output.git.tags', async () => {
-    const ctx = createContext({
-      output: {
-        dryRun: false,
-        git: { committed: false, tags: [], pushed: false },
-        npm: [],
-        cargo: [],
-        verification: [],
-        githubReleases: [],
-      },
-    });
-
-    await pushPackageTag('pkg-a@v1.0.0', ctx);
-    await pushPackageTag('pkg-b@v1.0.0', ctx);
-
-    expect(ctx.output.git.tags).toEqual(['pkg-a@v1.0.0', 'pkg-b@v1.0.0']);
   });
 
   it('should be a no-op when config.git.push is false', async () => {

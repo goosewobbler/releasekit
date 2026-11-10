@@ -236,6 +236,25 @@ describe('GitHub release bodies in the publish pipeline', () => {
     expect(warnMock).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['after a standing-PR merge', true],
+    ['when publish creates the release commit', false],
+  ])('should attempt each per-package GitHub release once %s', async (_, skipGitCommit) => {
+    const input = {
+      ...perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' }),
+      commitMessage: 'chore: release',
+    };
+
+    const result = await runPipeline(input, getDefaultConfig(), { ...options, skipGitCommit });
+
+    const created = vi
+      .mocked(execCommand)
+      .mock.calls.filter(([command, args]) => command === 'gh' && args[1] === 'create')
+      .map(([, args]) => args[2]);
+    expect(created).toEqual(['pkg-a/1.2.3', 'pkg-b/1.2.3']);
+    expect(result.githubReleases.map((release) => release.tag)).toEqual(['pkg-a/1.2.3', 'pkg-b/1.2.3']);
+  });
+
   it("should match per-package tags from a custom template to each package's own changelog", async () => {
     const config = getDefaultConfig();
     config.githubRelease.body = 'changelog';
@@ -280,7 +299,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
       await runPipeline(input, config, { ...options, releaseNotes: { 'pkg-a': 'A' } });
 
       expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': 'A', 'pkg-b/1.2.3': GENERATED });
-      expect(warningsNaming('pkg-b/1.2.3')).not.toEqual([]);
+      expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
       expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
     },
   );
@@ -294,7 +313,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
     await runPipeline(input, config, options);
 
     expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
-    expect(warningsNaming('pkg-b/1.2.3')).not.toEqual([]);
+    expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
     expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
   });
 
