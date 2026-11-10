@@ -27,6 +27,8 @@ export interface VersionPackageChangelog {
   revisionRange: string;
   repoUrl: string | null;
   entries: VersionChangelogEntry[];
+  /** The tag this changelog releases: the package's own, or a sync release's shared one. Absent in older manifests. */
+  tag?: string;
 }
 
 /** `'graduated'`: a prerelease promoted to stable, ignoring any requested bump. `'first-release'`: no prior tag. */

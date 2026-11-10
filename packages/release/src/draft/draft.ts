@@ -20,17 +20,18 @@ function nowIso(): string {
 }
 
 /** Order-independent arrays are sorted so a reordering alone never reads as drift. */
-function planFingerprint(v: VersionOutput, withFiles: boolean): string {
+function planFingerprint(v: VersionOutput, withFiles: boolean, withChangelogTags: boolean): string {
   const byName = <T extends { packageName: string }>(arr: readonly T[]) =>
     [...arr].sort((a, b) => a.packageName.localeCompare(b.packageName));
   const updates = withFiles ? v.updates : v.updates.map(({ files: _files, ...update }) => update);
+  const changelogs = withChangelogTags ? v.changelogs : v.changelogs.map(({ tag: _tag, ...changelog }) => changelog);
   return JSON.stringify({
     strategy: v.strategy ?? null,
     commitMessage: v.commitMessage ?? null,
     tags: [...v.tags].sort(),
     baselineTags: [...(v.baselineTags ?? [])].sort(),
     updates: byName(updates),
-    changelogs: byName(v.changelogs),
+    changelogs: byName(changelogs),
     sharedEntries: v.sharedEntries ?? [],
   });
 }
@@ -43,9 +44,12 @@ function samePlan(recomputed: VersionOutput | undefined, draft: VersionOutput): 
   if (!recomputed) {
     return false;
   }
-  // A draft written before updates listed their `files` would otherwise never match.
+  // A draft written before updates listed their `files`, or changelogs their `tag`, would otherwise never match.
   const withFiles = draft.updates.some((u) => u.files !== undefined);
-  return planFingerprint(recomputed, withFiles) === planFingerprint(draft, withFiles);
+  const withChangelogTags = draft.changelogs.some((c) => c.tag !== undefined);
+  return (
+    planFingerprint(recomputed, withFiles, withChangelogTags) === planFingerprint(draft, withFiles, withChangelogTags)
+  );
 }
 
 function isReleaseManifestComment(body: string): boolean {

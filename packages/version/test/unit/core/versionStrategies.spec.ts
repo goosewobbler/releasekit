@@ -586,6 +586,7 @@ describe('Version Strategies', () => {
           revisionRange: 'v1.0.0..HEAD',
           repoUrl: null,
           entries: [{ type: 'added', description: 'New feature' }],
+          tag: 'v1.1.0',
         });
       });
 

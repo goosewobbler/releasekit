@@ -18,6 +18,7 @@ export const VersionPackageChangelogSchema = z.looseObject({
   revisionRange: z.string(),
   repoUrl: z.string().nullable(),
   entries: z.array(VersionChangelogEntrySchema),
+  tag: z.string().optional(),
 });
 
 const VersionPackageUpdateSchema = z.looseObject({
