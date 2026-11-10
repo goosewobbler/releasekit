@@ -120,7 +120,7 @@ export function buildTagStripPatternFromTemplate(template: string, packageName: 
   return escapeRegExp(prefixPattern);
 }
 
-/** Filters the reachable-semver-tag lookup to the baseline family and recognises baseline tags when stripping for display. */
+/** Narrows `getLatestTag` to the baseline tag family, and recognises baseline tags when stripping them for display. */
 export function deriveBaselineTagPrefix(
   template: string | undefined,
   formattedPrefix: string,

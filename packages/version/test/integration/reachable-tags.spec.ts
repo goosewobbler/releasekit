@@ -52,8 +52,8 @@ describe('baseline tag reachability', () => {
 
     expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('1.0.1');
     expect(output.tags).toEqual(['v1.0.1']);
-    // An unreachable baseline also yields 1.0.1 (the resolver floors the range at the nearest reachable tag), but
-    // loses the previous version.
+    // Picking v3.0.0 would still give 1.0.1, since the resolver falls back to the nearest reachable tag. Only
+    // previousVersion shows the difference.
     expect(output.changelogs[0]).toMatchObject({ previousVersion: 'v1.0.0', revisionRange: 'v1.0.0..HEAD' });
   });
 });

@@ -37,8 +37,8 @@ export function refExists(ref: string, cwd?: string, git: Git = createGitCli()):
 }
 
 /**
- * Unlike `getLatestTag` (bare semver tags only), `git describe` also finds per-package tags
- * (`pkg@vX.Y.Z`, `release/vX.Y.Z`) and is reachable by construction, as a `<tag>..HEAD` floor needs.
+ * Unlike `getLatestTag`, which only sees bare semver tags, also finds per-package tags such as `pkg@vX.Y.Z` and
+ * `release/vX.Y.Z`.
  */
 export async function getNearestReachableTag(cwd?: string, git: Git = createGitCli()): Promise<string> {
   try {
@@ -48,7 +48,6 @@ export async function getNearestReachableTag(cwd?: string, git: Git = createGitC
   }
 }
 
-/** Semver tags reachable from HEAD, most-recently-created first; with a prefix, only tags that carry it. */
 async function listReachableSemverTags(versionPrefix: string | undefined, git: Git): Promise<string[]> {
   const tags = await git.listTags({ sort: '-creatordate', merged: 'HEAD', cwd: process.cwd() });
   return tags.filter((tag) => {

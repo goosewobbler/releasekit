@@ -6,7 +6,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       include: ['test/**/*.spec.ts'],
-      // The first import of the notes pipeline can take over 5s while turbo runs every package's suite at once.
+      // Under a full turbo run, the first import of the notes pipeline can exceed the 5s default.
       testTimeout: 15_000,
       coverage: {
         exclude: [
