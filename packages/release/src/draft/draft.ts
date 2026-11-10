@@ -1,5 +1,5 @@
 import type { VersionOutput } from '@releasekit/core';
-import { info, success, warn } from '@releasekit/core';
+import { hasUnterminatedNotesRegion, info, success, warn } from '@releasekit/core';
 import { isBotComment } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
 import { requireGitHubContext } from '../git.js';
@@ -192,7 +192,9 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
     Object.entries(extracted).filter(([key, text]) => text !== renderedRegionText(key, draftedNotes[key] ?? '')),
   );
   const editedNotes = { ...draftedNotes, ...edits };
-  const droppedRegions = Object.keys(draftedNotes).filter((pkg) => !Object.hasOwn(extracted, pkg));
+  const droppedRegions = Object.keys(draftedNotes).filter(
+    (pkg) => !Object.hasOwn(extracted, pkg) && !hasUnterminatedNotesRegion(issue.body, pkg),
+  );
   if (droppedRegions.length > 0) {
     warn(
       `Could not read the edited notes region for ${droppedRegions.join(', ')} on draft #${issueNumber} ` +

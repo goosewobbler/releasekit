@@ -34,6 +34,7 @@ Write inside the markers. Content outside them is regenerated. Each package's no
 Edits can still be lost or bypassed:
 
 - An emptied region falls back to generated notes.
+- Deleting a region's end marker discards its edits, with a warning, and the region is regenerated.
 - Removing the label removes the region.
 - An edit saved while an update is rewriting the body can be overwritten.
 - Only the GitHub Release gets your edits; a file written by `notes.releaseNotes.file` gets generated notes.
