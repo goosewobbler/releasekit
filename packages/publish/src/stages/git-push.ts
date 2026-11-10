@@ -111,7 +111,6 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
     await runGit(dryRun, `git push ${remote} refs/tags/${tag}`, () =>
       git.push({ remote: pushRemote, ref: `refs/tags/${tag}`, cwd }),
     );
-    output.git.tags.push(tag);
 
     output.git.pushed = true;
   } catch (error) {

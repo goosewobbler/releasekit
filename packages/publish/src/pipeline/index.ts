@@ -183,7 +183,7 @@ export async function runPipeline(
             input: { ...ctx.input, updates: [update] },
             output: {
               dryRun: ctx.output.dryRun,
-              git: ctx.output.git, // shared so pushPackageTag accumulates into ctx.output.git
+              git: ctx.output.git, // shared so pushPackageTag's push state reaches ctx.output.git
               npm: [],
               cargo: [],
               pub: [],
