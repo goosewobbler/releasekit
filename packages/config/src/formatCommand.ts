@@ -37,7 +37,7 @@ export function parseCommand(command: string): string[] {
   }
   if (quote || args.length === 0) {
     throw new ConfigError(`git.formatCommand \`${command}\` is not a valid command`, [
-      'Set git.formatCommand to a command such as "biome format --write", closing any quotes',
+      'Set git.formatCommand to a command such as "npx biome format --write", closing any quotes',
     ]);
   }
   return args;

@@ -1642,7 +1642,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   // So main matches the GitHub release body.
   if (newFiles.length > 0) {
-    const formatCommand = releaseKitConfig.git?.formatCommand;
+    const formatCommand = releaseKitConfig.publish?.git?.formatCommand ?? releaseKitConfig.git?.formatCommand;
     if (formatCommand) {
       await runFormatCommand(formatCommand, newFiles, cwd);
     }

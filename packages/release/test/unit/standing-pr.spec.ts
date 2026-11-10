@@ -3335,6 +3335,19 @@ describe('publishFromManifest', () => {
       expect(fakeGit.committed.map((c) => c.message)).toEqual(['chore: release notes for v1.2.3']);
     });
 
+    it('should use publish.git.formatCommand over git.formatCommand', async () => {
+      const { loadConfig, runFormatCommand } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true } },
+        git: { branch: 'main', formatCommand: 'prettier --write' },
+        publish: { git: { formatCommand: 'npx biome format --write' } },
+      } as ReturnType<typeof loadConfig>);
+
+      await publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(runFormatCommand).toHaveBeenCalledWith('npx biome format --write', ['release-notes/1.2.3.md'], '/test');
+    });
+
     it('should stop before the notes commit, tags and publish when the formatter fails', async () => {
       const { runFormatCommand } = await import('@releasekit/config');
       vi.mocked(runFormatCommand).mockRejectedValue(
