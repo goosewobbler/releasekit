@@ -1121,7 +1121,12 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     versionOutputRows = await runVersionStep(buildBaseReleaseOptions(options, true, graduationExtras));
   }
   // The prerelease may be a package the release doesn't version (skipped or out of scope), leaving nothing to graduate.
-  const syncGraduationOffered = syncGraduationPossible && graduatedPackageNames(versionOutputRows).length > 0;
+  // Checked by channel, not the update's action, which reads 'first-release' before any tag exists.
+  const syncGraduationOffered =
+    syncGraduationPossible &&
+    publishableUpdates(versionOutputRows).some(
+      (u) => prereleaseLine.includes(u.packageName) && updateChannel(u) === 'stable',
+    );
   const candidateSet = new Set(candidates);
   const graduationUpdates = sync
     ? []

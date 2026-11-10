@@ -3069,6 +3069,21 @@ describe('runStandingPRUpdate', () => {
         expect(body()).toBeUndefined();
       });
 
+      it('should offer the checkbox for a first release staged at a prerelease, before any tag exists', async () => {
+        const { body } = await setup({ versions: syncVersions, sync: true });
+        const { runVersionStep } = await import('../../src/steps.js');
+        const engine = vi.mocked(runVersionStep).getMockImplementation() as typeof runVersionStep;
+        vi.mocked(runVersionStep).mockImplementation(async (opts) => {
+          const output = await engine(opts);
+          return { ...output, updates: output.updates.map((u) => ({ ...u, action: 'first-release' as const })) };
+        });
+
+        const result = await run({ reconcile: true });
+
+        expect(result.action).toBe('created');
+        expect(body()).toContain('- [ ] graduate to stable → v1.1.0 <!-- rk-grad-sync -->');
+      });
+
       it('should tick the checkbox from release:graduate', async () => {
         const { writeCall, body } = await setup({
           versions: syncVersions,
