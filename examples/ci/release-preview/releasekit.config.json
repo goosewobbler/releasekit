@@ -1,0 +1,19 @@
+{
+  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
+  "git": {
+    "branch": "main"
+  },
+  "version": {
+    "preset": "angular"
+  },
+  "publish": {
+    "npm": {
+      "enabled": true,
+      "access": "public"
+    }
+  },
+  "ci": {
+    "releaseStrategy": "direct",
+    "releaseTrigger": "commit"
+  }
+}

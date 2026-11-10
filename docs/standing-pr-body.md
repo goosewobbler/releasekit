@@ -18,7 +18,7 @@ The checklist rows live inside `<!-- releasekit-selection -->` … `<!-- release
 
 ### The checklist and channel toggles
 
-A tick or untick takes effect only when the next `standing-pr update` run rebuilds the PR: immediately if your workflow listens for `pull_request: edited` (the template does), otherwise on the next push or scheduled run. Merge only after the rebuilt body shows the change — publish reads the manifest, not the body, so merging earlier ships the previous selection. With [`authorization`](#who-can-change-what) set, only an `edited`-triggered run by an authorized actor applies it.
+A tick or untick takes effect only when the next `standing-pr update` run rebuilds the PR: immediately if your workflow listens for `pull_request: edited` (the [example](../examples/ci/standing-pr/standing-pr.yml) does), otherwise on the next push or scheduled run. Merge only after the rebuilt body shows the change — publish reads the manifest, not the body, so merging earlier ships the previous selection. With [`authorization`](#who-can-change-what) set, only an `edited`-triggered run by an authorized actor applies it.
 
 - Sync releases have no checklist — they ship as one unit.
 - In the flat and granular lists, a member of a `fixed` or `linked` group can't be held back on its own; its untick is ignored and the row re-ticks.

@@ -80,4 +80,13 @@ export const SCENARIOS: Scenario[] = [
     releaseArgs: ['release', '--dry-run'],
     proves: 'standing-pr update setup resolves; the PR-mutating API path stays out of scope.',
   },
+  {
+    id: 'release-preview',
+    workflow: 'release-preview.yml',
+    job: 'preview',
+    config: 'releasekit.config.json',
+    fixture: 'npm-single',
+    releaseArgs: ['preview', '--dry-run'],
+    proves: 'preview setup resolves; dry-run renders the comment without posting it.',
+  },
 ];

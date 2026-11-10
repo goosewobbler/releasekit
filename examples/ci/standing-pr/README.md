@@ -8,7 +8,7 @@ One workflow file (`standing-pr.yml`) carries four jobs:
 
 | Job | Fires on | Does |
 |-----|----------|------|
-| `update` | push to `main`, hourly `schedule` | rebuilds `release/next` and the standing PR from the queued changes |
+| `update` | push to `main`, hourly `schedule`, a label change or checkbox edit on the open standing PR | rebuilds `release/next` and the standing PR from the queued changes |
 | `immediate-release` | a PR labelled `release:immediate` being **merged** | releases it directly, bypassing the standing PR, then reconciles the standing PR |
 | `publish` | the standing PR being **merged** | publishes the reviewed manifest, tags, GitHub Releases |
 | `retry-publish` | `release:retry` label on the **merged** standing PR | idempotently re-publishes whatever the failed run left unfinished |

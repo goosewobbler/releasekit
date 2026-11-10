@@ -258,6 +258,9 @@ jobs:
           mode: backfill
           all: "true"
           update-releases: "true"
-          only-missing: "true"
           apply: ${{ inputs.apply }}
 ```
+
+Set `version.versionPrefix` to match your tags (`v` for `v1.2.3`). By default backfill fills empty bodies, rewrites the ones it wrote before (hand edits too), and leaves the rest alone. The Action has no `force` input. To replace notes releasekit published, add `only-missing: "true"`, which rewrites every body backfill didn't write.
+
+[`examples/ci/backfill`](../examples/ci/backfill/backfill.yml) has a full `workflow_dispatch` workflow that runs backfill through the CLI, with a `force` input.

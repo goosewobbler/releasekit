@@ -156,7 +156,7 @@ ad-hoc holds:
    #   github.event.sender.type != 'Bot'
    ```
 
-   Full workflow in the [CI setup guide](../packages/release/docs/ci-setup.md).
+   Full workflow in [`examples/ci/standing-pr`](../examples/ci/standing-pr/standing-pr.yml).
 
 ## Migration: zubridge's `scope:tauri` → an `independent` group
 
