@@ -348,6 +348,18 @@ describe('GitHub release bodies in the publish pipeline', () => {
     expect(Object.keys(releaseBodies())).toEqual(released);
   });
 
+  it.each([
+    [['pkg-a', 'pkg-b'], []],
+    [['pkg-a'], ['v1.2.3']],
+  ])('should skip a sync release only when all its packages are in skipPackages %j', async (skip, released) => {
+    const config = getDefaultConfig();
+    config.githubRelease.skipPackages = skip;
+
+    await runPipeline(syncInput('v1.2.3'), config, options);
+
+    expect(Object.keys(releaseBodies())).toEqual(released);
+  });
+
   it("should title a release with its package's name and version", async () => {
     const input = perPackageInput({
       'pkg-a': 'pkg-a/1.2.3',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertNotOption, sanitizePackageName } from '../../src/utils.js';
+import { assertNotOption, matchesPackageName, sanitizePackageName } from '../../src/utils.js';
 
 describe('utils', () => {
   describe('sanitizePackageName', () => {
@@ -20,6 +20,15 @@ describe('utils', () => {
     it('should handle special characters', () => {
       expect(sanitizePackageName('@scope/pkg-name')).toBe('scope-pkg-name');
       expect(sanitizePackageName('@scope/pkg_name')).toBe('scope-pkg_name');
+    });
+  });
+
+  describe('matchesPackageName', () => {
+    it('should match a package by its name or its tag spelling', () => {
+      expect(matchesPackageName('@scope/pkg', '@scope/pkg')).toBe(true);
+      expect(matchesPackageName('scope-pkg', '@scope/pkg')).toBe(true);
+      expect(matchesPackageName('pkg', '@scope/pkg')).toBe(false);
+      expect(matchesPackageName('scope-pkg', 'scope-pkg-2')).toBe(false);
     });
   });
 

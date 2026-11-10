@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { VersionOutput } from '@releasekit/core';
-import { EXIT_CODES, error, info, success, warn } from '@releasekit/core';
+import { EXIT_CODES, error, info, matchesPackageName, success, warn } from '@releasekit/core';
 import type { Config as VersionConfig } from '@releasekit/version';
 import { Command } from 'commander';
 import semver from 'semver';
@@ -154,7 +154,7 @@ export function createBackfillCommand(): Command {
       for (const { target, reconstructed } of releasesByTarget) {
         // Before rendering, to avoid LLM calls for excluded packages.
         const skipPackages = publishConfig.githubRelease?.skipPackages ?? [];
-        const isSkipped = updateReleases && skipPackages.includes(target.packageName);
+        const isSkipped = updateReleases && skipPackages.some((name) => matchesPackageName(name, target.packageName));
         if (isSkipped && !dir) {
           warn(`  Skipping all releases for ${target.packageName} (in githubRelease.skipPackages)`);
           const skippedInSkipPackages = reconstructed.length;

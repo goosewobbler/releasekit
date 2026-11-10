@@ -1,5 +1,5 @@
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
-import { assertNotOption, debug, info, sanitizePackageName, success, warn } from '@releasekit/core';
+import { assertNotOption, debug, info, matchesPackageName, sanitizePackageName, success, warn } from '@releasekit/core';
 import type { GitHubReleaseResult, PipelineContext } from '../types.js';
 import { execCommand, execCommandSafe } from '../utils/exec.js';
 import { isPrerelease } from '../utils/semver.js';
@@ -251,12 +251,12 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
 
     // Tags are still created (the next release's changelog range needs them) and npm publish still runs.
     if (skipPackages.length > 0) {
+      const listed = ({ packageName }: VersionPackageUpdate) =>
+        skipPackages.some((name) => matchesPackageName(name, packageName));
       const skipped =
         owners.length > 0
-          ? owners.every(({ packageName }) =>
-              skipPackages.some((name) => name === packageName || name === sanitizePackageName(packageName)),
-            )
-          : resolveTagPackage(tag, skipPackages) !== null;
+          ? owners.every(listed)
+          : resolveTagPackage(tag, skipPackages) !== null || (syncTag && ctx.input.updates.every(listed));
       if (skipped) {
         debug(`Skipping GitHub release for ${tag} (its packages are listed in githubRelease.skipPackages)`);
         continue;

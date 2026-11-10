@@ -83,4 +83,4 @@ export {
   type VersionPackageChangelog,
   type VersionPackageUpdate,
 } from './types.js';
-export { assertNotOption, sanitizePackageName } from './utils.js';
+export { assertNotOption, matchesPackageName, sanitizePackageName } from './utils.js';
