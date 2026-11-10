@@ -86,11 +86,11 @@ describe('Pipeline: version output → markdown', () => {
 
   it.each([
     [
-      'its update',
+      "the update's tag",
       { updates: [{ packageName: 'my-lib', newVersion: '2.0.0', filePath: 'package.json', tag: 'my-lib/2.0.0' }] },
     ],
-    ['the only tag, without updates', { updates: undefined }],
-  ])('should link to the tag older version output names on %s', (_, extra) => {
+    ['the only tag when there are no updates', { updates: undefined }],
+  ])('should fall back to %s for older version output', (_, extra) => {
     const input = parseVersionOutput(
       JSON.stringify({
         ...versionOutputFixture,
