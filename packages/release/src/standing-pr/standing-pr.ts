@@ -1083,8 +1083,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     .map(([name]) => name);
 
   info('Running version analysis (dry run)...');
-  // Without label graduation, so the dry run is just the queue: an unchanged prerelease a label would graduate is
-  // offered as a graduation row rather than mistaken for a change.
+  // Run without label graduation, so the dry run is just the queue. Otherwise an unchanged prerelease that a label
+  // graduates would look like a queued change instead of getting a graduation row.
   const queueExtras: BuildOptionsExtras =
     prereleaseLine.length > 0 ? { ...buildExtras, stable: undefined, graduate: undefined } : buildExtras;
   const versionOutputDry = await runVersionStep(buildBaseReleaseOptions(options, true, queueExtras));
@@ -1106,13 +1106,13 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         return !queuedNames.has(name) && (group === undefined || !changedLockstepGroups.has(group));
       });
   // A sync release can't hold its queued changes back, so below minPackages it offers nothing.
-  const syncGraduationOffered =
+  const syncGraduationPossible =
     sync && prereleaseLine.length > 0 && !belowMinPackages && (!queued || channelToggleEnabled);
 
   // Graduates every unchanged prerelease, so each graduation row can show its stable version and changelog.
   let versionOutputRows = versionOutputDry;
   const labelGraduation = !!buildExtras.stable || (buildExtras.graduate?.length ?? 0) > 0;
-  if (sync ? syncGraduationOffered : prereleaseLine.length > 0 && (candidates.length > 0 || labelGraduation)) {
+  if (sync ? syncGraduationPossible : prereleaseLine.length > 0 && (candidates.length > 0 || labelGraduation)) {
     info('Running graduation analysis (dry run)...');
     const graduationExtras: BuildOptionsExtras =
       sync || buildExtras.stable
@@ -1120,6 +1120,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         : { ...buildExtras, graduate: [...(buildExtras.graduate ?? []), ...candidates] };
     versionOutputRows = await runVersionStep(buildBaseReleaseOptions(options, true, graduationExtras));
   }
+  // The prerelease may be a package the release doesn't version (skipped or out of scope), leaving nothing to graduate.
+  const syncGraduationOffered = syncGraduationPossible && graduatedPackageNames(versionOutputRows).length > 0;
   const candidateSet = new Set(candidates);
   const graduationUpdates = sync
     ? []
@@ -1247,7 +1249,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return [...out];
   };
 
-  // A label renders its graduation ticked, so once the label goes, that tick mustn't outlive it as a user's own.
+  // A label renders its graduation ticked, so once the label goes, that rendered tick mustn't count as the user's.
   const priorLabels = resolveStandingPrLabelOverrides(existingManifest?.overrideLabels ?? [], ciConfig);
   const priorLabelsApplied = priorLabels.conflicts.length === 0;
   const priorLabelGraduated = (name: string): boolean =>
@@ -1294,7 +1296,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     const manifestSync = sync && manifestGraduated.length > 0 && !priorSyncForced && !priorSyncLapsed;
     const bodyPrereleased = new Set(expandToGroup(channelPrereleasedTicks));
     const bodyGraduated = new Set(expandToGroup(channelGraduatedTicks));
-    // Only added graduate toggles count: this only gates the notice.
+    // Only an added graduate toggle triggers the notice.
     const prereleaseChanged = !setsEqual(bodyPrereleased, new Set(manifestPrereleased));
     const graduateAdded = [...bodyGraduated].some((name) => !manifestNested.includes(name));
     const rowsChanged = !setsEqual(new Set(expandGraduationRows(graduationRowTicks)), new Set(manifestRows));

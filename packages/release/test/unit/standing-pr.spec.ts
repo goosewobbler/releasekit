@@ -3059,6 +3059,16 @@ describe('runStandingPRUpdate', () => {
         expect(status?.description).toContain("The release can't graduate: its queued changes need a major bump");
       });
 
+      it('should close instead of offering the checkbox when only a package the release skips is a prerelease', async () => {
+        const { body } = await setup({ versions: { a: '1.2.0', b: '1.2.0' }, sync: true, open: true });
+        mockGetWorkspacePackageVersions.mockResolvedValue({ a: '1.2.0', b: '1.2.0', skipped: '0.1.0-dev.0' });
+
+        const result = await run();
+
+        expect(result.action).toBe('closed');
+        expect(body()).toBeUndefined();
+      });
+
       it('should tick the checkbox from release:graduate', async () => {
         const { writeCall, body } = await setup({
           versions: syncVersions,
