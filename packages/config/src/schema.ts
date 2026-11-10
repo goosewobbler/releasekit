@@ -204,7 +204,9 @@ export const CargoPublishConfigSchema = z.object({
   noVerify: z
     .boolean()
     .default(false)
-    .describe("Pass --no-verify to cargo publish, skipping cargo's pre-publish build of the packaged crate."),
+    .describe(
+      "Pass --no-verify to cargo publish, skipping cargo's pre-publish build of the packaged crate. Use only as a temporary workaround for a build that fails in CI.",
+    ),
   publishOrder: z
     .array(z.string())
     .default([])
@@ -305,19 +307,21 @@ export const VerifyConfigSchema = z.object({
     maxAttempts: 5,
     initialDelay: 15000,
     backoffMultiplier: 2,
-  }),
+  }).describe('Poll npm after each publish until the new version is visible.'),
   cargo: VerifyRegistryCargoConfigSchema.default({
     enabled: true,
     maxAttempts: 10,
     initialDelay: 30000,
     backoffMultiplier: 2,
-  }),
+  }).describe(
+    "Poll crates.io after each publish until the new version is visible. Its index updates more slowly than npm's, so the defaults wait longer.",
+  ),
   pub: VerifyRegistryPubConfigSchema.default({
     enabled: true,
     maxAttempts: 10,
     initialDelay: 30000,
     backoffMultiplier: 2,
-  }),
+  }).describe('Poll pub.dev after each publish until the new version is visible.'),
 });
 
 export const PublishConfigSchema = z.object({

@@ -304,25 +304,14 @@ function renderPublish(prop: SchemaProperty): void {
     emit(ensurePeriod(verify.description), '');
     emitBlank();
 
-    const verifyNpm = verify.properties?.npm;
-    if (verifyNpm) {
-      emit('#### `publish.verify.npm`', '');
-      emit(propsTable(verifyNpm.properties ?? {}));
-      emitBlank();
-    }
-
-    const verifyCargo = verify.properties?.cargo;
-    if (verifyCargo) {
-      emit('#### `publish.verify.cargo`', '');
-      emit(propsTable(verifyCargo.properties ?? {}));
-      emitBlank();
-    }
-
-    const verifyPub = verify.properties?.pub;
-    if (verifyPub) {
-      emit('#### `publish.verify.pub`', '');
-      emit(propsTable(verifyPub.properties ?? {}));
-      emitBlank();
+    for (const key of ['npm', 'cargo', 'pub']) {
+      const registry = verify.properties?.[key];
+      if (registry) {
+        emit(`#### \`publish.verify.${key}\``, '');
+        emit(ensurePeriod(registry.description), '');
+        emit(propsTable(registry.properties ?? {}));
+        emitBlank();
+      }
     }
   }
 }

@@ -194,7 +194,7 @@ Cargo publishing configuration.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `true` | Publish to crates.io. Detected Rust packages are published by default; set false to opt out (version and tag only). |
-| `noVerify` | boolean | `false` | Pass --no-verify to cargo publish, skipping cargo's pre-publish build of the packaged crate. |
+| `noVerify` | boolean | `false` | Pass --no-verify to cargo publish, skipping cargo's pre-publish build of the packaged crate. Use only as a temporary workaround for a build that fails in CI. |
 | `publishOrder` | `string[]` | `[]` | Crate names to publish first, in this order; the rest follow in discovery order. Empty sorts crates by their path dependencies. |
 | `clean` | boolean | `false` | Run cargo clean in each crate's directory before publishing. |
 
@@ -228,6 +228,8 @@ Registry verification configuration.
 
 #### `publish.verify.npm`
 
+Poll npm after each publish until the new version is visible.
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `true` | Verify NPM publish |
@@ -237,6 +239,8 @@ Registry verification configuration.
 
 #### `publish.verify.cargo`
 
+Poll crates.io after each publish until the new version is visible. Its index updates more slowly than npm's, so the defaults wait longer.
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `true` | Verify Cargo publish |
@@ -245,6 +249,8 @@ Registry verification configuration.
 | `backoffMultiplier` | number | `2` | Exponential backoff multiplier |
 
 #### `publish.verify.pub`
+
+Poll pub.dev after each publish until the new version is visible.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|

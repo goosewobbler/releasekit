@@ -383,7 +383,7 @@
             "noVerify": {
               "type": "boolean",
               "default": false,
-              "description": "Pass --no-verify to cargo publish, skipping cargo's pre-publish build of the packaged crate."
+              "description": "Pass --no-verify to cargo publish, skipping cargo's pre-publish build of the packaged crate. Use only as a temporary workaround for a build that fails in CI."
             },
             "publishOrder": {
               "type": "array",
@@ -514,7 +514,8 @@
                   "default": 2,
                   "description": "Exponential backoff multiplier"
                 }
-              }
+              },
+              "description": "Poll npm after each publish until the new version is visible."
             },
             "cargo": {
               "type": "object",
@@ -543,7 +544,8 @@
                   "default": 2,
                   "description": "Exponential backoff multiplier"
                 }
-              }
+              },
+              "description": "Poll crates.io after each publish until the new version is visible. Its index updates more slowly than npm's, so the defaults wait longer."
             },
             "pub": {
               "type": "object",
@@ -572,7 +574,8 @@
                   "default": 2,
                   "description": "Exponential backoff multiplier"
                 }
-              }
+              },
+              "description": "Poll pub.dev after each publish until the new version is visible."
             }
           },
           "description": "Registry verification configuration"

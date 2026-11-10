@@ -171,8 +171,7 @@ Configure the trigger in `releasekit.config.json`:
     "labels": {
       "major": "bump:major",
       "minor": "bump:minor",
-      "patch": "bump:patch",
-      "skip": "release:skip"
+      "patch": "bump:patch"
     }
   }
 }
