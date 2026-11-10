@@ -49,7 +49,7 @@ export const VersionCargoConfigSchema = z.object({
     .boolean()
     .default(true)
     .describe(
-      'Version Cargo.toml manifests. Detected Rust packages are versioned by default; set false to opt out (e.g. a vendored crate, or Rust versioning handled elsewhere). That also stops a Cargo.toml beside a package.json from publishing.',
+      'Version Cargo.toml manifests. Detected Rust packages are versioned by default; set false to opt out (e.g. a vendored crate, or Rust versioning handled elsewhere).',
     ),
   paths: z
     .array(z.string())
@@ -64,7 +64,7 @@ export const VersionPubConfigSchema = z.object({
     .boolean()
     .default(true)
     .describe(
-      'Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out, which also stops a pubspec.yaml beside a package.json from publishing.',
+      'Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out.',
     ),
   paths: z
     .array(z.string())
