@@ -168,7 +168,7 @@ describe('formatVersion: scope grouping', () => {
     expect(result).toContain('**ui**: Fix B');
   });
 
-  it('should render ungrouped entries after scoped groups', async () => {
+  it('should list ungrouped entries before the scope groups, never under a group label', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
 
     const ctx = makeContext({
@@ -177,19 +177,37 @@ describe('formatVersion: scope grouping', () => {
           {
             name: 'New',
             entries: [
-              { type: 'added', description: 'Scoped 1', scope: 'api' },
-              { type: 'added', description: 'Scoped 2', scope: 'api' },
-              { type: 'added', description: 'No scope' },
+              { type: 'added', description: 'Before', scope: 'cli' },
+              { type: 'added', description: 'API 1', scope: 'api' },
+              { type: 'added', description: 'Between' },
+              { type: 'added', description: 'API 2', scope: 'api' },
+              { type: 'added', description: 'UI 1', scope: 'ui' },
+              { type: 'added', description: 'UI 2', scope: 'ui' },
+              { type: 'added', description: 'After' },
             ],
           },
         ],
       },
     });
 
-    const result = formatVersion(ctx);
-    const apiPos = result.indexOf('**api**:');
-    const noScopePos = result.indexOf('- No scope');
-    expect(apiPos).toBeLessThan(noScopePos);
+    expect(formatVersion(ctx)).toBe(`## [1.0.0] - 2026-01-01
+
+### New
+
+- **cli**: Before
+- Between
+- After
+
+**api**:
+
+- API 1
+- API 2
+
+**ui**:
+
+- UI 1
+- UI 2
+`);
   });
 });
 
@@ -830,12 +848,12 @@ A faster parser.
 ### New
 
 - Stream input
+- **cli**: Watch mode
 
 **api**:
 
 - Batch writes
 - Retry hook
-- **cli**: Watch mode
 
 **ui**:
 

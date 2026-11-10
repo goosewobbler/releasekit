@@ -250,7 +250,7 @@ When the built-in markdown renderer encounters a category where **two or more en
 - Add mock IPC support
 ```
 
-A scope that appears on only one entry renders inline: `- **scope**: description`. Entries with no scope render as plain bullets.
+A scope that appears on only one entry renders inline: `- **scope**: description`. Entries with no scope render as plain bullets. Both come before the scope groups, so no entry sits under a label it doesn't have.
 
 Scope is assigned by the LLM (or inherited from the source commit). Control what scopes are valid with the `scopes` config.
 
