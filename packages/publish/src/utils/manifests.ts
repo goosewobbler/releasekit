@@ -10,7 +10,7 @@ export function updateManifests(update: UpdateFiles): string[] {
 
 /**
  * The `fileName` manifest in an update's directory, if the version step bumped it: one it left alone would publish a
- * stale version. Version output without `files` doesn't say, so there any such manifest counts.
+ * stale version. Older version output has no `files`, so any such manifest counts.
  */
 export function findBumpedManifest(cwd: string, update: UpdateFiles, fileName: string): string | undefined {
   const manifestPath = path.join(path.dirname(path.resolve(cwd, update.filePath)), fileName);

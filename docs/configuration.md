@@ -141,7 +141,7 @@ Cargo/Rust configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Version Cargo.toml manifests. Detected Rust packages are versioned by default; set false to opt out (e.g. a vendored crate, or Rust versioning handled elsewhere). |
+| `enabled` | boolean | `true` | Version Cargo.toml manifests. Detected Rust packages are versioned by default; set false to opt out (e.g. a vendored crate, or Rust versioning handled elsewhere), which also stops a Cargo.toml beside a package.json from publishing. |
 | `paths` | `string[]` | — | Directories, relative to each package, to bump a Cargo.toml in instead of the package's own directory. Not searched recursively. Ignored in group mode. |
 
 ### `version.pub`
