@@ -67,11 +67,11 @@ Two workflows guard these examples on every change under `examples/`:
    setup steps** (extracted from the example workflow, not hand-copied) on a
    hosted `ubuntu-latest` runner against a throwaway fixture repo, then a
    `releasekit release --dry-run` (`preview --dry-run` for `release-preview`).
-   `backfill` has no smoke job, because it reads real GitHub Releases. This
-   catches the missing-runtime-tool class and install failures
+   This catches the missing-runtime-tool class and install failures
    (`pnpm`/`cargo: command not found`, wrong Node version, `cache: pnpm` with no
    lockfile, `pnpm install` errors, the CLI not resolving). Publish never runs
-   for real — every release is `--dry-run`.
+   for real — every release is `--dry-run`. `backfill` has no smoke job,
+   because it reads real GitHub Releases.
 
 > **What validation does NOT catch.** `actionlint` is a static linter: it has no
 > model of what tools a hosted runner ships, so a missing `pnpm/action-setup` or

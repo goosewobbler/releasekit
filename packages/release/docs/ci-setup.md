@@ -159,7 +159,7 @@ pnpm exec releasekit release --scope core
 
 Post a comment on each PR showing what would be released if merged. Requires `pull-requests: write`.
 
-The workflow is [`examples/ci/release-preview`](../../../examples/ci/release-preview/release-preview.yml). It runs `releasekit preview` on each PR event, so the comment follows new pushes and label changes. It skips fork PRs and the standing PR.
+The workflow is [`examples/ci/release-preview`](../../../examples/ci/release-preview/release-preview.yml).
 
 ### Flagging stale previews after a release
 
@@ -226,8 +226,8 @@ permissions:
 | Secret | Used by | When required |
 |---|---|---|
 | `GITHUB_TOKEN` | all jobs | Always (auto-provided). |
-| `NPM_TOKEN` | `publish`, `immediate-release`, and `retry-publish` | Only if not using OIDC. With OIDC, omit it entirely. |
-| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `publish`, `immediate-release`, and `retry-publish` | Required for LLM-enhanced notes at publish time. Also pass to `update` only if you use the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
+| `NPM_TOKEN` | `publish`, `retry-publish` and `immediate-release` | Only if not using OIDC. With OIDC, omit it entirely. |
+| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `publish`, `retry-publish` and `immediate-release` | Required for LLM-enhanced notes at publish time. Also pass to `update` only if you use the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
 
 **Branch protection:** if `release/next` is protected, the bot's force-push will fail. Either leave the release branch unprotected or grant the bot bypass permissions.
 
@@ -406,7 +406,7 @@ Mechanics (all in `standing-pr.yml`, no config):
 
 - **Fast.** The banner is a plain `gh api` step that runs *before* checkout/install, so it lands ~10–15s after the runner starts (the spin-up floor — an Actions job can't react instantly the way a native GitHub App can). It's on reactive events only; push/schedule updates aren't interactive.
 - **Self-clearing.** A successful rebuild regenerates the body, which drops the banner. A final `if: always()` step strips it from any run that didn't rewrite the body (a failure, a cancel or an early exit).
-- **Idempotent.** The step skips if a banner is already present, so rapid re-triggers don't stack it.
+- **Idempotent.** The step skips if the body already starts with a banner, so rapid re-triggers don't stack it.
 
 Rapid checkbox toggles are also **collapsed**: a maintainer's edits share a per-PR `concurrency` group with `cancel-in-progress: true`, so only the latest selection is rebuilt.
 

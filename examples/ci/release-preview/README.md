@@ -13,8 +13,7 @@ release if it merged, updated in place on each push or label change.
 ## Assumptions
 
 - It runs alongside a release workflow such as [`minimal`](../minimal),
-  [`label-driven`](../label-driven) or [`standing-pr`](../standing-pr), and
-  shares its `releasekit.config.json`. The config here matches `minimal`; the
+  [`label-driven`](../label-driven) or [`standing-pr`](../standing-pr). The
   preview follows whatever `ci.releaseStrategy` and `ci.releaseTrigger` say.
 - `ci.prPreview` is on (the default).
 

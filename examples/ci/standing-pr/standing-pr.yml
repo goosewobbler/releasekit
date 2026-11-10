@@ -64,8 +64,7 @@ jobs:
       )
     runs-on: ubuntu-latest
     steps:
-      # Instant banner so a maintainer knows their tick or label change was received while the slower
-      # rebuild runs. Before checkout so it lands within seconds of the runner starting.
+      # Before checkout, so the banner lands within seconds of the runner starting.
       - name: Acknowledge the update in progress
         if: github.event_name == 'pull_request'
         continue-on-error: true
@@ -174,7 +173,7 @@ jobs:
 
       - name: Reconcile standing PR
         # Not `standing-pr update`: HEAD is now a `chore: release …` commit, which the skip-pattern
-        # guard matches, so a plain update no-ops. refresh-after-release bypasses the guard.
+        # guard matches, so a plain update no-ops.
         run: pnpm exec releasekit refresh-after-release
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -220,7 +219,7 @@ jobs:
       - name: Remove token-based .npmrc so OIDC can take over
         run: rm -f .npmrc
 
-      - name: Publish from release PR
+      - name: Publish from standing release PR
         run: pnpm exec releasekit standing-pr publish
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -269,7 +268,7 @@ jobs:
       - name: Remove token-based .npmrc so OIDC can take over
         run: rm -f .npmrc
 
-      - name: Retry publish from release PR
+      - name: Retry publish from standing release PR
         run: pnpm exec releasekit standing-pr publish --pr ${{ github.event.pull_request.number }}
         env:
           GITHUB_TOKEN: ${{ github.token }}

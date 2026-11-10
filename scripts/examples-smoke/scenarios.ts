@@ -86,7 +86,6 @@ export const SCENARIOS: Scenario[] = [
     job: 'preview',
     config: 'releasekit.config.json',
     fixture: 'npm-single',
-    // --dry-run prints the comment instead of posting it, so no PR context is needed.
     releaseArgs: ['preview', '--dry-run'],
     proves: 'preview setup resolves; dry-run renders the comment without posting it.',
   },
