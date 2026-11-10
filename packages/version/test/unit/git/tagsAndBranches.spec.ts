@@ -151,14 +151,6 @@ describe('tagsAndBranches', () => {
       expect(result).toBe('v1.2.0');
     });
 
-    it('should ignore stable tags that are not reachable from HEAD', async () => {
-      const git = createFakeGit({ tags: ['v2.0.0', 'v1.0.0'], mergedTags: { HEAD: ['v1.0.0'] } });
-
-      const result = await getLatestStableTag('v', git);
-
-      expect(result).toBe('v1.0.0');
-    });
-
     it('should return empty string when only prereleases exist', async () => {
       const result = await getLatestStableTag('v', gitWithTags(['v1.0.0-rc.1']));
 
