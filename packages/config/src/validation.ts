@@ -75,6 +75,24 @@ export function rememberUnsetEnv(config: unknown, unsetEnv: UnsetEnvReference[])
   }
 }
 
+/** Carries `from`'s unset references to `to`, a copy of it built after load. */
+export function copyUnsetEnv(from: object, to: object): void {
+  const refs = unsetEnvByOwner.get(from);
+  if (refs) {
+    unsetEnvByOwner.set(to, new Map(refs));
+  }
+}
+
+/** Whether a notes run calls the LLM: at least one task is on, and neither CHANGELOG_NO_LLM nor the run skips it. */
+export function runsLlmTasks(llm: { tasks?: object } | undefined, skipReleaseNotes?: boolean): boolean {
+  return (
+    llm !== undefined &&
+    !process.env.CHANGELOG_NO_LLM &&
+    !skipReleaseNotes &&
+    Object.values(llm.tasks ?? {}).some(Boolean)
+  );
+}
+
 /** `llm.model` is optional at load so runs that skip notes work without it; call this before running an LLM task. */
 export function assertLlmModel<T extends { model?: string }>(llm: T): asserts llm is T & { model: string } {
   if (llm.model) {

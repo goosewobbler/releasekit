@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { assertLlmModel } from '@releasekit/config';
+import { assertLlmModel, runsLlmTasks } from '@releasekit/config';
 import { type ChangelogRefsMode, debug, info, parseGitHubOwnerRepo, success, warn } from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
 import { withContentHashCache } from '../llm/cache.js';
@@ -393,7 +393,7 @@ export async function runPipeline(
     config.releaseNotes === false || config.releaseNotes === undefined ? undefined : config.releaseNotes;
 
   const llmConfig = releaseNotesConfig?.llm;
-  if (llmConfig && !process.env.CHANGELOG_NO_LLM && !pipelineOptions?.skipReleaseNotes) {
+  if (llmConfig && runsLlmTasks(llmConfig, pipelineOptions?.skipReleaseNotes)) {
     assertLlmModel(llmConfig);
     info('Processing with LLM enhancement');
 

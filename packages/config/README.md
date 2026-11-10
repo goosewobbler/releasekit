@@ -23,6 +23,8 @@ This is an internal package that handles configuration loading, schema validatio
 | `loadMonorepoConfig(options)` | Load monorepo config |
 | `loadCIConfig(options)` | Load CI automation config |
 | `assertLlmModel(llm)` | Throw a `ConfigError` naming `llm.model` (and its unset `{env:}` variable) if it's missing; call before running an LLM task |
+| `runsLlmTasks(llm, skipReleaseNotes?)` | Whether a notes run calls the LLM: a task is on and nothing skips it |
+| `copyUnsetEnv(from, to)` | Carry `from`'s unset `{env:}` references to a copy built after load, so `assertLlmModel` still names the variable |
 
 ### Schema Types
 

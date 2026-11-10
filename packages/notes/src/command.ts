@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
-import { LLMConfigSchema, loadConfig, saveAuth } from '@releasekit/config';
+import { copyUnsetEnv, LLMConfigSchema, loadConfig, saveAuth } from '@releasekit/config';
 import { EXIT_CODES, error, info, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import { Command } from 'commander';
 import { runPipeline } from './core/pipeline.js';
@@ -144,6 +144,9 @@ export function createNotesCommand(): Command {
               const detail =
                 issues?.map((i) => i.message).join('; ') ?? (err instanceof Error ? err.message : String(err));
               throw new Error(`Invalid LLM configuration from --llm-* flags: ${detail}`);
+            }
+            if (existingLlm) {
+              copyUnsetEnv(existingLlm, validatedLlm);
             }
             config.releaseNotes = {
               ...existingRn,

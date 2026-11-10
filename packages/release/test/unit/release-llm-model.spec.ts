@@ -96,4 +96,13 @@ describe('runRelease with llm.model from an unset {env:} variable', { timeout: 1
     await expect(runRelease(options)).rejects.toThrow('notes.releaseNotes.llm.model: {env:OLLAMA_MODEL} is not set');
     expect(mockPublishRunPipeline).not.toHaveBeenCalled();
   });
+
+  it('should fail before writing the version bumps', async () => {
+    const { flushPendingWrites } = await import('@releasekit/version');
+
+    await expect(runRelease({ ...options, dryRun: false })).rejects.toThrow(
+      'notes.releaseNotes.llm.model: {env:OLLAMA_MODEL} is not set',
+    );
+    expect(flushPendingWrites).not.toHaveBeenCalled();
+  });
 });
