@@ -24,9 +24,11 @@ interface SchemaProperty {
   minItems?: number;
 }
 
-export interface Schema {
+interface Schema {
   properties: Record<string, SchemaProperty>;
 }
+
+const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')) as Schema;
 
 function ensurePeriod(str: string | undefined): string {
   if (!str) {
@@ -435,85 +437,73 @@ function renderRelease(prop: SchemaProperty): void {
   }
 }
 
-export function renderConfigDocs(schema: Schema): string {
-  lines.length = 0;
+emit(
+  '<!-- AUTO-GENERATED FROM releasekit.schema.json — DO NOT EDIT DIRECTLY -->',
+  '<!-- Run `pnpm docs:config` to regenerate -->',
+  '',
+  '# Configuration Reference',
+  '',
+  'ReleaseKit is configured via a `releasekit.config.json` file in the root of your repository. Add a `$schema` reference for editor autocompletion:',
+  '',
+  '```json',
+  '{',
+  '  "$schema": "https://goosewobbler.github.io/releasekit/schema.json"',
+  '}',
+  '```',
+  '',
+  'Comments are supported. You can use `//` line comments and `/* … */` block comments, and trailing commas are allowed. To stop your editor from flagging comments as JSON errors, name the file `releasekit.config.jsonc` instead — both filenames are discovered automatically, with `.json` taking precedence when both are present.',
+  '',
+  '```jsonc',
+  '{',
+  '  // editor autocompletion + comment support',
+  '  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",',
+  '  "publish": {',
+  '    "npm": { "enabled": true } // publish to npm',
+  '  }',
+  '}',
+  '```',
+  '',
+  '---',
+  '',
+);
 
-  emit(
-    '<!-- AUTO-GENERATED FROM releasekit.schema.json — DO NOT EDIT DIRECTLY -->',
-    '<!-- Run `pnpm docs:config` to regenerate -->',
-    '',
-    '# Configuration Reference',
-    '',
-    'ReleaseKit is configured via a `releasekit.config.json` file in the root of your repository. Add a `$schema` reference for editor autocompletion:',
-    '',
-    '```json',
-    '{',
-    '  "$schema": "https://goosewobbler.github.io/releasekit/schema.json"',
-    '}',
-    '```',
-    '',
-    'Comments are supported. You can use `//` line comments and `/* … */` block comments, and trailing commas are allowed. To stop your editor from flagging comments as JSON errors, name the file `releasekit.config.jsonc` instead — both filenames are discovered automatically, with `.json` taking precedence when both are present.',
-    '',
-    '```jsonc',
-    '{',
-    '  // editor autocompletion + comment support',
-    '  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",',
-    '  "publish": {',
-    '    "npm": { "enabled": true } // publish to npm',
-    '  }',
-    '}',
-    '```',
-    '',
-    '---',
-    '',
-  );
+const props = schema.properties;
 
-  const props = schema.properties;
+renderGit(props.git);
+emit('---', '');
+renderMonorepo(props.monorepo);
+emit('---', '');
+renderVersion(props.version);
+emit('---', '');
+renderPublish(props.publish);
+emit('---', '');
+renderNotes(props.notes);
+emit('---', '');
+renderCi(props.ci);
+emit('---', '');
+renderRelease(props.release);
+emit('---', '');
 
-  renderGit(props.git);
-  emit('---', '');
-  renderMonorepo(props.monorepo);
-  emit('---', '');
-  renderVersion(props.version);
-  emit('---', '');
-  renderPublish(props.publish);
-  emit('---', '');
-  renderNotes(props.notes);
-  emit('---', '');
-  renderCi(props.ci);
-  emit('---', '');
-  renderRelease(props.release);
-  emit('---', '');
+emit(
+  'For the canonical machine-readable schema, see [releasekit.schema.json](https://goosewobbler.github.io/releasekit/schema.json).',
+);
 
-  emit(
-    'For the canonical machine-readable schema, see [releasekit.schema.json](https://goosewobbler.github.io/releasekit/schema.json).',
-  );
+const output = `${lines.join('\n')}\n`;
 
-  return `${lines.join('\n')}\n`;
-}
-
-function main(): void {
-  const output = renderConfigDocs(JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')) as Schema);
-
-  if (process.argv.includes('--check')) {
-    let current = '';
-    try {
-      current = readFileSync(OUT_PATH, 'utf8');
-    } catch {
-      current = '';
-    }
-    if (current !== output) {
-      console.error(`${OUT_PATH} is out of date with the schema.\nRun \`pnpm docs:config\` and commit the result.`);
-      process.exit(1);
-    }
-    console.log(`${OUT_PATH} is up to date.`);
-  } else {
-    mkdirSync(dirname(OUT_PATH), { recursive: true });
-    writeFileSync(OUT_PATH, output, 'utf8');
-    console.log(`Generated: ${OUT_PATH}`);
+if (process.argv.includes('--check')) {
+  let current = '';
+  try {
+    current = readFileSync(OUT_PATH, 'utf8');
+  } catch {
+    current = '';
   }
-}
-
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
-  main();
+  if (current !== output) {
+    console.error(`${OUT_PATH} is out of date with the schema.\nRun \`pnpm docs:config\` and commit the result.`);
+    process.exit(1);
+  }
+  console.log(`${OUT_PATH} is up to date.`);
+} else {
+  mkdirSync(dirname(OUT_PATH), { recursive: true });
+  writeFileSync(OUT_PATH, output, 'utf8');
+  console.log(`Generated: ${OUT_PATH}`);
 }

@@ -62,7 +62,7 @@ jobs:
 
 Only release when a PR is merged with a release label. Conventional commits determine the changelog entries; the label controls whether and at what level to bump.
 
-A merged PR releases only if it carries `bump:patch`, `bump:minor` or `bump:major`, or `release:graduate` to graduate a prerelease. Add `channel:prerelease` alongside a bump label to release a prerelease. The label names are configurable: see [`ci.labels`](../../../docs/configuration.md#cilabels).
+The release labels are `bump:patch`, `bump:minor` and `bump:major`, plus `release:graduate` to graduate a prerelease. Add `channel:prerelease` alongside a bump label to release a prerelease. The names are configurable: see [`ci.labels`](../../../docs/configuration.md#cilabels).
 
 #### Create the labels
 
@@ -177,7 +177,7 @@ Configure the trigger in `releasekit.config.json`:
 }
 ```
 
-Without a `bump:patch/minor/major` label on the merged PR, no release is triggered. The `labels` block shown above reflects the defaults — omit it if your repository already uses those label names.
+The `labels` block shown above reflects the defaults — omit it if your repository already uses those label names.
 
 See the [configuration reference](../../../docs/configuration.md#ci) for all `ci.*` options.
 

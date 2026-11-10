@@ -68,7 +68,7 @@ Versioning configuration.
 | `mainPackage` | string | — | Package to use for version determination |
 | `skip` | `string[]` | — | Packages to exclude from versioning (glob patterns or exact names). Private packages ("private": true) are skipped automatically — see includePrivate — so they do not need to be listed here. |
 | `includePrivate` | boolean | `false` | Include npm packages marked "private": true (in package.json) in the release flow. Default false: private packages are skipped at discovery — they cannot be published to any registry, mirroring the Cargo `publish = false` and pub `publish_to: none` skips already applied during discovery. Set true to version a private package for internal tracking. Packages explicitly named in version.packages are always included regardless of this setting. |
-| `commitMessage` | string | — | Template for the release commit message, with ${version} and ${packageName}. Default: 'chore: release ${packageName} v${version}' for sync and single-package releases; otherwise 'chore: release' followed by each released package and version. |
+| `commitMessage` | string | — | Template for the release commit message. Supports ${version} and ${packageName}. Default: 'chore: release ${packageName} v${version}' for sync and single-package releases; otherwise 'chore: release' followed by each released package and version. |
 | `mismatchStrategy` | `"error"` \| `"warn"` \| `"ignore"` \| `"prefer-package"` \| `"prefer-git"` | `"warn"` | How to handle version mismatches |
 | `versionPrefix` | string | `""` | Prefix for version tags |
 | `prereleaseIdentifier` | string | — | Identifier for prerelease versions (e.g., 'alpha', 'beta') |
@@ -149,7 +149,7 @@ Dart/Flutter pub configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out. When false, a pubspec.yaml beside a package.json isn't published either. |
+| `enabled` | boolean | `true` | Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out, which also stops a pubspec.yaml beside a package.json from publishing. |
 | `paths` | `string[]` | — | Directories, relative to each package, to bump a pubspec.yaml in instead of the package's own directory. Not searched recursively. Ignored in group mode. |
 
 ---
@@ -194,7 +194,7 @@ Cargo publishing configuration.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `true` | Publish to crates.io. Detected Rust packages are published by default; set false to opt out (version and tag only). |
-| `noVerify` | boolean | `false` | Pass --no-verify to cargo publish, skipping cargo's pre-publish build of the packaged crate. Use only as a temporary workaround for a build that fails in CI. |
+| `noVerify` | boolean | `false` | Pass --no-verify to cargo publish, skipping the pre-publish build of the packaged crate. Use only as a temporary workaround for a build that fails in CI. |
 | `publishOrder` | `string[]` | `[]` | Crate names to publish first, in this order; the rest follow in discovery order. Empty sorts crates by their path dependencies. |
 | `clean` | boolean | `false` | Run cargo clean in each crate's directory before publishing. |
 
@@ -205,7 +205,7 @@ Dart/Flutter publishing configuration via pub.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `true` | Publish to pub.dev. Detected Dart/Flutter packages are published by default; set false to opt out (version and tag only). |
-| `publishOrder` | `string[]` | `[]` | Package names to publish first, in this order; the rest follow in discovery order, which is also the order when empty. |
+| `publishOrder` | `string[]` | `[]` | Package names to publish first, in this order; the rest follow in discovery order. |
 
 ### `publish.githubRelease`
 
@@ -272,7 +272,7 @@ Changelog and release notes configuration.
 
 ### `notes.changelog`
 
-Changelog files. On by default, writing CHANGELOG.md at the repo root; set to false to disable.
+Changelog generation, on by default. Set to false to disable.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -292,7 +292,7 @@ Template configuration for changelog.
 
 ### `notes.releaseNotes`
 
-Release notes for the GitHub Release body and optional per-version files. Off unless set: {} turns them on with each version's changelog section as the content, and llm or templates change it.
+Release notes for the GitHub Release body and optional per-version files. Off unless set. {} turns them on using each version's changelog section; set llm or templates to change the content.
 
 #### `notes.releaseNotes.file`
 
@@ -339,10 +339,10 @@ LLM configuration for release notes.
 | `model` | string | — | Model identifier for the selected provider. Required — releasekit ships no default, so enabling LLM enhancement needs an explicit, current model (a missing model fails config validation). |
 | `baseURL` | string | — | Custom API base URL. Required for the openai-compatible provider. |
 | `apiKey` | string | — | API key. When unset, releasekit uses the key saved by releasekit-notes auth, then the provider's environment variable (e.g. OPENAI_API_KEY); prefer either to an inline key. |
-| `concurrency` | integer | — | Parallelism limit, default 5. It caps the packages processed at once and, separately, the entries each package's standalone enhance task rewrites at once. |
-| `style` | string | — | Writing-style instruction for the enhance and combined enhance+categorize prompts. Default: past tense, concise and user-focused, leading with the impact. |
-| `examples` | integer | `3` | Number of the project's past GitHub Releases (0–5) used as style examples in the enhance+categorize and releaseNotes prompts. Needs GITHUB_TOKEN or GH_TOKEN. |
-| `categoryOrder` | `string[]` | — | Order of the rendered categories. Listed ones come first; the rest keep their categories order, except Breaking, which stays first unless listed. |
+| `concurrency` | integer | — | Maximum packages processed at once and, separately, entries a package's standalone enhance task rewrites at once. Default: 5. |
+| `style` | string | — | Writing-style instruction for the enhance task, alone or combined with categorize. Default: past tense, concise and user-focused, leading with the impact. |
+| `examples` | integer | `3` | Number of the project's past GitHub Releases (0–5) used as style examples in the combined enhance and categorize prompt and the releaseNotes prompt. Needs GITHUB_TOKEN or GH_TOKEN. |
+| `categoryOrder` | `string[]` | — | Order of the rendered categories. Listed ones come first; the rest keep their order in categories, except Breaking, which stays first unless listed. |
 | `cache` | boolean | `false` | Cache LLM responses on disk (under the OS temp dir), keyed by a hash of the provider, model, prompt, and request options. A re-run or backfill with the same inputs reuses the cached generation instead of re-calling the provider. Off by default. |
 
 #### `notes.releaseNotes.llm.options`
@@ -478,7 +478,7 @@ Configuration for the standing release PR feature (ci.releaseStrategy: 'standing
 |-----|------|---------|-------------|
 | `branch` | string | `"release/next"` | Branch name for the standing release PR. Each update resets it to the base branch and force-pushes it, so don't commit to it. |
 | `title` | string | — | PR title template. Variables: ${count} (publishable package count), ${version} (the first publishable package's new version), ${tag} (version with tag prefix). Also the release commit's subject, so it must match a release.ci.skipPatterns entry and carry no CI-skip marker. A title with a CI-skip marker is replaced by 'chore: release preparation'. So is one the skip patterns miss, if they match 'chore: release preparation'. The run warns either way. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise. |
-| `labels` | `string[]` | `["release"]` | Labels to apply to the standing release PR. Leave out the ci.labels release-control labels: the standing PR reads its own labels as overrides. |
+| `labels` | `string[]` | `["release"]` | Labels to apply to the standing release PR. Don't include bump, channel, scope or release labels: the standing PR reads its own labels as release overrides. |
 | `deleteBranchOnMerge` | boolean | `true` | Whether to auto-delete the release branch after the PR is merged. Publish keeps it if an update has moved it since the merge, or if the merged PR's head commit can't be read. |
 | `mergeMethod` | `"merge"` \| `"squash"` \| `"rebase"` | `"merge"` | Merge method for releasekit standing-pr merge. Use 'squash' or 'rebase' so the release commit's subject reaches the base branch, where release.ci.skipPatterns can match it. |
 | `minAge` | string | — | Minimum age of the standing PR, counted from when it was first opened, before it can be merged. Duration string, e.g. '6h', '30m', '1d'. Gate enforced via the releasekit/standing-pr commit status check; configure it as a required status check in branch protection to block merges. |

@@ -58,7 +58,7 @@ export const VersionPubConfigSchema = z.object({
     .boolean()
     .default(true)
     .describe(
-      "Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out. When false, a pubspec.yaml beside a package.json isn't published either.",
+      'Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out, which also stops a pubspec.yaml beside a package.json from publishing.',
     ),
   paths: z
     .array(z.string())
@@ -149,7 +149,7 @@ export const VersionConfigSchema = z.object({
     ),
   commitMessage: z.string().optional().describe(
     // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
-    "Template for the release commit message, with ${version} and ${packageName}. Default: 'chore: release ${packageName} v${version}' for sync and single-package releases; otherwise 'chore: release' followed by each released package and version.",
+    "Template for the release commit message. Supports ${version} and ${packageName}. Default: 'chore: release ${packageName} v${version}' for sync and single-package releases; otherwise 'chore: release' followed by each released package and version.",
   ),
   mismatchStrategy: z
     .enum(['error', 'warn', 'ignore', 'prefer-package', 'prefer-git'])
@@ -205,7 +205,7 @@ export const CargoPublishConfigSchema = z.object({
     .boolean()
     .default(false)
     .describe(
-      "Pass --no-verify to cargo publish, skipping cargo's pre-publish build of the packaged crate. Use only as a temporary workaround for a build that fails in CI.",
+      'Pass --no-verify to cargo publish, skipping the pre-publish build of the packaged crate. Use only as a temporary workaround for a build that fails in CI.',
     ),
   publishOrder: z
     .array(z.string())
@@ -226,9 +226,7 @@ export const PubPublishConfigSchema = z.object({
   publishOrder: z
     .array(z.string())
     .default([])
-    .describe(
-      'Package names to publish first, in this order; the rest follow in discovery order, which is also the order when empty.',
-    ),
+    .describe('Package names to publish first, in this order; the rest follow in discovery order.'),
 });
 
 export const PublishGitConfigSchema = z.object({
@@ -523,7 +521,7 @@ const LLMConfigBaseSchema = z.object({
     .positive()
     .optional()
     .describe(
-      "Parallelism limit, default 5. It caps the packages processed at once and, separately, the entries each package's standalone enhance task rewrites at once.",
+      "Maximum packages processed at once and, separately, entries a package's standalone enhance task rewrites at once. Default: 5.",
     ),
   retry: LLMRetryConfigSchema.optional().describe('Retries for LLM requests that fail with a retryable error.'),
   tasks: LLMTasksConfigSchema.optional().describe('LLM tasks to run. Each is off unless set to true.'),
@@ -545,7 +543,7 @@ const LLMConfigBaseSchema = z.object({
       'Write in past tense ("Added feature", not "Add feature"). Be concise and user-focused. Lead with the impact, not the implementation detail.',
     )
     .describe(
-      'Writing-style instruction for the enhance and combined enhance+categorize prompts. Default: past tense, concise and user-focused, leading with the impact.',
+      'Writing-style instruction for the enhance task, alone or combined with categorize. Default: past tense, concise and user-focused, leading with the impact.',
     ),
   scopes: ScopeConfigSchema.optional().describe('Validation of the scopes the LLM assigns to entries.'),
   prompts: LLMPromptsConfigSchema.optional().describe('Per-task prompt additions.'),
@@ -556,7 +554,7 @@ const LLMConfigBaseSchema = z.object({
     .max(5)
     .default(3)
     .describe(
-      "Number of the project's past GitHub Releases (0–5) used as style examples in the enhance+categorize and releaseNotes prompts. Needs GITHUB_TOKEN or GH_TOKEN.",
+      "Number of the project's past GitHub Releases (0–5) used as style examples in the combined enhance and categorize prompt and the releaseNotes prompt. Needs GITHUB_TOKEN or GH_TOKEN.",
     ),
   context: z
     .object({
@@ -571,7 +569,7 @@ const LLMConfigBaseSchema = z.object({
     .array(z.string())
     .optional()
     .describe(
-      'Order of the rendered categories. Listed ones come first; the rest keep their categories order, except Breaking, which stays first unless listed.',
+      'Order of the rendered categories. Listed ones come first; the rest keep their order in categories, except Breaking, which stays first unless listed.',
     ),
   cache: z
     .boolean()
@@ -651,12 +649,12 @@ export const NotesConfigSchema = z.object({
   changelog: z
     .union([z.literal(false).describe('Set to false to disable changelog generation'), ChangelogConfigSchema])
     .optional()
-    .describe('Changelog files. On by default, writing CHANGELOG.md at the repo root; set to false to disable.'),
+    .describe('Changelog generation, on by default. Set to false to disable.'),
   releaseNotes: z
     .union([z.literal(false).describe('Set to false to disable release notes'), ReleaseNotesConfigSchema])
     .optional()
     .describe(
-      "Release notes for the GitHub Release body and optional per-version files. Off unless set: {} turns them on with each version's changelog section as the content, and llm or templates change it.",
+      "Release notes for the GitHub Release body and optional per-version files. Off unless set. {} turns them on using each version's changelog section; set llm or templates to change the content.",
     ),
   updateStrategy: z
     .enum(['prepend', 'regenerate'])
@@ -729,7 +727,7 @@ export const StandingPrConfigSchema = z.object({
     .array(z.string())
     .default(['release'])
     .describe(
-      'Labels to apply to the standing release PR. Leave out the ci.labels release-control labels: the standing PR reads its own labels as overrides.',
+      "Labels to apply to the standing release PR. Don't include bump, channel, scope or release labels: the standing PR reads its own labels as release overrides.",
     ),
   deleteBranchOnMerge: z
     .boolean()
