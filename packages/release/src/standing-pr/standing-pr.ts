@@ -1457,7 +1457,7 @@ async function assertManifestMatchesSource(
       // Another package's manifest would vouch for a version this package doesn't have.
       if (path.dirname(manifestPath) !== path.resolve(dir)) {
         throw new Error(
-          `Refusing to publish PR #${prNumber}: the release manifest lists '${file}' for '${update.packageName}', ` +
+          `Refusing to publish PR #${prNumber}: the release manifest lists '${path.relative(cwd, manifestPath)}' for '${update.packageName}', ` +
             `which is not in that package's directory at the merged commit. The manifest does not match the source — ` +
             `it may have been edited. Re-run 'standing-pr update' to regenerate it.`,
         );
