@@ -152,13 +152,13 @@ releasekit release --draft
 releasekit release --from-draft 123
 ```
 
-Re-running `--draft` updates its open draft in place. The draft is pinned to the commit it was computed at: if `main` moves before you dispatch, `--from-draft` refuses and asks you to re-run `--draft`. Both phases read the token from `GITHUB_TOKEN`, which needs `issues: write`. Use the workflow's token or a GitHub App installation token: `--from-draft` only accepts a manifest a bot posted, so `--draft` refuses a personal token.
+Re-running `--draft` updates its open draft in place. The draft is pinned to the commit it was computed at: if `main` moves before you dispatch, `--from-draft` refuses and asks you to re-run `--draft`. Both phases need `GITHUB_REPOSITORY` and a `GITHUB_TOKEN` with `issues: write`. Use the workflow's token or a GitHub App installation token: `--from-draft` only accepts a manifest a bot posted, so `--draft` refuses a personal token.
 
 ---
 
 ## `releasekit standing-pr`
 
-Manage the standing release PR (create/update or publish on merge). Pick a subcommand: `update`, `publish`, or `merge`. All three share these options:
+Manage the standing release PR (create/update or publish on merge). Pick a subcommand: `update`, `publish`, or `merge`. All three need `GITHUB_REPOSITORY` and `GITHUB_TOKEN`, and share these options:
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -171,7 +171,7 @@ Manage the standing release PR (create/update or publish on merge). Pick a subco
 
 ### `releasekit standing-pr update`
 
-Calculate versions, commit to the release branch, and create/update the standing PR.
+Calculate versions, commit to the release branch, and create/update the standing PR. Without the GitHub variables, it fails before touching the release branch.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -191,7 +191,7 @@ for the workflow.
 
 ### `releasekit standing-pr publish`
 
-Publish packages from a merged standing release PR (reads the manifest from the PR comment).
+Publish packages from a merged standing release PR (reads the manifest from the PR comment). It needs the GitHub variables even with `--pr`.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -203,7 +203,7 @@ releasekit standing-pr publish --pr 123
 
 ### `releasekit standing-pr merge`
 
-Merge the open standing release PR, optionally publishing immediately. Needs `GITHUB_REPOSITORY` and `GITHUB_TOKEN`, and fails without them. A merge made with a workflow's default `GITHUB_TOKEN` doesn't start other workflows, so the publish workflow won't run. Without `--publish`, set `GITHUB_TOKEN` to a personal access token or GitHub App token instead. With `--publish`, such a token also starts the publish workflow, so two runs publish the same release.
+Merge the open standing release PR, optionally publishing immediately. A merge made with a workflow's default `GITHUB_TOKEN` doesn't start other workflows, so the publish workflow won't run. Without `--publish`, set `GITHUB_TOKEN` to a personal access token or GitHub App token instead. With `--publish`, such a token also starts the publish workflow, so two runs publish the same release.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -219,7 +219,8 @@ releasekit standing-pr merge --publish
 
 In standing-pr mode, run it as the last step of a job that releases outside the standing PR. It re-runs
 the standing-PR update with `--reconcile`, so the standing PR's manifest doesn't keep listing versions
-that were just published. A failure fails the job. Outside standing-pr mode it does nothing.
+that were just published. A failure fails the job, including a missing `GITHUB_REPOSITORY` or
+`GITHUB_TOKEN`. Outside standing-pr mode it does nothing.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|

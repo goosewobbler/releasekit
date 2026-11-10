@@ -2,7 +2,7 @@ import type { VersionOutput } from '@releasekit/core';
 import { info, success, warn } from '@releasekit/core';
 import { isBotComment } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
-import { getGitHubContext } from '../git.js';
+import { requireGitHubContext } from '../git.js';
 import { forgeFor } from '../github.js';
 import { runRelease } from '../release.js';
 import { extractNotesRegions, renderedRegionText, renderNotesRegion } from '../standing-pr/notes-region.js';
@@ -82,13 +82,10 @@ function renderDraftBody(versionOutput: VersionOutput, releaseNotes: Record<stri
 
 /** Phase 1 of draft-then-dispatch: a human edits the issue's notes, then {@link publishFromDraft} consumes them. */
 export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseOutput | null> {
-  const context = getGitHubContext();
-  if (!context?.token) {
-    throw new Error('Cannot create a release draft: no GitHub token in the environment.');
-  }
+  const context = requireGitHubContext('a release draft cannot be created');
   // ghs_ is the workflow's GITHUB_TOKEN or an App installation token; these are user tokens. An unknown format passes,
   // as --from-draft still checks who posted the manifest.
-  if (/^(ghp|github_pat|gho|ghu)_/.test(context.token)) {
+  if (/^(ghp|github_pat|gho|ghu)_/.test(context.token ?? '')) {
     throw new Error(
       "Cannot create a release draft with a personal token: '--from-draft' refuses a manifest a bot didn't post. " +
         "Run 'releasekit release --draft' with the workflow's GITHUB_TOKEN or a GitHub App installation token.",
@@ -141,10 +138,7 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
 }
 
 export async function publishFromDraft(issueNumber: number, options: ReleaseOptions): Promise<ReleaseOutput | null> {
-  const context = getGitHubContext();
-  if (!context?.token) {
-    throw new Error('Cannot publish from a release draft: no GitHub token in the environment.');
-  }
+  const context = requireGitHubContext(`release draft #${issueNumber} cannot be published`);
 
   const forge = forgeFor(context);
   const manifestComment = await forge.findComment(issueNumber, DRAFT_MANIFEST_MARKER);

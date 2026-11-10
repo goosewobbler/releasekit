@@ -63,14 +63,16 @@ describe('standing-pr merge', () => {
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
-  it('should fail with an error envelope when there is no GitHub context', async () => {
+  it('should fail with a GitHub error envelope when there is no GitHub context', async () => {
     vi.stubEnv('GITHUB_REPOSITORY', '');
     vi.stubEnv('GITHUB_TOKEN', '');
 
     const envelope = await merge();
 
     expect(envelope).toMatchObject({ status: 'error', changed: false });
-    expect(envelope.errors).toMatchObject([{ message: expect.stringMatching(/No GitHub context/) }]);
-    expect(exitSpy).toHaveBeenCalledWith(EXIT_CODES.GENERAL_ERROR);
+    expect(envelope.errors).toMatchObject([
+      { code: 'GITHUB_ERROR', category: 'github', message: expect.stringMatching(/No GitHub context/) },
+    ]);
+    expect(exitSpy).toHaveBeenCalledWith(EXIT_CODES.GITHUB_ERROR);
   });
 });

@@ -1,12 +1,7 @@
 import type { VersionOutput } from '@releasekit/core';
 import { type CommentAuthor, createFakeForge, type FakeForge } from '@releasekit/forge';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { serializeManifest } from '../../src/standing-pr/standing-pr.js';
-
-const mockGetGitHubContext = vi.fn();
-vi.mock('../../src/git.js', () => ({
-  getGitHubContext: (...args: unknown[]) => mockGetGitHubContext(...args),
-}));
 
 const mockForgeFor = vi.fn();
 vi.mock('../../src/github.js', () => ({
@@ -28,8 +23,14 @@ vi.mock('@releasekit/core', async (importOriginal) => {
   return { ...actual, info: vi.fn(), success: vi.fn(), warn: vi.fn() };
 });
 
-// The workflow's GITHUB_TOKEN format, which the personal-token check must let through.
-const context = { owner: 'o', repo: 'r', token: 'ghs_workflow', sha: null };
+beforeEach(() => {
+  vi.stubEnv('GITHUB_REPOSITORY', 'o/r');
+  vi.stubEnv('GITHUB_TOKEN', 'ghs_workflow');
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 const versionOutput: VersionOutput = {
   dryRun: false,
@@ -83,7 +84,6 @@ describe('runReleaseDraft', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     headSha = 'sha-draft';
-    mockGetGitHubContext.mockReturnValue(context);
     forge = createFakeForge();
     mockForgeFor.mockReturnValue(forge);
     mockRunRelease.mockResolvedValue({
@@ -169,7 +169,7 @@ describe('runReleaseDraft', () => {
   it.each(['ghp_', 'github_pat_', 'gho_', 'ghu_'])(
     'should refuse a %s token before computing the release',
     async (prefix) => {
-      mockGetGitHubContext.mockReturnValue({ ...context, token: `${prefix}personal` });
+      vi.stubEnv('GITHUB_TOKEN', `${prefix}personal`);
 
       await expect(runReleaseDraft(baseOptions)).rejects.toThrow(/personal token/);
       expect(mockRunRelease).not.toHaveBeenCalled();
@@ -184,9 +184,12 @@ describe('runReleaseDraft', () => {
     expect(forge.createdIssues).toHaveLength(0);
   });
 
-  it('should throw when no GitHub token is present', async () => {
-    mockGetGitHubContext.mockReturnValue({ ...context, token: null });
-    await expect(runReleaseDraft(baseOptions)).rejects.toThrow(/no GitHub token/);
+  it('should throw a GitHub error naming the missing token', async () => {
+    vi.stubEnv('GITHUB_TOKEN', '');
+    await expect(runReleaseDraft(baseOptions)).rejects.toMatchObject({
+      code: 'GITHUB_ERROR',
+      message: expect.stringMatching(/GITHUB_TOKEN is not set, so a release draft cannot be created/),
+    });
   });
 });
 
@@ -196,7 +199,6 @@ describe('publishFromDraft', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     headSha = 'sha-draft';
-    mockGetGitHubContext.mockReturnValue(context);
     mockRunRelease.mockResolvedValue({ versionOutput, notesGenerated: true });
     const mod = await import('../../src/draft/draft.js');
     publishFromDraft = mod.publishFromDraft;
@@ -461,5 +463,13 @@ describe('publishFromDraft', () => {
     mockForgeFor.mockReturnValue(forge);
 
     await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/No release-draft manifest/);
+  });
+
+  it('should throw a GitHub error naming a malformed GITHUB_REPOSITORY', async () => {
+    vi.stubEnv('GITHUB_REPOSITORY', 'owner');
+    await expect(publishFromDraft(9, baseOptions)).rejects.toMatchObject({
+      code: 'GITHUB_ERROR',
+      message: expect.stringMatching(/GITHUB_REPOSITORY 'owner' is not owner\/repo, so release draft #9 cannot be/),
+    });
   });
 });
