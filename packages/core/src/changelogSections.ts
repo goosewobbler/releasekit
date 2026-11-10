@@ -43,7 +43,7 @@ interface SectionEntry {
 }
 
 interface GroupChangelogOptions {
-  /** Non-breaking entries in these scopes move to a trailing section; a breaking one still leads. */
+  /** Non-breaking entries in these scopes go last, in their own section. */
   demoteScopes?: readonly string[];
 }
 
