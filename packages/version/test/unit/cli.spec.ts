@@ -20,7 +20,7 @@ const mockConfig: Partial<Config> = {
   sync: false,
   packages: ['package-a'],
   dryRun: false,
-  tagTemplate: 'v{version}',
+  tagTemplate: '${' + 'prefix}${' + 'version}',
   preset: 'conventionalcommits',
 };
 

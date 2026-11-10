@@ -88,6 +88,16 @@ describe('loadConfig', () => {
     },
   );
 
+  it('should reject packageSpecificTags with a tagTemplate that has no ${packageName}', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({ version: { packageSpecificTags: true, tagTemplate: '${' + 'prefix}${' + 'version}' } }),
+    );
+
+    expect(() => loadConfig()).toThrow(ConfigError);
+    expect(() => loadConfig()).toThrow(/version\.tagTemplate:.*\$\{packageName\}.*packageSpecificTags/);
+  });
+
   it('should throw a migration error for the renamed ci.prPreview.refreshAfterRelease', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ ci: { prPreview: { refreshAfterRelease: true } } }));

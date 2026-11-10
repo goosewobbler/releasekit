@@ -1027,7 +1027,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     warn(conflict);
   }
 
-  const sync = releaseKitConfig.version?.sync ?? false;
+  const sync = releaseKitConfig.version?.sync ?? true;
   const cliTarget = options.target ?? overrides.target;
   const includePrerequisites = options.includePrerequisites || overrides.withPrerequisites;
   // A sync release moves as one unit, so only the whole-batch graduate applies.

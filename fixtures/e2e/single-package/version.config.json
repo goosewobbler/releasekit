@@ -3,6 +3,5 @@
   "packages": [
     "./"
   ],
-  "versionPrefix": "v",
-  "tagTemplate": "v{version}"
+  "versionPrefix": "v"
 }

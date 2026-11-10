@@ -50,6 +50,7 @@ export {
   type TemplateConfig,
   type VerifyConfig,
   type VersionConfig,
+  VersionConfigSchema,
   type VersionGroup,
 } from './schema.js';
 export { loadAuth, saveAuth, substituteInObject, substituteVariables } from './substitute.js';

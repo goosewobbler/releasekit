@@ -5,6 +5,11 @@ export function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+export function resolveTagTemplate(tagTemplate: string | undefined, packageSpecificTags: boolean | undefined): string {
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: template-placeholder syntax
+  return tagTemplate ?? (packageSpecificTags ? '${packageName}@${prefix}${version}' : '${prefix}${version}');
+}
+
 export function formatVersionPrefix(prefix: string): string {
   return prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
 }
@@ -120,7 +125,7 @@ export function buildTagStripPatternFromTemplate(template: string, packageName: 
   return escapeRegExp(prefixPattern);
 }
 
-/** Narrows `getLatestTag` to the baseline tag family, and recognises baseline tags when stripping them for display. */
+/** Narrows `getLatestTag` to a template's tag family, and recognises baseline tags when stripping them for display. */
 export function deriveBaselineTagPrefix(
   template: string | undefined,
   formattedPrefix: string,

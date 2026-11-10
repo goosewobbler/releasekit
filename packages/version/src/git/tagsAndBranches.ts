@@ -1,6 +1,6 @@
 import { createGitCli, type Git } from '@releasekit/git';
 import semver from 'semver';
-import { escapeRegExp } from '../utils/formatting.js';
+import { escapeRegExp, resolveTagTemplate } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
 import { isStableTag } from '../utils/versionUtils.js';
 
@@ -124,8 +124,7 @@ export async function listPackageTags(
   git: Git = createGitCli(),
 ): Promise<string[]> {
   const packageSpecificTags = options?.packageSpecificTags ?? false;
-  const tagTemplate =
-    options?.tagTemplate || (packageSpecificTags ? `\${packageName}@\${prefix}\${version}` : `\${prefix}\${version}`);
+  const tagTemplate = resolveTagTemplate(options?.tagTemplate, packageSpecificTags);
 
   // @releasekit/version -> releasekit-version
   const sanitizedPackageName = packageName.startsWith('@') ? packageName.slice(1).replace(/\//g, '-') : packageName;

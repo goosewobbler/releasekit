@@ -243,85 +243,36 @@ This configuration will process all packages in the `@mycompany` scope except fo
 
 ## Tag Templates and Configuration
 
-`releasekit-version` provides flexible configuration for how Git tags are formatted, allowing you to customize the tag structure for both single package repositories and monorepos.
+Three options in the `version` block of `releasekit.config.json` decide how tags are named:
 
-### Tag Template Configuration
-
-You can customize how tags are formatted using the following configuration options in `releasekit.config.json`:
-
-```json
-{
-  "versionPrefix": "v",
-  "tagTemplate": "${prefix}${version}",
-  "packageSpecificTags": false
-}
-```
-
-- **versionPrefix**: The prefix used for all version numbers in tags (default: `"v"`)
-- **tagTemplate**: The template for Git tags (default: `"${prefix}${version}"`)
-- **packageSpecificTags**: Whether to enable package-specific tagging behaviour (default: `false`)
+- **versionPrefix**: the `${prefix}` value (default: `"v"`). Set `""` for tags like `1.2.3`.
+- **packageSpecificTags**: tag each package separately (default: `false`).
+- **tagTemplate**: the tag format. Defaults to `${packageName}@${prefix}${version}` with `packageSpecificTags`, otherwise `${prefix}${version}`.
 
 ### Available Template Variables
 
-The tag template supports the following variables:
+- `${prefix}`: the value of `versionPrefix`
+- `${version}`: the new version
+- `${packageName}`: the sanitized package name (`@scope/pkg` becomes `scope-pkg`). Empty in sync mode without `packageSpecificTags`, where one tag covers every package.
 
-- `${prefix}`: Replaced with the value of `versionPrefix`
-- `${version}`: Replaced with the calculated version number
-- `${packageName}`: Replaced with the package name (only populated when `packageSpecificTags` is `true`)
-
-### How Package-Specific Tagging Works
-
-The `packageSpecificTags` option controls whether the `${packageName}` variable is populated in your template:
-
-- **When `packageSpecificTags` is `false`**: The `${packageName}` variable is empty, so use templates like `${prefix}${version}`
-- **When `packageSpecificTags` is `true`**: The `${packageName}` variable contains the actual package name
+With `packageSpecificTags: true`, a `tagTemplate` must contain `${packageName}`, or every package would get the same tag. Config loading fails if it doesn't.
 
 ### Examples
 
-#### Global Versioning (Default)
-```json
-{
-  "versionPrefix": "v",
-  "tagTemplate": "${prefix}${version}",
-  "packageSpecificTags": false
-}
-```
-This produces tags like `v1.2.3` for all packages.
+| Config | Tags |
+|--------|------|
+| Defaults | `v1.2.3` |
+| `"versionPrefix": ""` | `1.2.3` |
+| `"tagTemplate": "release-${version}"` | `release-1.2.3` |
+| `"packageSpecificTags": true` | `scope-pkg@v1.2.3`, one per package |
+| `"packageSpecificTags": true, "tagTemplate": "${packageName}-${prefix}${version}"` | `scope-pkg-v1.2.3`, one per package |
 
-#### Package-Specific Versioning
-```json
-{
-  "versionPrefix": "v",
-  "tagTemplate": "${packageName}@${prefix}${version}",
-  "packageSpecificTags": true
-}
-```
-This produces tags like `@scope/package-name@v1.2.3` for each package.
-
-#### Custom Tag Format Examples
-```json
-{
-  "versionPrefix": "",
-  "tagTemplate": "release-${version}",
-  "packageSpecificTags": false
-}
-```
-This would produce tags like `release-1.2.3` instead of `v1.2.3`.
-
-```json
-{
-  "versionPrefix": "v",
-  "tagTemplate": "${packageName}-${prefix}${version}",
-  "packageSpecificTags": true
-}
-```
-This would produce package tags like `@scope/package-name-v1.2.3` instead of `@scope/package-name@v1.2.3`. 
+The next release finds the previous one by the same tag format, so changing it means tagging the last release under the new name.
 
 ### Behaviour in Different Modes
 
-- **Synced Mode with Single Package**: When `packageSpecificTags` is `true`, the package name is used even though all packages are versioned together
-- **Synced Mode with Multiple Packages**: Package names are not used regardless of the `packageSpecificTags` setting
-- **Async Mode**: Each package gets its own tag when `packageSpecificTags` is enabled
+- **Sync mode**: one tag for the release, or one per package with `packageSpecificTags`. A single-package repo with `packageSpecificTags` gets `pkg@v1.2.3`.
+- **Single and async modes**: one tag per released package. In a monorepo, set `packageSpecificTags` so packages don't share tag names.
 
 ## Troubleshooting Template Configuration
 
@@ -348,8 +299,7 @@ To fix this:
    ```json
    {
      "sync": true,
-     "packageSpecificTags": true,
-     "tagTemplate": "${packageName}@${prefix}${version}"
+     "packageSpecificTags": true
    }
    ```
 
@@ -368,17 +318,6 @@ To fix this:
      "version": "1.0.0"
    }
    ```
-
-### Common Template Patterns
-
-Here are some common template patterns and when to use them:
-
-| Pattern | Use Case | Example Output |
-|---------|----------|----------------|
-| `"${prefix}${version}"` | Global versioning, all packages get same tag | `v1.2.3` |
-| `"${packageName}@${prefix}${version}"` | Package-specific versioning | `@scope/package@v1.2.3` |
-| `"release-${version}"` | Custom release format | `release-1.2.3` |
-| `"${packageName}-${version}"` | Simple package versioning | `@scope/package-1.2.3` |
 
 ### Commit Message Templates
 
@@ -404,12 +343,10 @@ While primarily used for single packages now, `releasekit-version` retains optio
 
 ### Sync Mode (`sync: true`)
 
-This is the default if the `sync` flag is present and true.
+This is the default.
 
--   **Behaviour:** The tool calculates **one** version bump based on the overall history. This single new version is applied to **all** packages within the repository (or just the root `package.json` if not a structured monorepo). A single Git tag is created.
--   **Tag Behaviour:** 
-    - In **multi-package monorepos**: Creates global tags like `v1.2.3` regardless of `packageSpecificTags` setting
-    - In **single-package repositories**: Respects the `packageSpecificTags` setting - can create either `v1.2.3` or `package-name@v1.2.3`
+-   **Behaviour:** The tool calculates **one** version bump based on the overall history. This single new version is applied to **all** packages within the repository (or just the root `package.json` if not a structured monorepo).
+-   **Tag Behaviour:** One tag from `tagTemplate`, such as `v1.2.3`. With `packageSpecificTags`, one tag per package, such as `scope-pkg@v1.2.3`.
 -   **Use Case:** Suitable for monorepos where all packages are tightly coupled and released together with the same version number. Also the effective mode for single-package repositories.
 
 ### Async Mode (`sync: false`)

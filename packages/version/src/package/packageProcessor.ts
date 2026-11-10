@@ -30,7 +30,7 @@ type ChangelogEntry = VersionChangelogEntry;
 
 export interface PackageProcessorOptions {
   skip?: string[];
-  versionPrefix?: string;
+  versionPrefix: string;
   tagTemplate?: string;
   commitMessageTemplate?: string;
   dryRun?: boolean;
@@ -61,7 +61,7 @@ export class PackageProcessor {
 
   constructor(options: PackageProcessorOptions) {
     this.skip = options.skip || [];
-    this.versionPrefix = options.versionPrefix || 'v';
+    this.versionPrefix = options.versionPrefix;
     this.tagTemplate = options.tagTemplate;
     this.commitMessageTemplate = options.commitMessageTemplate || '';
     this.dryRun = options.dryRun || false;

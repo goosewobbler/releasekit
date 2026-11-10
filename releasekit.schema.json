@@ -73,8 +73,7 @@
       "properties": {
         "tagTemplate": {
           "type": "string",
-          "default": "${prefix}${version}",
-          "description": "Template for Git tags. Available variables: ${version} (version number), ${prefix} (versionPrefix value, e.g. 'v'), ${packageName} (sanitized package name, e.g. 'scope-pkg'). Example: \"${packageName}-${prefix}${version}\" produces \"scope-pkg-v1.2.3\"."
+          "description": "Template for Git tags. Available variables: ${version} (version number), ${prefix} (versionPrefix value, e.g. 'v'), ${packageName} (sanitized package name, e.g. 'scope-pkg'). Example: \"${packageName}-${prefix}${version}\" produces \"scope-pkg-v1.2.3\". Defaults to \"${packageName}@${prefix}${version}\" with packageSpecificTags, otherwise \"${prefix}${version}\"."
         },
         "baselineTagTemplate": {
           "type": "string",
@@ -84,7 +83,7 @@
         "packageSpecificTags": {
           "type": "boolean",
           "default": false,
-          "description": "Enable package-specific tagging"
+          "description": "Tag each package separately, e.g. \"scope-pkg@v1.2.3\". tagTemplate must then contain ${packageName}."
         },
         "preset": {
           "type": "string",
@@ -192,8 +191,8 @@
         },
         "versionPrefix": {
           "type": "string",
-          "default": "",
-          "description": "Prefix for version tags"
+          "default": "v",
+          "description": "Prefix for version tags. Set \"\" for tags like \"1.2.3\"."
         },
         "prereleaseIdentifier": {
           "type": "string",

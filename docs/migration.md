@@ -250,6 +250,21 @@ diagnostic output.
 
 ---
 
+## Upgrading ReleaseKit
+
+### Tag names follow the tag config
+
+- `version.packageSpecificTags: true` without a `tagTemplate` tags each package `scope-pkg@v1.2.3`; it used to
+  give every package the same `v1.2.3` tag. With `packageSpecificTags`, a `tagTemplate` must contain
+  `${packageName}`.
+- Sync mode (the default) tags with `version.tagTemplate`, which it used to ignore.
+- `version.versionPrefix: ""` gives `1.2.3` tags; it used to give `v1.2.3`.
+
+A release finds the previous one by its tag name. If your tag names change, tag your last release's commit under
+the new name before the next release, e.g. `git tag scope-pkg@v1.2.3 v1.2.3^{}`, and push it.
+
+---
+
 ## Further reading
 
 - [Getting started](./getting-started.md) — installation and first release

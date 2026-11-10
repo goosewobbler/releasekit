@@ -64,13 +64,13 @@ describe('MonorepoConfigSchema', () => {
 describe('VersionConfigSchema', () => {
   it('should apply defaults', () => {
     const result = VersionConfigSchema.parse({});
-    expect(result.tagTemplate).toBe('${prefix}${version}');
+    expect(result.tagTemplate).toBeUndefined();
     expect(result.packageSpecificTags).toBe(false);
     expect(result.preset).toBe('conventionalcommits');
     expect(result.sync).toBe(true);
     expect(result.packages).toEqual([]);
     expect(result.mismatchStrategy).toBe('warn');
-    expect(result.versionPrefix).toBe('');
+    expect(result.versionPrefix).toBe('v');
     expect(result.zeroMajor).toBe('spec');
   });
 
@@ -81,6 +81,13 @@ describe('VersionConfigSchema', () => {
 
   it('should reject an unknown zeroMajor value', () => {
     expect(() => VersionConfigSchema.parse({ zeroMajor: 'always' })).toThrow();
+  });
+
+  it('should accept packageSpecificTags with no tagTemplate or one containing ${packageName}', () => {
+    expect(() => VersionConfigSchema.parse({ packageSpecificTags: true })).not.toThrow();
+    expect(() =>
+      VersionConfigSchema.parse({ packageSpecificTags: true, tagTemplate: '${' + 'packageName}-${' + 'version}' }),
+    ).not.toThrow();
   });
 
   it('should accept a baselineTagTemplate that contains ${version}', () => {
