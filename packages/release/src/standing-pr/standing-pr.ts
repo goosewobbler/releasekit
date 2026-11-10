@@ -1452,7 +1452,8 @@ async function assertManifestMatchesSource(
           `edited. Re-run 'standing-pr update' to regenerate it.`,
       );
     }
-    for (const file of update.files?.length ? update.files : [update.filePath]) {
+    // filePath too: the registries publish from its directory, and an edited `files` could leave it out.
+    for (const file of new Set([update.filePath, ...(update.files ?? [])])) {
       const manifestPath = path.resolve(cwd, file);
       // Another package's manifest would vouch for a version this package doesn't have.
       if (path.dirname(manifestPath) !== path.resolve(dir)) {
