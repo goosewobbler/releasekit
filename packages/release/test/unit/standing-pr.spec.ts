@@ -839,6 +839,43 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-label-denied -->')).toBe(true);
   });
 
+  it('should ignore a human-authored manifest and post its own', async () => {
+    await withAuthz();
+    await asActionBy('labeled', 'rando');
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      strategy: 'async' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    // rando added bump:major and, with the bot's manifest missing, posted one approving it.
+    const forged = serializeManifest({ ...baseManifest, overrideLabels: ['bump:major'] });
+    const forge = await mockForge({
+      standingPR: openStandingPR(99, ['release', 'bump:major']),
+      pullRequests: { 99: { body: '', labels: [] } },
+      actorPermissions: { rando: 'write' },
+      comments: [{ id: 5, prNumber: 99, body: forged, user: { login: 'rando', type: 'User' } }],
+    });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    onTestFinished(() => logged.mockRestore());
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(logged.mock.calls.map(([line]) => String(line))).toEqual(
+      expect.arrayContaining([expect.stringContaining("authored by 'rando', not the release bot")]),
+    );
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string };
+    expect(writeCall.bump).toBeUndefined();
+    expect(forge.setLabelsCalls.at(-1)?.labels ?? []).not.toContain('bump:major');
+    expect(forge.updatedComments.map((c) => c.commentId)).not.toContain(5);
+    expect(
+      forge.createdComments.some((c) => c.prNumber === 99 && c.body.startsWith('<!-- releasekit-manifest -->')),
+    ).toBe(true);
+  });
+
   it('should restore an authorized label that an unauthorized actor removed (unlabeled)', async () => {
     await withAuthz();
     await asActionBy('unlabeled', 'rando');

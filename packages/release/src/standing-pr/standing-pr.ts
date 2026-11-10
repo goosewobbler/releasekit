@@ -903,13 +903,17 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     warn(`Could not look up standing PR for label overrides: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  let existingManifestComment: Awaited<ReturnType<typeof findManifestComment>> = null;
   let existingManifest: StandingPRManifest | undefined;
   if (existingStandingPr) {
     try {
-      existingManifestComment = await findManifestComment(forge, existingStandingPr.number);
-      if (existingManifestComment) {
-        existingManifest = parseManifest(existingManifestComment.body);
+      const comment = await findManifestComment(forge, existingStandingPr.number);
+      if (comment && !isBotComment(comment)) {
+        warn(
+          `Ignoring the release manifest comment on PR #${existingStandingPr.number}: it was authored by ` +
+            `'${comment.user?.login}', not the release bot. Posting a new one.`,
+        );
+      } else if (comment) {
+        existingManifest = parseManifest(comment.body);
       }
     } catch {
       // Treated as absent: an empty authoritative selection, and firstUpdatedAt restarts.
@@ -1375,12 +1379,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     prereleased: writePrereleaseScope.length > 0 ? [...writePrereleaseScope].sort() : undefined,
   };
 
-  const manifestBody = serializeManifest(manifest);
-  if (existingManifestComment) {
-    await forge.updateComment(existingManifestComment.id, manifestBody);
-  } else {
-    await forge.createComment(prNumber, manifestBody);
-  }
+  await forge.upsertMarkerComment(prNumber, MANIFEST_MARKER, serializeManifest(manifest));
   success(`Manifest written to PR #${prNumber}`);
 
   const minAge = standingPrConfig?.minAge;
