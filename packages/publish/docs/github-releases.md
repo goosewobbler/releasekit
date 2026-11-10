@@ -159,7 +159,7 @@ Controls the title of each GitHub Release when a package name is resolved from t
 | `${packageName}` | Original scoped package name, e.g. `@scope/pkg` |
 | `${version}` | The package's new version, with a `v` when its tag has one, e.g. `v1.0.0` |
 
-The default produces titles like `@releasekit/version: v1.0.0`. Version-only tags (e.g. `v1.0.0` with no package prefix) always use the tag string directly.
+The default produces titles like `@releasekit/version: v1.0.0`. Tags without a package name, e.g. `v1.0.0` or `release-1.0.0`, are used as the title unchanged.
 
 ---
 
@@ -195,7 +195,7 @@ Use `skipPackages` to suppress GitHub Release creation for specific packages whi
 }
 ```
 
-A tag's sanitized name, e.g. `my-org-internal-utils`, also matches.
+The name as tags spell it also works, e.g. `my-org-internal-utils` for `@my-org/internal-utils`.
 
 Tags are still created for skipped packages — this is required so that changelog range detection works correctly on the next release.
 

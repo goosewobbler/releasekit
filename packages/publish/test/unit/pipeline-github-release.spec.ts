@@ -34,7 +34,7 @@ vi.mock('@releasekit/git', async (importOriginal) => ({
   createGitCli: () => fakeGit,
 }));
 
-// A standing-PR merge: the release commit is already on the remote, so publish pushes the tags and creates releases.
+// Publish after a standing-PR merge: the release commit is already on the remote.
 const options: PublishCliOptions = {
   registry: 'all',
   npmAuth: 'auto',

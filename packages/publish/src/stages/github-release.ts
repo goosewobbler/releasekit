@@ -125,6 +125,7 @@ function getTitleFromTag(
 
   if (owner && startsWithPackageName(tag, owner.packageName)) {
     const withV = `v${owner.newVersion}`;
+    // The v must follow a separator: 'pkg-dev1.2.3' has no v prefix.
     const tagHasV = tag.endsWith(withV) && !/[a-z0-9]/i.test(tag.charAt(tag.length - withV.length - 1));
     return applyTemplate(owner.packageName, tagHasV ? withV : owner.newVersion);
   }
@@ -142,8 +143,8 @@ function getTitleFromTag(
 }
 
 /**
- * The update that carries a tag decides; parsing the tag covers input without that mapping. A shared or version-only
- * tag that's neither falls back to the sole `filled` key, unless that key is another package's.
+ * Returns the owning update's package, else the package the tag names. A shared or version-only tag falls back to
+ * the only filled key, unless that package has a different tag.
  */
 function resolveTagKey(
   { tag, owner, shared, input }: ReleaseTag,
