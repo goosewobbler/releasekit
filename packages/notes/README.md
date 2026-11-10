@@ -57,45 +57,7 @@ releasekit-notes --input version-data.json \
 
 ## CLI Reference
 
-### `releasekit-notes generate` (default)
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-i, --input <file>` | Input file path | stdin |
-| `--changelog-mode <mode>` | Changelog location: `root`, `packages`, `both` | `root` |
-| `--changelog-file <name>` | Changelog file name override | `CHANGELOG.md` |
-| `--no-changelog` | Disable changelog generation | — |
-| `--release-notes-dir <dir>` | Write per-version release-notes files to this directory | — |
-| `--no-release-notes` | Disable release notes generation | — |
-| `-t, --template <path>` | Template file or directory | built-in |
-| `-e, --engine <engine>` | Template engine: `handlebars`, `liquid`, `ejs` | `liquid` |
-| `--monorepo <mode>` | Monorepo mode: `root`, `packages`, `both` | — |
-| `--llm-provider <name>` | LLM provider | — |
-| `--llm-model <model>` | LLM model | — |
-| `--llm-base-url <url>` | Base URL for openai-compatible providers | — |
-| `--llm-tasks <tasks>` | Comma-separated tasks: `enhance`, `summarize`, `categorize`, `release-notes` | — |
-| `--no-llm` | Disable LLM processing | — |
-| `--target <package>` | Filter to a specific package name | — |
-| `--config <path>` | Config file path | `releasekit.config.json` |
-| `--regenerate` | Regenerate entire file instead of prepending | `false` |
-| `--dry-run` | Preview without writing | `false` |
-| `-v, --verbose` | Verbose logging (repeat for more: `-vv`) | — |
-| `-q, --quiet` | Suppress non-error output | — |
-
-### `releasekit-notes auth <provider>`
-
-Store an API key for an LLM provider.
-
-```bash
-releasekit-notes auth openai
-releasekit-notes auth anthropic --key sk-ant-...
-```
-
-Keys are saved to `~/.config/releasekit/auth.json`.
-
-### `releasekit-notes providers`
-
-List available LLM providers.
+The commands are in the [CLI reference](../../docs/cli.md#releasekit-notes): [`generate`](../../docs/cli.md#releasekit-notes-generate) (the default), [`auth`](../../docs/cli.md#releasekit-notes-auth-provider) and [`providers`](../../docs/cli.md#releasekit-notes-providers).
 
 ## Configuration
 
