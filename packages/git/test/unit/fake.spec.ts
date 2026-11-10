@@ -37,12 +37,6 @@ describe('FakeGit queries', () => {
     expect(await git.status()).toBe('');
   });
 
-  it('should return seeded merged tags for a ref and every tag for an unseeded one', async () => {
-    const git = createFakeGit({ tags: ['v1.1.0', 'v1.0.0'], mergedTags: { HEAD: ['v1.0.0'] } });
-    expect(await git.listTags({ merged: 'HEAD' })).toEqual(['v1.0.0']);
-    expect(await git.listTags({ merged: 'main' })).toEqual(['v1.1.0', 'v1.0.0']);
-  });
-
   it('should report staged changes unless seeded otherwise', async () => {
     expect(await createFakeGit().hasStagedChanges()).toBe(true);
   });

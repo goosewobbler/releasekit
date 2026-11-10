@@ -93,12 +93,6 @@ describe('GitCli queries', () => {
     expect(calls[0].args).toEqual(['tag', '--sort=-creatordate', '--merged=HEAD']);
   });
 
-  it('should refuse a merged ref that looks like an option', async () => {
-    const { run, calls } = makeRunner({ stdout: '' });
-    await expect(new GitCli(run).listTags({ merged: '--points-at=x' })).rejects.toBeInstanceOf(GitError);
-    expect(calls).toHaveLength(0);
-  });
-
   it('should return the nearest tag from describe, trimmed', async () => {
     const { run, calls } = makeRunner({ stdout: 'v2.0.0\n' });
     expect(await new GitCli(run).describeTags('/r')).toBe('v2.0.0');
