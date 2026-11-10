@@ -31,6 +31,7 @@ export interface PackageChangelog {
   packageName: string;
   version: string;
   previousVersion: string | null;
+  tag?: string;
   revisionRange: string;
   repoUrl: string | null;
   date: string;

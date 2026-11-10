@@ -4,7 +4,10 @@ import { VersionOutputSchema } from '@releasekit/core/version-output-schema';
 import type { ChangelogEntry, ChangelogInput, PackageChangelog } from '../core/types.js';
 import { InputParseError, InputValidationError } from '../errors/index.js';
 
-const NotesVersionOutputSchema = VersionOutputSchema.pick({ changelogs: true });
+const NotesVersionOutputSchema = VersionOutputSchema.pick({ changelogs: true, updates: true, tags: true }).partial({
+  updates: true,
+  tags: true,
+});
 
 function normalizeEntryType(type: string): ChangelogEntry['type'] {
   const typeMap: Record<string, ChangelogEntry['type']> = {
@@ -25,15 +28,20 @@ function normalizeEntryType(type: string): ChangelogEntry['type'] {
   return typeMap[type.toLowerCase()] ?? 'changed';
 }
 
-export function versionOutputToChangelogInput(data: Pick<VersionOutput, 'changelogs'>): ChangelogInput {
+export function versionOutputToChangelogInput(
+  data: Pick<VersionOutput, 'changelogs'> & Partial<Pick<VersionOutput, 'updates' | 'tags'>>,
+): ChangelogInput {
   if (!data.changelogs || !Array.isArray(data.changelogs)) {
     throw new InputParseError('Input must contain a "changelogs" array');
   }
 
+  // Older version output doesn't record a changelog's tag: use its update's, else the release's only tag.
+  const soleTag = data.tags?.length === 1 && !data.updates?.some((u) => u.tag) ? data.tags[0] : undefined;
   const packages: PackageChangelog[] = data.changelogs.map((changelog) => ({
     packageName: changelog.packageName,
     version: changelog.version,
     previousVersion: changelog.previousVersion,
+    tag: changelog.tag ?? data.updates?.find((u) => u.packageName === changelog.packageName)?.tag ?? soleTag,
     revisionRange: changelog.revisionRange,
     repoUrl: changelog.repoUrl,
     date: new Date().toISOString().split('T')[0] ?? '',
