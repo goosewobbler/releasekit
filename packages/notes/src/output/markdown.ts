@@ -41,13 +41,14 @@ interface EntryRefOptions {
   repoUrl?: string | null;
 }
 
-// Unescaped, a `@scope/pkg` or `@user` pings a real org or team, and a `<!--` hides the rest of the notes.
+// Unescaped, a `@scope/pkg` or `@user` pings a real org or team, and a `<!--` hides the rest of the notes. Code spans
+// stay as written, since a notes region neutralizes any marker in one.
 function escapeCommitText(text: string): string {
-  return escapeCommentOpeners(escapeChangelogMentions(text));
+  return escapeCommentOpeners(escapeChangelogMentions(text), { keepCodeSpans: true });
 }
 
 function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
-  // Bare `#N` refs carried over from the commit subject are de-duped against the appended label.
+  // Bare `#N` refs from the commit subject are de-duped against the appended label.
   const refsMode = opts?.refs ?? 'link';
   const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
   const description = neutralizeDescriptionRefs(entry.description, appendedRefs, refsMode, opts?.repoUrl ?? null);
@@ -74,7 +75,7 @@ function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
     line += ` ${refs}`;
   }
 
-  // Over the whole line, since a backtick in one part can pair with one in another.
+  // Over the whole line, since a backtick in the scope or lead-in can pair with one in the description.
   return escapeCommitText(line);
 }
 

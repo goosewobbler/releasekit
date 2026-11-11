@@ -61,12 +61,18 @@ const CODE_SPAN_OR_COMMENT_OPEN = /`[^`]*`|<!--/g;
 
 /**
  * Escapes every opener, not just releasekit markers: in commit text, any `<!--` hides the body up to the next `-->`.
- * Notes use {@link neutralizeMarkers}, as people write comments in them on purpose.
+ * Hand-written notes use {@link neutralizeMarkers}, as people write comments in them on purpose.
+ *
+ * `keepCodeSpans` leaves code spans as written, since they render literally. By default they're escaped too: a marker
+ * inside one still matches the body parsers.
  */
-export function escapeCommentOpeners(text: string): string {
-  return text.replace(CODE_SPAN_OR_COMMENT_OPEN, (match) =>
-    match.startsWith('`') ? match.replaceAll('<!--', '<!\u200B--') : '&lt;!--',
-  );
+export function escapeCommentOpeners(text: string, opts?: { keepCodeSpans?: boolean }): string {
+  return text.replace(CODE_SPAN_OR_COMMENT_OPEN, (match) => {
+    if (!match.startsWith('`')) {
+      return '&lt;!--';
+    }
+    return opts?.keepCodeSpans ? match : match.replaceAll('<!--', '<!\u200B--');
+  });
 }
 
 export function wrapMarkerRegion(content: string, open: string, close: string): string {

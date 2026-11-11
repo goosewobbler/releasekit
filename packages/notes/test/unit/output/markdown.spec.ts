@@ -713,6 +713,13 @@ describe('formatVersion: comment openers', () => {
     expect(result).toContain('- a later fix');
   });
 
+  it('should leave a comment opener in a code span as written', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({ entries: [{ type: 'fixed', description: 'escape `<!--` in output' }] });
+
+    expect(formatVersion(ctx)).toContain('- escape `<!--` in output');
+  });
+
   it('should escape comment openers in the scope, the grouped scope header and the lead-in', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
     const ctx = makeContext({
