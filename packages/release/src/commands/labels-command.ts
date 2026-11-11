@@ -4,6 +4,7 @@ import { createGitCli } from '@releasekit/git';
 import { Command } from 'commander';
 import { forgeFor } from '../github.js';
 import { checkLabels, deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
+import { enterProjectDir } from './project-dir.js';
 
 interface LabelsCommandContext {
   owner: string;
@@ -60,6 +61,7 @@ export function createLabelsCommand(): Command {
     .description('Ensure every config-implied label exists in the repo (idempotent)')
     .option('-c, --config <path>', 'Path to config file')
     .option('--project-dir <path>', 'Project directory', process.cwd())
+    .hook('preAction', enterProjectDir)
     .option('--repo <owner/repo>', 'Repository (auto-detected from GITHUB_REPOSITORY or the origin remote)')
     .option('--check', 'Report missing/misnamed labels and exit non-zero without making changes', false)
     .action(async (opts) => {
