@@ -12,7 +12,7 @@ on:
 permissions:
   contents: write
   id-token: write # npm OIDC trusted publishing
-  pull-requests: read # gate reads the merged PR's labels
+  pull-requests: read # releasekit release reads the merged PR's labels
 
 jobs:
   release:

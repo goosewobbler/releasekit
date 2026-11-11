@@ -140,7 +140,7 @@ In CI, both tokens are typically available as secrets or via OIDC — see the [C
 
 ## 5. Set up CI
 
-The most common setup releases on every push to `main`. Copy [`release.yml`](../examples/ci/minimal/release.yml) from [`examples/ci/minimal`](../examples/ci/minimal) into `.github/workflows/`. Its release step:
+The most common setup releases on every push to `main`. Set `"ci": { "releaseTrigger": "commit" }` in `releasekit.config.json`; the default, `"label"`, releases only PRs with a `bump:*` label. Then copy [`release.yml`](../examples/ci/minimal/release.yml) from [`examples/ci/minimal`](../examples/ci/minimal) into `.github/workflows/`. Its release step:
 
 ```yaml
 - run: pnpm exec releasekit release

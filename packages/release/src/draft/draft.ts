@@ -96,7 +96,7 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
     );
   }
 
-  const result = await runRelease({ ...options, dryRun: true });
+  const result = await runRelease({ ...options, dryRun: true, skipGate: true });
   if (!result) {
     info('No releasable changes — no draft created.');
     return null;
@@ -180,7 +180,7 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   }
 
   // baseSha pins the commit but not the CLI flags or config.
-  const preview = await runRelease({ ...options, dryRun: true, skipNotes: true });
+  const preview = await runRelease({ ...options, dryRun: true, skipNotes: true, skipGate: true });
   if (!samePlan(preview?.versionOutput, manifest.versionOutput)) {
     throw new Error(
       `The release plan recomputed at dispatch differs from the reviewed draft #${issueNumber}. ` +
@@ -209,7 +209,7 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
     info(`Applying reviewed notes for ${Object.keys(editedNotes).length} package(s) from draft #${issueNumber}.`);
   }
 
-  const result = await runRelease({ ...options, dryRun: options.dryRun, editedNotes });
+  const result = await runRelease({ ...options, dryRun: options.dryRun, editedNotes, skipGate: true });
 
   if (result && !options.dryRun && !options.skipPublish) {
     await forge.updateIssue(issueNumber, { state: 'closed' });

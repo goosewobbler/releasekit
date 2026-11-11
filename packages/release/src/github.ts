@@ -1,6 +1,5 @@
 import type { CIConfig } from '@releasekit/config';
 import { createGitHubForge, type Forge } from '@releasekit/forge';
-import { createGitCli } from '@releasekit/git';
 
 export const MARKER = '<!-- releasekit-preview -->';
 
@@ -12,39 +11,19 @@ export function forgeFor(context: { token: string | null | undefined; owner: str
 }
 
 export async function findMergedPRsForCommit(forge: Forge, commitSha: string): Promise<number[]> {
-  try {
-    const prs = await forge.listPullRequestsForCommit(commitSha);
-    return prs.filter((pr) => pr.mergedAt !== null).map((pr) => pr.number);
-  } catch {
-    return [];
-  }
+  const prs = await forge.listPullRequestsForCommit(commitSha);
+  return prs.filter((pr) => pr.mergedAt !== null).map((pr) => pr.number);
 }
 
-export async function findMergedPRsSinceLastRelease(forge: Forge, projectDir: string): Promise<number[]> {
-  const git = createGitCli();
-  // No tags → the last 50 commits. `-50` is a count flag, not a range, so it rides in extraArgs: the seam rejects a
-  // `-`-leading range as a would-be option.
-  const lastTag = await git.describeTags(projectDir);
-  const logOpts = lastTag
-    ? { range: `${lastTag}..HEAD`, format: '%H', cwd: projectDir }
-    : { format: '%H', extraArgs: ['-50'], cwd: projectDir };
+/** The forge couldn't list the merged PRs, which isn't the same as none having merged. */
+export class PRLookupError extends Error {}
 
-  let mergeShas: string[];
-  try {
-    const output = (await git.log(logOpts)).trim();
-    mergeShas = output ? output.split('\n').filter(Boolean) : [];
-  } catch {
-    return [];
-  }
-
-  const prGroups = await Promise.all(mergeShas.map((sha) => findMergedPRsForCommit(forge, sha)));
-  const seen = new Set<number>();
-  for (const prs of prGroups) {
-    for (const n of prs) {
-      seen.add(n);
-    }
-  }
-  return [...seen];
+export async function findPreviewComment(
+  forge: Forge,
+  prNumber: number,
+  marker: string = MARKER,
+): Promise<number | null> {
+  return (await forge.findComment(prNumber, marker))?.id ?? null;
 }
 
 export async function fetchPRLabels(forge: Forge, prNumber: number): Promise<string[]> {

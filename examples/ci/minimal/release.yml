@@ -12,6 +12,7 @@ on:
 permissions:
   contents: write
   id-token: write # npm OIDC trusted publishing - drop if you publish with NPM_TOKEN
+  pull-requests: read # releasekit release reads the merged PR's labels
 
 jobs:
   release:

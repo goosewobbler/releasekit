@@ -2,10 +2,9 @@ import type { CIConfig, ReleaseKitConfig } from '@releasekit/config';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import { info, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
-import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
-import { fetchPRLabels, findMergedPRsSinceLastRelease, forgeFor, postOrUpdateComment } from '../github.js';
-import { DEFAULT_LABELS, type LabelConfig } from '../label-utils.js';
-import { resolveScopeToTarget } from '../release.js';
+import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern, tagAfter } from '../git.js';
+import { fetchPRLabels, findMergedPRsForCommit, forgeFor, PRLookupError, postOrUpdateComment } from '../github.js';
+import { DEFAULT_LABELS, type LabelConfig, resolveScopeToTarget } from '../label-utils.js';
 import { evaluatePR, type PREvaluation } from './evaluate-pr.js';
 
 const NOTIFY_MARKER = '<!-- releasekit-gate-notify -->';
@@ -16,6 +15,7 @@ export interface GateOutput {
   scope?: string;
   target?: string;
   stable?: boolean;
+  prerelease?: boolean;
   labels: string[];
   prNumbers: number[];
   blocked?: boolean;
@@ -61,19 +61,84 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     };
   }
 
-  // Since the last release tag, not just the triggering SHA: a later push (e.g. dependabot) can cancel the original
-  // run and fire the gate with a different head_sha.
   const forge = forgeFor({ token, owner: githubContext.owner, repo: githubContext.repo });
-  const prNumbers = await findMergedPRsSinceLastRelease(forge, options.projectDir);
+  let result: GateOutput;
+  try {
+    result = await decideFromMergedPRs({
+      forge,
+      releaseKitConfig,
+      projectDir: options.projectDir,
+      pushedSha: githubContext.sha,
+      scope: options.scope,
+    });
+  } catch (err) {
+    if (!(err instanceof PRLookupError)) {
+      throw err;
+    }
+    warn(err.message);
+    return { shouldRelease: false, labels: [], prNumbers: [], evaluations: [], reason: err.message };
+  }
 
-  if (prNumbers.length === 0) {
-    info('No merged PRs found since last release');
+  if (options.notify !== false) {
+    await notifyInsufficientLabels(
+      forge,
+      result.evaluations,
+      ciConfig?.releaseTrigger ?? 'label',
+      ciConfig?.labels ?? DEFAULT_LABELS,
+    );
+  }
+
+  return result;
+}
+
+export interface MergedPRDecisionInput {
+  forge: Forge;
+  releaseKitConfig: ReleaseKitConfig;
+  projectDir: string;
+  /** The commit the run was triggered for: its merged PR decides. */
+  pushedSha: string;
+  scope?: string;
+}
+
+/**
+ * The gate's verdict on the pushed commit's merged PR, shared by `gate` and `release`. `prNumbers` is empty for a
+ * direct push; a failed lookup throws a {@link PRLookupError}.
+ */
+export async function decideFromMergedPRs(input: MergedPRDecisionInput): Promise<GateOutput> {
+  const { forge, releaseKitConfig, projectDir, pushedSha, scope } = input;
+  const ciConfig = releaseKitConfig.ci;
+
+  // A re-run keeps its GITHUB_SHA, but `skip-checkout` syncs past that commit's release, so its labels would bump again.
+  // Only a sync tag covers every package; a per-package tag says nothing about the others.
+  const releasedIn = (releaseKitConfig.version?.sync ?? true) ? await tagAfter(pushedSha, projectDir) : null;
+  if (releasedIn) {
+    const reason = `The pushed commit was already released in ${releasedIn}`;
+    info(reason);
+    return { shouldRelease: false, labels: [], prNumbers: [], evaluations: [], reason };
+  }
+
+  let prNumbers: number[];
+  try {
+    prNumbers = await findMergedPRsForCommit(forge, pushedSha);
+  } catch (err) {
+    throw new PRLookupError(
+      `Could not look up the PR for ${pushedSha}: ${err instanceof Error ? err.message : String(err)}. ` +
+        'Grant the workflow token `pull-requests: read`.',
+    );
+  }
+  // Commit mode releases every push, so a direct push releases from commits; elsewhere it has no labels to release by.
+  const directPushReleases =
+    prNumbers.length === 0 &&
+    (ciConfig?.releaseTrigger ?? 'label') === 'commit' &&
+    (ciConfig?.releaseStrategy ?? 'direct') === 'direct';
+  if (prNumbers.length === 0 && !directPushReleases) {
+    info('The pushed commit is not from a merged PR');
     return {
       shouldRelease: false,
       labels: [],
       prNumbers: [],
       evaluations: [],
-      reason: 'No merged PRs found since last release',
+      reason: 'The pushed commit is not from a merged PR',
     };
   }
 
@@ -92,32 +157,30 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     }),
   );
 
-  const trigger = ciConfig?.releaseTrigger ?? 'label';
-  const result = await computeGateResult({
+  return computeGateResult({
     evaluations,
     prNumbers,
-    options,
+    projectDir,
+    scope,
     ciConfig,
     releaseKitConfig,
+    directPushReleases,
   });
-
-  if (options.notify !== false) {
-    await notifyInsufficientLabels(forge, evaluations, trigger, labelConfig);
-  }
-
-  return result;
 }
 
 interface ComputeGateInput {
   evaluations: PREvaluation[];
   prNumbers: number[];
-  options: GateOptions;
+  projectDir: string;
+  scope?: string;
   ciConfig: CIConfig | undefined;
   releaseKitConfig: ReleaseKitConfig;
+  /** A commit-mode direct push: no PR to evaluate, but it releases. */
+  directPushReleases: boolean;
 }
 
 async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
-  const { evaluations, prNumbers, options, ciConfig, releaseKitConfig } = input;
+  const { evaluations, prNumbers, projectDir, scope, ciConfig, releaseKitConfig, directPushReleases } = input;
 
   const blocked = evaluations.find((e) => e.blocked);
   if (blocked) {
@@ -132,27 +195,24 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
     };
   }
 
-  // prNumbers is in git-log order (newest first), so the first releasable evaluation
-  // is the most recently merged valid PR.
   const winner = evaluations.find((e) => e.shouldRelease);
 
   let resolvedScope = winner?.scope;
   let resolvedTarget = winner?.target;
-  if (options.scope) {
+  if (scope) {
     if (!ciConfig?.scopeLabels || Object.keys(ciConfig.scopeLabels).length === 0) {
-      throw new Error(`--scope "${options.scope}" provided but ci.scopeLabels is not configured`);
+      throw new Error(`--scope "${scope}" provided but ci.scopeLabels is not configured`);
     }
-    resolvedTarget = resolveScopeToTarget(options.scope, ciConfig.scopeLabels);
-    resolvedScope = options.scope;
-    info(`Scope "${options.scope}" resolved to target: ${resolvedTarget}`);
+    resolvedTarget = resolveScopeToTarget(scope, ciConfig.scopeLabels);
+    resolvedScope = scope;
+    info(`Scope "${scope}" resolved to target: ${resolvedTarget}`);
   } else if (winner?.scope) {
     info(`Scope from PR #${winner.prNumber} label "scope:${winner.scope}" resolved to target: ${winner.target}`);
   }
 
-  if (!winner) {
-    // The newest PR's reason: the merge the user most likely just landed.
-    const primaryReason = evaluations[0]?.reason ?? 'No PR in window has sufficient labels to trigger a release';
-    info(`No PR in window (${prNumbers.join(', ')}) has sufficient labels to trigger a release`);
+  if (!winner && !directPushReleases) {
+    const primaryReason = evaluations[0]?.reason ?? 'The merged PR has no labels that call for a release';
+    info(`The merged PR (${prNumbers.join(', ')}) has no labels that call for a release`);
     return {
       shouldRelease: false,
       stable: false,
@@ -166,23 +226,36 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
   // Stops the gate firing on its own release commits.
   const releaseConfig = releaseKitConfig.release;
   if (releaseConfig?.ci?.skipPatterns?.length) {
-    const headCommit = await getHeadCommitMessage(options.projectDir);
+    const headCommit = await getHeadCommitMessage(projectDir);
     if (headCommit) {
       const matchedPattern = matchesSkipPattern(headCommit, releaseConfig.ci.skipPatterns);
       if (matchedPattern) {
         return {
           shouldRelease: false,
-          bump: winner.bump,
+          bump: winner?.bump,
           scope: resolvedScope,
           target: resolvedTarget,
-          stable: winner.stable,
-          labels: winner.labels,
+          stable: winner?.stable,
+          labels: winner?.labels ?? [],
           prNumbers,
           evaluations,
           reason: `Commit matches skip pattern: "${matchedPattern}"`,
         };
       }
     }
+  }
+
+  if (!winner) {
+    info('The pushed commit is not from a merged PR, so it releases from commits');
+    return {
+      shouldRelease: true,
+      scope: resolvedScope,
+      target: resolvedTarget,
+      labels: [],
+      prNumbers,
+      evaluations,
+      reason: 'The pushed commit is not from a merged PR',
+    };
   }
 
   info(`Found labels on winning PR #${winner.prNumber}: ${winner.labels.join(', ')}`);
@@ -193,6 +266,7 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
     scope: resolvedScope,
     target: resolvedTarget,
     stable: winner.stable,
+    prerelease: winner.prerelease,
     labels: winner.labels,
     prNumbers,
     evaluations,

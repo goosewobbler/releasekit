@@ -11,6 +11,7 @@ on:
 permissions:
   contents: write
   id-token: write # npm OIDC
+  pull-requests: read # releasekit release reads the merged PR's labels
 
 jobs:
   release:

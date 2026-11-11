@@ -1,5 +1,5 @@
-import type { VersionOutput } from '@releasekit/core';
-import { createFakeForge } from '@releasekit/forge';
+import { info, type VersionOutput, warn } from '@releasekit/core';
+import { createFakeForge, type FakeForge } from '@releasekit/forge';
 import { FakeGit } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReleaseOptions } from '../../src/types.js';
@@ -7,8 +7,6 @@ import type { ReleaseOptions } from '../../src/types.js';
 const mockLoadReleaseKitConfig = vi.fn();
 const mockLoadCIConfig = vi.fn();
 const mockForgeFor = vi.fn();
-const mockFindMergedPRsForCommit = vi.fn();
-const mockFetchPRLabels = vi.fn();
 const mockMarkFeederPreviewsStale = vi.fn();
 
 vi.mock('../../src/preview/stale.js', () => ({
@@ -31,11 +29,9 @@ vi.mock('@releasekit/git', async (importOriginal) => {
   return { ...actual, createGitCli: () => fakeGit };
 });
 
-vi.mock('../../src/github.js', () => ({
+vi.mock('../../src/github.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/github.js')>()),
   forgeFor: (...args: unknown[]) => mockForgeFor(...args),
-  findMergedPRsForCommit: (...args: unknown[]) => mockFindMergedPRsForCommit(...args),
-  fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
-  postOrUpdateComment: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockEnableJsonOutput = vi.fn();
@@ -168,9 +164,8 @@ describe('runRelease', () => {
     // Default HEAD subject is a non-release commit so the skip-pattern guard passes.
     setGitSubject('feat: some feature');
 
+    // The failure-report resolve path reads the forge's comments; a plain stub keeps it quiet.
     mockForgeFor.mockReturnValue({ findComment: vi.fn().mockResolvedValue(null) });
-    mockFindMergedPRsForCommit.mockResolvedValue([]);
-    mockFetchPRLabels.mockResolvedValue([]);
     mockLoadReleaseKitConfig.mockReturnValue({});
     mockLoadCIConfig.mockReturnValue(undefined);
     mockVersionLoadConfig.mockReturnValue({ preset: 'conventionalcommits' });
@@ -675,342 +670,405 @@ describe('runRelease', () => {
     });
   });
 
-  describe('scope labels', () => {
-    const originalEnv = { ...process.env };
+  describe("the gate's decision on the pushed commit's PR", () => {
+    const noTarget: ReleaseOptions = { ...defaultOptions, target: undefined };
+    let forge: FakeForge;
 
-    beforeEach(async () => {
-      vi.clearAllMocks();
-
-      mockLoadReleaseKitConfig.mockReturnValue({});
-      mockVersionLoadConfig.mockReturnValue({ preset: 'conventionalcommits' });
-      mockVersionEngineGetWorkspacePackages.mockResolvedValue({
-        packages: [{ packageJson: { name: 'test-pkg' }, dir: '/test/project' }],
-        root: '/test/project',
+    function merge(...prs: Array<{ number: number; labels: string[]; headRef?: string }>): void {
+      fakeGit = new FakeGit({ nearestTag: 'v1.0.0', commits: { '*': 'feat: some feature\n' } });
+      forge = createFakeForge({
+        // The pushed commit is the first PR's merge.
+        pullRequestsForCommit: Object.fromEntries([
+          ...prs.map((pr) => [`sha-${pr.number}`, [{ number: pr.number, mergedAt: '2026-01-01T00:00:00Z' }]]),
+          ...prs
+            .slice(0, 1)
+            .map((pr) => [
+              process.env.GITHUB_SHA ?? 'sha-123',
+              [{ number: pr.number, mergedAt: '2026-01-01T00:00:00Z' }],
+            ]),
+        ]),
+        issues: Object.fromEntries(
+          prs.map((pr) => [pr.number, { body: '', title: '', labels: pr.labels, isPullRequest: true }]),
+        ),
+        pullRequests: Object.fromEntries(
+          prs.flatMap((pr) =>
+            pr.headRef ? ([[pr.number, { body: '', labels: pr.labels, headRef: pr.headRef }]] as const) : [],
+          ),
+        ),
       });
-      mockVersionEngineRun.mockResolvedValue(undefined);
-      mockGetJsonData.mockReturnValue(versionOutputWithChanges);
-      mockNotesLoadConfig.mockReturnValue(mockNotesConfig);
-      mockVersionOutputToChangelogInput.mockReturnValue({ source: 'version', packages: [] });
-      mockNotesRunPipeline.mockResolvedValue({
-        packageNotes: { 'test-pkg': '## [1.1.0] - 2026-01-01\n\n### Added\n\n- New feature\n' },
-        files: [],
-      });
+      mockForgeFor.mockReturnValue(forge);
+    }
 
-      process.env.GITHUB_REPOSITORY = 'owner/repo';
-      process.env.GITHUB_SHA = 'abc123';
-      process.env.GITHUB_TOKEN = 'test-token';
+    function versionRunOptions(): {
+      bump?: string;
+      stable?: boolean;
+      prerelease?: string | boolean;
+      targets: string[];
+    } {
+      return MockVersionEngine.mock.calls[0]?.[1];
+    }
+
+    async function gate(scope?: string) {
+      const { runGate } = await import('../../src/gate/gate.js');
+      return runGate({ projectDir: '/test/project', notify: false, scope });
+    }
+
+    beforeEach(() => {
+      vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
+      vi.stubEnv('GITHUB_SHA', 'sha-123');
+      vi.stubEnv('GITHUB_TOKEN', 'test-token');
+      vi.stubEnv('GITHUB_EVENT_NAME', 'push');
     });
 
     afterEach(() => {
-      process.env = originalEnv;
+      vi.unstubAllEnvs();
     });
 
-    it('should skip scope labels when no GitHub context', async () => {
-      delete process.env.GITHUB_REPOSITORY;
-      delete process.env.GITHUB_SHA;
-      delete process.env.GITHUB_TOKEN;
+    it('should release from commits without a GitHub context', async () => {
+      vi.stubEnv('GITHUB_SHA', undefined);
+      merge({ number: 123, labels: ['documentation'] });
+      const lookup = vi.spyOn(forge, 'listPullRequestsForCommit');
 
-      mockLoadCIConfig.mockReturnValue({
-        scopeLabels: {
-          'scope:shared': '@wdio/native-*',
-        },
+      const result = await runRelease(noTarget);
+
+      expect(result).not.toBeNull();
+      expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it('should skip a re-run after the pushed commit was released', async () => {
+      merge({ number: 123, labels: ['bump:major'] });
+      fakeGit = new FakeGit({
+        nearestTag: 'v2.0.0',
+        ancestors: { 'v2.0.0': ['sha-123'] },
+        commits: { '*': 'feat: some feature\n' },
       });
 
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease(defaultOptions);
+      const result = await runRelease(noTarget);
 
-      expect(mockFindMergedPRsForCommit).not.toHaveBeenCalled();
+      expect(result).toBeNull();
+      expect(MockVersionEngine).not.toHaveBeenCalled();
+    });
+
+    it("should release a package after another package's tag without sync versioning", async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ version: { sync: false } });
+      merge({ number: 123, labels: ['bump:minor', 'scope:b'] });
+      fakeGit = new FakeGit({
+        nearestTag: '@test/a@v2.0.0',
+        ancestors: { '@test/a@v2.0.0': ['sha-123'] },
+        commits: { '*': 'feat: some feature\n' },
+      });
+
+      const result = await runRelease(noTarget);
+
       expect(result).not.toBeNull();
     });
 
-    it('should skip scope label check for workflow_dispatch event', async () => {
-      const originalEventName = process.env.GITHUB_EVENT_NAME;
-      process.env.GITHUB_EVENT_NAME = 'workflow_dispatch';
+    it('should retry a release tagged on the pushed commit', async () => {
+      merge({ number: 123, labels: ['bump:major'] });
+      fakeGit = new FakeGit({
+        nearestTag: 'v2.0.0',
+        ancestors: (a, ref) => (a === 'sha-123' && ref === 'v2.0.0') || (a === 'v2.0.0' && ref === 'sha-123'),
+        commits: { '*': 'feat: some feature\n' },
+      });
 
-      try {
-        mockLoadCIConfig.mockReturnValue({
-          scopeLabels: {
-            'scope:all': '@releasekit/*',
-          },
-        });
+      const result = await runRelease(noTarget);
 
-        const { runRelease } = await import('../../src/release.js');
-        const result = await runRelease(defaultOptions);
+      expect(result).not.toBeNull();
+    });
 
-        expect(mockFindMergedPRsForCommit).not.toHaveBeenCalled();
+    it('should release from commits on a workflow_dispatch run', async () => {
+      vi.stubEnv('GITHUB_EVENT_NAME', 'workflow_dispatch');
+      merge({ number: 123, labels: ['documentation'] });
+      const lookup = vi.spyOn(forge, 'listPullRequestsForCommit');
+
+      const result = await runRelease(noTarget);
+
+      expect(result).not.toBeNull();
+      expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it.each([false, true])(
+      'should release every changed package for a merged PR with no scope label (dryRun: %s)',
+      async (dryRun) => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
+        merge({ number: 123, labels: [] });
+
+        const result = await runRelease({ ...noTarget, dryRun });
+
         expect(result).not.toBeNull();
-      } finally {
-        if (originalEventName !== undefined) {
-          process.env.GITHUB_EVENT_NAME = originalEventName;
-        } else {
-          delete process.env.GITHUB_EVENT_NAME;
-        }
-      }
+        expect(versionRunOptions().targets).toEqual([]);
+        expect(mockPublishRunPipeline).toHaveBeenCalled();
+      },
+    );
+
+    it('should release only the scope of a merged PR with a scope label', async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit', scopeLabels: { 'scope:core': '@test/core' } });
+      merge({ number: 123, labels: ['scope:core'] });
+
+      await runRelease(noTarget);
+
+      expect(versionRunOptions().targets).toEqual(['@test/core']);
     });
 
-    it('should not block release when no scopeLabels configured and no conflicts', async () => {
-      mockLoadCIConfig.mockReturnValue({});
-      mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['bump:minor']);
+    describe('label trigger', () => {
+      it('should release with the bump of a bump:minor label', async () => {
+        merge({ number: 123, labels: ['bump:minor'] });
 
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease(defaultOptions);
+        const result = await runRelease(noTarget);
 
-      expect(mockFindMergedPRsForCommit).toHaveBeenCalled();
+        expect(result).not.toBeNull();
+        expect(versionRunOptions()).toMatchObject({ bump: 'minor', stable: false });
+      });
+
+      it('should graduate to stable on a release:graduate label', async () => {
+        merge({ number: 123, labels: ['release:graduate'] });
+
+        const result = await runRelease(noTarget);
+
+        expect(result).not.toBeNull();
+        expect(versionRunOptions()).toMatchObject({ bump: undefined, stable: true });
+      });
+
+      it('should not release, and say why, when the merged PR has no release labels', async () => {
+        merge({ number: 123, labels: ['documentation'] });
+
+        const result = await runRelease(noTarget);
+
+        expect(result).toBeNull();
+        expect(mockVersionEngineRun).not.toHaveBeenCalled();
+        expect(info).toHaveBeenCalledWith(expect.stringContaining('No release labels found'));
+      });
+
+      it('should not release when the merged PR has conflicting bump labels', async () => {
+        merge({ number: 123, labels: ['bump:major', 'bump:minor'] });
+
+        const result = await runRelease(noTarget);
+
+        expect(result).toBeNull();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Release blocked'));
+      });
+    });
+
+    describe('commit trigger', () => {
+      beforeEach(() => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
+      });
+
+      it('should release an unlabelled merge with the bump its commits give', async () => {
+        merge({ number: 123, labels: [] });
+
+        const result = await runRelease(noTarget);
+
+        expect(result).not.toBeNull();
+        expect(versionRunOptions().bump).toBeUndefined();
+      });
+
+      it('should not release a merge labelled release:skip', async () => {
+        merge({ number: 123, labels: ['release:skip'] });
+
+        const result = await runRelease(noTarget);
+
+        expect(result).toBeNull();
+        expect(mockVersionEngineRun).not.toHaveBeenCalled();
+      });
+
+      it('should graduate to stable on a release:graduate label', async () => {
+        merge({ number: 123, labels: ['release:graduate'] });
+
+        const verdict = await gate();
+        await runRelease(noTarget);
+
+        expect(verdict.stable).toBe(true);
+        expect(versionRunOptions()).toMatchObject({ stable: true });
+      });
+
+      it('should release a prerelease at the bump its commits give on channel:prerelease', async () => {
+        merge({ number: 123, labels: ['channel:prerelease', 'bump:minor'] });
+
+        const verdict = await gate();
+        await runRelease(noTarget);
+
+        expect(verdict).toMatchObject({ shouldRelease: true, prerelease: true, bump: undefined });
+        expect(versionRunOptions()).toMatchObject({ bump: undefined, prerelease: true });
+      });
+
+      it.each([
+        { labels: ['bump:patch'], bump: undefined },
+        { labels: ['bump:major'], bump: 'major' },
+        { labels: ['bump:major', 'channel:prerelease'], bump: 'premajor' },
+      ])('should let only bump:major set the bump ($labels)', async ({ labels, bump }) => {
+        merge({ number: 123, labels });
+
+        await runRelease(noTarget);
+
+        expect(versionRunOptions().bump).toBe(bump);
+      });
+    });
+
+    describe('standing-pr strategy', () => {
+      it.each([
+        { trigger: 'label', labels: ['release:immediate'], bump: undefined },
+        { trigger: 'commit', labels: ['release:immediate'], bump: undefined },
+        { trigger: 'label', labels: ['release:immediate', 'bump:major'], bump: 'major' },
+        { trigger: 'commit', labels: ['release:immediate', 'bump:major'], bump: 'major' },
+      ])(
+        'should release $labels in $trigger mode with bump $bump, as the gate decides',
+        async ({ trigger, labels, bump }) => {
+          mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: trigger });
+          merge({ number: 123, labels });
+
+          const verdict = await gate();
+          const result = await runRelease(noTarget);
+
+          expect(verdict.shouldRelease).toBe(true);
+          expect(verdict.bump).toBe(bump);
+          expect(result).not.toBeNull();
+          expect(versionRunOptions().bump).toBe(bump);
+        },
+      );
+
+      it('should not release an immediate PR labelled release:skip in commit mode, as the gate decides', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
+        merge({ number: 123, labels: ['release:immediate', 'release:skip'] });
+
+        const verdict = await gate();
+        const result = await runRelease(noTarget);
+
+        expect(verdict.shouldRelease).toBe(false);
+        expect(result).toBeNull();
+      });
+
+      it.each([
+        { trigger: 'label', labels: ['bump:major'] },
+        { trigger: 'commit', labels: [] },
+      ])(
+        'should not release a feeder PR without release:immediate in $trigger mode, as the gate decides',
+        async ({ trigger, labels }) => {
+          mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: trigger });
+          merge({ number: 123, labels });
+
+          const verdict = await gate();
+          const result = await runRelease(noTarget);
+
+          expect(verdict.shouldRelease).toBe(false);
+          expect(result).toBeNull();
+        },
+      );
+    });
+
+    describe('CLI flags', () => {
+      beforeEach(() => {
+        mockLoadCIConfig.mockReturnValue({ scopeLabels: { 'scope:core': '@test/core' } });
+      });
+
+      it('should let --bump and --target override the bump and scope labels', async () => {
+        merge({ number: 123, labels: ['bump:minor', 'scope:core'] });
+
+        await runRelease({ ...noTarget, bump: 'patch', target: '@test/other' });
+
+        expect(versionRunOptions()).toMatchObject({ bump: 'patch', targets: ['@test/other'] });
+      });
+
+      it('should let --stable replace the bump label', async () => {
+        merge({ number: 123, labels: ['bump:minor'] });
+
+        await runRelease({ ...noTarget, stable: true });
+
+        expect(versionRunOptions()).toMatchObject({ bump: undefined, stable: true });
+      });
+
+      it('should let --prerelease replace the graduate label', async () => {
+        merge({ number: 123, labels: ['release:graduate'] });
+
+        await runRelease({ ...noTarget, prerelease: 'beta' });
+
+        expect(versionRunOptions()).toMatchObject({ prerelease: 'beta', stable: undefined });
+      });
+    });
+
+    it('should fail naming pull-requests: read, rather than release from commits, when the PR lookup fails', async () => {
+      merge({ number: 123, labels: ['documentation'] });
+      vi.spyOn(forge, 'listPullRequestsForCommit').mockRejectedValue(
+        new Error('Resource not accessible by integration'),
+      );
+
+      await expect(runRelease(noTarget)).rejects.toThrow('`pull-requests: read`');
+      const verdict = await gate();
+
+      expect(mockVersionEngineRun).not.toHaveBeenCalled();
+      expect(verdict).toMatchObject({ shouldRelease: false, reason: expect.stringContaining('`pull-requests: read`') });
+    });
+
+    it('should release a direct push from commits in commit mode, whatever PRs merged before it say', async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
+      merge({ number: 10, labels: ['release:skip'] });
+      vi.stubEnv('GITHUB_SHA', 'sha-direct-push');
+
+      const verdict = await gate();
+      const result = await runRelease(noTarget);
+
+      expect(verdict.shouldRelease).toBe(true);
       expect(result).not.toBeNull();
     });
 
-    it('should block release when prerelease + stable conflict detected without scopeLabels', async () => {
-      mockLoadCIConfig.mockReturnValue({});
-      mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['release:graduate', 'channel:prerelease']);
+    it("should not release a direct push in label mode, or take an earlier PR's labels", async () => {
+      merge({ number: 10, labels: ['bump:minor'] });
+      vi.stubEnv('GITHUB_SHA', 'sha-direct-push');
 
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease(defaultOptions);
+      const result = await runRelease(noTarget);
 
       expect(result).toBeNull();
+      expect(mockVersionEngineRun).not.toHaveBeenCalled();
     });
 
-    it('should block release when prerelease + stable conflict detected', async () => {
-      mockLoadCIConfig.mockReturnValue({
-        scopeLabels: {
-          'scope:shared': '@wdio/native-*',
-        },
-      });
-      mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['scope:shared', 'release:graduate', 'channel:prerelease']);
+    it("should run a commit-mode direct push through gate's skip patterns and --scope", async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit', scopeLabels: { 'scope:core': '@test/core' } });
+      merge();
 
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease(defaultOptions);
+      expect(await gate('core')).toMatchObject({ shouldRelease: true, target: '@test/core' });
+
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: ['feat:'] } } });
+      expect(await gate()).toMatchObject({ shouldRelease: false });
+    });
+
+    it("should decide by the pushed commit's PR, not an older one still awaiting a tag", async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
+      merge({ number: 11, labels: ['release:skip'] }, { number: 10, labels: [] });
+
+      const result = await runRelease(noTarget);
 
       expect(result).toBeNull();
-    });
-
-    it('should block release when multiple bump labels conflict detected in label mode', async () => {
-      mockLoadCIConfig.mockReturnValue({
-        releaseTrigger: 'label',
-        scopeLabels: {
-          'scope:shared': '@wdio/native-*',
-        },
-      });
-      mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['scope:shared', 'bump:major', 'bump:minor']);
-
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease(defaultOptions);
-
-      expect(result).toBeNull();
-    });
-
-    it('should NOT block release when multiple bump labels in commit mode (uses major)', async () => {
-      mockLoadCIConfig.mockReturnValue({
-        releaseTrigger: 'commit',
-      });
-      mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['bump:major', 'bump:minor']);
-
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease(defaultOptions);
-
-      expect(result).not.toBeNull();
-    });
-
-    it('should NOT block release when different PRs have different bump labels', async () => {
-      mockLoadCIConfig.mockReturnValue({
-        releaseTrigger: 'label',
-      });
-      mockFindMergedPRsForCommit.mockResolvedValue([123, 456]);
-      mockFetchPRLabels.mockResolvedValueOnce(['bump:major']).mockResolvedValueOnce(['bump:minor']);
-
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease(defaultOptions);
-
-      expect(result).not.toBeNull();
-    });
-
-    it('should block release when same PR has conflicting labels', async () => {
-      mockLoadCIConfig.mockReturnValue({
-        releaseTrigger: 'label',
-      });
-      mockFindMergedPRsForCommit.mockResolvedValue([123, 456]);
-      mockFetchPRLabels.mockResolvedValueOnce(['bump:major', 'bump:minor']).mockResolvedValueOnce(['bump:patch']);
-
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease(defaultOptions);
-
-      expect(result).toBeNull();
-    });
-
-    it('should block dry-run when PR has conflicting labels', async () => {
-      mockLoadCIConfig.mockReturnValue({
-        releaseTrigger: 'label',
-        scopeLabels: {
-          'scope:shared': '@wdio/native-*',
-        },
-      });
-      mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['release:graduate', 'channel:prerelease']);
-
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease({ ...defaultOptions, dryRun: true });
-
-      expect(result).toBeNull();
-    });
-
-    it('should not override target in dry-run mode when scope label is detected', async () => {
-      mockLoadCIConfig.mockReturnValue({
-        releaseTrigger: 'label',
-        scopeLabels: {
-          'scope:electron': '@wdio/electron-*',
-          'scope:shared': '@wdio/native-*',
-        },
-      });
-      mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['scope:electron']);
-
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease({
-        ...defaultOptions,
-        dryRun: true,
-        target: '@wdio/native-types,@wdio/tauri-service',
-      });
-
-      expect(result).not.toBeNull();
-      // In dry-run the scope label doesn't override the CLI target: preview.ts handles scope targeting.
-      expect(mockVersionEngineRun).toHaveBeenCalled();
-      const runOptions = MockVersionEngine.mock.calls[0]?.[1];
-      expect(runOptions.targets).toEqual(['@wdio/native-types', '@wdio/tauri-service']);
-    });
-
-    it('should skip release when release:skip label is present in commit mode', async () => {
-      mockLoadCIConfig.mockReturnValue({
-        releaseTrigger: 'commit',
-        scopeLabels: {
-          'scope:shared': '@wdio/native-*',
-        },
-      });
-      mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['release:skip']);
-
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease(defaultOptions);
-
-      expect(result).toBeNull();
-    });
-
-    it('should NOT skip release when release:skip label is present in label mode', async () => {
-      mockLoadCIConfig.mockReturnValue({
-        releaseTrigger: 'label',
-        scopeLabels: {
-          'scope:shared': '@wdio/native-*',
-        },
-      });
-      mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['release:skip']);
-
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease(defaultOptions);
-
-      expect(result).not.toBeNull();
-    });
-
-    it('should override CLI target when scope label is detected', async () => {
-      mockLoadCIConfig.mockReturnValue({
-        releaseTrigger: 'label',
-        scopeLabels: {
-          'scope:electron': '@wdio/electron-*',
-          'scope:tauri': '@wdio/tauri-*',
-        },
-      });
-      mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['scope:electron']);
-
-      const { runRelease } = await import('../../src/release.js');
-      const result = await runRelease({ ...defaultOptions, target: '@wdio/native-types,@wdio/tauri-service' });
-
-      expect(result).not.toBeNull();
-      expect(mockVersionEngineRun).toHaveBeenCalled();
-
-      const runOptions = MockVersionEngine.mock.calls[0]?.[1];
-      expect(runOptions.targets).toEqual(['@wdio/electron-*']);
     });
 
     describe('standing-pr: a merged PR carrying the immediate label', () => {
-      function mergedPR(headRef: string, standingPr?: { branch: string }) {
+      function mergedStandingPR(headRef: string, standingPr?: { branch: string }) {
         mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', standingPr });
-        mockFindMergedPRsForCommit.mockResolvedValue([42]);
-        mockFetchPRLabels.mockResolvedValue(['release:immediate', 'bump:minor']);
-        mockForgeFor.mockReturnValue(
-          createFakeForge({ pullRequests: { 42: { body: '', labels: ['release:immediate', 'bump:minor'], headRef } } }),
-        );
+        merge({ number: 42, labels: ['release:immediate', 'bump:minor'], headRef });
       }
 
       it('should fail rather than re-release the standing PR', async () => {
-        mergedPR('release/next');
+        mergedStandingPR('release/next');
 
-        const { runRelease } = await import('../../src/release.js');
-
-        await expect(runRelease(defaultOptions)).rejects.toThrow('PR #42 is the standing release PR');
+        await expect(runRelease(noTarget)).rejects.toThrow('PR #42 is the standing release PR');
         expect(mockVersionEngineRun).not.toHaveBeenCalled();
         expect(mockPublishRunPipeline).not.toHaveBeenCalled();
       });
 
       it('should recognise the standing PR by ci.standingPr.branch', async () => {
-        mergedPR('releases/queue', { branch: 'releases/queue' });
+        mergedStandingPR('releases/queue', { branch: 'releases/queue' });
 
-        const { runRelease } = await import('../../src/release.js');
-
-        await expect(runRelease(defaultOptions)).rejects.toThrow('PR #42 is the standing release PR');
+        await expect(runRelease(noTarget)).rejects.toThrow('PR #42 is the standing release PR');
         expect(mockPublishRunPipeline).not.toHaveBeenCalled();
       });
 
       it('should still release a feeder PR', async () => {
-        mergedPR('fix/urgent');
+        mergedStandingPR('fix/urgent');
 
-        const { runRelease } = await import('../../src/release.js');
-        const result = await runRelease(defaultOptions);
+        const result = await runRelease(noTarget);
 
         expect(result).not.toBeNull();
         expect(mockPublishRunPipeline).toHaveBeenCalled();
       });
-    });
-  });
-
-  describe('resolveScopeToTarget', () => {
-    it('should resolve prefixed scope name (scope:electron)', async () => {
-      const { resolveScopeToTarget } = await import('../../src/release.js');
-      const result = resolveScopeToTarget('electron', {
-        'scope:electron': '@wdio/electron-*',
-        'scope:tauri': '@wdio/tauri-*',
-      });
-      expect(result).toBe('@wdio/electron-*');
-    });
-
-    it('should resolve bare scope name when prefixed not found', async () => {
-      const { resolveScopeToTarget } = await import('../../src/release.js');
-      const result = resolveScopeToTarget('electron', {
-        electron: '@wdio/electron-*',
-        tauri: '@wdio/tauri-*',
-      });
-      expect(result).toBe('@wdio/electron-*');
-    });
-
-    it('should prefer prefixed over bare when both exist', async () => {
-      const { resolveScopeToTarget } = await import('../../src/release.js');
-      const result = resolveScopeToTarget('electron', {
-        'scope:electron': '@wdio/electron-scope-*',
-        electron: '@wdio/electron-bare-*',
-      });
-      expect(result).toBe('@wdio/electron-scope-*');
-    });
-
-    it('should throw when scope not found', async () => {
-      const { resolveScopeToTarget } = await import('../../src/release.js');
-      expect(() =>
-        resolveScopeToTarget('unknown', {
-          'scope:electron': '@wdio/electron-*',
-        }),
-      ).toThrow('Scope "unknown" not found in ci.scopeLabels. Available: scope:electron');
     });
   });
 

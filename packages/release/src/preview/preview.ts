@@ -158,6 +158,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
       projectDir: effectiveOptions.projectDir,
       target: effectiveOptions.target,
       baseRef: prBaseSha,
+      skipGate: true,
     });
   } else {
     info('No release label detected — skipping version analysis');
@@ -351,22 +352,6 @@ async function applyLabelOverrides(
 
   if (!advisoryInStandingPr && matchedScopePatterns.length > 0) {
     result.target = matchedScopePatterns.join(', ');
-  } else if (!advisoryInStandingPr && !hasImmediate && !options.target && matchedScopePatterns.length === 0) {
-    const willRelease =
-      trigger !== 'label' ||
-      prLabels.includes(labels.patch) ||
-      prLabels.includes(labels.minor) ||
-      prLabels.includes(labels.major) ||
-      prLabels.includes(labels.graduate);
-
-    if (willRelease) {
-      const scopeLabelsConfigured = Object.keys(scopeLabels).length > 0;
-      throw new Error(
-        scopeLabelsConfigured
-          ? 'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.'
-          : 'No scope specified. Use --target flag to specify which packages to release.',
-      );
-    }
   }
 
   // Banner only; analysis still runs commit-driven so the merge table can show this PR's contribution.
@@ -474,10 +459,11 @@ async function applyLabelOverrides(
     labelContext.skip = true;
   }
 
-  if (!labelContext.skip && prLabels.includes(labels.major)) {
+  // Matches the gate: graduation ignores bump:major, and premajor starts a fresh line rather than incrementing.
+  if (!labelContext.skip && prLabels.includes(labels.major) && !conflict.hasGraduate) {
     info(`PR label "${labels.major}" detected — forcing major release`);
     labelContext.bumpLabel = 'major';
-    result.bump = 'major';
+    result.bump = conflict.hasPrerelease ? 'premajor' : 'major';
   }
 
   if (!options.stable && options.prerelease === undefined) {

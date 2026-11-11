@@ -1,82 +1,37 @@
 import { createFakeForge } from '@releasekit/forge';
-import { FakeGit, type FakeGitSeed } from '@releasekit/git';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchPRLabels, findMergedPRsSinceLastRelease, findStandingPR, postOrUpdateComment } from '../../src/github.js';
+import { describe, expect, it, vi } from 'vitest';
+import { fetchPRLabels, findPreviewComment, findStandingPR, postOrUpdateComment } from '../../src/github.js';
 
-// The merge-PR lookup is driven by seeded `describeTags` (nearest tag) and `log` (commit SHAs).
-let fakeGit: FakeGit;
-vi.mock('@releasekit/git', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@releasekit/git')>();
-  return { ...actual, createGitCli: () => fakeGit };
-});
+describe('findPreviewComment', () => {
+  it('should return comment ID when marker is found', async () => {
+    const forge = createFakeForge({
+      comments: [
+        { id: 1, body: 'Some other comment' },
+        { id: 2, body: '<!-- releasekit-preview -->\n## Release Preview' },
+      ],
+    });
 
-describe('findMergedPRsSinceLastRelease', () => {
-  afterEach(() => vi.clearAllMocks());
-
-  function setGit(seed: FakeGitSeed) {
-    fakeGit = new FakeGit(seed);
-    return fakeGit;
-  }
-
-  function createPRLookupForge(prsByCommit: Record<string, number[]>) {
-    const pullRequestsForCommit: Record<string, { number: number; mergedAt: string | null }[]> = {};
-    for (const [sha, nums] of Object.entries(prsByCommit)) {
-      pullRequestsForCommit[sha] = nums.map((n) => ({ number: n, mergedAt: '2024-01-01' }));
-    }
-    return createFakeForge({ pullRequestsForCommit });
-  }
-
-  it('should return PR numbers from merge commits since last tag', async () => {
-    // nearest tag → range `v1.0.0..HEAD`.
-    setGit({ nearestTag: 'v1.0.0', commits: { 'v1.0.0..HEAD': 'abc123\ndef456\n' } });
-
-    const forge = createPRLookupForge({ abc123: [10], def456: [20] });
-    const result = await findMergedPRsSinceLastRelease(forge, '/project');
-
-    expect(result).toEqual(expect.arrayContaining([10, 20]));
-    expect(result).toHaveLength(2);
+    const result = await findPreviewComment(forge, 1);
+    expect(result).toBe(2);
   });
 
-  it('should deduplicate PR numbers across merge commits', async () => {
-    setGit({ nearestTag: 'v1.0.0', commits: { 'v1.0.0..HEAD': 'abc123\ndef456\n' } });
+  it('should return null when no marker comment exists', async () => {
+    const forge = createFakeForge({
+      comments: [
+        { id: 1, body: 'Regular comment' },
+        { id: 2, body: 'Another comment' },
+      ],
+    });
 
-    const forge = createPRLookupForge({ abc123: [10], def456: [10] });
-    const result = await findMergedPRsSinceLastRelease(forge, '/project');
-
-    expect(result).toEqual([10]);
+    const result = await findPreviewComment(forge, 1);
+    expect(result).toBeNull();
   });
 
-  it('should fall back to last 50 merge commits when no tags exist', async () => {
-    setGit({ nearestTag: null, commits: { '*': 'abc123\n' } });
-    const logSpy = vi.spyOn(fakeGit, 'log');
+  it('should return null when no comments exist', async () => {
+    const forge = createFakeForge({ comments: [] });
 
-    const forge = createPRLookupForge({ abc123: [99] });
-    const result = await findMergedPRsSinceLastRelease(forge, '/project');
-
-    expect(result).toEqual([99]);
-    // The fallback passes `-50` as a count flag (not a range) so the seam doesn't reject it.
-    const logOpts = logSpy.mock.calls[0]?.[0];
-    expect(logOpts).toMatchObject({ extraArgs: ['-50'] });
-    expect(logOpts?.range).toBeUndefined();
-  });
-
-  it('should return empty array when no merge commits in range', async () => {
-    setGit({ nearestTag: 'v1.0.0', commits: { 'v1.0.0..HEAD': '' } });
-
-    const forge = createPRLookupForge({});
-    const result = await findMergedPRsSinceLastRelease(forge, '/project');
-
-    expect(result).toEqual([]);
-  });
-
-  it('should return empty array when git log throws', async () => {
-    setGit({ nearestTag: 'v1.0.0' });
-    vi.spyOn(fakeGit, 'log').mockRejectedValue(new Error('git error'));
-
-    const forge = createPRLookupForge({});
-    const result = await findMergedPRsSinceLastRelease(forge, '/project');
-
-    expect(result).toEqual([]);
+    const result = await findPreviewComment(forge, 1);
+    expect(result).toBeNull();
   });
 });
 

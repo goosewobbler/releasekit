@@ -22,9 +22,10 @@ export {
 } from './failure-report/post.js';
 export type { GateOptions, GateOutput } from './gate/gate.js';
 export { runGate } from './gate/gate.js';
+export { resolveScopeToTarget } from './label-utils.js';
 export type { PreviewOptions } from './preview/preview.js';
 export { runPreview } from './preview/preview.js';
-export { resolveScopeToTarget, runRelease } from './release.js';
+export { runRelease } from './release.js';
 export type {
   StandingPRManifest,
   StandingPRMergeOutput,

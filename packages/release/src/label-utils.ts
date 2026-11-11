@@ -109,3 +109,15 @@ export function composeBumpFromLabels(prLabels: string[], labels: LabelConfig = 
   }
   return undefined;
 }
+
+export function resolveScopeToTarget(scopeName: string, scopeLabels: Record<string, string>): string {
+  const prefixed = `scope:${scopeName}`;
+  if (scopeLabels[prefixed]) {
+    return scopeLabels[prefixed];
+  }
+  if (scopeLabels[scopeName]) {
+    return scopeLabels[scopeName];
+  }
+  const available = Object.keys(scopeLabels).join(', ');
+  throw new Error(`Scope "${scopeName}" not found in ci.scopeLabels. Available: ${available}`);
+}

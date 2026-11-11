@@ -12,7 +12,7 @@ uses: goosewobbler/releasekit@v0
 
 ## Modes
 
-- `release`: runs the release pipeline (version, notes, publish).
+- `release`: runs the release pipeline (version, notes, publish), after the same check of merged-PR labels as `gate`.
 - `preview` (default): posts or updates the PR preview comment.
 - `gate`: evaluates merged-PR labels and emits should-release/bump/scope outputs.
 - `standing-pr-update`: creates or refreshes the standing release PR.
@@ -139,7 +139,7 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 | `preview-markdown` | Preview markdown (preview mode + dry-run) |
 | `preview-posted` | `true` when preview mode posted comment |
 | `should-release` | Whether a release should proceed (gate mode) |
-| `bump` | Resolved bump type (gate mode) |
+| `bump` | Resolved bump type (gate mode). A release job doesn't need it: `release` reads the labels itself |
 | `gate-scope` | Resolved scope name (gate mode) |
 | `gate-target` | Resolved target packages (gate mode) |
 | `gate-stable` | Whether the release is a stable graduation (gate mode) |

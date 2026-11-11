@@ -469,7 +469,7 @@ describe('runPreview', () => {
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major', prerelease: true }));
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'premajor', prerelease: true }));
       });
     });
 
@@ -821,7 +821,7 @@ describe('runPreview', () => {
       expect(callArgs.target).toBe('@test/package');
     });
 
-    it('should throw when no scope label matched and no target provided (commit mode)', async () => {
+    it('should preview every changed package when no scope label matched and no target provided (commit mode)', async () => {
       mockLoadCIConfig.mockReturnValue({
         releaseTrigger: 'commit',
         scopeLabels: {
@@ -830,7 +830,9 @@ describe('runPreview', () => {
       });
       mockFetchPRLabels.mockResolvedValue(['bug']);
 
-      await expect(runPreview({ projectDir: '/test', dryRun: false })).rejects.toThrow('No scope specified');
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: undefined }));
     });
 
     it('should not throw in label mode with no labels when scopeLabels configured (no release will happen)', async () => {
@@ -852,7 +854,7 @@ describe('runPreview', () => {
       );
     });
 
-    it('should throw in label mode when bump label present but no scope label and no target', async () => {
+    it('should preview every changed package in label mode when bump label present but no scope label and no target', async () => {
       mockLoadCIConfig.mockReturnValue({
         releaseTrigger: 'label',
         scopeLabels: {
@@ -861,7 +863,9 @@ describe('runPreview', () => {
       });
       mockFetchPRLabels.mockResolvedValue(['bump:patch']);
 
-      await expect(runPreview({ projectDir: '/test', dryRun: false })).rejects.toThrow('No scope specified');
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: undefined, bump: 'patch' }));
     });
 
     it('should not throw when release:immediate is set with a bump label but no scope label and no target', async () => {

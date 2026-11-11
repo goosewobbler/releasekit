@@ -7,14 +7,14 @@ This guide covers common GitHub Actions patterns for automating releases with `@
 All workflows require:
 
 - `fetch-depth: 0` on checkout — ReleaseKit reads git history to determine version bumps
-- A `GITHUB_TOKEN` with `contents: write` permission for tagging and GitHub Releases
+- A `GITHUB_TOKEN` with `contents: write` permission for tagging and GitHub Releases, and `pull-requests: read` so `releasekit release` can read the labels of the merged PR it's releasing (see [Merged-PR labels](../../../docs/cli.md#merged-pr-labels))
 - Node.js 22.12+
 
 ---
 
 ## Minimal Setup (push to main)
 
-Trigger a release on every push to `main`. If there are no releasable commits, the command exits cleanly with code 0 and does nothing.
+Trigger a release on every push to `main`. If there are no releasable commits, the command exits cleanly with code 0 and does nothing. The example sets `ci.releaseTrigger: "commit"`, so a merged PR releases unless it's labelled `release:skip`.
 
 The workflow is [`examples/ci/minimal`](../../../examples/ci/minimal/release.yml). Its release step:
 
@@ -111,7 +111,7 @@ Configure the trigger in `releasekit.config.json`:
 }
 ```
 
-The `labels` block shown above reflects the defaults — omit it if your repository already uses those label names.
+Without a `bump:*` or `release:graduate` label on the merged PR, `releasekit release` exits 0 without releasing. The `labels` block shown above reflects the defaults — omit it if your repository already uses those label names.
 
 See the [configuration reference](../../../docs/configuration.md#ci) for all `ci.*` options.
 
@@ -132,7 +132,7 @@ For monorepos, scope labels let a single PR target a subset of packages without 
 }
 ```
 
-When a PR is merged with a `scope:*` label, the gate resolves the glob and releases only the matching packages. Without a scope label, the gate falls back to releasing all packages with releasable changes since the last tag.
+When a PR is merged with a `scope:*` label, `releasekit release` resolves the glob and releases only the matching packages. Without a scope label, it releases all packages with releasable changes since the last tag.
 
 The CLI accepts `--scope <name>` to apply the same resolution from the command line:
 
@@ -141,7 +141,7 @@ pnpm exec releasekit release --scope core
 # or: npx releasekit release --scope core
 ```
 
-`--scope` and `--target` are mutually exclusive. Use `--target @myorg/foo,@myorg/bar` when you want explicit package names without going through the label map.
+`--scope` and `--target` are mutually exclusive, and either replaces a merged PR's scope label. Use `--target @myorg/foo,@myorg/bar` when you want explicit package names without going through the label map.
 
 ---
 
@@ -528,6 +528,7 @@ With OIDC, no `NPM_TOKEN` secret is required. The workflow exchanges a GitHub-is
 permissions:
   contents: write
   id-token: write    # grants the OIDC token
+  pull-requests: read
 ```
 
 ReleaseKit detects OIDC availability automatically (`npm-auth: auto`). To force it:
@@ -558,6 +559,7 @@ pub.dev supports automated publishing without a token if you configure a publish
 permissions:
   contents: write
   id-token: write   # required for pub.dev OIDC publishing
+  pull-requests: read
 ```
 
 ReleaseKit will run `dart pub publish --force` (or `flutter pub publish --force` for Flutter packages) directly. No credential setup step is needed.

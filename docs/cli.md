@@ -116,7 +116,7 @@ Run the full release pipeline: version, changelog, publish, git, and GitHub Rele
 | `--stable` | boolean | `false` | Graduate prerelease packages to stable without bumping |
 | `--allow-first-bump` | boolean | `false` | Acknowledge applying a bump on a first release with an already-stable manifest (silences the overshoot warning; see [`version.allowFirstBump`](./configuration.md#version)) |
 | `-s, --sync` | boolean | `false` | Use synchronized versioning across all packages |
-| `-t, --target <packages>` | string | all | Target specific packages (comma-separated) |
+| `-t, --target <packages>` | string | merged PR's `scope:*` label, else all | Target specific packages (comma-separated) |
 | `--include-prerequisites` | boolean | `false` | Also release the changed internal dependencies of `--target` packages (and the rest of their groups) |
 | `--scope <name>` | string | - | Resolve scope name to target packages from `ci.scopeLabels` config |
 | `--branch <name>` | string | current | Override the git branch used for push |
@@ -139,6 +139,19 @@ Run the full release pipeline: version, changelog, publish, git, and GitHub Rele
 ```bash
 releasekit release --dry-run
 ```
+
+### Merged-PR labels
+
+In GitHub Actions (`GITHUB_REPOSITORY`, `GITHUB_SHA` and `GITHUB_TOKEN` set, outside `workflow_dispatch`), `release` first makes [`gate`](#releasekit-release-gate)'s decision on the merged PR the pushed commit came from. A PR calls for a release with a `bump:*` or `release:graduate` label under `ci.releaseTrigger: "label"`, without `release:skip` under `"commit"`, and with `release:immediate` in `standing-pr` strategy.
+
+- **No release**: the PR's labels don't call for one, HEAD matches `release.ci.skipPatterns`, or, with sync versioning, a newer tag already contains the pushed commit (a re-run after the checkout moved past its release). `release` exits 0, logs the reason, and `--json` reports `changed: false`. A PR with conflicting labels blocks the release the same way.
+- **Release**: the winning PR's `bump:*` and `channel:prerelease` labels set the bump (under `"commit"`, commits set it: only `bump:major` overrides it, and `channel:prerelease` makes it a prerelease), `release:graduate` the graduation and `scope:*` the target. `--bump`, `--stable` or `--prerelease` replace its bump and channel, and `--target` or `--scope` its scope. Without a scope label, every changed package releases.
+- **A direct push** (the pushed commit isn't from a merged PR): under `"commit"` in direct strategy, `release` releases from commits. Elsewhere it carries no labels, so it doesn't release.
+- **No GitHub context**: `release` releases from commits.
+
+Only the pushed commit's PR counts. A push that carries several merges is decided by the last one, and a run cancelled before it releases (say, by a later push) doesn't pass its PR's labels on to the next run; re-run it to release that PR.
+
+Looking up the PR needs `pull-requests: read`. If the lookup fails, `release` fails and names the permission. `--draft` and `--from-draft` ignore PR labels.
 
 ### Draft-then-dispatch (manual mode)
 
@@ -392,7 +405,7 @@ releasekit version --json | releasekit publish --dry-run
 
 ## `releasekit-release gate`
 
-The `gate` command — used by the GitHub Action's `gate` mode — checks whether a release should proceed based on PR labels and config. It is exposed on both the `releasekit` and `releasekit-release` binaries (from `@releasekit/release`).
+The `gate` command — used by the GitHub Action's `gate` mode — checks whether a release should proceed based on PR labels and config. It is exposed on both the `releasekit` and `releasekit-release` binaries (from `@releasekit/release`). `releasekit release` makes the same decision itself (see [Merged-PR labels](#merged-pr-labels)), so run `gate` only when a workflow needs the decision before the release job, e.g. to skip its setup. If the PR lookup fails, `gate` reports `shouldRelease: false` with a reason naming the `pull-requests: read` permission.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|

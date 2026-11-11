@@ -100,7 +100,7 @@ See [CI setup](../packages/release/docs/ci-setup.md) for prerequisites and the s
 
 ## Release triggers
 
-How the bump type is determined. Configure under `ci.releaseTrigger`.
+How the bump type is determined. Configure under `ci.releaseTrigger`. `releasekit release` and `releasekit gate` apply it to the merged PR the pushed commit came from; see [Merged-PR labels](./cli.md#merged-pr-labels).
 
 **`commit`** — Conventional commits drive the bump automatically. Every merge can produce a release. Use the `release:skip` label to suppress a release on a specific PR.
 
