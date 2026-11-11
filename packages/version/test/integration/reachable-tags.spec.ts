@@ -94,15 +94,18 @@ describe('baseline tag reachability', () => {
       const result = executeCliCommand('--json', tempDir);
 
       expect(result.status).not.toBe(0);
-      expect(`${result.stdout}${result.stderr}`).toContain('not reachable');
+      expect(`${result.stdout}${result.stderr}`).toContain("Git tag 'test-core@v3.0.0' is not reachable");
     });
 
     it('should fall back without strictReachable', () => {
       setUp(false);
 
       const result = executeCliCommand('--json', tempDir);
-
       expect(result.status).toBe(0);
+      const output = readVersionOutput(result.stdout);
+
+      expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('1.0.1');
+      expect(output.tags).toEqual(['test-core@v1.0.1']);
     });
   });
 });

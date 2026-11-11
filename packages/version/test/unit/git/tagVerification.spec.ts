@@ -1,5 +1,6 @@
 import { createFakeGit, type Git } from '@releasekit/git';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { StrictReachableError } from '../../../src/errors/strictReachableError.js';
 import { verifyTag } from '../../../src/git/tagVerification.js';
 import { log } from '../../../src/utils/logging.js';
 import { getBestVersionSource, VersionMismatchError } from '../../../src/utils/versionUtils.js';
@@ -167,10 +168,10 @@ describe('Tag Verification', () => {
       );
     });
 
-    it('should throw error when tag is unreachable and strictReachable is true', async () => {
+    it('should throw a StrictReachableError when tag is unreachable and strictReachable is true', async () => {
       await expect(
         getBestVersionSource('v1.0.0', '1.0.0', '/test/path', 'error', true, gitWithMissingTag()),
-      ).rejects.toThrow("Git tag 'v1.0.0' is not reachable from the current commit");
+      ).rejects.toBeInstanceOf(StrictReachableError);
     });
 
     it('should throw error when tag is unreachable, strictReachable is true, and no package version', async () => {
