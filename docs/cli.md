@@ -14,13 +14,13 @@ ReleaseKit ships a unified `releasekit` command plus three standalone binaries. 
 
 The `releasekit` dispatcher re-exports `version`, `notes`, and `publish`, so `releasekit version` and `releasekit-version` are equivalent. Examples below use `releasekit`.
 
-> **Conventions:** `<value>` is required; `[value]` is optional. Boolean flags default to `false` unless noted. Every command accepts `--help`. `--version` prints the binary version.
+> **Conventions:** `<value>` is required; `[value]` is optional. Boolean flags default to `false` unless noted. Every command accepts `--help`. `--version` prints the binary version. `--project-dir <path>` runs the command in that folder; a relative `--config` or `--output` is resolved from the directory you run in.
 
 ---
 
 ## JSON output contract
 
-Every command that produces a JSON result — `release`, `gate`, `standing-pr`, `version`, and `publish` — emits it as a single **envelope**, one uniform shape shared by humans, CI, and agents. `--output <path>` writes the same envelope to a file instead of stdout (the reliable channel for the GitHub Action, since stdout can be polluted by subprocess or log noise, and a single stray byte breaks JSON parsing). The path is resolved from the directory you run in, not `--project-dir`.
+Every command that produces a JSON result — `release`, `gate`, `standing-pr`, `version`, and `publish` — emits it as a single **envelope**, one uniform shape shared by humans, CI, and agents. `--output <path>` writes the same envelope to a file instead of stdout (the reliable channel for the GitHub Action, since stdout can be polluted by subprocess or log noise, and a single stray byte breaks JSON parsing).
 
 ```jsonc
 {

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { EXIT_CODES } from '@releasekit/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-const RELEASE_CLI = fileURLToPath(new URL('../../packages/release/dist/cli.js', import.meta.url));
+const CLI = fileURLToPath(new URL('../../packages/release/dist/dispatcher.js', import.meta.url));
 
 // Ignore the developer's git config and any real GitHub context the suite runs under.
 const env = {
@@ -39,7 +39,7 @@ function createRepo(dir: string, pkg: string): void {
 }
 
 function run(cwd: string, ...args: string[]) {
-  return spawnSync(process.execPath, [RELEASE_CLI, ...args], { cwd, encoding: 'utf-8', env });
+  return spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf-8', env });
 }
 
 describe('--project-dir', () => {
@@ -72,7 +72,16 @@ describe('--project-dir', () => {
     expect(names).not.toContain('rk-elsewhere');
   });
 
-  it.each(['release', 'gate', 'standing-pr update'])(
+  it.each(['release', 'version'])('should read a relative --config for %s from where it was run', (command) => {
+    createRepo(join(root, 'project'), 'rk-project');
+    write(join(root, 'custom.json'), JSON.stringify({ version: { preset: 'angular', versionPrefix: 'v' } }));
+
+    const result = run(root, command, '--dry-run', '--json', '--config', 'custom.json', '--project-dir', 'project');
+
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+  });
+
+  it.each(['release', 'version', 'gate', 'standing-pr update'])(
     'should fail %s up front when the folder is missing',
     (command) => {
       const missing = join(root, 'missing');

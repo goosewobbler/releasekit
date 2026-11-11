@@ -319,7 +319,6 @@ runs:
     - name: Run ReleaseKit action
       id: run
       shell: bash
-      working-directory: ${{ inputs.project-dir || '.' }}
       run: |
         echo "Current directory: $(pwd)"
         echo "Git status:"

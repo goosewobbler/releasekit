@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { EXIT_CODES, exitCodeForError, InputError, writeErrorEnvelope } from '@releasekit/core';
+import { EXIT_CODES, enterProjectDir, exitCodeForError, InputError, writeErrorEnvelope } from '@releasekit/core';
 import { Command } from 'commander';
 import { loadConfig } from './config.js';
 import { VersionEngine } from './core/versionEngine.js';
@@ -31,7 +31,6 @@ export function createVersionCommand(): Command {
     )
     .option('--project-dir <path>', 'Project directory to run commands in', process.cwd())
     .action(async (options) => {
-      // Resolve before --project-dir chdirs, so the file lands where the caller asked (as `release --output` does).
       const output: string | undefined = options.output ? path.resolve(options.output) : undefined;
       const io = { json: options.json, output };
 
@@ -47,20 +46,8 @@ export function createVersionCommand(): Command {
       }
 
       try {
-        const originalCwd = process.cwd();
-        const projectDir = path.resolve(options.projectDir ?? originalCwd);
-        if (projectDir !== originalCwd) {
-          try {
-            process.chdir(projectDir);
-            log(`Changed working directory to: ${projectDir}`, 'debug');
-          } catch (error) {
-            throw new Error(
-              `Failed to change to directory "${projectDir}": ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
-        }
-
-        const config: Config = loadConfig({ cwd: projectDir, configPath: options.config });
+        const { projectDir, config: configPath } = enterProjectDir({ ...options, output });
+        const config: Config = loadConfig({ cwd: projectDir, configPath });
         log(`Loaded configuration from ${options.config || 'releasekit.config.json'}`, 'info');
 
         const cliTargets: string[] = options.target ? options.target.split(',').map((t: string) => t.trim()) : [];
