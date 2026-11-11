@@ -35,8 +35,6 @@ vi.mock('../../src/github.js', () => ({
   forgeFor: (...args: unknown[]) => mockForgeFor(...args),
   findMergedPRsForCommit: (...args: unknown[]) => mockFindMergedPRsForCommit(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
-  // Used by the best-effort failure-report resolve path; a plain stub keeps it quiet.
-  findPreviewComment: vi.fn().mockResolvedValue(null),
   postOrUpdateComment: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -170,7 +168,7 @@ describe('runRelease', () => {
     // Default HEAD subject is a non-release commit so the skip-pattern guard passes.
     setGitSubject('feat: some feature');
 
-    mockForgeFor.mockReturnValue({});
+    mockForgeFor.mockReturnValue({ findComment: vi.fn().mockResolvedValue(null) });
     mockFindMergedPRsForCommit.mockResolvedValue([]);
     mockFetchPRLabels.mockResolvedValue([]);
     mockLoadReleaseKitConfig.mockReturnValue({});

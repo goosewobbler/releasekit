@@ -148,20 +148,22 @@ export interface ChangelogEntryLineInput {
   breaking?: boolean;
 }
 
-/** One `- …` list item for a GitHub comment or PR body. `suffix` is trusted markdown appended after the refs. */
 export function renderChangelogEntryLine(
   entry: ChangelogEntryLineInput,
   mode: ChangelogRefsMode,
   repoUrl: string | null,
   suffix = '',
 ): string {
-  // The scope is backticked, so only the description needs mention escaping.
-  const description = escapeChangelogMentions(
-    neutralizeDescriptionRefs(entry.description, [...(entry.issueIds ?? []), entry.prNumber], mode, repoUrl),
+  const description = neutralizeDescriptionRefs(
+    entry.description,
+    [...(entry.issueIds ?? []), entry.prNumber],
+    mode,
+    repoUrl,
   );
   const scope = entry.scope ? ` (\`${entry.scope}\`)` : '';
   const refs = renderIssueRefs(entry.issueIds ?? [], mode, repoUrl, entry.prNumber);
   const line = `- ${entry.breaking ? '**BREAKING** ' : ''}${description}${scope}${refs ? ` ${refs}` : ''}${suffix}`;
-  // Last and over the whole line: the scope is commit text too, and dropping a ref can close up a split opener.
-  return escapeCommentOpeners(line);
+  // Last, over the whole line: a backtick in the description can pair with the scope's, and removing a ref can join
+  // the halves of a split opener.
+  return escapeCommentOpeners(escapeChangelogMentions(line));
 }

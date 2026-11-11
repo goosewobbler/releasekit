@@ -328,6 +328,15 @@ describe('formatPreviewComment', () => {
     );
   });
 
+  it('should escape a scope mention that a stray backtick leaves outside its code span', () => {
+    const withBacktick = structuredClone(releaseOutput);
+    const firstChangelog = withBacktick.versionOutput.changelogs[0];
+    if (firstChangelog) {
+      firstChangelog.entries = [{ type: 'fixed', description: 'Accept ` in paths', scope: '@org/team' }];
+    }
+    expect(formatPreviewComment(withBacktick)).toContain('- Accept ` in paths (`\\@org/team`)');
+  });
+
   it('should wrap each package changelog in details element', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('<details>');

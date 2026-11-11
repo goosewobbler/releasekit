@@ -59,7 +59,6 @@ export async function resolveFailureReportIfPresent(
 ): Promise<void> {
   try {
     const existing = await forge.findComment(prNumber, FAILURE_MARKER);
-    // A human comment carrying the marker isn't a failure that happened, so there's nothing to resolve.
     if (existing === null || !isBotComment(existing)) {
       return;
     }
@@ -99,7 +98,7 @@ export async function detectUnresolvedFailure(forge: Forge, prNumber: number): P
     return null;
   }
 
-  // `findComment` falls back to a human comment carrying the marker. Its numbers would be made up, so refuse it.
+  // `findComment` falls back to a human comment carrying the marker, and its numbers could be anything.
   if (!comment?.body || !isBotComment(comment)) {
     return null;
   }
