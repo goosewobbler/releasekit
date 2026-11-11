@@ -1782,8 +1782,9 @@ async function readVerifiedManifest(
         `Standing PR #${prNumber} override labels changed after the last update — the release manifest is stale.\n` +
           `  manifest was computed for: [${manifestLabels.join(', ') || '(none)'}]\n` +
           `  PR now has:                [${prLabels.join(', ') || '(none)'}]\n` +
-          `Re-run 'releasekit standing-pr update' so the manifest matches, then merge (or apply the retry label after ` +
-          `updating). Refusing to ${action} a release the labels no longer describe.`,
+          `Re-run 'releasekit standing-pr update' so the manifest matches, then ` +
+          `${action === 'merge' ? 'merge again' : 'merge (or apply the retry label after updating)'}. ` +
+          `Refusing to ${action} a release the labels no longer describe.`,
       );
     }
   }
@@ -2103,7 +2104,7 @@ export async function runStandingPRMerge(options: StandingPROptions): Promise<St
     if (status === 409) {
       throw new Error(
         `Cannot merge standing PR #${pr.number}: '${branch}' has moved since the release manifest was written. ` +
-          `Wait for the standing-PR update to finish, then merge again.`,
+          `Wait for the standing-PR update to finish, or re-run it if it failed, then merge again.`,
       );
     }
     if (status === 405) {
