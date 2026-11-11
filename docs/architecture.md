@@ -52,7 +52,9 @@ A conceptual overview for contributors and users evaluating ReleaseKit.
 }
 ```
 
-`updates` is the list of packages that received a bump. Both `notes` and `publish` consume it directly; when using the programmatic API there is no JSON round-trip. `additionalFiles`, when present, lists the other files `version` wrote, such as a non-releasing crate's `Cargo.toml` whose requirement on a released crate it raised; `publish` commits them with the bumped manifests.
+`updates` is the list of packages that received a bump. Both `notes` and `publish` consume it directly; when using the programmatic API there is no JSON round-trip.
+
+`additionalFiles`, when present, lists the other files `version` wrote, such as a non-releasing crate's `Cargo.toml` with a raised requirement on a released crate. `publish` commits them with the bumped manifests.
 
 ---
 

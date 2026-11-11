@@ -68,8 +68,8 @@ export interface VersionOutput {
    */
   baselineTags?: string[];
   /**
-   * Other files the version step wrote, such as a non-releasing dependent's raised `Cargo.toml`. Absent in older
-   * manifests.
+   * Files the version step wrote that no update names, such as a non-releasing dependent's raised `Cargo.toml`. Absent
+   * when there are none, and in older manifests.
    */
   additionalFiles?: string[];
 }

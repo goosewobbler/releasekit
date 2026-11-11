@@ -54,7 +54,7 @@ git add CHANGELOG.md   # or each package's changelog in `packages` mode
 releasekit publish --input version.json
 ```
 
-`publish` runs [`git.formatCommand`](./configuration.md#git) only on the manifests in its input, so format the changelogs before you stage them.
+`publish` runs [`git.formatCommand`](./configuration.md#git) only on the files its input lists, so format the changelogs before you stage them.
 
 `publish` also reads stdin, so `releasekit version --json | releasekit publish` works when no notes step is needed.
 
