@@ -3,8 +3,8 @@ import type { Command } from 'commander';
 import { failInput } from './emitResult.js';
 
 /**
- * A `preAction` hook that runs the command from `--project-dir`, so package discovery and git work there too, not only
- * config loading. `--config` and `--output` stay relative to where the command was run.
+ * A `preAction` hook that runs the command from `--project-dir`. `--config` and `--output` stay relative to where the
+ * command was run.
  */
 export function enterProjectDir(_hooked: Command, actionCommand: Command): void {
   const opts = actionCommand.opts();
