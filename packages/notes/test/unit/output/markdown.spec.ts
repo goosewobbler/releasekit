@@ -720,6 +720,13 @@ describe('formatVersion: comment openers', () => {
     expect(formatVersion(ctx)).toContain('- escape `<!--` in output');
   });
 
+  it('should escape a comment opener between escaped backticks, which are not a code span', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({ entries: [{ type: 'fixed', description: 'handle \\`<!-- template -->\\` markers' }] });
+
+    expect(formatVersion(ctx)).toContain('- handle \\`&lt;!-- template -->\\` markers');
+  });
+
   it('should escape comment openers in the scope, the grouped scope header and the lead-in', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
     const ctx = makeContext({
