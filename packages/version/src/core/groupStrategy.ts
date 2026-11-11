@@ -325,7 +325,7 @@ async function releaseGroup(
   baselineResolver: BaselineResolver,
 ): Promise<Array<{ name: string; version: string }>> {
   const { groupVersion, releasing } = computation;
-  const formattedPrefix = formatVersionPrefix(config.versionPrefix || 'v');
+  const formattedPrefix = formatVersionPrefix(config.versionPrefix);
   const released: Array<{ name: string; version: string }> = [];
 
   for (const plan of releasing) {
@@ -423,10 +423,14 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
   return async (packages: PackagesWithRoot, runtimeTargets: string[] = []): Promise<void> => {
     try {
       setVersioningStrategy('group');
-      const formattedPrefix = formatVersionPrefix(config.versionPrefix || 'v');
-      const globalTag = await getLatestTag(deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix));
+      const formattedPrefix = formatVersionPrefix(config.versionPrefix);
+      const globalPrefix =
+        deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix) ??
+        (config.packageSpecificTags ? undefined : deriveBaselineTagPrefix(config.tagTemplate, formattedPrefix));
+      const globalTag = await getLatestTag(globalPrefix);
       const baselineResolver = new BaselineResolver({
         versionPrefix: formattedPrefix,
+        globalTagPrefix: globalPrefix,
         tagTemplate: config.tagTemplate,
         packageSpecificTags: config.packageSpecificTags ?? false,
         strictReachable: config.strictReachable ?? false,

@@ -73,18 +73,18 @@
       "properties": {
         "tagTemplate": {
           "type": "string",
-          "default": "${prefix}${version}",
-          "description": "Template for Git tags. Available variables: ${version} (version number), ${prefix} (versionPrefix value, e.g. 'v'), ${packageName} (sanitized package name, e.g. 'scope-pkg'). Example: \"${packageName}-${prefix}${version}\" produces \"scope-pkg-v1.2.3\"."
+          "pattern": "\\$\\{version\\}$",
+          "description": "Template for Git tags, ending with ${version}. Available variables: ${version} (version number), ${prefix} (versionPrefix value, e.g. 'v'), ${packageName} (sanitized package name, e.g. 'scope-pkg'). Example: \"${packageName}-${prefix}${version}\" produces \"scope-pkg-v1.2.3\". Defaults to \"${packageName}@${prefix}${version}\" with packageSpecificTags, otherwise \"${prefix}${version}\"."
         },
         "baselineTagTemplate": {
           "type": "string",
-          "pattern": ".*\\$\\{version\\}.*",
-          "description": "Optional secondary tag template for an internal 'baseline' marker that records the release commit on the source branch. Use this when tagTemplate resolves to a tag that gets force-moved off the source branch by a downstream step (e.g. a GitHub Action distributing built artifacts at the version tag) — the baseline tag stays on the release commit so future version-bump and changelog calculations can still find the previous release. Must contain a ${version} placeholder so the baseline prefix can be derived. Supports the same variables as tagTemplate. Example: \"release/${prefix}${version}\" produces \"release/v1.2.3\"."
+          "pattern": "\\$\\{version\\}$",
+          "description": "Optional secondary tag template for an internal 'baseline' marker that records the release commit on the source branch. Use this when tagTemplate resolves to a tag that gets force-moved off the source branch by a downstream step (e.g. a GitHub Action distributing built artifacts at the version tag) — the baseline tag stays on the release commit so future version-bump and changelog calculations can still find the previous release. Must end with ${version} so the baseline prefix can be derived. Supports the same variables as tagTemplate. Example: \"release/${prefix}${version}\" produces \"release/v1.2.3\"."
         },
         "packageSpecificTags": {
           "type": "boolean",
           "default": false,
-          "description": "Enable package-specific tagging"
+          "description": "Tag each package separately, e.g. \"scope-pkg@v1.2.3\". tagTemplate must then contain ${packageName}."
         },
         "preset": {
           "type": "string",
@@ -192,8 +192,8 @@
         },
         "versionPrefix": {
           "type": "string",
-          "default": "",
-          "description": "Prefix for version tags"
+          "default": "v",
+          "description": "Prefix for version tags. Set \"\" for tags like \"1.2.3\"."
         },
         "prereleaseIdentifier": {
           "type": "string",

@@ -374,6 +374,8 @@ describe('runStandingPRUpdate', () => {
     },
     git: { branch: 'main', remote: 'origin', pushMethod: 'auto' },
     release: { ci: { skipPatterns: ['chore: release '] } },
+    // The schema defaults sync to true; most cases here release packages separately.
+    version: { sync: false },
   };
 
   beforeEach(async () => {
@@ -610,7 +612,7 @@ describe('runStandingPRUpdate', () => {
       },
       git: { branch: 'main' },
       release: { ci: { skipPatterns: ['chore: release '] } },
-      version: { groups: { tauri: { sync: 'linked', packages: ['@wdio/tauri-*'] } } },
+      version: { sync: false, groups: { tauri: { sync: 'linked', packages: ['@wdio/tauri-*'] } } },
     } as unknown as ReturnType<typeof import('@releasekit/config').loadConfig>);
     mockGetWorkspacePackageNames.mockResolvedValue(['@wdio/tauri-service', '@wdio/tauri-plugin']);
   };
@@ -1571,6 +1573,7 @@ describe('runStandingPRUpdate', () => {
       ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, combinedChangelogFooter: false } },
       git: { branch: 'main' },
       release: { ci: { skipPatterns: ['chore: release '] } },
+      version: { sync: false },
     } as unknown as ReturnType<typeof loadConfig>);
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
@@ -1670,6 +1673,7 @@ describe('runStandingPRUpdate', () => {
       ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, summaryTable: true } },
       git: { branch: 'main' },
       release: { ci: { skipPatterns: ['chore: release '] } },
+      version: { sync: false },
     } as unknown as ReturnType<typeof loadConfig>);
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = mixedChannelOutput();
@@ -1736,6 +1740,7 @@ describe('runStandingPRUpdate', () => {
       ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, combinedChangelogFooter: false } },
       git: { branch: 'main' },
       release: { ci: { skipPatterns: ['chore: release '] } },
+      version: { sync: false },
     } as unknown as ReturnType<typeof loadConfig>);
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
@@ -2362,25 +2367,27 @@ describe('runStandingPRUpdate', () => {
       expect(lastSetLabels?.labels).toContain('bump:major');
     });
 
-    it('should default sync to false when not set in config (preserves per-package versioning)', async () => {
-      const { runVersionStepMock } = await setupWithStandingPRLabels([]);
-
-      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
-
-      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ sync: false });
-    });
-
-    it('should inherit sync: true from version config when explicitly set', async () => {
+    it('should default sync to true when not set in config, as the schema does', async () => {
       const { loadConfig } = await import('@releasekit/config');
-      vi.mocked(loadConfig).mockReturnValue({
-        ...defaultConfig,
-        version: { sync: true },
-      } as ReturnType<typeof loadConfig>);
+      vi.mocked(loadConfig).mockReturnValue({ ...defaultConfig, version: undefined } as ReturnType<typeof loadConfig>);
       const { runVersionStepMock } = await setupWithStandingPRLabels([]);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
       expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ sync: true });
+    });
+
+    it('should inherit sync: false from version config when explicitly set', async () => {
+      const { loadConfig } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ...defaultConfig,
+        version: { sync: false },
+      } as ReturnType<typeof loadConfig>);
+      const { runVersionStepMock } = await setupWithStandingPRLabels([]);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ sync: false });
     });
   });
 
@@ -2571,7 +2578,7 @@ describe('runStandingPRUpdate', () => {
         ...defaultConfig,
         ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, ...opts.standingPr } },
         version: {
-          sync: opts.sync,
+          sync: opts.sync ?? false,
           groups: Object.fromEntries(
             Object.entries(opts.groups ?? {}).map(([name, packages]) => [name, { sync: 'linked', packages }]),
           ),

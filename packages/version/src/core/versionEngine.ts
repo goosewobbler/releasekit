@@ -355,7 +355,7 @@ export class VersionEngine {
    * prerequisite with no *releasable* change is still skipped by the per-package bump calc downstream.
    */
   private async detectChangedPackages(packages: Package[], repoRoot: string): Promise<Set<string>> {
-    const formattedPrefix = formatVersionPrefix(this.config.versionPrefix || 'v');
+    const formattedPrefix = formatVersionPrefix(this.config.versionPrefix);
     // Group mode bumps only a package's own manifests, so ignore `paths` here too.
     const ignorePaths = !this.config.sync && hasExplicitGroups(this.config);
     const results = await Promise.all(

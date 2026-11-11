@@ -91,26 +91,36 @@ export const VersionGroupSchema = z.object({
 export const PresetSchema = z.enum(['angular', 'conventionalcommits']);
 export const DEFAULT_PRESET: Preset = 'conventionalcommits';
 
-export const VersionConfigSchema = z.object({
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional template-placeholder syntax
-  tagTemplate: z.string().default('${prefix}${version}').describe(
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
-    'Template for Git tags. Available variables: ${version} (version number), ${prefix} (versionPrefix value, e.g. \'v\'), ${packageName} (sanitized package name, e.g. \'scope-pkg\'). Example: "${packageName}-${prefix}${version}" produces "scope-pkg-v1.2.3".',
-  ),
-  baselineTagTemplate: z
+const VersionConfigBaseSchema = z.object({
+  tagTemplate: z
     .string()
-    // Pattern (not a refine) so it round-trips into the JSON Schema as `pattern`.
-    .regex(/.*\$\{version\}.*/, {
+    .regex(/\$\{version\}$/, {
       message:
         // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting the expected placeholder syntax to the user
-        'baselineTagTemplate must contain a ${version} placeholder so the prefix can be derived (e.g. "release/${prefix}${version}").',
+        'tagTemplate must end with ${version}: tags are found by the text before it, so text after it breaks the next release.',
     })
     .optional()
     .describe(
       // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
-      'Optional secondary tag template for an internal \'baseline\' marker that records the release commit on the source branch. Use this when tagTemplate resolves to a tag that gets force-moved off the source branch by a downstream step (e.g. a GitHub Action distributing built artifacts at the version tag) — the baseline tag stays on the release commit so future version-bump and changelog calculations can still find the previous release. Must contain a ${version} placeholder so the baseline prefix can be derived. Supports the same variables as tagTemplate. Example: "release/${prefix}${version}" produces "release/v1.2.3".',
+      'Template for Git tags, ending with ${version}. Available variables: ${version} (version number), ${prefix} (versionPrefix value, e.g. \'v\'), ${packageName} (sanitized package name, e.g. \'scope-pkg\'). Example: "${packageName}-${prefix}${version}" produces "scope-pkg-v1.2.3". Defaults to "${packageName}@${prefix}${version}" with packageSpecificTags, otherwise "${prefix}${version}".',
     ),
-  packageSpecificTags: z.boolean().default(false).describe('Enable package-specific tagging'),
+  baselineTagTemplate: z
+    .string()
+    // Pattern (not a refine) so it round-trips into the JSON Schema as `pattern`.
+    .regex(/\$\{version\}$/, {
+      message:
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting the expected placeholder syntax to the user
+        'baselineTagTemplate must end with ${version} so the prefix can be derived (e.g. "release/${prefix}${version}").',
+    })
+    .optional()
+    .describe(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
+      'Optional secondary tag template for an internal \'baseline\' marker that records the release commit on the source branch. Use this when tagTemplate resolves to a tag that gets force-moved off the source branch by a downstream step (e.g. a GitHub Action distributing built artifacts at the version tag) — the baseline tag stays on the release commit so future version-bump and changelog calculations can still find the previous release. Must end with ${version} so the baseline prefix can be derived. Supports the same variables as tagTemplate. Example: "release/${prefix}${version}" produces "release/v1.2.3".',
+    ),
+  packageSpecificTags: z.boolean().default(false).describe(
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
+    'Tag each package separately, e.g. "scope-pkg@v1.2.3". tagTemplate must then contain ${packageName}.',
+  ),
   preset: PresetSchema.default(DEFAULT_PRESET).describe('Commit convention preset'),
   sync: z
     .boolean()
@@ -161,7 +171,7 @@ export const VersionConfigSchema = z.object({
     .enum(['error', 'warn', 'ignore', 'prefer-package', 'prefer-git'])
     .default('warn')
     .describe('How to handle version mismatches'),
-  versionPrefix: z.string().default('').describe('Prefix for version tags'),
+  versionPrefix: z.string().default('v').describe('Prefix for version tags. Set "" for tags like "1.2.3".'),
   prereleaseIdentifier: z.string().optional().describe("Identifier for prerelease versions (e.g., 'alpha', 'beta')"),
   allowFirstBump: z
     .boolean()
@@ -179,6 +189,29 @@ export const VersionConfigSchema = z.object({
   npm: VersionNpmConfigSchema.optional().describe('npm/JavaScript version handling'),
   cargo: VersionCargoConfigSchema.optional().describe('Cargo/Rust configuration'),
   pub: VersionPubConfigSchema.optional().describe('Dart/Flutter pub configuration'),
+});
+
+export const VersionConfigSchema = VersionConfigBaseSchema.superRefine((cfg, ctx) => {
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: checking for the literal placeholder
+  if (cfg.packageSpecificTags && cfg.tagTemplate !== undefined && !cfg.tagTemplate.includes('${packageName}')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['tagTemplate'],
+      message:
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting the expected placeholder syntax to the user
+        'tagTemplate must contain ${packageName} when packageSpecificTags is true, or every package gets the same tag. Remove tagTemplate to use "${packageName}@${prefix}${version}".',
+    });
+  }
+  for (const key of ['tagTemplate', 'baselineTagTemplate'] as const) {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: checking for the literal placeholder
+    if (/\d+\.\d+\.\d+/.test(cfg[key]?.split('${version}')[0] ?? '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [key],
+        message: `${key} can't contain a version before \${version}: a tag's version is read as the first one in it.`,
+      });
+    }
+  }
 });
 
 export const NpmConfigSchema = z.object({

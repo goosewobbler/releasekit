@@ -66,7 +66,7 @@ Each package — `@releasekit/version`, `@releasekit/notes`, `@releasekit/publis
 
 ## What is "a release"
 
-The atomic unit: a version bump + changelog entry + git commit + git tag + registry publish + GitHub Release. For monorepos this is per-package by default. Setting `version.sync: true` moves all packages to the same version. Each package can have its own tag template via `version.tagTemplate`.
+The atomic unit: a version bump + changelog entry + git commit + git tag + registry publish + GitHub Release. In a monorepo every package shares one version by default (`version.sync: true`); `version.sync: false` releases each package on its own version. `version.tagTemplate` sets the tag format.
 
 ---
 
@@ -76,7 +76,7 @@ Git tags mark what was last released. Conventional commits between the last tag 
 
 - A shallow clone (`fetch-depth: 1`) will produce wrong results; always use `fetch-depth: 0`.
 - Deleting or moving a tag manually changes what ReleaseKit sees as the baseline.
-- `version.packageSpecificTags: true` creates per-package tags (e.g. `@scope/core@1.2.3`) instead of a single repo-wide tag.
+- `version.packageSpecificTags: true` creates per-package tags (e.g. `scope-core@v1.2.3`) instead of a single repo-wide tag.
 
 ### Pre-1.0 breaking changes
 

@@ -1203,6 +1203,7 @@ describe('Package Processor', () => {
       const mockGetLatestTagFn = vi.fn().mockResolvedValue('v0.9.0');
 
       const processor = new PackageProcessor({
+        versionPrefix: 'v',
         getLatestTag: mockGetLatestTagFn,
         config: {},
         fullConfig: {
@@ -1237,6 +1238,7 @@ describe('Package Processor', () => {
       });
 
       const processor = new PackageProcessor({
+        versionPrefix: 'v',
         getLatestTag: mockGetLatestTagFn,
         config: {},
         fullConfig: {
@@ -1267,6 +1269,7 @@ describe('Package Processor', () => {
 
       const mockGetLatestTagFn = vi.fn().mockResolvedValue('v0.8.0');
       const processor = new PackageProcessor({
+        versionPrefix: 'v',
         getLatestTag: mockGetLatestTagFn,
         config: {},
         fullConfig: {
@@ -1301,6 +1304,7 @@ describe('Package Processor', () => {
 
       const mockGetLatestTagFn = vi.fn().mockResolvedValue('');
       const processor = new PackageProcessor({
+        versionPrefix: 'v',
         getLatestTag: mockGetLatestTagFn,
         config: {},
         fullConfig: {

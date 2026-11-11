@@ -491,7 +491,7 @@ describe('Version Strategies', () => {
       expect(jsonOutput.addTag).not.toHaveBeenCalledWith('release/v1.1.0');
     });
 
-    it('should not emit a baseline tag or alter getLatestTag when baselineTagTemplate is unset', async () => {
+    it('should look up the tagTemplate series and emit no baseline tag when baselineTagTemplate is unset', async () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         sync: true,
@@ -501,7 +501,7 @@ describe('Version Strategies', () => {
 
       await syncStrategy(mockPackages);
 
-      expect(git.getLatestTag).toHaveBeenCalledWith(undefined);
+      expect(git.getLatestTag).toHaveBeenCalledWith('v');
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
       expect(jsonOutput.addBaselineTag).not.toHaveBeenCalled();
     });

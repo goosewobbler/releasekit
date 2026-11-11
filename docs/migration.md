@@ -250,6 +250,27 @@ diagnostic output.
 
 ---
 
+## Upgrading ReleaseKit
+
+### Tag names follow the tag config
+
+- `version.packageSpecificTags: true` without a `tagTemplate` tags each package `scope-pkg@v1.2.3`; it used to
+  give every package the same `v1.2.3` tag. With `packageSpecificTags`, a `tagTemplate` must contain
+  `${packageName}`.
+- Sync mode (the default) tags with `version.tagTemplate`, which it used to ignore.
+- `version.versionPrefix: ""` gives `1.2.3` tags; it used to give `v1.2.3`.
+- `version.tagTemplate` and `version.baselineTagTemplate` must end with `${version}` and can't contain a version before it (`releases/2026.1.0/${version}`); config loading fails otherwise.
+
+A release finds the previous one by its tag name. If your tag names change, tag your last release's commit under
+the new name before the next release, e.g. `git tag scope-pkg@v1.2.3 v1.2.3^{}`, and push it.
+
+### Version mismatches warn without a version block
+
+With no `version` block, a mismatch between `package.json` and the latest tag warns (`mismatchStrategy: "warn"`, as
+with a `version` block); it used to fail.
+
+---
+
 ## Further reading
 
 - [Getting started](./getting-started.md) — installation and first release

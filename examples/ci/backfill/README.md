@@ -25,8 +25,8 @@ CLI: `gh workflow run backfill.yml -f from=1.0.0 -f apply=true`.
 - `notes.releaseNotes` is enabled: backfill renders each body through it. `{}`
   gives the default notes; add `notes.releaseNotes.llm` and uncomment its key in
   the workflow for LLM-written ones.
-- Tags look like `v1.2.3`. Backfill finds them through `version.versionPrefix`,
-  so the config sets it to `v`; match it to your tags.
+- Backfill finds tags the way a release does, by `version.versionPrefix` (`v`
+  by default) and `version.tagTemplate`.
 - Each version already has a GitHub Release; backfill skips a tag without one.
 - Backfill fills empty release bodies and rewrites the ones it wrote before. It
   leaves every other body, including notes releasekit published, unless you

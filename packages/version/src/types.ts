@@ -1,5 +1,6 @@
-import { DEFAULT_PRESET, type Preset, type VersionConfig, type VersionGroup } from '@releasekit/config';
+import { type Preset, type VersionConfig, VersionConfigSchema, type VersionGroup } from '@releasekit/config';
 import type { ReleaseType } from 'semver';
+import { resolveTagTemplate } from './utils/formatting.js';
 
 /** `name` is the group's config key. */
 export interface VersionGroupConfig extends VersionGroup {
@@ -169,26 +170,15 @@ export interface PackageVersion {
   dryRun?: boolean;
 }
 
-export function toVersionConfig(config: VersionConfig | undefined): Config {
-  if (!config) {
-    return {
-      tagTemplate: 'v{version}',
-      packageSpecificTags: false,
-      preset: DEFAULT_PRESET,
-      sync: true,
-      packages: [],
-      versionPrefix: '',
-    };
-  }
-
+export function toVersionConfig(config: VersionConfig = VersionConfigSchema.parse({})): Config {
   return {
-    tagTemplate: config.tagTemplate ?? 'v{version}',
+    tagTemplate: resolveTagTemplate(config.tagTemplate, config.packageSpecificTags),
     baselineTagTemplate: config.baselineTagTemplate,
     packageSpecificTags: config.packageSpecificTags,
-    preset: config.preset ?? DEFAULT_PRESET,
-    sync: config.sync ?? true,
+    preset: config.preset,
+    sync: config.sync,
     groups: config.groups,
-    packages: config.packages ?? [],
+    packages: config.packages,
     sharedPackages: config.sharedPackages,
     sharedChangelogFloor: config.sharedChangelogFloor,
     mainPackage: config.mainPackage,
@@ -198,7 +188,7 @@ export function toVersionConfig(config: VersionConfig | undefined): Config {
     mismatchStrategy: config.mismatchStrategy,
     allowFirstBump: config.allowFirstBump,
     zeroMajor: config.zeroMajor,
-    versionPrefix: config.versionPrefix ?? '',
+    versionPrefix: config.versionPrefix,
     prereleaseIdentifier: config.prereleaseIdentifier,
     npm: config.npm,
     cargo: config.cargo,

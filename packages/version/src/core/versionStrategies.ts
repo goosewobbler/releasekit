@@ -59,11 +59,15 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         mainPackage,
       } = config;
 
-      const formattedPrefix = formatVersionPrefix(versionPrefix || 'v');
+      const formattedPrefix = formatVersionPrefix(versionPrefix);
 
       const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, mainPackage);
 
-      let latestTag = await getLatestTag(baselineTagPrefix);
+      // With packageSpecificTags this only backs up the per-package lookup below, so it accepts any version tag.
+      const globalPrefix =
+        baselineTagPrefix ??
+        (config.packageSpecificTags ? undefined : deriveBaselineTagPrefix(tagTemplate, formattedPrefix));
+      let latestTag = await getLatestTag(globalPrefix);
 
       const repoRoot = packages.root ?? process.cwd();
 
@@ -212,6 +216,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
       const baselineResolver = new BaselineResolver({
         versionPrefix: formattedPrefix,
+        globalTagPrefix: globalPrefix,
         tagTemplate,
         packageSpecificTags: config.packageSpecificTags ?? false,
         strictReachable: config.strictReachable ?? false,
@@ -280,10 +285,19 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       }
 
       const displayPrevious = previousVersion;
+      // A root-only release (a single-package repo) names its package-specific tag after the version source.
       const nextTags =
         config.packageSpecificTags && workspaceNames.length > 0
           ? workspaceNames.map((pkgName) => formatTag(nextVersion, formattedPrefix, pkgName, tagTemplate, true))
-          : [formatTag(nextVersion, formattedPrefix, null, undefined, false)];
+          : [
+              formatTag(
+                nextVersion,
+                formattedPrefix,
+                config.packageSpecificTags ? versionSourceName : null,
+                tagTemplate,
+                false,
+              ),
+            ];
       // One entry per workspace package in per-package tag mode, so notes can write each package's
       // CHANGELOG.md and publish can match tags to the right release notes.
       if (config.packageSpecificTags && workspaceNames.length > 0) {
@@ -411,16 +425,19 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       const pkgPath = pkg.dir;
       const repoRoot = packages.root ?? process.cwd();
-      const formattedPrefix = formatVersionPrefix(versionPrefix || 'v');
+      const formattedPrefix = formatVersionPrefix(versionPrefix);
 
       let latestTagResult = await getLatestTagForPackage(packageName, formattedPrefix, {
         tagTemplate,
         packageSpecificTags: config.packageSpecificTags,
       });
       const usedPackageSpecificTag = !!latestTagResult;
+      const globalPrefix = config.packageSpecificTags
+        ? undefined
+        : deriveBaselineTagPrefix(tagTemplate, formattedPrefix, packageName);
 
       if (!latestTagResult) {
-        const globalTagResult = await getLatestTag();
+        const globalTagResult = await getLatestTag(globalPrefix);
         latestTagResult = globalTagResult || '';
       }
 
@@ -455,6 +472,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       const baselineResolver = new BaselineResolver({
         versionPrefix: formattedPrefix,
+        globalTagPrefix: globalPrefix,
         tagTemplate,
         packageSpecificTags: config.packageSpecificTags ?? false,
         strictReachable: config.strictReachable ?? false,
@@ -579,7 +597,7 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
 
   const processorOptions = {
     skip: config.skip || [],
-    versionPrefix: config.versionPrefix || 'v',
+    versionPrefix: config.versionPrefix,
     tagTemplate: config.tagTemplate,
     commitMessageTemplate: config.commitMessage || '',
     dryRun: config.dryRun || false,

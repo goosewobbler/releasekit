@@ -9,7 +9,7 @@ import semver from 'semver';
 import { BREAKING_HEADER_PATTERN, HEADER_PATTERN } from '../changelog/commitParser.js';
 import { getCommitsLength, refExists } from '../git/tagsAndBranches.js';
 import type { Config, VersionOptions } from '../types.js';
-import { buildTagStripPatternFromTemplate, escapeRegExp } from '../utils/formatting.js';
+import { buildTagStripPatternFromTemplate, deriveBaselineTagPrefix, escapeRegExp } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
 import {
@@ -181,15 +181,12 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
 
     let escapedTagPattern = buildTagStripPattern(name, originalPrefix);
 
-    // latestTag may carry the baseline's multi-segment prefix (e.g. `release/v0.21.0`), which the
+    // latestTag may carry a template's multi-segment prefix (e.g. `release/v0.21.0`), which the
     // consumer-prefix pattern alone leaves behind, so semver.clean would fail and fall back to 0.1.0.
-    if (config.baselineTagTemplate) {
-      const baselinePrefix = config.baselineTagTemplate
-        .split('${' + 'version}')[0]
-        .replace(/\$\{prefix\}/g, originalPrefix)
-        .replace(/\$\{packageName\}/g, name ? sanitizePackageName(name) : '');
-      if (baselinePrefix) {
-        escapedTagPattern = `(?:${escapeRegExp(baselinePrefix)}|${escapedTagPattern})`;
+    for (const template of [config.tagTemplate, config.baselineTagTemplate]) {
+      const templatePrefix = deriveBaselineTagPrefix(template, originalPrefix, name);
+      if (templatePrefix) {
+        escapedTagPattern = `(?:${escapeRegExp(templatePrefix)}|${escapedTagPattern})`;
       }
     }
 

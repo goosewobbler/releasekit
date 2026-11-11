@@ -88,6 +88,34 @@ describe('loadConfig', () => {
     },
   );
 
+  it('should reject packageSpecificTags with a tagTemplate that has no ${packageName}', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({ version: { packageSpecificTags: true, tagTemplate: '${' + 'prefix}${' + 'version}' } }),
+    );
+
+    expect(() => loadConfig()).toThrow(ConfigError);
+    expect(() => loadConfig()).toThrow(/version\.tagTemplate:.*\$\{packageName\}.*packageSpecificTags/);
+  });
+
+  it('should reject a tagTemplate with text after ${version}', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({ version: { tagTemplate: 'release-${' + 'version}-stable' } }),
+    );
+
+    expect(() => loadConfig()).toThrow(/version\.tagTemplate: tagTemplate must end with \$\{version\}/);
+  });
+
+  it('should reject a tagTemplate with a version before ${version}', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({ version: { tagTemplate: 'releases/2026.1.0/${' + 'version}' } }),
+    );
+
+    expect(() => loadConfig()).toThrow(/version\.tagTemplate: tagTemplate can't contain a version before/);
+  });
+
   it('should throw a migration error for the renamed ci.prPreview.refreshAfterRelease', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ ci: { prPreview: { refreshAfterRelease: true } } }));

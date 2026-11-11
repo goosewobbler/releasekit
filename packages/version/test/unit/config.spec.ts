@@ -21,14 +21,33 @@ describe('Config', () => {
   });
 
   describe('loadConfig', () => {
-    it('should return default config when no config file exists', () => {
-      const dir = createTmpDir();
-      const config = loadConfig({ cwd: dir });
+    it('should apply the schema defaults when there is no version block', () => {
+      const noVersionBlock = createTmpDir();
+      fs.writeFileSync(path.join(noVersionBlock, 'releasekit.config.json'), JSON.stringify({ git: {} }));
+      const emptyVersionBlock = createTmpDir();
+      fs.writeFileSync(path.join(emptyVersionBlock, 'releasekit.config.json'), JSON.stringify({ version: {} }));
 
-      expect(config.tagTemplate).toBe('v{version}');
-      expect(config.sync).toBe(true);
-      expect(config.packages).toEqual([]);
-      expect(config.preset).toBe('conventionalcommits');
+      const config = loadConfig({ cwd: noVersionBlock });
+
+      expect(config).toEqual(loadConfig({ cwd: emptyVersionBlock }));
+      expect(config).toMatchObject({
+        tagTemplate: '${' + 'prefix}${' + 'version}',
+        versionPrefix: 'v',
+        mismatchStrategy: 'warn',
+        sync: true,
+        packages: [],
+        preset: 'conventionalcommits',
+      });
+    });
+
+    it('should default tagTemplate to a per-package template with packageSpecificTags', () => {
+      const dir = createTmpDir();
+      fs.writeFileSync(
+        path.join(dir, 'releasekit.config.json'),
+        JSON.stringify({ version: { packageSpecificTags: true } }),
+      );
+
+      expect(loadConfig({ cwd: dir }).tagTemplate).toBe('${' + 'packageName}@${' + 'prefix}${' + 'version}');
     });
 
     it('should load config from releasekit.config.json', () => {
@@ -37,7 +56,6 @@ describe('Config', () => {
         path.join(dir, 'releasekit.config.json'),
         JSON.stringify({
           version: {
-            tagTemplate: 'v{version}',
             preset: 'angular',
             sync: false,
             packages: ['packages/*'],
@@ -59,14 +77,14 @@ describe('Config', () => {
         customPath,
         JSON.stringify({
           version: {
-            tagTemplate: 'release-{version}',
+            tagTemplate: 'release-${' + 'version}',
           },
         }),
       );
 
       const config = loadConfig({ cwd: dir, configPath: customPath });
 
-      expect(config.tagTemplate).toBe('release-{version}');
+      expect(config.tagTemplate).toBe('release-${' + 'version}');
     });
 
     it('should throw on invalid JSON', () => {

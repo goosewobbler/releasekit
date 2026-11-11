@@ -99,7 +99,7 @@ ReleaseKit uses a single `releasekit.config.json` file:
     "branch": "main"
   },
   "version": {
-    "tagTemplate": "v{version}",
+    "tagTemplate": "${prefix}${version}",
     "preset": "conventionalcommits"
   },
   "publish": {

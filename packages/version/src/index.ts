@@ -10,6 +10,7 @@ export { createVersionError, VersionErrorCode } from './errors/versionError.js';
 export { listGlobalTags, listPackageTags } from './git/tagsAndBranches.js';
 export { PackageProcessor } from './package/packageProcessor.js';
 export type { Config, VersionConfigBase, VersionRunOptions } from './types.js';
+export { globalTagPrefix } from './utils/formatting.js';
 export type { JsonOutputData } from './utils/jsonOutput.js';
 export { enableJsonOutput, flushPendingWrites, getJsonData } from './utils/jsonOutput.js';
 export { readManifestVersion } from './utils/manifestHelpers.js';
