@@ -21,7 +21,6 @@ export default mergeConfig(
           'src/llm/openai-compatible.ts',
           'src/llm/base.ts',
           'src/llm/provider.ts',
-          'src/input/git-log.ts',
           'src/monorepo/aggregator.ts',
           'src/output/github-release.ts',
           'src/templates/ejs.ts',
