@@ -3,7 +3,7 @@ import path from 'node:path';
 import { isCargoToml, updateCargoVersion } from '../cargo/cargoHandler.js';
 import { isPubspecYaml, updatePubVersion } from '../pub/pubHandler.js';
 import type { PkgJson } from '../types.js';
-import { addPackageUpdate, recordPendingWrite } from '../utils/jsonOutput.js';
+import { addPackageUpdate, writeVersionFile } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 
 export interface PackageInfo {
@@ -128,11 +128,7 @@ export function updatePackageVersion(
     const packageName = packageJson.name;
 
     const updatedContent = `${JSON.stringify({ ...packageJson, version }, null, 2)}\n`;
-    if (dryRun) {
-      recordPendingWrite(packagePath, updatedContent);
-    } else {
-      fs.writeFileSync(packagePath, updatedContent);
-    }
+    writeVersionFile(packagePath, updatedContent, dryRun);
 
     addPackageUpdate(packageName, version, packagePath, isRoot);
 

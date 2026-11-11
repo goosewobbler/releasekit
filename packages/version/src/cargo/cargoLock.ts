@@ -1,8 +1,7 @@
-import fs from 'node:fs';
 import { type CargoLockBump, planCargoLockUpdates } from '@releasekit/core';
 import { createGitCli } from '@releasekit/git';
 import { CargoLockSyncError } from '../errors/cargoLockSyncError.js';
-import { recordPendingWrite } from '../utils/jsonOutput.js';
+import { writeVersionFile } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 
 const recordedBumps: CargoLockBump[] = [];
@@ -35,13 +34,11 @@ export async function syncCargoLockfiles(cwd: string, dryRun: boolean): Promise<
       if (!changed) {
         continue;
       }
-      if (dryRun) {
-        recordPendingWrite(lockPath, content);
-        log(`[DRY RUN] Would sync Cargo.lock at ${lockPath}`, 'info');
-      } else {
-        fs.writeFileSync(lockPath, content);
-        log(`Synced Cargo.lock at ${lockPath}`, 'success');
-      }
+      writeVersionFile(lockPath, content, dryRun);
+      log(
+        dryRun ? `[DRY RUN] Would sync Cargo.lock at ${lockPath}` : `Synced Cargo.lock at ${lockPath}`,
+        dryRun ? 'info' : 'success',
+      );
     }
   } catch (error) {
     throw new CargoLockSyncError(error instanceof Error ? error.message : String(error));

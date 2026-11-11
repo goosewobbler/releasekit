@@ -113,7 +113,7 @@ describe('Package Management Module', () => {
 
   describe('updatePackageVersion', () => {
     beforeEach(() => {
-      vi.mocked(fs.writeFileSync, { partial: true }).mockClear();
+      vi.mocked(jsonOutput.writeVersionFile).mockClear();
       vi.mocked(jsonOutput.addPackageUpdate, { partial: true }).mockClear();
     });
 
@@ -123,9 +123,10 @@ describe('Package Management Module', () => {
       updatePackageVersion(mockPackagePath, newVersion);
 
       expect(fs.readFileSync).toHaveBeenCalledWith(mockPackagePath, 'utf8');
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
+      expect(jsonOutput.writeVersionFile).toHaveBeenCalledWith(
         mockPackagePath,
         `${JSON.stringify({ ...mockPackageContent, version: newVersion }, null, 2)}\n`,
+        false,
       );
 
       expect(logging.log).toHaveBeenCalledWith(
@@ -139,12 +140,10 @@ describe('Package Management Module', () => {
       const newVersion = '2.0.0';
 
       updatePackageVersion(mockPackagePath, newVersion, true);
-
-      expect(fs.writeFileSync).not.toHaveBeenCalled();
-
-      expect(jsonOutput.recordPendingWrite).toHaveBeenCalledWith(
+      expect(jsonOutput.writeVersionFile).toHaveBeenCalledWith(
         mockPackagePath,
         `${JSON.stringify({ ...mockPackageContent, version: newVersion }, null, 2)}\n`,
+        true,
       );
 
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', newVersion, mockPackagePath, false);
@@ -159,9 +158,10 @@ describe('Package Management Module', () => {
 
       updatePackageVersion(mockPackagePath, newVersion, false);
 
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
+      expect(jsonOutput.writeVersionFile).toHaveBeenCalledWith(
         mockPackagePath,
         `${JSON.stringify({ ...mockPackageContent, version: newVersion }, null, 2)}\n`,
+        false,
       );
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', newVersion, mockPackagePath, false);
     });
@@ -170,7 +170,7 @@ describe('Package Management Module', () => {
       const newVersion = '2.0.0';
       const error = new Error('Failed to write file');
 
-      vi.mocked(fs.writeFileSync, { partial: true }).mockImplementation(() => {
+      vi.mocked(jsonOutput.writeVersionFile).mockImplementation(() => {
         throw error;
       });
 

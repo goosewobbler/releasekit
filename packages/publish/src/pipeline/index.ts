@@ -119,6 +119,11 @@ async function orderPerPackageUpdates(ctx: PipelineContext): Promise<VersionPack
   return [...input.updates].sort((a, b) => (rank.get(a.packageName) ?? 0) - (rank.get(b.packageName) ?? 0));
 }
 
+function mergeFiles(...lists: Array<string[] | undefined>): string[] | undefined {
+  const files = [...new Set(lists.flatMap((list) => list ?? []))];
+  return files.length > 0 ? files : undefined;
+}
+
 export async function runPipeline(
   input: VersionOutput,
   config: PublishConfig,
@@ -132,7 +137,7 @@ export async function runPipeline(
     packageManager: detectPackageManager(cwd),
     cwd,
     releaseNotes: options.releaseNotes,
-    additionalFiles: options.additionalFiles,
+    additionalFiles: mergeFiles(options.additionalFiles, input.additionalFiles),
     output: {
       dryRun: options.dryRun,
       git: { committed: false, tags: [], pushed: false },

@@ -67,6 +67,11 @@ export interface VersionOutput {
    * been force-moved off it.
    */
   baselineTags?: string[];
+  /**
+   * Other files the version step wrote, such as a non-releasing dependent's raised `Cargo.toml`. Absent in older
+   * manifests.
+   */
+  additionalFiles?: string[];
 }
 
 export interface VersionPackageUpdate {
