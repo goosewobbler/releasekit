@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import { parseCargoToml } from '@releasekit/config';
 import { createGitCli, type Git } from '@releasekit/git';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
@@ -19,52 +17,6 @@ export function isStableTag(tag: string): boolean {
   // polynomial backtracking (CodeQL js/polynomial-redos); real versions never approach the bounds.
   const match = tag.match(/\d{1,16}\.\d{1,16}\.\d{1,16}(?:-[0-9A-Za-z.-]{1,256})?/);
   return match ? semver.prerelease(match[0]) === null : false;
-}
-
-export function getVersionFromPackageJson(
-  packageJsonPath: string,
-  initialVersion = '0.1.0',
-): { version: string; success: boolean } {
-  try {
-    if (!fs.existsSync(packageJsonPath)) {
-      return { version: initialVersion, success: false };
-    }
-
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-
-    if (!packageJson.version) {
-      log(`No version found in package.json. Using initial version ${initialVersion}`, 'info');
-      return { version: initialVersion, success: false };
-    }
-
-    return { version: packageJson.version, success: true };
-  } catch (error) {
-    log(`Error reading package.json: ${error instanceof Error ? error.message : String(error)}`, 'error');
-    return { version: initialVersion, success: false };
-  }
-}
-
-export function getVersionFromCargoToml(
-  cargoTomlPath: string,
-  initialVersion = '0.1.0',
-): { version: string; success: boolean } {
-  try {
-    if (!fs.existsSync(cargoTomlPath)) {
-      return { version: initialVersion, success: false };
-    }
-
-    const cargo = parseCargoToml(cargoTomlPath);
-
-    if (!cargo.package?.version) {
-      log(`No version found in Cargo.toml. Using initial version ${initialVersion}`, 'debug');
-      return { version: initialVersion, success: false };
-    }
-
-    return { version: cargo.package.version, success: true };
-  } catch (error) {
-    log(`Error reading Cargo.toml: ${error instanceof Error ? error.message : String(error)}`, 'error');
-    return { version: initialVersion, success: false };
-  }
 }
 
 export function normalizePrereleaseIdentifier(

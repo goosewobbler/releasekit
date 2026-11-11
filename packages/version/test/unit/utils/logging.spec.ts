@@ -1,8 +1,7 @@
 import chalk from 'chalk';
-import figlet from 'figlet';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
-import { log, printFiglet } from '../../../src/utils/logging.js';
+import { log } from '../../../src/utils/logging.js';
 
 vi.mock('../../../src/utils/jsonOutput.js');
 vi.mock('chalk', () => ({
@@ -12,11 +11,6 @@ vi.mock('chalk', () => ({
     yellow: vi.fn((text) => `YELLOW:${text}`),
     red: vi.fn((text) => `RED:${text}`),
     gray: vi.fn((text) => `GRAY:${text}`),
-  },
-}));
-vi.mock('figlet', () => ({
-  default: {
-    textSync: vi.fn(() => 'FIGLET_BANNER'),
   },
 }));
 
@@ -30,25 +24,6 @@ describe('Logging Utilities', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  describe('printFiglet', () => {
-    it('should print a figlet banner', () => {
-      printFiglet('Test Banner');
-
-      expect(figlet.textSync).toHaveBeenCalledWith('Test Banner', expect.any(Object));
-      expect(chalk.yellow).toHaveBeenCalledWith('FIGLET_BANNER');
-      expect(console.log).toHaveBeenCalled();
-    });
-
-    it('should not print banner when in JSON output mode', () => {
-      vi.mocked(jsonOutput.isJsonOutputMode, { partial: true }).mockReturnValue(true);
-
-      printFiglet('Test Banner');
-
-      expect(figlet.textSync).not.toHaveBeenCalled();
-      expect(console.log).not.toHaveBeenCalled();
-    });
   });
 
   describe('log', () => {

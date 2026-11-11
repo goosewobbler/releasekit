@@ -18,40 +18,6 @@ export interface CommitWithHash {
   entry: ChangelogEntry;
 }
 
-export async function extractChangelogEntriesWithHash(
-  projectDir: string,
-  revisionRange: string,
-  git: Git = createGitCli(),
-): Promise<CommitWithHash[]> {
-  try {
-    const output = await git.log({
-      range: revisionRange,
-      format: '%H|||%B---COMMIT_DELIMITER---',
-      extraArgs: ['--no-merges'],
-      paths: ['.'],
-      cwd: projectDir,
-    });
-
-    const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
-
-    return commits
-      .map((commit) => {
-        const [hash, ...messageParts] = commit.split('|||');
-        const message = messageParts.join('|||').trim();
-        const entry = parseCommitMessage(message);
-        if (entry && hash) {
-          return { hash: hash.trim(), entry };
-        }
-        return null;
-      })
-      .filter((item): item is CommitWithHash => item !== null);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log(`Error extracting commits with hash: ${errorMessage}`, 'error');
-    return [];
-  }
-}
-
 export async function extractAllChangelogEntriesWithHash(
   projectDir: string,
   revisionRange: string,
@@ -157,15 +123,6 @@ export function extractChangelogEntriesFromCommits(
   git: Git = createGitCli(),
 ): Promise<ChangelogEntry[]> {
   return extractCommitsFromGitLog(projectDir, revisionRange, paths, git);
-}
-
-/** Repo-wide: not filtered to commits touching `projectDir`. */
-export function extractAllChangelogEntries(
-  projectDir: string,
-  revisionRange: string,
-  git: Git = createGitCli(),
-): Promise<ChangelogEntry[]> {
-  return extractCommitsFromGitLog(projectDir, revisionRange, undefined, git);
 }
 
 async function extractCommitsFromGitLog(

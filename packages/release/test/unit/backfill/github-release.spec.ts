@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   decideReleaseUpdate,
   editReleaseBody,
-  getReleaseBody,
   getReleaseInfo,
   NOTES_MARKER,
   withMarker,
@@ -64,38 +63,6 @@ describe('withMarker', () => {
   });
 });
 
-describe('getReleaseBody', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('should return the release body on success', () => {
-    vi.mocked(execFileSync).mockReturnValue('## Notes\n- a thing\n');
-    expect(getReleaseBody('v1.0.0')).toBe('## Notes\n- a thing\n');
-  });
-
-  it('should return null only for a genuinely missing release', () => {
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw execError('release not found\n');
-    });
-    expect(getReleaseBody('v9.9.9')).toBeNull();
-  });
-
-  it('should throw a clear error when gh is not installed', () => {
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw execError('', 'ENOENT');
-    });
-    expect(() => getReleaseBody('v1.0.0')).toThrow(/GitHub CLI .* not found/);
-  });
-
-  it('should surface auth/network failures instead of reporting "no release"', () => {
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw execError('gh: Bad credentials (HTTP 401)\n');
-    });
-    expect(() => getReleaseBody('v1.0.0')).toThrow(/Bad credentials/);
-  });
-});
-
 describe('gh argument-injection guard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -104,15 +71,14 @@ describe('gh argument-injection guard', () => {
   it('should reject a tag beginning with a dash before reaching gh', () => {
     // Backfill enumerates tags from existing repo refs, so an out-of-band `refs/tags/-…` can reach
     // gh unguarded - cobra would parse the leading-`-` positional as a flag.
-    expect(() => getReleaseBody('--repo=evil')).toThrow(/looks like an option/);
     expect(() => getReleaseInfo('-F/etc/passwd')).toThrow(/looks like an option/);
     expect(() => editReleaseBody('-x', 'body')).toThrow(/looks like an option/);
     expect(execFileSync).not.toHaveBeenCalled();
   });
 
   it('should still call gh for a normal tag', () => {
-    vi.mocked(execFileSync).mockReturnValue('## Notes\n');
-    getReleaseBody('v1.0.0');
+    vi.mocked(execFileSync).mockReturnValue(JSON.stringify({ isDraft: false, body: '## Notes\n' }));
+    getReleaseInfo('v1.0.0');
     expect(execFileSync).toHaveBeenCalledTimes(1);
   });
 });

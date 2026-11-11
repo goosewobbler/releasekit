@@ -1,15 +1,7 @@
-import fs from 'node:fs';
 import semver from 'semver';
-import * as TOML from 'smol-toml';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import * as logging from '../../../src/utils/logging.js';
-import {
-  bumpVersion,
-  getVersionFromCargoToml,
-  getVersionFromPackageJson,
-  normalizePrereleaseIdentifier,
-} from '../../../src/utils/versionUtils.js';
+import { bumpVersion, normalizePrereleaseIdentifier } from '../../../src/utils/versionUtils.js';
 
 vi.mock('node:fs');
 vi.mock('node:path');
@@ -24,111 +16,6 @@ describe('Version Utils', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  describe('getVersionFromPackageJson', () => {
-    const mockPackageJsonPath = 'path/to/package.json';
-    const initialVersion = '0.1.0';
-
-    it('should return the version from package.json', () => {
-      vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(true);
-      vi.mocked(fs.readFileSync, { partial: true }).mockReturnValue(JSON.stringify({ version: '1.2.3' }));
-
-      const result = getVersionFromPackageJson(mockPackageJsonPath, initialVersion);
-
-      expect(fs.existsSync).toHaveBeenCalledWith(mockPackageJsonPath);
-      expect(fs.readFileSync).toHaveBeenCalledWith(mockPackageJsonPath, 'utf-8');
-      expect(result).toEqual({ version: '1.2.3', success: true });
-    });
-
-    it('should return initialVersion if file does not exist', () => {
-      vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(false);
-
-      const result = getVersionFromPackageJson(mockPackageJsonPath, initialVersion);
-
-      expect(result).toEqual({ version: initialVersion, success: false });
-      expect(fs.readFileSync).not.toHaveBeenCalled();
-    });
-
-    it('should return initialVersion if package.json has no version', () => {
-      vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(true);
-      vi.mocked(fs.readFileSync, { partial: true }).mockReturnValue(JSON.stringify({}));
-
-      const result = getVersionFromPackageJson(mockPackageJsonPath, initialVersion);
-
-      expect(result).toEqual({ version: initialVersion, success: false });
-      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('No version found in package.json'), 'info');
-    });
-
-    it('should handle file read errors', () => {
-      vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(true);
-      vi.mocked(fs.readFileSync, { partial: true }).mockImplementation(() => {
-        throw new Error('File read error');
-      });
-
-      const result = getVersionFromPackageJson(mockPackageJsonPath, initialVersion);
-
-      expect(result).toEqual({ version: initialVersion, success: false });
-      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Error reading package.json:'), 'error');
-    });
-  });
-
-  describe('getVersionFromCargoToml', () => {
-    const mockCargoPath = 'path/to/Cargo.toml';
-    const initialVersion = '0.1.0';
-    const mockCargo = {
-      package: {
-        name: 'test-package',
-        version: '1.2.3',
-      },
-    };
-
-    it('should return the version from Cargo.toml', () => {
-      vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(true);
-      vi.mocked(fs.readFileSync, { partial: true }).mockReturnValue('mock cargo content');
-      vi.mocked(TOML.parse, { partial: true }).mockReturnValue(mockCargo);
-
-      const result = getVersionFromCargoToml(mockCargoPath, initialVersion);
-
-      expect(fs.existsSync).toHaveBeenCalledWith(mockCargoPath);
-      expect(fs.readFileSync).toHaveBeenCalledWith(mockCargoPath, 'utf-8');
-      expect(TOML.parse).toHaveBeenCalledWith('mock cargo content');
-      expect(result).toEqual({ version: '1.2.3', success: true });
-    });
-
-    it('should return initialVersion if file does not exist', () => {
-      vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(false);
-
-      const result = getVersionFromCargoToml(mockCargoPath, initialVersion);
-
-      expect(result).toEqual({ version: initialVersion, success: false });
-      expect(fs.readFileSync).not.toHaveBeenCalled();
-    });
-
-    it('should return initialVersion if Cargo.toml has no version', () => {
-      vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(true);
-      vi.mocked(fs.readFileSync, { partial: true }).mockReturnValue('mock cargo content');
-      vi.mocked(TOML.parse, { partial: true }).mockReturnValue({
-        package: { name: 'test-package' },
-      });
-
-      const result = getVersionFromCargoToml(mockCargoPath, initialVersion);
-
-      expect(result).toEqual({ version: initialVersion, success: false });
-      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('No version found in Cargo.toml'), 'debug');
-    });
-
-    it('should handle file read errors', () => {
-      vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(true);
-      vi.mocked(fs.readFileSync, { partial: true }).mockImplementation(() => {
-        throw new Error('File read error');
-      });
-
-      const result = getVersionFromCargoToml(mockCargoPath, initialVersion);
-
-      expect(result).toEqual({ version: initialVersion, success: false });
-      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Error reading Cargo.toml:'), 'error');
-    });
   });
 
   describe('normalizePrereleaseIdentifier', () => {

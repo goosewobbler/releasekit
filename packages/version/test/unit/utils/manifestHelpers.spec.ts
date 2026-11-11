@@ -4,7 +4,7 @@ import { parsePubspec } from '@releasekit/config';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCargoInfo } from '../../../src/cargo/cargoHandler.js';
 import * as logging from '../../../src/utils/logging.js';
-import { getVersionFromManifests, throwIfNoManifestsFound } from '../../../src/utils/manifestHelpers.js';
+import { getVersionFromManifests } from '../../../src/utils/manifestHelpers.js';
 
 vi.mock('node:fs');
 vi.mock('node:path');
@@ -198,14 +198,6 @@ describe('Manifest Helpers', () => {
       });
       expect(logging.log).toHaveBeenCalledWith('No version field found in package.json', 'debug');
       expect(logging.log).toHaveBeenCalledWith('No version field found in Cargo.toml', 'debug');
-    });
-  });
-
-  describe('throwIfNoManifestsFound', () => {
-    it('should throw an error with the correct paths', () => {
-      expect(() => throwIfNoManifestsFound(mockPackageDir)).toThrow(
-        `Neither package.json, Cargo.toml, nor pubspec.yaml found at ${mockPackageDir}. Checked paths: ${mockPackageJsonPath}, ${mockCargoTomlPath}, ${mockPubspecPath}. Cannot determine version.`,
-      );
     });
   });
 });

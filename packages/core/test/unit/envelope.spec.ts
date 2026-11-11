@@ -80,7 +80,7 @@ describe('envelope', () => {
     it.each([
       ['INPUT_PARSE_ERROR', 'input'],
       ['INVALID_CONFIG', 'config'],
-      ['TAG_ALREADY_EXISTS', 'git'],
+      ['GIT_PUSH_ERROR', 'git'],
       ['CARGO_LOCK_SYNC_ERROR', 'version'],
       ['PIPELINE_STAGE_ERROR', 'publish'],
       ['GITHUB_RELEASE_ERROR', 'github'],

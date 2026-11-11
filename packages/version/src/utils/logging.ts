@@ -1,22 +1,5 @@
 import chalk from 'chalk';
-import figlet from 'figlet';
 import { isJsonOutputMode } from './jsonOutput.js';
-
-export function printFiglet(text: string): void {
-  if (isJsonOutputMode()) {
-    return;
-  }
-
-  console.log(
-    chalk.yellow(
-      figlet.textSync(text, {
-        font: 'Standard',
-        horizontalLayout: 'default',
-        verticalLayout: 'default',
-      }),
-    ),
-  );
-}
 
 export type LogLevel = 'info' | 'success' | 'warning' | 'error' | 'debug';
 

@@ -111,15 +111,7 @@ describe('BaseVersionError', () => {
     });
   });
 
-  describe('Integration with GitError and VersionError', () => {
-    it('should work correctly with GitError instances', async () => {
-      const { GitError } = await import('../../../src/errors/gitError.js');
-      const gitError = new GitError('Git error message', 'GIT_ERROR_CODE');
-
-      expect(BaseVersionError.isVersionError(gitError)).toBe(true);
-      expect(gitError instanceof BaseVersionError).toBe(true);
-    });
-
+  describe('Integration with VersionError', () => {
     it('should work correctly with VersionError instances', async () => {
       const { VersionError } = await import('../../../src/errors/versionError.js');
       const versionError = new VersionError('Version error message', 'VERSION_ERROR_CODE');

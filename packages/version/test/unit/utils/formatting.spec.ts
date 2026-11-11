@@ -5,7 +5,6 @@ import {
   displayTag,
   formatCommitMessage,
   formatTag,
-  formatTagPrefix,
   formatVersionPrefix,
 } from '../../../src/utils/formatting.js';
 
@@ -123,28 +122,6 @@ describe('formatting', () => {
     it('should handle empty prefix', () => {
       const result = formatVersionPrefix('');
       expect(result).toBe('');
-    });
-  });
-
-  describe('formatTagPrefix', () => {
-    it('should return prefix for simple case', () => {
-      const result = formatTagPrefix('v');
-      expect(result).toBe('v');
-    });
-
-    it('should return package-specific prefix when packageSpecificTags is true', () => {
-      const result = formatTagPrefix('v', 'my-package', undefined, true);
-      expect(result).toBe('my-package@v');
-    });
-
-    it('should handle template-based prefix', () => {
-      const result = formatTagPrefix('v', 'my-package', '${' + 'packageName}@${' + 'prefix}${' + 'version}');
-      expect(result).toBe('my-package@v*');
-    });
-
-    it('should handle template without package name', () => {
-      const result = formatTagPrefix('v', undefined, '${' + 'prefix}${' + 'version}');
-      expect(result).toBe('v*');
     });
   });
 

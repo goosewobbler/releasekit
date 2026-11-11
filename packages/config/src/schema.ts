@@ -697,11 +697,6 @@ export const ReleaseNotesConfigSchema = z
   })
   .describe('Release notes configuration');
 
-export const NotesInputConfigSchema = z.strictObject({
-  source: z.string().optional(),
-  file: z.string().optional(),
-});
-
 export const NotesConfigSchema = z.strictObject({
   changelog: z
     .union([z.literal(false).describe('Set to false to disable changelog generation'), ChangelogConfigSchema])

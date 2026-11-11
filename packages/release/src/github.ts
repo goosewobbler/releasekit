@@ -18,14 +18,6 @@ export async function findMergedPRsForCommit(forge: Forge, commitSha: string): P
 /** The forge couldn't list the merged PRs, which isn't the same as none having merged. */
 export class PRLookupError extends Error {}
 
-export async function findPreviewComment(
-  forge: Forge,
-  prNumber: number,
-  marker: string = MARKER,
-): Promise<number | null> {
-  return (await forge.findComment(prNumber, marker))?.id ?? null;
-}
-
 export async function fetchPRLabels(forge: Forge, prNumber: number): Promise<string[]> {
   const issue = await forge.getIssue(prNumber);
   return issue.labels;

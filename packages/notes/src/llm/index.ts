@@ -8,8 +8,7 @@ import { OpenAIProvider } from './openai.js';
 import { OpenAICompatibleProvider } from './openai-compatible.js';
 import type { LLMProvider } from './provider.js';
 
-export type { CompleteResult, LLMMessage } from './messages.js';
-export type { LLMProvider, ProviderCapabilities } from './provider.js';
+export type { LLMProvider } from './provider.js';
 
 export interface LLMContext {
   packageName?: string;

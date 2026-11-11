@@ -57,11 +57,6 @@ export interface VersionRunOptions {
   exclude?: string[];
 }
 
-export interface GitInfo {
-  currentBranch: string;
-  mergeBranch?: string;
-}
-
 export interface VersionConfigBase {
   versionPrefix: string;
   type?: ReleaseType;
@@ -130,46 +125,6 @@ export interface Config extends VersionConfigBase {
   };
 }
 
-export type PkgJson = {
-  name: string;
-  version: string;
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-  path?: string;
-};
-
-export interface TagFormat {
-  tagTemplate?: string;
-  prefix?: string;
-  name?: string;
-  sync: boolean;
-}
-
-export interface TagProps {
-  prefix: string;
-  version: string;
-  packageName?: string;
-}
-
-export interface VersionOptions extends VersionConfigBase {
-  latestTag: string;
-  hasRealTag?: boolean;
-}
-
-export interface GitProcess {
-  files: string[];
-  nextTag: string;
-  commitMessage: string;
-  dryRun?: boolean;
-}
-
-export interface PackageVersion {
-  path: string;
-  version: string;
-  name: string;
-  dryRun?: boolean;
-}
-
 export function toVersionConfig(config: VersionConfig = VersionConfigSchema.parse({})): Config {
   return {
     tagTemplate: resolveTagTemplate(config.tagTemplate, config.packageSpecificTags),
@@ -195,4 +150,9 @@ export function toVersionConfig(config: VersionConfig = VersionConfigSchema.pars
     cargo: config.cargo,
     pub: config.pub,
   };
+}
+
+export interface VersionOptions extends VersionConfigBase {
+  latestTag: string;
+  hasRealTag?: boolean;
 }

@@ -79,28 +79,6 @@ export function formatCommitMessage(
   return result;
 }
 
-export function formatTagPrefix(
-  prefix: string,
-  packageName?: string | null,
-  template?: string,
-  packageSpecificTags?: boolean,
-): string {
-  const sanitizedPackageName = packageName ? sanitizePackageName(packageName) : packageName;
-
-  if (template) {
-    return template
-      .replace(/\$\{version\}/g, '*')
-      .replace(/\$\{prefix\}/g, prefix)
-      .replace(/\$\{packageName\}/g, sanitizedPackageName || '*');
-  }
-
-  if (packageSpecificTags && sanitizedPackageName) {
-    return `${sanitizedPackageName}@${prefix}`;
-  }
-
-  return prefix;
-}
-
 export function buildTagStripPatternFromTemplate(template: string, packageName: string, prefix: string): string {
   if (!template) {
     return '';

@@ -1,39 +1,6 @@
 import { createFakeForge } from '@releasekit/forge';
 import { describe, expect, it, vi } from 'vitest';
-import { fetchPRLabels, findPreviewComment, findStandingPR, postOrUpdateComment } from '../../src/github.js';
-
-describe('findPreviewComment', () => {
-  it('should return comment ID when marker is found', async () => {
-    const forge = createFakeForge({
-      comments: [
-        { id: 1, body: 'Some other comment' },
-        { id: 2, body: '<!-- releasekit-preview -->\n## Release Preview' },
-      ],
-    });
-
-    const result = await findPreviewComment(forge, 1);
-    expect(result).toBe(2);
-  });
-
-  it('should return null when no marker comment exists', async () => {
-    const forge = createFakeForge({
-      comments: [
-        { id: 1, body: 'Regular comment' },
-        { id: 2, body: 'Another comment' },
-      ],
-    });
-
-    const result = await findPreviewComment(forge, 1);
-    expect(result).toBeNull();
-  });
-
-  it('should return null when no comments exist', async () => {
-    const forge = createFakeForge({ comments: [] });
-
-    const result = await findPreviewComment(forge, 1);
-    expect(result).toBeNull();
-  });
-});
+import { fetchPRLabels, findStandingPR, postOrUpdateComment } from '../../src/github.js';
 
 describe('postOrUpdateComment', () => {
   it('should create a new comment when none exists', async () => {

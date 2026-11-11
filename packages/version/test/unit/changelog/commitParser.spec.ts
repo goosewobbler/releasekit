@@ -4,7 +4,6 @@ import {
   commitTouchesAnyPackage,
   extractAllChangelogEntriesWithHash,
   extractChangelogEntriesFromCommits,
-  extractChangelogEntriesWithHash,
   extractRepoLevelChangelogEntries,
 } from '../../../src/changelog/commitParser.js';
 
@@ -162,32 +161,6 @@ describe('Commit Parser', () => {
     const entries = await extractChangelogEntriesFromCommits('/test', RANGE, ['.'], git);
 
     expect(entries).toEqual([]);
-  });
-
-  describe('extractChangelogEntriesWithHash', () => {
-    it('should extract changelog entries with commit hashes', async () => {
-      const mockGitOutput = ['abc123|||feat(core): add new feature', 'def456|||fix(ui): resolve layout issue'].join(
-        '---COMMIT_DELIMITER---',
-      );
-
-      const entries = await extractChangelogEntriesWithHash('/test', RANGE, gitWithLog(mockGitOutput));
-
-      expect(entries).toHaveLength(2);
-      expect(entries[0].hash).toBe('abc123');
-      expect(entries[0].entry.description).toBe('add new feature');
-      expect(entries[1].hash).toBe('def456');
-      expect(entries[1].entry.description).toBe('resolve layout issue');
-    });
-
-    it('should filter commits to the package path', async () => {
-      // The seam's log() turns paths into `-- <paths>`, so assert on the paths it received.
-      const git = createFakeGit({ commits: { '*': 'abc123|||feat(core): add new feature' } });
-      const logSpy = vi.spyOn(git, 'log');
-
-      await extractChangelogEntriesWithHash('/test', RANGE, git);
-
-      expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({ paths: ['.'], extraArgs: ['--no-merges'] }));
-    });
   });
 
   describe('extractAllChangelogEntriesWithHash', () => {
