@@ -41,23 +41,17 @@ interface EntryRefOptions {
   repoUrl?: string | null;
 }
 
-// A `<!--` in a commit subject would hide the rest of the notes.
+// Unescaped, a `@scope/pkg` or `@user` pings a real org or team, and a `<!--` hides the rest of the notes.
 function escapeCommitText(text: string): string {
   return escapeCommentOpeners(escapeChangelogMentions(text));
 }
 
 function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
-  // GitHub treats a bare `@scope/pkg` / `@user` in prose as a mention that can ping a real org/team on a
-  // release PR - always neutralise it, regardless of the refs mode. The scope and lead-in are interpolated
-  // as bold prose too, so escape all three. Bare `#N` refs carried over from the commit subject are also
-  // de-duped against the appended label.
+  // Bare `#N` refs carried over from the commit subject are de-duped against the appended label.
   const refsMode = opts?.refs ?? 'link';
   const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
-  const description = escapeCommitText(
-    neutralizeDescriptionRefs(entry.description, appendedRefs, refsMode, opts?.repoUrl ?? null),
-  );
-  const scope = entry.scope ? escapeCommitText(entry.scope) : undefined;
-  const leadIn = entry.leadIn ? escapeCommitText(entry.leadIn) : undefined;
+  const description = neutralizeDescriptionRefs(entry.description, appendedRefs, refsMode, opts?.repoUrl ?? null);
+  const { scope, leadIn } = entry;
   let line: string;
 
   if (leadIn && entry.breaking) {
@@ -80,7 +74,8 @@ function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
     line += ` ${refs}`;
   }
 
-  return line;
+  // Over the whole line, since a backtick in one part can pair with one in another.
+  return escapeCommitText(line);
 }
 
 function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts: EntryRefOptions): string[] {

@@ -716,18 +716,26 @@ describe('formatVersion: comment openers', () => {
   it('should escape comment openers in the scope, the grouped scope header and the lead-in', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
     const ctx = makeContext({
-      entries: [
-        { type: 'fixed', description: 'one', scope: 'a<!--' },
-        { type: 'fixed', description: 'two', scope: 'b<!--' },
-        { type: 'fixed', description: 'three', scope: 'b<!--' },
-        { type: 'added', description: 'four', leadIn: 'c<!--' },
-      ],
+      enhanced: {
+        categories: [
+          {
+            name: 'Fixed',
+            entries: [
+              { type: 'fixed', description: 'one', scope: 'a<!--' },
+              { type: 'fixed', description: 'two', scope: 'b<!--' },
+              { type: 'fixed', description: 'three', scope: 'b<!--' },
+              { type: 'fixed', description: 'four', leadIn: 'c<!--' },
+            ],
+          },
+        ],
+      },
     });
 
     const result = formatVersion(ctx);
 
     expect(result).toContain('- **a&lt;!--**: one');
-    expect(result).toContain('**b&lt;!--**:');
+    expect(result).toMatch(/^\*\*b&lt;!--\*\*:$/m);
+    expect(result).toContain('- two');
     expect(result).toContain('- **c&lt;!--**: four');
     expect(result).not.toContain('<!--');
   });
