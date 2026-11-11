@@ -4,6 +4,7 @@ import {
   BREAKING_SECTION,
   type ChangelogRefsMode,
   escapeChangelogMentions,
+  escapeCommentOpeners,
   groupChangelogSections,
   info,
   neutralizeDescriptionRefs,
@@ -40,6 +41,11 @@ interface EntryRefOptions {
   repoUrl?: string | null;
 }
 
+// A `<!--` in a commit subject would hide the rest of the notes.
+function escapeCommitText(text: string): string {
+  return escapeCommentOpeners(escapeChangelogMentions(text));
+}
+
 function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
   // GitHub treats a bare `@scope/pkg` / `@user` in prose as a mention that can ping a real org/team on a
   // release PR - always neutralise it, regardless of the refs mode. The scope and lead-in are interpolated
@@ -47,11 +53,11 @@ function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
   // de-duped against the appended label.
   const refsMode = opts?.refs ?? 'link';
   const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
-  const description = escapeChangelogMentions(
+  const description = escapeCommitText(
     neutralizeDescriptionRefs(entry.description, appendedRefs, refsMode, opts?.repoUrl ?? null),
   );
-  const scope = entry.scope ? escapeChangelogMentions(entry.scope) : undefined;
-  const leadIn = entry.leadIn ? escapeChangelogMentions(entry.leadIn) : undefined;
+  const scope = entry.scope ? escapeCommitText(entry.scope) : undefined;
+  const leadIn = entry.leadIn ? escapeCommitText(entry.leadIn) : undefined;
   let line: string;
 
   if (leadIn && entry.breaking) {
@@ -111,7 +117,7 @@ function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts:
   }
   for (const [scope, group] of byScope) {
     blocks.push(
-      `**${escapeChangelogMentions(scope)}**:`,
+      `**${escapeCommitText(scope)}**:`,
       group.map((entry) => formatEntry(entry, { ...refOpts, hideScope: true })).join('\n'),
     );
   }
