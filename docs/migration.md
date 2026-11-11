@@ -272,6 +272,12 @@ the new name before the next release, e.g. `git tag scope-pkg@v1.2.3 v1.2.3^{}`,
 - `merge` refuses to merge unless the release manifest passes the checks `standing-pr publish` runs.
 - `merge` no longer deletes the release branch; the publish does.
 
+### `version` reads `--config` like the other commands
+
+- `version --project-dir <dir> --config <path>` reads a relative `--config` from the directory you run in, as
+  `release` does; it used to read it from `<dir>`.
+- A missing `--project-dir` folder fails `version` with exit code 3; it used to exit 1.
+
 ### Version mismatches warn without a version block
 
 With no `version` block, a mismatch between `package.json` and the latest tag warns (`mismatchStrategy: "warn"`, as

@@ -70,6 +70,6 @@ export function enterProjectDir<T extends ProjectDirOptions>(options: T): T & { 
     const reason = code === 'ENOENT' || code === 'ENOTDIR' ? 'is not a directory' : `can't be entered (${code})`;
     throw new InputError(`--project-dir ${resolved.projectDir} ${reason}`);
   }
-  // The real path, so it matches process.cwd() when the folder is reached through a symlink.
+  // process.cwd() is the real path, which a symlinked --project-dir isn't.
   return { ...resolved, projectDir: process.cwd() };
 }
