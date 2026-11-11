@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { devNull, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -77,10 +77,14 @@ describe('--project-dir', () => {
     (command) => {
       const missing = join(root, 'missing');
 
-      const result = run(root, ...command.split(' '), '--project-dir', missing);
+      const result = run(root, ...command.split(' '), '--project-dir', missing, '--output', 'result.json');
 
       expect(result.status).toBe(EXIT_CODES.INPUT_ERROR);
       expect(result.stderr).toContain(`--project-dir ${missing} is not a directory`);
+      expect(JSON.parse(readFileSync(join(root, 'result.json'), 'utf-8'))).toMatchObject({
+        status: 'error',
+        errors: [{ code: 'INPUT_ERROR', message: `--project-dir ${missing} is not a directory` }],
+      });
     },
   );
 });

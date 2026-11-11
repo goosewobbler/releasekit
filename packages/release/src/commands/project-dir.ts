@@ -1,4 +1,3 @@
-import { statSync } from 'node:fs';
 import * as path from 'node:path';
 import type { Command } from 'commander';
 import { failInput } from './emitResult.js';
@@ -15,9 +14,12 @@ export function enterProjectDir(_hooked: Command, actionCommand: Command): void 
     }
   }
   const projectDir = path.resolve(opts.projectDir);
-  if (!statSync(projectDir, { throwIfNoEntry: false })?.isDirectory()) {
-    failInput(`--project-dir ${projectDir} is not a directory`, actionCommand.opts());
+  try {
+    process.chdir(projectDir);
+  } catch (error) {
+    const { code } = error as NodeJS.ErrnoException;
+    const reason = code === 'ENOENT' || code === 'ENOTDIR' ? 'is not a directory' : `can't be entered (${code})`;
+    failInput(`--project-dir ${projectDir} ${reason}`, actionCommand.opts());
   }
   actionCommand.setOptionValue('projectDir', projectDir);
-  process.chdir(projectDir);
 }
