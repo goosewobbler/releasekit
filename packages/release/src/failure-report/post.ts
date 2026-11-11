@@ -3,7 +3,7 @@ import type { VersionOutput } from '@releasekit/core';
 import { info, warn } from '@releasekit/core';
 import { type Forge, type ForgeComment, isBotComment } from '@releasekit/forge';
 import type { PipelineError } from '@releasekit/publish';
-import { findPreviewComment, postOrUpdateComment } from '../github.js';
+import { postOrUpdateComment } from '../github.js';
 import {
   FAILURE_MARKER,
   type FailureReportMode,
@@ -58,8 +58,9 @@ export async function resolveFailureReportIfPresent(
   versionOutput: VersionOutput,
 ): Promise<void> {
   try {
-    const existing = await findPreviewComment(forge, prNumber, FAILURE_MARKER);
-    if (existing === null) {
+    const existing = await forge.findComment(prNumber, FAILURE_MARKER);
+    // A human comment carrying the marker isn't a failure that happened, so there's nothing to resolve.
+    if (existing === null || !isBotComment(existing)) {
       return;
     }
     await postOrUpdateComment(forge, prNumber, renderResolvedReport(versionOutput), FAILURE_MARKER);
@@ -98,7 +99,7 @@ export async function detectUnresolvedFailure(forge: Forge, prNumber: number): P
     return null;
   }
 
-  // `findComment` falls back to a human comment carrying the marker; refuse that.
+  // `findComment` falls back to a human comment carrying the marker. Its numbers would be made up, so refuse it.
   if (!comment?.body || !isBotComment(comment)) {
     return null;
   }

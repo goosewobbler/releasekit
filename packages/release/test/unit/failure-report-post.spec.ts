@@ -59,7 +59,7 @@ function pipelineErrorFor(versionOutput: VersionOutput): PipelineError {
   return new PipelineError('Failed to publish to npm: npm 403', 'npm-publish', publishOutput);
 }
 
-function fakeForgeWith(comments: Array<{ id: number; body: string }> = []) {
+function fakeForgeWith(comments: Array<{ id: number; body: string; user?: { login: string; type: string } }> = []) {
   return createFakeForge({ comments });
 }
 
@@ -134,6 +134,13 @@ describe('resolveFailureReportIfPresent', () => {
     expect(forge.updatedComments).toHaveLength(1);
     const body = forge.updatedComments[0]?.body as string;
     expect(body).toContain('recovered');
+  });
+
+  it('should ignore a report a human wrote', async () => {
+    const forge = fakeForgeWith([{ id: 7, body: FAILURE_MARKER, user: { login: 'attacker', type: 'User' } }]);
+    await resolveFailureReportIfPresent(forge, 42, versionOutput);
+    expect(forge.updatedComments).toHaveLength(0);
+    expect(forge.createdComments).toHaveLength(0);
   });
 
   it('should be a no-op when there is no existing report', async () => {

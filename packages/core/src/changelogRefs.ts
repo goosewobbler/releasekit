@@ -1,5 +1,7 @@
 /* eslint-disable local/no-bare-issue-refs -- the #NNN below are examples of the reference format this module renders, not issue citations */
 
+import { escapeCommentOpeners } from './marker.js';
+
 export type ChangelogRefsMode = 'strip' | 'escape' | 'link';
 
 export function parseGitHubOwnerRepo(repoUrl: string): { owner: string; repo: string } | null {
@@ -136,21 +138,6 @@ export function removeDescriptionRefs(text: string, refs: Array<string | undefin
       return num !== undefined && remove.has(Number(num)) ? '' : match;
     })
     .trim();
-}
-
-// Single-backtick spans only, as in the mention regex. GitHub doesn't decode `&lt;` inside a code span, so there the
-// opener is broken with a zero-width space instead.
-const CODE_SPAN_OR_COMMENT_OPEN = /`[^`]*`|<!--/g;
-
-/**
- * Commit text can carry `<!--`. A releasekit marker would then act on the next body read-back, and any other opener
- * hides the body up to the next `-->`, such as later checklist rows. Unlike `neutralizeMarkers`, this escapes every
- * opener.
- */
-function escapeCommentOpeners(text: string): string {
-  return text.replace(CODE_SPAN_OR_COMMENT_OPEN, (match) =>
-    match.startsWith('`') ? match.replaceAll('<!--', '<!​--') : '&lt;!--',
-  );
 }
 
 export interface ChangelogEntryLineInput {

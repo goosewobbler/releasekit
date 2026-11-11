@@ -55,6 +55,21 @@ export function neutralizeMarkers(content: string): string {
   return content.replace(/<!--(?= ?(?:releasekit-|rk-))/g, '&lt;!--');
 }
 
+// Single-backtick spans only, as in the mention regex. GitHub doesn't decode `&lt;` inside a code span, so there the
+// opener is broken with a zero-width space instead.
+const CODE_SPAN_OR_COMMENT_OPEN = /`[^`]*`|<!--/g;
+
+/**
+ * For machine-rendered text such as commit subjects, which has no reason to carry an HTML comment: any opener hides the
+ * body up to the next `-->`, such as later checklist rows. Notes keep {@link neutralizeMarkers}, since people write
+ * comments in them on purpose.
+ */
+export function escapeCommentOpeners(text: string): string {
+  return text.replace(CODE_SPAN_OR_COMMENT_OPEN, (match) =>
+    match.startsWith('`') ? match.replaceAll('<!--', '<!\u200B--') : '&lt;!--',
+  );
+}
+
 export function wrapMarkerRegion(content: string, open: string, close: string): string {
   return `${open}\n\n${content.trim()}\n\n${close}`;
 }

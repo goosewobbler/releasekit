@@ -2038,13 +2038,15 @@ describe('runStandingPRUpdate', () => {
       expect(body).not.toContain('partially published');
     });
 
-    it('should ignore a failure report whose label is not a version', async () => {
+    it('should keep a notes opener in the failure report’s label from capturing the notes region', async () => {
       // A literal ` -->` would end the data marker, so the forged label spells that space as a JSON escape.
       const { body, versionOutput } = await updateWithFailureReport({
         body: failureReport('"v0.24.0 <!-- releasekit-notes:@scope/core\\u0020-->"'),
       });
 
-      expect(body).not.toContain('partially published');
+      expect(body).toContain(
+        'Previous release v0.24.0 &lt;!-- releasekit-notes:\\@scope/core --> is partially published',
+      );
       expect(extractNotesRegions(body, versionOutput)).toEqual({ '@scope/core': 'HUMAN NOTES' });
     });
   });
