@@ -4,20 +4,18 @@
  */
 
 import { execSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import type { VersionOutput } from '@releasekit/core';
 import { afterEach, describe, expect, it } from 'vitest';
-import { executeCliCommand, readVersionOutput } from '../utils/cli.js';
-import { createConventionalCommit, initGitRepo } from '../utils/git.js';
+import { executeCliCommand, runVersionJson } from '../utils/cli.js';
+import { createConventionalCommit } from '../utils/git.js';
 import { createPackageJson } from '../utils/package.js';
-import { cleanupTempDir, symlinkNodeModules } from '../utils/tempFixture.js';
+import { cleanupTempDir } from '../utils/tempFixture.js';
+import { createWorkspaceRepo } from '../utils/workspace.js';
 
 let tempDir: string;
 
 interface RepoOptions {
-  /** Where the workspace sits inside the git repository. */
   workspaceDir?: string;
   sync?: boolean;
   workspaceGlobs?: string[];
@@ -28,38 +26,25 @@ interface RepoOptions {
 function createRepo({
   workspaceDir = '.',
   sync = false,
-  workspaceGlobs = ['packages/*'],
+  workspaceGlobs,
   packages = ['pkg-a', 'pkg-b'],
   version = {},
 }: RepoOptions = {}) {
-  tempDir = mkdtempSync(join(tmpdir(), 'rk-bump-scope-'));
-  const ws = join(tempDir, workspaceDir);
-  mkdirSync(ws, { recursive: true });
-  writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'monorepo', version: '1.0.0', private: true }));
-  writeFileSync(join(ws, 'pnpm-workspace.yaml'), `packages:\n${workspaceGlobs.map((g) => `  - "${g}"\n`).join('')}`);
-  for (const pkg of packages) {
-    mkdirSync(join(ws, 'packages', pkg), { recursive: true });
-    createPackageJson(join(ws, 'packages', pkg), basename(pkg), '1.0.0');
-  }
-  writeFileSync(
-    join(ws, 'releasekit.config.json'),
-    JSON.stringify({
-      version: {
-        preset: 'conventionalcommits',
-        sync,
-        versionPrefix: 'v',
-        packageSpecificTags: !sync,
-        tagTemplate: sync ? '${prefix}${version}' : '${packageName}@v${version}',
-        ...version,
-      },
-    }),
-  );
-  symlinkNodeModules(ws);
-  initGitRepo(tempDir);
-  const tags = sync ? ['v1.0.0'] : packages.map((pkg) => `${basename(pkg)}@v1.0.0`);
-  for (const tag of tags) {
-    execSync(`git tag ${tag}`, { cwd: tempDir });
-  }
+  tempDir = createWorkspaceRepo('rk-bump-scope-', {
+    packages: Object.fromEntries(packages.map((pkg) => [pkg, basename(pkg)])),
+    version: '1.0.0',
+    config: {
+      preset: 'conventionalcommits',
+      sync,
+      versionPrefix: 'v',
+      packageSpecificTags: !sync,
+      tagTemplate: sync ? '${prefix}${version}' : '${packageName}@v${version}',
+      ...version,
+    },
+    workspaceGlobs,
+    workspaceDir,
+    tags: sync ? ['v1.0.0'] : packages.map((pkg) => `${basename(pkg)}@v1.0.0`),
+  });
 }
 
 function commitTo(dir: string, type: string, message: string, breaking = false) {
@@ -67,14 +52,10 @@ function commitTo(dir: string, type: string, message: string, breaking = false) 
   createConventionalCommit(tempDir, type, message, undefined, breaking, [dir]);
 }
 
-function runVersion(workspaceDir = '.', args = ''): VersionOutput {
-  const result = executeCliCommand(`--json${args}`, join(tempDir, workspaceDir));
-  expect(result.status).toBe(0);
-  return readVersionOutput(result.stdout);
-}
-
-function newVersions(workspaceDir = '.'): Record<string, string | undefined> {
-  return Object.fromEntries(runVersion(workspaceDir).updates.map((u) => [u.packageName, u.newVersion]));
+function newVersions(workspaceDir = '.', args = ''): Record<string, string | undefined> {
+  return Object.fromEntries(
+    runVersionJson(join(tempDir, workspaceDir), args).updates.map((u) => [u.packageName, u.newVersion]),
+  );
 }
 
 describe('bump scope', () => {
@@ -156,13 +137,7 @@ describe('bump scope', () => {
     commitTo('packages/host/plugin', 'feat', 'drop the old plugin API', true);
     commitTo('packages/host', 'fix', 'correct a typo');
 
-    const result = executeCliCommand('--json --target host', tempDir);
-    expect(result.status).toBe(0);
-    const versions = Object.fromEntries(
-      readVersionOutput(result.stdout).updates.map((u) => [u.packageName, u.newVersion]),
-    );
-
-    expect(versions).toEqual({ host: '1.0.1' });
+    expect(newVersions('.', '--target host')).toEqual({ host: '1.0.1' });
   });
 
   it('should fail before writing any version when a cargo.paths entry leaves the repository', () => {
@@ -230,7 +205,6 @@ describe('bump scope', () => {
     commitTo('packages/app', 'fix', 'correct a typo');
 
     expect(newVersions()).toEqual({ app: '1.0.1' });
-    const targeted = runVersion('.', ' --target app --include-prerequisites');
-    expect(targeted.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['app', '1.0.1']]);
+    expect(newVersions('.', '--target app --include-prerequisites')).toEqual({ app: '1.0.1' });
   });
 });

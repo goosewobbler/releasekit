@@ -3,40 +3,32 @@
  * one created. Requires `pnpm build` in @releasekit/version first.
  */
 import { execSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { VersionOutput } from '@releasekit/core';
 import { afterEach, describe, expect, it } from 'vitest';
-import { executeCliCommand, readVersionOutput } from '../utils/cli.js';
+import { executeCliCommand, runVersionJson } from '../utils/cli.js';
 import { createConventionalCommit, initGitRepo } from '../utils/git.js';
 import { createPackageJson } from '../utils/package.js';
 import { cleanupTempDir, symlinkNodeModules } from '../utils/tempFixture.js';
+import { createWorkspaceRepo, writeVersionConfig } from '../utils/workspace.js';
 
 let tempDir: string;
 
 const git = (args: string) => execSync(`git ${args}`, { cwd: tempDir, encoding: 'utf8' }).trim();
 
 function createRepo(kind: 'monorepo' | 'single', versionConfig: Record<string, unknown>) {
-  tempDir = mkdtempSync(join(tmpdir(), 'rk-tag-naming-'));
   if (kind === 'monorepo') {
-    writeFileSync(
-      join(tempDir, 'package.json'),
-      JSON.stringify({ name: 'test-monorepo', version: '0.1.0', private: true }),
-    );
-    writeFileSync(join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n');
-    for (const name of ['pkg-a', 'pkg-b']) {
-      mkdirSync(join(tempDir, 'packages', name), { recursive: true });
-      createPackageJson(join(tempDir, 'packages', name), `@test/${name}`);
-    }
-  } else {
-    createPackageJson(tempDir, 'single-pkg');
+    tempDir = createWorkspaceRepo('rk-tag-naming-', {
+      packages: { 'pkg-a': '@test/pkg-a', 'pkg-b': '@test/pkg-b' },
+      config: { preset: 'angular', packages: ['packages/pkg-a', 'packages/pkg-b'], ...versionConfig },
+    });
+    return;
   }
-  const packages = kind === 'monorepo' ? ['packages/pkg-a', 'packages/pkg-b'] : ['./'];
-  writeFileSync(
-    join(tempDir, 'releasekit.config.json'),
-    JSON.stringify({ version: { preset: 'angular', packages, ...versionConfig } }),
-  );
+  tempDir = mkdtempSync(join(tmpdir(), 'rk-tag-naming-'));
+  createPackageJson(tempDir, 'single-pkg');
+  writeVersionConfig(tempDir, { preset: 'angular', packages: ['./'], ...versionConfig });
   symlinkNodeModules(tempDir);
   initGitRepo(tempDir);
 }
@@ -60,9 +52,7 @@ function feat(...pkgs: string[]) {
 }
 
 function version(dryRun = true): VersionOutput {
-  const result = executeCliCommand('--json', tempDir, dryRun);
-  expect(result.status).toBe(0);
-  return readVersionOutput(result.stdout);
+  return runVersionJson(tempDir, '', dryRun);
 }
 
 /** Writes the bump and tags it, as publish would. */
@@ -194,19 +184,15 @@ describe('tag naming', () => {
       feat();
       release();
       feat();
-      const prerelease = executeCliCommand('--json --prerelease next', tempDir, false);
-      expect(prerelease.status).toBe(0);
+      const prerelease = runVersionJson(tempDir, '--prerelease next', false);
       git('add -A');
       git('commit -q -m "chore: release"');
-      for (const tag of readVersionOutput(prerelease.stdout).tags) {
+      for (const tag of prerelease.tags) {
         git(`tag ${tag}`);
       }
       feat();
 
-      const result = executeCliCommand('--json --stable', tempDir, true);
-      expect(result.status).toBe(0);
-
-      expect(readVersionOutput(result.stdout).changelogs[0]?.revisionRange).toBe('release-0.2.0..HEAD');
+      expect(runVersionJson(tempDir, '--stable').changelogs[0]?.revisionRange).toBe('release-0.2.0..HEAD');
     });
   });
 });

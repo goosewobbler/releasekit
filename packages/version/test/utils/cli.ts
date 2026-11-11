@@ -15,3 +15,12 @@ export function executeCliCommand(command: string, cwd: string, dryRun = true) {
 export function readVersionOutput(stdout: string): VersionOutput {
   return unwrapEnvelope(JSON.parse(stdout)) as VersionOutput;
 }
+
+/** Runs `--json` and reads its output, failing with the CLI's stderr on a non-zero exit. */
+export function runVersionJson(cwd: string, args = '', dryRun = true): VersionOutput {
+  const result = executeCliCommand(args ? `--json ${args}` : '--json', cwd, dryRun);
+  if (result.status !== 0) {
+    throw new Error(`version exited with ${result.status}:\n${result.stderr}`);
+  }
+  return readVersionOutput(result.stdout);
+}
