@@ -36,83 +36,6 @@ function resolveConfigPath(cwd: string): string {
   return path.join(cwd, CONFIG_FILES[0]);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function assertNoRemovedReleaseNotesFields(config: unknown): void {
-  if (!isRecord(config) || !isRecord(config.notes) || !isRecord(config.notes.releaseNotes)) {
-    return;
-  }
-  const rn = config.notes.releaseNotes;
-  const removed: string[] = [];
-  if ('mode' in rn) {
-    removed.push('mode');
-  }
-  if ('directory' in rn) {
-    removed.push('directory');
-  }
-  if (typeof rn.file === 'string') {
-    removed.push('file (string)');
-  }
-  if (removed.length === 0) {
-    return;
-  }
-  throw new ConfigError(
-    `notes.releaseNotes no longer supports ${removed.join(', ')}. Release notes go to the GitHub ` +
-      'release body by default; for in-repo per-version files set notes.releaseNotes.file to ' +
-      '{ "dir": "release-notes" }. For a cumulative changelog file, use changelog.mode.',
-  );
-}
-
-function assertNoRemovedVersionFields(config: unknown): void {
-  if (!isRecord(config) || !isRecord(config.version)) {
-    return;
-  }
-  const v = config.version;
-  const removed = ['versionStrategy', 'branchPatterns', 'defaultReleaseType', 'updateInternalDependencies'].filter(
-    (k) => k in v,
-  );
-  if (removed.length === 0) {
-    return;
-  }
-  throw new ConfigError(
-    `version no longer supports ${removed.join(', ')}. Branch-pattern versioning was never functional — ` +
-      'use Conventional Commits or --bump for version bumps. For coupled packages use version.groups; to ' +
-      "release a package's changed dependencies use release:with-prerequisites / --include-prerequisites.",
-  );
-}
-
-function assertNoRemovedTopLevelFields(config: unknown): void {
-  if (!isRecord(config)) {
-    return;
-  }
-  if (isRecord(config.ci)) {
-    const removed = ['autoRelease', 'skipPatterns', 'minChanges'].filter((k) => k in (config.ci as object));
-    if (removed.length > 0) {
-      throw new ConfigError(
-        `ci no longer supports ${removed.join(', ')}. autoRelease was removed (it had no effect); ` +
-          'skipPatterns and minChanges live under release.ci (release.ci.skipPatterns / release.ci.minChanges).',
-      );
-    }
-    if (isRecord(config.ci.prPreview) && 'refreshAfterRelease' in config.ci.prPreview) {
-      throw new ConfigError(
-        "ci.prPreview.refreshAfterRelease was renamed to markStaleAfterRelease. It now marks open PRs' previews " +
-          'stale after a release instead of recomputing them.',
-      );
-    }
-  }
-  if (isRecord(config.monorepo) && 'mainPackage' in config.monorepo) {
-    throw new ConfigError('monorepo.mainPackage was removed — use version.mainPackage instead.');
-  }
-}
-
-function assertNoRemovedMonorepoMode(config: unknown): void {
-  if (isRecord(config) && isRecord(config.monorepo) && 'mode' in config.monorepo) {
-    throw new ConfigError('monorepo.mode was removed — changelog aggregation is controlled by notes.changelog.mode.');
-  }
-}
-
 function loadConfigFile(configPath: string): ReleaseKitConfig {
   if (!fs.existsSync(configPath)) {
     return {};
@@ -126,11 +49,6 @@ function loadConfigFile(configPath: string): ReleaseKitConfig {
     const substituted = substituteInObject(parsed, path.dirname(configPath), (refPath, name) =>
       unsetEnv.push({ path: refPath, name }),
     );
-    // Before parsing, so a removed key gets migration guidance instead of the generic unknown-key error.
-    assertNoRemovedReleaseNotesFields(substituted);
-    assertNoRemovedVersionFields(substituted);
-    assertNoRemovedTopLevelFields(substituted);
-    assertNoRemovedMonorepoMode(substituted);
     const config = ReleaseKitConfigSchema.parse(substituted);
     rememberUnsetEnv(config, unsetEnv);
     return config;
