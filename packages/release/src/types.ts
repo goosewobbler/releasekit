@@ -40,7 +40,7 @@ export interface ReleaseOptions {
   baseRef?: string;
   /** Wins per package over generated notes. Set by the draft dispatch; not a CLI flag. */
   editedNotes?: Record<string, string>;
-  /** Ignore the gate's decision on the merged PRs' labels. Set by preview and draft; not a CLI flag. */
+  /** Ignore the gate's decision on the merged PR's labels. Set by preview and draft; not a CLI flag. */
   skipGate?: boolean;
 }
 

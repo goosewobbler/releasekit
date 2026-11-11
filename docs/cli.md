@@ -142,16 +142,16 @@ releasekit release --dry-run
 
 ### Merged-PR labels
 
-In GitHub Actions (`GITHUB_REPOSITORY`, `GITHUB_SHA` and `GITHUB_TOKEN` set, outside `workflow_dispatch`), `release` first makes [`gate`](#releasekit-release-gate)'s decision on the merged PR the pushed commit came from, with the same code.
+In GitHub Actions (`GITHUB_REPOSITORY`, `GITHUB_SHA` and `GITHUB_TOKEN` set, outside `workflow_dispatch`), `release` first makes [`gate`](#releasekit-release-gate)'s decision on the merged PR the pushed commit came from. A PR calls for a release with a `bump:*` or `release:graduate` label under `ci.releaseTrigger: "label"`, without `release:skip` under `"commit"`, and with `release:immediate` in `standing-pr` strategy.
 
-- **No release**: no PR's labels call for one, HEAD matches `release.ci.skipPatterns`, or a newer tag already contains the pushed commit (a re-run after the checkout moved past its release). A PR calls for a release with a `bump:*` or `release:graduate` label under `ci.releaseTrigger: "label"`, without `release:skip` under `"commit"`, and with `release:immediate` in `standing-pr` strategy. `release` exits 0, logs the reason, and `--json` reports `changed: false`. A PR with conflicting labels blocks the release the same way.
+- **No release**: the PR's labels don't call for one, HEAD matches `release.ci.skipPatterns`, or a newer tag already contains the pushed commit (a re-run after the checkout moved past its release). `release` exits 0, logs the reason, and `--json` reports `changed: false`. A PR with conflicting labels blocks the release the same way.
 - **Release**: the winning PR's `bump:*` and `channel:prerelease` labels set the bump (under `"commit"`, commits set it: only `bump:major` overrides it, and `channel:prerelease` makes it a prerelease), `release:graduate` the graduation and `scope:*` the target. `--bump`, `--stable` or `--prerelease` replace its bump and channel, and `--target` or `--scope` its scope. Without a scope label, every changed package releases.
 - **A direct push** (the pushed commit isn't from a merged PR): under `"commit"` in direct strategy, `release` releases from commits. Elsewhere it carries no labels, so it doesn't release.
 - **No GitHub context**: `release` releases from commits.
 
 Only the pushed commit's PR counts. A push that carries several merges is decided by the last one, and a run cancelled before it releases (say, by a later push) doesn't pass its PR's labels on to the next run; re-run it to release that PR.
 
-Listing the PRs needs `pull-requests: read`. If the lookup fails, `release` fails and names the permission. `--draft` and `--from-draft` ignore PR labels.
+Looking up the PR needs `pull-requests: read`. If the lookup fails, `release` fails and names the permission. `--draft` and `--from-draft` ignore PR labels.
 
 ### Draft-then-dispatch (manual mode)
 

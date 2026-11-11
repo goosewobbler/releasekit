@@ -10,8 +10,8 @@ export async function getHeadParents(cwd?: string): Promise<string[]> {
 }
 
 /**
- * The nearest tag from the checkout when it was made after `sha`, so `sha` is already released. A tag on `sha` itself
- * doesn't count: that's a retry of the same release.
+ * The checkout's nearest tag when it comes after `sha`, so `sha` was already released. A tag on `sha` itself doesn't
+ * count: running again there retries that release.
  */
 export async function tagAfter(sha: string, cwd?: string): Promise<string | null> {
   const git = createGitCli();

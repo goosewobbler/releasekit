@@ -677,7 +677,7 @@ describe('runRelease', () => {
     function merge(...prs: Array<{ number: number; labels: string[]; headRef?: string }>): void {
       fakeGit = new FakeGit({ nearestTag: 'v1.0.0', commits: { '*': 'feat: some feature\n' } });
       forge = createFakeForge({
-        // The pushed commit is the newest PR's merge.
+        // The pushed commit is the first PR's merge.
         pullRequestsForCommit: Object.fromEntries([
           ...prs.map((pr) => [`sha-${pr.number}`, [{ number: pr.number, mergedAt: '2026-01-01T00:00:00Z' }]]),
           ...prs

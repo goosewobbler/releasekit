@@ -13,7 +13,7 @@ export interface PREvaluation {
   prerelease?: boolean;
   blocked?: boolean;
   reason?: string;
-  /** The merged PR is the standing release PR, which publishes from its manifest. The release fails on it. */
+  /** The merged PR is the standing release PR, which publishes from its manifest, so `release` refuses it. */
   refusedStandingPr?: boolean;
   /** Decides whether a non-releasing verdict gets a notify comment; not simply "has release labels". */
   hasReleaseIntent: boolean;
@@ -205,8 +205,8 @@ export function evaluatePR(
     prNumber,
     labels,
     shouldRelease: true,
-    // Commits set the bump in commit mode, as the preview shows: only bump:major overrides it. premajor, so major &
-    // prerelease starts a fresh line rather than incrementing the current one.
+    // Commits set the bump, as the preview shows, and only bump:major overrides it. Major & prerelease is premajor,
+    // which starts a fresh line instead of incrementing the current one.
     bump: forcesMajor ? (labels.includes(labelConfig.prerelease) ? 'premajor' : 'major') : undefined,
     prerelease: (!forcesMajor && labels.includes(labelConfig.prerelease)) || undefined,
     scope,
