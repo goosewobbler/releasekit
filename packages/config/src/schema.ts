@@ -202,6 +202,16 @@ export const VersionConfigSchema = VersionConfigBaseSchema.superRefine((cfg, ctx
         'tagTemplate must contain ${packageName} when packageSpecificTags is true, or every package gets the same tag. Remove tagTemplate to use "${packageName}@${prefix}${version}".',
     });
   }
+  for (const key of ['tagTemplate', 'baselineTagTemplate'] as const) {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: checking for the literal placeholder
+    if (/\d+\.\d+\.\d+/.test(cfg[key]?.split('${version}')[0] ?? '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [key],
+        message: `${key} can't contain a version before \${version}: a tag's version is read as the first one in it.`,
+      });
+    }
+  }
 });
 
 export const NpmConfigSchema = z.object({

@@ -112,18 +112,6 @@ describe('reconstructChangelogs', () => {
     expect(result.map((r) => r.changelog.version)).toEqual(['1.0.0', '1.1.0']);
   });
 
-  it('should read the version after the tag prefix, not version-shaped text in it', async () => {
-    vi.mocked(version.listGlobalTags).mockResolvedValue(['releases/2026.1.0/1.2.3']);
-
-    const result = await reconstructChangelogs({
-      packageName: 'pkg',
-      pkgPath: '/p',
-      tagTemplate: 'releases/2026.1.0/${' + 'version}',
-    });
-
-    expect(result.map((r) => r.changelog.version)).toEqual(['1.2.3']);
-  });
-
   it('should return an empty list when there are no matching tags', async () => {
     vi.mocked(version.listGlobalTags).mockResolvedValue([]);
 

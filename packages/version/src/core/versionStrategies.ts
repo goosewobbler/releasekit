@@ -434,7 +434,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       const usedPackageSpecificTag = !!latestTagResult;
       const globalPrefix = config.packageSpecificTags
         ? undefined
-        : deriveBaselineTagPrefix(tagTemplate, formattedPrefix);
+        : deriveBaselineTagPrefix(tagTemplate, formattedPrefix, packageName);
 
       if (!latestTagResult) {
         const globalTagResult = await getLatestTag(globalPrefix);

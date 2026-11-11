@@ -148,6 +148,16 @@ describe('tag naming', () => {
   });
 
   describe('tagTemplate in single mode', () => {
+    it('should find a template tag that names the package on the next run', () => {
+      createRepo('single', { sync: false, tagTemplate: '${packageName}-v${version}' });
+      feat();
+      expect(release().tags).toEqual(['single-pkg-v0.2.0']);
+
+      feat();
+
+      expect(version().changelogs[0]).toMatchObject({ previousVersion: 'single-pkg-v0.2.0' });
+    });
+
     it('should find its own template tag on the next run', () => {
       createRepo('single', { sync: false, tagTemplate: 'release-${version}' });
       feat();

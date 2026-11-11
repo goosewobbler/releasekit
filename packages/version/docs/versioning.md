@@ -255,7 +255,7 @@ Three options in the `version` block of `releasekit.config.json` decide how tags
 - `${version}`: the new version
 - `${packageName}`: the sanitized package name (`@scope/pkg` becomes `scope-pkg`). Empty in sync mode without `packageSpecificTags`, where one tag covers every package.
 
-A `tagTemplate` must end with `${version}`, and with `packageSpecificTags: true` it must contain `${packageName}`, or every package would get the same tag. Config loading fails otherwise.
+A `tagTemplate` must end with `${version}` with no version before it, and with `packageSpecificTags: true` it must contain `${packageName}`, or every package would get the same tag. Config loading fails otherwise.
 
 ### Examples
 

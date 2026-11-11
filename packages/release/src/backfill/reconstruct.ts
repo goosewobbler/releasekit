@@ -49,17 +49,15 @@ export interface ReconstructedVersion {
 export async function reconstructChangelogs(opts: ReconstructOptions): Promise<ReconstructedVersion[]> {
   // Sync/single repos share one global tag series, for which listPackageTags returns []; the path-scoped extraction
   // still isolates this package's history.
-  const globalPrefix = opts.packageSpecificTags ? '' : globalTagPrefix(opts.tagTemplate, opts.versionPrefix);
   const tags: string[] = opts.packageSpecificTags
     ? await listPackageTags(opts.packageName, opts.versionPrefix, {
         tagTemplate: opts.tagTemplate,
         packageSpecificTags: true,
       })
-    : await listGlobalTags(globalPrefix);
+    : await listGlobalTags(globalTagPrefix(opts.tagTemplate, opts.versionPrefix));
 
-  // Read after the prefix, so version-shaped text in it (`releases/2026.1/${version}`) isn't taken as the version.
   const versioned = tags
-    .map((tag) => ({ tag, version: versionFromTag(tag.slice(globalPrefix.length)) }))
+    .map((tag) => ({ tag, version: versionFromTag(tag) }))
     .filter((t): t is { tag: string; version: string } => t.version !== null)
     .sort((a, b) => semver.compare(a.version, b.version));
 
