@@ -2,7 +2,7 @@ import type { CIConfig, ReleaseKitConfig } from '@releasekit/config';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import { info, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
-import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
+import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern, tagAfter } from '../git.js';
 import { fetchPRLabels, findMergedPRsForCommit, forgeFor, PRLookupError, postOrUpdateComment } from '../github.js';
 import { DEFAULT_LABELS, type LabelConfig, resolveScopeToTarget } from '../label-utils.js';
 import { evaluatePR, type PREvaluation } from './evaluate-pr.js';
@@ -101,12 +101,20 @@ export interface MergedPRDecisionInput {
 }
 
 /**
- * The gate's verdict on the PRs merged since the last release, shared by `gate` and `release`. `prNumbers` is empty
- * when none merged; a failed lookup throws a {@link PRLookupError}.
+ * The gate's verdict on the pushed commit's merged PR, shared by `gate` and `release`. `prNumbers` is empty for a
+ * direct push; a failed lookup throws a {@link PRLookupError}.
  */
 export async function decideFromMergedPRs(input: MergedPRDecisionInput): Promise<GateOutput> {
   const { forge, releaseKitConfig, projectDir, pushedSha, scope } = input;
   const ciConfig = releaseKitConfig.ci;
+
+  // A re-run keeps its GITHUB_SHA, but `skip-checkout` syncs past that commit's release, so its labels would bump again.
+  const releasedIn = await tagAfter(pushedSha, projectDir);
+  if (releasedIn) {
+    const reason = `The pushed commit was already released in ${releasedIn}`;
+    info(reason);
+    return { shouldRelease: false, labels: [], prNumbers: [], evaluations: [], reason };
+  }
 
   let prNumbers: number[];
   try {

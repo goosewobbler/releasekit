@@ -1,14 +1,8 @@
 name: Release
 
-# Release commits skip CI, which breaks the CI -> Release loop with no extra condition.
-#
 # A single file calls _release.reusable.yml so that npm OIDC trusted
 # publishing can be configured against one workflow filename.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       packages:
@@ -64,102 +58,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  check-labels:
-    name: Check Release Labels
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read # reads the merged PR's labels
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
-    outputs:
-      should_release: ${{ steps.check.outputs.should_release }}
-      bump: ${{ steps.check.outputs.bump }}
-    steps:
-      - name: Check for release labels
-        id: check
-        env:
-          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
-          REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh_api() {
-            local result
-            result=$(gh api "$1" 2>&1) || true
-            echo "$result"
-          }
-
-          PRS_OUTPUT=$(gh_api "repos/$REPO/commits/$COMMIT_SHA/pulls")
-          PRS=$(echo "$PRS_OUTPUT" | jq -r '.[].number' 2>/dev/null | tr '\n' ' ') || PRS=""
-
-          if [ -z "$PRS" ]; then
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-            echo "No PRs found for commit, skipping release"
-            [ -n "$PRS_OUTPUT" ] && echo "Debug: $PRS_OUTPUT"
-            exit 0
-          fi
-
-          LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null)
-
-          # channel:stable takes precedence over bump:*.
-          if echo "$LABELS" | grep -qE "^channel:stable$"; then
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-            echo "bump=auto" >> "$GITHUB_OUTPUT"
-            echo "channel:stable label found — promoting prerelease to stable"
-            exit 0
-          fi
-
-          if echo "$LABELS" | grep -qE "^channel:prerelease$"; then
-            PRERELEASE_BUMP="prerelease"
-            if echo "$LABELS" | grep -qE "^bump:patch$"; then
-              PRERELEASE_BUMP="prepatch"
-            elif echo "$LABELS" | grep -qE "^bump:minor$"; then
-              PRERELEASE_BUMP="preminor"
-            elif echo "$LABELS" | grep -qE "^bump:major$"; then
-              PRERELEASE_BUMP="premajor"
-            fi
-            if echo "$LABELS" | grep -qE "^bump:(patch|minor|major)$"; then
-              echo "should_release=true" >> "$GITHUB_OUTPUT"
-              echo "bump=$PRERELEASE_BUMP" >> "$GITHUB_OUTPUT"
-              echo "channel:prerelease + bump:* label found — creating $PRERELEASE_BUMP prerelease"
-              exit 0
-            else
-              echo "should_release=false" >> "$GITHUB_OUTPUT"
-              echo "channel:prerelease requires a bump:* label — skipping release"
-              exit 0
-            fi
-          fi
-
-          BUMP_LABEL=$(echo "$LABELS" | grep -E "^bump:(patch|minor|major)$" | head -1)
-          if [ -n "$BUMP_LABEL" ]; then
-            BUMP_TYPE="${BUMP_LABEL#bump:}"
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-            echo "bump=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
-            echo "Bump label '${BUMP_LABEL}' found — bump: ${BUMP_TYPE}"
-            exit 0
-          fi
-
-          echo "should_release=false" >> "$GITHUB_OUTPUT"
-          echo "No release label found on merged PRs, skipping release"
-
-  release-auto:
-    name: Auto Release
-    needs: check-labels
-    if: needs.check-labels.outputs.should_release == 'true'
-    uses: ./.github/workflows/_release.reusable.yml
-    permissions:
-      id-token: write
-      contents: write
-      pull-requests: write
-    with:
-      packages: all
-      bump: ${{ needs.check-labels.outputs.bump || 'auto' }}
-      sync: true
-      dry_run: false
-      npm_auth: oidc
-    secrets:
-      ssh_key: ${{ secrets.DEPLOY_KEY }}
-      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
   release-manual:
     name: Manual Release
     if: github.event_name == 'workflow_dispatch' && inputs.standing_pr_number == ''
@@ -208,18 +106,6 @@ jobs:
       contents: write
     with:
       tag: ${{ needs.release-manual.outputs.action_tag }}
-    secrets:
-      ssh_key: ${{ secrets.DEPLOY_KEY }}
-
-  build-action-auto:
-    name: Build and tag action dist
-    needs: release-auto
-    if: ${{ github.event_name == 'workflow_run' && needs.release-auto.outputs.action_tag != '' }}
-    uses: ./.github/workflows/_action-release.reusable.yml
-    permissions:
-      contents: write
-    with:
-      tag: ${{ needs.release-auto.outputs.action_tag }}
     secrets:
       ssh_key: ${{ secrets.DEPLOY_KEY }}
 

@@ -9,6 +9,19 @@ export async function getHeadParents(cwd?: string): Promise<string[]> {
   return (await headLog('%P', cwd))?.split(' ') ?? [];
 }
 
+/**
+ * The nearest tag from the checkout when it was made after `sha`, so `sha` is already released. A tag on `sha` itself
+ * doesn't count: that's a retry of the same release.
+ */
+export async function tagAfter(sha: string, cwd?: string): Promise<string | null> {
+  const git = createGitCli();
+  const tag = await git.describeTags(cwd);
+  if (!tag || !(await git.isAncestor(sha, tag, cwd)) || (await git.isAncestor(tag, sha, cwd))) {
+    return null;
+  }
+  return tag;
+}
+
 async function headLog(format: string, cwd?: string): Promise<string | null> {
   try {
     return (await createGitCli().log({ format, extraArgs: ['-1'], cwd })).trim();

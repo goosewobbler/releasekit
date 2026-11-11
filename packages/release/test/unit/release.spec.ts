@@ -670,16 +670,12 @@ describe('runRelease', () => {
     });
   });
 
-  describe("the gate's decision on the PRs merged since the last release", () => {
+  describe("the gate's decision on the pushed commit's PR", () => {
     const noTarget: ReleaseOptions = { ...defaultOptions, target: undefined };
     let forge: FakeForge;
 
-    /** Newest first, as `git log` lists them. */
     function merge(...prs: Array<{ number: number; labels: string[]; headRef?: string }>): void {
-      fakeGit = new FakeGit({
-        nearestTag: 'v1.0.0',
-        commits: { 'v1.0.0..HEAD': prs.map((pr) => `sha-${pr.number}\n`).join(''), '*': 'feat: some feature\n' },
-      });
+      fakeGit = new FakeGit({ nearestTag: 'v1.0.0', commits: { '*': 'feat: some feature\n' } });
       forge = createFakeForge({
         // The pushed commit is the newest PR's merge.
         pullRequestsForCommit: Object.fromEntries([
@@ -737,6 +733,33 @@ describe('runRelease', () => {
 
       expect(result).not.toBeNull();
       expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it('should skip a re-run after the pushed commit was released', async () => {
+      merge({ number: 123, labels: ['bump:major'] });
+      fakeGit = new FakeGit({
+        nearestTag: 'v2.0.0',
+        ancestors: { 'v2.0.0': ['sha-123'] },
+        commits: { '*': 'feat: some feature\n' },
+      });
+
+      const result = await runRelease(noTarget);
+
+      expect(result).toBeNull();
+      expect(MockVersionEngine).not.toHaveBeenCalled();
+    });
+
+    it('should retry a release tagged on the pushed commit', async () => {
+      merge({ number: 123, labels: ['bump:major'] });
+      fakeGit = new FakeGit({
+        nearestTag: 'v2.0.0',
+        ancestors: (a, ref) => (a === 'sha-123' && ref === 'v2.0.0') || (a === 'v2.0.0' && ref === 'sha-123'),
+        commits: { '*': 'feat: some feature\n' },
+      });
+
+      const result = await runRelease(noTarget);
+
+      expect(result).not.toBeNull();
     });
 
     it('should release from commits on a workflow_dispatch run', async () => {

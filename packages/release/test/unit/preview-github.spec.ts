@@ -1,14 +1,6 @@
 import { createFakeForge } from '@releasekit/forge';
-import type { FakeGit, FakeGitSeed } from '@releasekit/git';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fetchPRLabels, findPreviewComment, findStandingPR, postOrUpdateComment } from '../../src/github.js';
-
-// The merge-PR lookup is driven by seeded `describeTags` (nearest tag) and `log` (commit SHAs).
-let fakeGit: FakeGit;
-vi.mock('@releasekit/git', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@releasekit/git')>();
-  return { ...actual, createGitCli: () => fakeGit };
-});
 
 describe('findPreviewComment', () => {
   it('should return comment ID when marker is found', async () => {

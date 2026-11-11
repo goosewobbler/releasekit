@@ -34,6 +34,7 @@ vi.mock('../../src/github.js', () => ({
 
 vi.mock('../../src/git.js', () => ({
   getHeadCommitMessage: vi.fn().mockReturnValue('feat: some feature\n'),
+  tagAfter: vi.fn().mockResolvedValue(null),
   getGitHubContext: () => {
     const repo = process.env.GITHUB_REPOSITORY;
     const sha = process.env.GITHUB_SHA;
@@ -456,7 +457,7 @@ describe('Gate', () => {
         expect(result.reason).toContain('is the standing release PR');
       });
 
-      it('should still release a feeder PR carrying the immediate label in the same window', async () => {
+      it('should still release a feeder PR carrying the immediate label on the same commit', async () => {
         mockLoadReleaseKitConfig.mockReturnValue(standingPrConfig());
         mockFindMergedPRsForCommit.mockResolvedValue([43, 42]);
         seedPRs({
@@ -553,7 +554,7 @@ describe('Gate', () => {
       },
     };
 
-    it('should not produce preminor when an older prerelease-only PR is in the window', async () => {
+    it('should not produce preminor from a prerelease-only PR on the same commit', async () => {
       mockLoadReleaseKitConfig.mockReturnValue(fullConfig);
       // #224 (winner) before #225 (insufficient).
       mockFindMergedPRsForCommit.mockResolvedValue([224, 225]);
