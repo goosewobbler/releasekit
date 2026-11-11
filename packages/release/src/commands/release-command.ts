@@ -4,6 +4,7 @@ import { publishFromDraft, runReleaseDraft } from '../draft/draft.js';
 import { runRelease } from '../release.js';
 import type { ReleaseOptions } from '../types.js';
 import { emitError, emitResult, failInput } from './emitResult.js';
+import { enterProjectDir } from './project-dir.js';
 
 export function createReleaseCommand(): Command {
   return new Command('release')
@@ -46,7 +47,8 @@ export function createReleaseCommand(): Command {
     .option('--output <path>', 'Write the JSON result to a file instead of stdout')
     .option('-v, --verbose', 'Verbose logging', false)
     .option('-q, --quiet', 'Suppress non-error output', false)
-    .option('--project-dir <path>', 'Project directory', process.cwd())
+    .option('--project-dir <path>', 'Project directory to run commands in', process.cwd())
+    .hook('preAction', enterProjectDir)
     .action(async (opts) => {
       const io = { json: opts.json, output: opts.output };
 

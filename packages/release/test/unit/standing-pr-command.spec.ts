@@ -1,3 +1,5 @@
+import { realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { PipelineError, type PublishOutput } from '@releasekit/publish';
 import { describe, expect, it, vi } from 'vitest';
 import { createStandingPRCommand } from '../../src/commands/standing-pr-command.js';
@@ -7,6 +9,8 @@ vi.mock('../../src/standing-pr/standing-pr.js', () => ({
   runStandingPRPublish: vi.fn().mockResolvedValue(null),
   runStandingPRMerge: vi.fn().mockResolvedValue(null),
 }));
+
+const projectDir = realpathSync(tmpdir());
 
 async function parseCommand(argv: string[]) {
   const program = createStandingPRCommand();
@@ -34,7 +38,7 @@ describe('createStandingPRCommand', () => {
     vi.mocked(runStandingPRMerge).mockResolvedValueOnce(null);
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
-      await parseCommand(['merge', '--project-dir', '/test', '--json']);
+      await parseCommand(['merge', '--project-dir', projectDir, '--json']);
       const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
       expect(envelope).toMatchObject({ status: 'success', changed: false, data: null });
     } finally {
@@ -44,26 +48,26 @@ describe('createStandingPRCommand', () => {
 
   it('should call runStandingPRMerge for merge subcommand', async () => {
     const { runStandingPRMerge } = await import('../../src/standing-pr/standing-pr.js');
-    await parseCommand(['merge', '--project-dir', '/test']);
-    expect(runStandingPRMerge).toHaveBeenLastCalledWith(expect.objectContaining({ projectDir: '/test' }));
+    await parseCommand(['merge', '--project-dir', projectDir]);
+    expect(runStandingPRMerge).toHaveBeenLastCalledWith(expect.objectContaining({ projectDir }));
   });
 
   it('should call runStandingPRUpdate for update subcommand', async () => {
     const { runStandingPRUpdate } = await import('../../src/standing-pr/standing-pr.js');
-    await parseCommand(['update', '--project-dir', '/test']);
-    expect(runStandingPRUpdate).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }));
+    await parseCommand(['update', '--project-dir', projectDir]);
+    expect(runStandingPRUpdate).toHaveBeenCalledWith(expect.objectContaining({ projectDir }));
   });
 
   it('should call runStandingPRPublish for publish subcommand', async () => {
     const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
-    await parseCommand(['publish', '--project-dir', '/test']);
-    expect(runStandingPRPublish).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }), undefined);
+    await parseCommand(['publish', '--project-dir', projectDir]);
+    expect(runStandingPRPublish).toHaveBeenCalledWith(expect.objectContaining({ projectDir }), undefined);
   });
 
   it('should pass --pr through to runStandingPRPublish as a number', async () => {
     const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
-    await parseCommand(['publish', '--project-dir', '/test', '--pr', '189']);
-    expect(runStandingPRPublish).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }), 189);
+    await parseCommand(['publish', '--project-dir', projectDir, '--pr', '189']);
+    expect(runStandingPRPublish).toHaveBeenCalledWith(expect.objectContaining({ projectDir }), 189);
   });
 
   it('should reject --pr values with trailing non-digit characters', async () => {
@@ -75,7 +79,7 @@ describe('createStandingPRCommand', () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       // 3 = INPUT_ERROR, not the general error code.
-      await expect(parseCommand(['publish', '--project-dir', '/test', '--pr', '123abc'])).rejects.toThrow(
+      await expect(parseCommand(['publish', '--project-dir', projectDir, '--pr', '123abc'])).rejects.toThrow(
         /process\.exit\(3\)/,
       );
       expect(runStandingPRPublish).not.toHaveBeenCalled();
@@ -95,7 +99,7 @@ describe('createStandingPRCommand', () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      await expect(parseCommand(['publish', '--project-dir', '/test', '--json', '--pr', 'abc'])).rejects.toThrow(
+      await expect(parseCommand(['publish', '--project-dir', projectDir, '--json', '--pr', 'abc'])).rejects.toThrow(
         /process\.exit\(3\)/,
       );
       const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
@@ -128,7 +132,7 @@ describe('createStandingPRCommand', () => {
       } as never);
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       try {
-        await parseCommand(['publish', '--project-dir', '/test', '--json', '--pr', '189']);
+        await parseCommand(['publish', '--project-dir', projectDir, '--json', '--pr', '189']);
         return JSON.parse(logSpy.mock.calls[0]?.[0] as string);
       } finally {
         logSpy.mockRestore();
@@ -187,7 +191,7 @@ describe('createStandingPRCommand', () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      await parseCommand(['publish', '--project-dir', '/test', '--json', '--pr', '189']);
+      await parseCommand(['publish', '--project-dir', projectDir, '--json', '--pr', '189']);
       const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
       expect(envelope.status).toBe('error');
       expect(envelope.changed).toBe(true);
