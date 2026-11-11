@@ -91,8 +91,8 @@ jobs:
       - name: Run multi-registry test harness (npm disabled, cargo only)
         run: pnpm test:harness:multi-npm-disabled
 
-      # The test harness doesn't run action.yml; these steps do, with a relative project-dir and config.
-      # Not on a push: the merged releasekit PR's labels would decide the fixture's release.
+      # Run action.yml itself on a fixture with a relative project-dir and config, since the test harness doesn't.
+      # Skipped on push, where the release would pick up the labels of the releasekit PR that just merged.
       - name: Create a fixture project for the action
         if: github.event_name != 'push'
         run: |
