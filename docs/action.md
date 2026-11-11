@@ -139,7 +139,7 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 | `preview-markdown` | Preview markdown (preview mode + dry-run) |
 | `preview-posted` | `true` when preview mode posted comment |
 | `should-release` | Whether a release should proceed (gate mode) |
-| `bump` | Resolved bump type (gate mode) |
+| `bump` | Resolved bump type (gate mode). A release job doesn't need it: `release` reads the labels itself, and passing it replaces the PR's `channel:prerelease` |
 | `gate-scope` | Resolved scope name (gate mode) |
 | `gate-target` | Resolved target packages (gate mode) |
 | `gate-stable` | Whether the release is a stable graduation (gate mode) |

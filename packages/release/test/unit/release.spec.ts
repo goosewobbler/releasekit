@@ -712,9 +712,9 @@ describe('runRelease', () => {
       return MockVersionEngine.mock.calls[0]?.[1];
     }
 
-    async function gate() {
+    async function gate(scope?: string) {
       const { runGate } = await import('../../src/gate/gate.js');
-      return runGate({ projectDir: '/test/project', notify: false });
+      return runGate({ projectDir: '/test/project', notify: false, scope });
     }
 
     beforeEach(() => {
@@ -748,15 +748,6 @@ describe('runRelease', () => {
 
       expect(result).not.toBeNull();
       expect(lookup).not.toHaveBeenCalled();
-    });
-
-    it('should release from commits when no PR merged since the last release', async () => {
-      merge();
-
-      const result = await runRelease(noTarget);
-
-      expect(result).not.toBeNull();
-      expect(versionRunOptions().bump).toBeUndefined();
     });
 
     it.each([false, true])(
@@ -867,6 +858,7 @@ describe('runRelease', () => {
       it.each([
         { labels: ['bump:patch'], bump: undefined },
         { labels: ['bump:major'], bump: 'major' },
+        { labels: ['bump:major', 'channel:prerelease'], bump: 'premajor' },
       ])('should let only bump:major set the bump ($labels)', async ({ labels, bump }) => {
         merge({ number: 123, labels });
 
@@ -982,14 +974,33 @@ describe('runRelease', () => {
       expect(result).not.toBeNull();
     });
 
-    it('should not release a direct push in label mode', async () => {
-      merge({ number: 10, labels: [] });
+    it("should not release a direct push in label mode, or take an earlier PR's labels", async () => {
+      merge({ number: 10, labels: ['bump:minor'] });
       vi.stubEnv('GITHUB_SHA', 'sha-direct-push');
 
       const result = await runRelease(noTarget);
 
       expect(result).toBeNull();
       expect(mockVersionEngineRun).not.toHaveBeenCalled();
+    });
+
+    it("should run a commit-mode direct push through gate's skip patterns and --scope", async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit', scopeLabels: { 'scope:core': '@test/core' } });
+      merge();
+
+      expect(await gate('core')).toMatchObject({ shouldRelease: true, target: '@test/core' });
+
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: ['feat:'] } } });
+      expect(await gate()).toMatchObject({ shouldRelease: false });
+    });
+
+    it("should decide by the pushed commit's PR, not an older one still awaiting a tag", async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
+      merge({ number: 11, labels: ['release:skip'] }, { number: 10, labels: [] });
+
+      const result = await runRelease(noTarget);
+
+      expect(result).toBeNull();
     });
 
     describe('standing-pr: a merged PR carrying the immediate label', () => {

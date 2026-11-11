@@ -200,13 +200,15 @@ export function evaluatePR(
     };
   }
 
+  const forcesMajor = labels.includes(labelConfig.major) && !labels.includes(labelConfig.graduate);
   return {
     prNumber,
     labels,
     shouldRelease: true,
-    // Commits set the bump in commit mode, as the preview shows: only bump:major overrides it.
-    bump: labels.includes(labelConfig.major) && !labels.includes(labelConfig.graduate) ? 'major' : undefined,
-    prerelease: labels.includes(labelConfig.prerelease) || undefined,
+    // Commits set the bump in commit mode, as the preview shows: only bump:major overrides it. premajor, so major &
+    // prerelease starts a fresh line rather than incrementing the current one.
+    bump: forcesMajor ? (labels.includes(labelConfig.prerelease) ? 'premajor' : 'major') : undefined,
+    prerelease: (!forcesMajor && labels.includes(labelConfig.prerelease)) || undefined,
     scope,
     target,
     stable: labels.includes(labelConfig.graduate),

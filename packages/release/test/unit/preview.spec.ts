@@ -469,7 +469,7 @@ describe('runPreview', () => {
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major', prerelease: true }));
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'premajor', prerelease: true }));
       });
     });
 

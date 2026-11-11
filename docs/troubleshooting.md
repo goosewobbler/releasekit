@@ -348,7 +348,7 @@ See [ci-setup.md — CI concurrency caveat](../packages/release/docs/ci-setup.md
 
 ### Release fails: `Could not look up the PR`
 
-**Symptom:** `releasekit release` fails with `Could not look up the PR for <sha>` or `Could not look up the PRs merged since the last release`, naming `pull-requests: read`.
+**Symptom:** `releasekit release` fails with `Could not look up the PR for <sha>`, naming `pull-requests: read`.
 
 **Cause:** The workflow token can't list the PRs for a commit. An explicit `permissions:` block without `pull-requests` denies it.
 

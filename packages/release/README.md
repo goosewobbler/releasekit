@@ -61,7 +61,7 @@ The release command runs three steps in order:
 
 If no releasable changes are found after step 1, the command exits with code 0 and skips the remaining steps.
 
-In GitHub Actions it first applies `gate`'s decision to the labels of the PRs merged since the last release, so it also exits 0 when they don't call for a release, and takes the bump, graduation and scope from them otherwise. See [Merged-PR labels](../../docs/cli.md#merged-pr-labels).
+In GitHub Actions it first applies `gate`'s decision to the labels of the merged PR the pushed commit came from, so it also exits 0 when they don't call for a release, and takes the bump, channel and scope from them otherwise. See [Merged-PR labels](../../docs/cli.md#merged-pr-labels).
 
 ## CLI Reference
 
@@ -266,7 +266,7 @@ Conflicting labels on a PR block the release, and `gate` comments on the PR to e
 **How it works:**
 
 - **Preview mode**: Reads labels directly from the PR
-- **Release and gate modes**: Read the labels of the PRs merged since the last release; the newest PR whose labels call for a release decides. See [Merged-PR labels](../../docs/cli.md#merged-pr-labels).
+- **Release and gate modes**: Read the labels of the merged PR the pushed commit came from. See [Merged-PR labels](../../docs/cli.md#merged-pr-labels).
 
 #### Standing PR Configuration
 

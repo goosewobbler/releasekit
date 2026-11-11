@@ -3,14 +3,7 @@ import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import { info, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
-import {
-  fetchPRLabels,
-  findMergedPRsForCommit,
-  findMergedPRsSinceLastRelease,
-  forgeFor,
-  PRLookupError,
-  postOrUpdateComment,
-} from '../github.js';
+import { fetchPRLabels, findMergedPRsForCommit, forgeFor, PRLookupError, postOrUpdateComment } from '../github.js';
 import { DEFAULT_LABELS, type LabelConfig, resolveScopeToTarget } from '../label-utils.js';
 import { evaluatePR, type PREvaluation } from './evaluate-pr.js';
 
@@ -102,8 +95,8 @@ export interface MergedPRDecisionInput {
   forge: Forge;
   releaseKitConfig: ReleaseKitConfig;
   projectDir: string;
-  /** The commit the run was triggered for, so a direct push in commit mode isn't judged by earlier PRs. */
-  pushedSha?: string;
+  /** The commit the run was triggered for: its merged PR decides. */
+  pushedSha: string;
   scope?: string;
 }
 
@@ -115,44 +108,28 @@ export async function decideFromMergedPRs(input: MergedPRDecisionInput): Promise
   const { forge, releaseKitConfig, projectDir, pushedSha, scope } = input;
   const ciConfig = releaseKitConfig.ci;
 
-  // Commit mode releases every push, so a release:skip PR still in the window mustn't hold a later direct push back.
-  // Elsewhere a direct push has no labels and doesn't release.
-  const commitMode =
-    (ciConfig?.releaseTrigger ?? 'label') === 'commit' && (ciConfig?.releaseStrategy ?? 'direct') === 'direct';
-  if (commitMode && pushedSha) {
-    let pushedPRs: number[];
-    try {
-      pushedPRs = await findMergedPRsForCommit(forge, pushedSha);
-    } catch (err) {
-      throw new PRLookupError(
-        `Could not look up the PR for ${pushedSha}: ${err instanceof Error ? err.message : String(err)}. ` +
-          'Grant the workflow token `pull-requests: read`.',
-      );
-    }
-    if (pushedPRs.length === 0) {
-      info('The pushed commit is not from a merged PR, so it releases from commits');
-      return {
-        shouldRelease: true,
-        labels: [],
-        prNumbers: [],
-        evaluations: [],
-        reason: 'The pushed commit is not from a merged PR',
-      };
-    }
+  let prNumbers: number[];
+  try {
+    prNumbers = await findMergedPRsForCommit(forge, pushedSha);
+  } catch (err) {
+    throw new PRLookupError(
+      `Could not look up the PR for ${pushedSha}: ${err instanceof Error ? err.message : String(err)}. ` +
+        'Grant the workflow token `pull-requests: read`.',
+    );
   }
-
-  // Since the last release tag, not just the triggering SHA: a later push (e.g. dependabot) can cancel the original
-  // run and fire the gate with a different head_sha.
-  const prNumbers = await findMergedPRsSinceLastRelease(forge, projectDir);
-
-  if (prNumbers.length === 0) {
-    info('No merged PRs found since last release');
+  // Commit mode releases every push, so a direct push releases from commits; elsewhere it has no labels to release by.
+  const directPushReleases =
+    prNumbers.length === 0 &&
+    (ciConfig?.releaseTrigger ?? 'label') === 'commit' &&
+    (ciConfig?.releaseStrategy ?? 'direct') === 'direct';
+  if (prNumbers.length === 0 && !directPushReleases) {
+    info('The pushed commit is not from a merged PR');
     return {
       shouldRelease: false,
       labels: [],
       prNumbers: [],
       evaluations: [],
-      reason: 'No merged PRs found since last release',
+      reason: 'The pushed commit is not from a merged PR',
     };
   }
 
@@ -171,7 +148,15 @@ export async function decideFromMergedPRs(input: MergedPRDecisionInput): Promise
     }),
   );
 
-  return computeGateResult({ evaluations, prNumbers, projectDir, scope, ciConfig, releaseKitConfig });
+  return computeGateResult({
+    evaluations,
+    prNumbers,
+    projectDir,
+    scope,
+    ciConfig,
+    releaseKitConfig,
+    directPushReleases,
+  });
 }
 
 interface ComputeGateInput {
@@ -181,10 +166,12 @@ interface ComputeGateInput {
   scope?: string;
   ciConfig: CIConfig | undefined;
   releaseKitConfig: ReleaseKitConfig;
+  /** A commit-mode direct push: no PR to evaluate, but it releases. */
+  directPushReleases: boolean;
 }
 
 async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
-  const { evaluations, prNumbers, projectDir, scope, ciConfig, releaseKitConfig } = input;
+  const { evaluations, prNumbers, projectDir, scope, ciConfig, releaseKitConfig, directPushReleases } = input;
 
   const blocked = evaluations.find((e) => e.blocked);
   if (blocked) {
@@ -199,8 +186,6 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
     };
   }
 
-  // prNumbers is in git-log order (newest first), so the first releasable evaluation
-  // is the most recently merged valid PR.
   const winner = evaluations.find((e) => e.shouldRelease);
 
   let resolvedScope = winner?.scope;
@@ -216,10 +201,9 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
     info(`Scope from PR #${winner.prNumber} label "scope:${winner.scope}" resolved to target: ${winner.target}`);
   }
 
-  if (!winner) {
-    // The newest PR's reason: the merge the user most likely just landed.
-    const primaryReason = evaluations[0]?.reason ?? 'No PR in window has sufficient labels to trigger a release';
-    info(`No PR in window (${prNumbers.join(', ')}) has sufficient labels to trigger a release`);
+  if (!winner && !directPushReleases) {
+    const primaryReason = evaluations[0]?.reason ?? 'The merged PR has no labels that call for a release';
+    info(`The merged PR (${prNumbers.join(', ')}) has no labels that call for a release`);
     return {
       shouldRelease: false,
       stable: false,
@@ -239,17 +223,30 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
       if (matchedPattern) {
         return {
           shouldRelease: false,
-          bump: winner.bump,
+          bump: winner?.bump,
           scope: resolvedScope,
           target: resolvedTarget,
-          stable: winner.stable,
-          labels: winner.labels,
+          stable: winner?.stable,
+          labels: winner?.labels ?? [],
           prNumbers,
           evaluations,
           reason: `Commit matches skip pattern: "${matchedPattern}"`,
         };
       }
     }
+  }
+
+  if (!winner) {
+    info('The pushed commit is not from a merged PR, so it releases from commits');
+    return {
+      shouldRelease: true,
+      scope: resolvedScope,
+      target: resolvedTarget,
+      labels: [],
+      prNumbers,
+      evaluations,
+      reason: 'The pushed commit is not from a merged PR',
+    };
   }
 
   info(`Found labels on winning PR #${winner.prNumber}: ${winner.labels.join(', ')}`);

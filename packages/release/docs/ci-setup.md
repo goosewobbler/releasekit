@@ -7,7 +7,7 @@ This guide covers common GitHub Actions patterns for automating releases with `@
 All workflows require:
 
 - `fetch-depth: 0` on checkout — ReleaseKit reads git history to determine version bumps
-- A `GITHUB_TOKEN` with `contents: write` permission for tagging and GitHub Releases, and `pull-requests: read` so `releasekit release` can read the labels of the PRs merged since the last release (see [Merged-PR labels](../../../docs/cli.md#merged-pr-labels))
+- A `GITHUB_TOKEN` with `contents: write` permission for tagging and GitHub Releases, and `pull-requests: read` so `releasekit release` can read the labels of the merged PR it's releasing (see [Merged-PR labels](../../../docs/cli.md#merged-pr-labels))
 - Node.js 22.12+
 
 ---

@@ -459,10 +459,11 @@ async function applyLabelOverrides(
     labelContext.skip = true;
   }
 
-  if (!labelContext.skip && prLabels.includes(labels.major)) {
+  // Matches the gate: graduation ignores bump:major, and premajor starts a fresh line rather than incrementing.
+  if (!labelContext.skip && prLabels.includes(labels.major) && !conflict.hasGraduate) {
     info(`PR label "${labels.major}" detected — forcing major release`);
     labelContext.bumpLabel = 'major';
-    result.bump = 'major';
+    result.bump = conflict.hasPrerelease ? 'premajor' : 'major';
   }
 
   if (!options.stable && options.prerelease === undefined) {

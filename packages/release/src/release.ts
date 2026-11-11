@@ -83,8 +83,7 @@ async function decideFromPRs(releaseKitConfig: ReleaseKitConfig, projectDir: str
   const forge = forgeFor({ token: githubContext.token, owner: githubContext.owner, repo: githubContext.repo });
   // A failed lookup throws rather than releasing from commits: labels can block or change a release, and a re-run is
   // cheaper than a wrong version.
-  const verdict = await decideFromMergedPRs({ forge, releaseKitConfig, projectDir, pushedSha: githubContext.sha });
-  return verdict.prNumbers.length > 0 ? verdict : null;
+  return decideFromMergedPRs({ forge, releaseKitConfig, projectDir, pushedSha: githubContext.sha });
 }
 
 /** CLI flags win: `--bump`, `--stable` or `--prerelease` replace the PR's bump and channel, `--target` its scope. */
