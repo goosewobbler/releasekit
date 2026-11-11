@@ -749,6 +749,20 @@ describe('runRelease', () => {
       expect(MockVersionEngine).not.toHaveBeenCalled();
     });
 
+    it("should release a package after another package's tag without sync versioning", async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ version: { sync: false } });
+      merge({ number: 123, labels: ['bump:minor', 'scope:b'] });
+      fakeGit = new FakeGit({
+        nearestTag: '@test/a@v2.0.0',
+        ancestors: { '@test/a@v2.0.0': ['sha-123'] },
+        commits: { '*': 'feat: some feature\n' },
+      });
+
+      const result = await runRelease(noTarget);
+
+      expect(result).not.toBeNull();
+    });
+
     it('should retry a release tagged on the pushed commit', async () => {
       merge({ number: 123, labels: ['bump:major'] });
       fakeGit = new FakeGit({

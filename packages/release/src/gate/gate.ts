@@ -109,7 +109,8 @@ export async function decideFromMergedPRs(input: MergedPRDecisionInput): Promise
   const ciConfig = releaseKitConfig.ci;
 
   // A re-run keeps its GITHUB_SHA, but `skip-checkout` syncs past that commit's release, so its labels would bump again.
-  const releasedIn = await tagAfter(pushedSha, projectDir);
+  // Only a sync tag covers every package; a per-package tag says nothing about the others.
+  const releasedIn = (releaseKitConfig.version?.sync ?? true) ? await tagAfter(pushedSha, projectDir) : null;
   if (releasedIn) {
     const reason = `The pushed commit was already released in ${releasedIn}`;
     info(reason);
