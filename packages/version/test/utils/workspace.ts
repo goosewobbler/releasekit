@@ -7,9 +7,9 @@ import { createPackageJson } from './package.js';
 import { symlinkNodeModules } from './tempFixture.js';
 
 export interface WorkspaceRepoOptions {
-  /** Package name by directory under `packages/`. */
+  /** Maps each directory under `packages/` to its package name. */
   packages: Record<string, string>;
-  /** Of the root and every package. */
+  /** The version of the root and every package. */
   version?: string;
   /** The config's `version` section. Omit it to write the config later with `writeVersionConfig`. */
   config?: Record<string, unknown>;

@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 
 /**
- * This run's GitHub Actions event payload, or undefined outside Actions. An unreadable or malformed file reads as no
- * event unless `strict` is set, when it throws.
+ * This run's GitHub Actions event payload, or undefined outside Actions. An unreadable or malformed file counts as no
+ * event, or throws with `strict`.
  */
 export function readGitHubEvent<T>(options: { strict?: boolean } = {}): T | undefined {
   const eventPath = process.env.GITHUB_EVENT_PATH;

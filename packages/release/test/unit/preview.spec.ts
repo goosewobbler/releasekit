@@ -245,7 +245,7 @@ describe('runPreview', () => {
   describe('standing release PR skip', () => {
     afterEach(() => {
       delete process.env.GITHUB_EVENT_PATH;
-      // clearAllMocks() (in beforeEach) keeps return values, so withHeadRef's payload would leak into later tests.
+      // clearAllMocks() in beforeEach keeps mock implementations, so withHeadRef's payload would leak into later tests.
       mockFsReadFileSync.mockReset();
     });
 

@@ -205,6 +205,7 @@ describe('bump scope', () => {
     commitTo('packages/app', 'fix', 'correct a typo');
 
     expect(newVersions()).toEqual({ app: '1.0.1' });
-    expect(newVersions('.', '--target app --include-prerequisites')).toEqual({ app: '1.0.1' });
+    const targeted = runVersionJson(tempDir, '--target app --include-prerequisites');
+    expect(targeted.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['app', '1.0.1']]);
   });
 });
