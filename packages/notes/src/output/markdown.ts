@@ -4,6 +4,7 @@ import {
   BREAKING_SECTION,
   type ChangelogRefsMode,
   escapeChangelogMentions,
+  escapeCommentOpeners,
   groupChangelogSections,
   info,
   neutralizeDescriptionRefs,
@@ -40,18 +41,18 @@ interface EntryRefOptions {
   repoUrl?: string | null;
 }
 
+// Unescaped, a `@scope/pkg` or `@user` pings a real org or team, and a `<!--` hides the rest of the notes. Code spans
+// stay as written, since a notes region neutralizes any marker in one.
+function escapeCommitText(text: string): string {
+  return escapeCommentOpeners(escapeChangelogMentions(text), { keepCodeSpans: true });
+}
+
 function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
-  // GitHub treats a bare `@scope/pkg` / `@user` in prose as a mention that can ping a real org/team on a
-  // release PR - always neutralise it, regardless of the refs mode. The scope and lead-in are interpolated
-  // as bold prose too, so escape all three. Bare `#N` refs carried over from the commit subject are also
-  // de-duped against the appended label.
+  // Bare `#N` refs from the commit subject are de-duped against the appended label.
   const refsMode = opts?.refs ?? 'link';
   const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
-  const description = escapeChangelogMentions(
-    neutralizeDescriptionRefs(entry.description, appendedRefs, refsMode, opts?.repoUrl ?? null),
-  );
-  const scope = entry.scope ? escapeChangelogMentions(entry.scope) : undefined;
-  const leadIn = entry.leadIn ? escapeChangelogMentions(entry.leadIn) : undefined;
+  const description = neutralizeDescriptionRefs(entry.description, appendedRefs, refsMode, opts?.repoUrl ?? null);
+  const { scope, leadIn } = entry;
   let line: string;
 
   if (leadIn && entry.breaking) {
@@ -74,7 +75,8 @@ function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
     line += ` ${refs}`;
   }
 
-  return line;
+  // Over the whole line, since a backtick in the scope or lead-in can pair with one in the description.
+  return escapeCommitText(line);
 }
 
 function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts: EntryRefOptions): string[] {
@@ -111,7 +113,7 @@ function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts:
   }
   for (const [scope, group] of byScope) {
     blocks.push(
-      `**${escapeChangelogMentions(scope)}**:`,
+      `**${escapeCommitText(scope)}**:`,
       group.map((entry) => formatEntry(entry, { ...refOpts, hideScope: true })).join('\n'),
     );
   }

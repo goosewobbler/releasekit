@@ -696,6 +696,72 @@ describe('formatVersion: mention escaping', () => {
   });
 });
 
+describe('formatVersion: comment openers', () => {
+  it('should escape a comment opener in a description so the entries after it still render', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({
+      entries: [
+        { type: 'fixed', description: 'handle <!-- in templates' },
+        { type: 'fixed', description: 'a later fix' },
+      ],
+    });
+
+    const result = formatVersion(ctx);
+
+    expect(result).toContain('- handle &lt;!-- in templates');
+    expect(result).not.toContain('<!--');
+    expect(result).toContain('- a later fix');
+  });
+
+  it('should leave a comment opener in a code span as written', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({ entries: [{ type: 'fixed', description: 'escape `<!--` in output' }] });
+
+    expect(formatVersion(ctx)).toContain('- escape `<!--` in output');
+  });
+
+  it('should escape a comment opener between escaped backticks, which are not a code span', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({ entries: [{ type: 'fixed', description: 'handle \\`<!-- template -->\\` markers' }] });
+
+    expect(formatVersion(ctx)).toContain('- handle \\`&lt;!-- template -->\\` markers');
+  });
+
+  it('should leave a code span after an escaped backslash as written', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({ entries: [{ type: 'fixed', description: 'show \\\\`<!--` here' }] });
+
+    expect(formatVersion(ctx)).toContain('- show \\\\`<!--` here');
+  });
+
+  it('should escape comment openers in the scope, the grouped scope header and the lead-in', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          {
+            name: 'Fixed',
+            entries: [
+              { type: 'fixed', description: 'one', scope: 'a<!--' },
+              { type: 'fixed', description: 'two', scope: 'b<!--' },
+              { type: 'fixed', description: 'three', scope: 'b<!--' },
+              { type: 'fixed', description: 'four', leadIn: 'c<!--' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+
+    expect(result).toContain('- **a&lt;!--**: one');
+    expect(result).toMatch(/^\*\*b&lt;!--\*\*:$/m);
+    expect(result).toContain('- two');
+    expect(result).toContain('- **c&lt;!--**: four');
+    expect(result).not.toContain('<!--');
+  });
+});
+
 describe('formatVersion: first-release intro', () => {
   const firstReleaseCtx = (overrides = {}) =>
     makeContext({ previousVersion: null, isFirstRelease: true, ...overrides });
