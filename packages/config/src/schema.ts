@@ -179,7 +179,10 @@ const VersionConfigBaseSchema = z.strictObject({
     .describe(
       'Acknowledge applying a bump on a first release with an already-stable manifest. On a first release (no prior tag), `--stable --bump <type>` applies the bump (e.g. 1.0.0 → 2.0.0) rather than graduating, which can silently overshoot the staged first version. By default this is flagged per `mismatchStrategy` (warn, or abort under "error"); set true (or pass --allow-first-bump) to apply the bump silently — legitimate when importing a package with prior external version history.',
     ),
-  strictReachable: z.boolean().default(false).describe('Only use reachable tags'),
+  strictReachable: z
+    .boolean()
+    .default(false)
+    .describe("Fail the run when the previous release tag isn't reachable from HEAD, instead of falling back."),
   zeroMajor: z
     .enum(['spec', 'strict'])
     .default('spec')
