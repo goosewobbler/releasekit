@@ -45,7 +45,7 @@ Edits can still be lost or bypassed:
 
 ### The manifest
 
-The manifest comment carries the machine state for the merge: the computed versions, the base SHA the plan was built against, the labels in force, and the selection and channel choices. At publish it's checked against the merged source, so it can't publish anything that isn't in the merged code (see **Manifest integrity** under [Label semantics in standing-pr mode](../packages/release/docs/ci-setup.md#label-semantics-in-standing-pr-mode)). It isn't tamper-proof, though, so treat edits to it as unsupported.
+The manifest comment carries the machine state for the merge: the computed versions, the base SHA the plan was built against, the release-branch commit it describes, the labels in force, and the selection and channel choices. At publish it's checked against the merged source, so it can't publish anything that isn't in the merged code (see **Manifest integrity** under [Label semantics in standing-pr mode](../packages/release/docs/ci-setup.md#label-semantics-in-standing-pr-mode)). It isn't tamper-proof, though, so treat edits to it as unsupported.
 
 Don't edit it. To regenerate it, re-run the Standing Release PR workflow, or wait for the next push or scheduled run. Don't run `standing-pr update` from a local checkout to do it: the command discards uncommitted changes, commits any untracked files along with the version bumps, and force-pushes the release branch with your credentials — and outside the workflow it can leave the branch and the manifest out of step.
 

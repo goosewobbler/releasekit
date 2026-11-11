@@ -95,6 +95,7 @@ const ManifestSchema = z
     notesFiles: z.array(z.string()),
     createdAt: z.string(),
     baseSha: z.string(),
+    headSha: z.string().optional(),
     firstUpdatedAt: z.string().optional(),
     overrideLabels: z.array(z.string()).optional(),
     deselected: z.array(z.string()).optional(),
@@ -135,7 +136,7 @@ export interface StandingPRMergeOutput {
   prNumber: number;
 }
 
-export type StandingPRMergeResult = ReleaseOutput | StandingPRMergeOutput | null;
+export type StandingPRMergeResult = StandingPRMergeOutput | null;
 
 /** Old manifests live in open PRs: fields added after v1 must stay optional and be tolerated when absent. */
 export interface StandingPRManifest {
@@ -145,6 +146,8 @@ export interface StandingPRManifest {
   notesFiles: string[];
   createdAt: string;
   baseSha: string;
+  /** The release-branch commit this manifest describes, so a merge can be pinned to it. */
+  headSha?: string;
   /** When the standing PR was first created, preserved across updates. */
   firstUpdatedAt?: string;
   /**
@@ -363,14 +366,14 @@ export async function createReleaseTags(tags: string[], cwd: string): Promise<vo
   }
 }
 
-async function deleteReleaseBranch(releaseBranch: string, cwd: string, expectedTipSha?: string): Promise<void> {
+async function deleteReleaseBranch(releaseBranch: string, cwd: string, expectedTipSha: string): Promise<void> {
   try {
     // The `:<branch>` delete refspec, since the git seam's leading-`-` option guard rejects `--delete`. The lease
     // makes the remote refuse the delete if an update has force-pushed the branch since the merge.
     await createGitCli().push({
       remote: 'origin',
       ref: `:${releaseBranch}`,
-      forceWithLease: expectedTipSha ? { ref: releaseBranch, expect: expectedTipSha } : undefined,
+      forceWithLease: { ref: releaseBranch, expect: expectedTipSha },
       cwd,
     });
     info(`Deleted release branch '${releaseBranch}'`);
@@ -1599,6 +1602,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     notesFiles: notesResult.files,
     createdAt: new Date().toISOString(),
     baseSha,
+    headSha: releaseBranchSha,
     firstUpdatedAt,
     overrideLabels: extractOverrideLabels(effectiveLabels, ciConfig),
     deselected: effectiveDeselected.size > 0 ? [...effectiveDeselected].sort() : undefined,
@@ -1726,6 +1730,64 @@ async function assertManifestMatchesSource(
   }
 }
 
+/** `livePr` is undefined when the PR couldn't be read. */
+async function readVerifiedManifest(
+  forge: Forge,
+  prNumber: number,
+  livePr: PullRequestDetails | undefined,
+  ciConfig: CIConfig | undefined,
+  action: 'merge' | 'publish',
+): Promise<StandingPRManifest> {
+  const manifestComment = await findManifestComment(forge, prNumber);
+  if (!manifestComment) {
+    throw new Error(`Release manifest not found on PR #${prNumber}. Re-run 'standing-pr update' to regenerate.`);
+  }
+
+  // `findComment` prefers a bot-authored match but falls back to a human comment carrying the marker; refuse that.
+  if (!isBotComment(manifestComment)) {
+    throw new Error(
+      `Refusing to ${action} PR #${prNumber}: the release manifest comment was authored by ` +
+        `'${manifestComment.user?.login ?? 'an unknown user'}', not the release bot. A manifest that did not come ` +
+        `from 'standing-pr update' cannot be trusted. Re-run 'standing-pr update' to regenerate it.`,
+    );
+  }
+
+  let manifest: StandingPRManifest;
+  try {
+    manifest = parseManifest(manifestComment.body);
+  } catch (err) {
+    throw new Error(
+      `Release manifest on PR #${prNumber} is invalid or incompatible. Re-run 'standing-pr update'. Details: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  // Fails closed when the PR is unreadable, except for an empty override set: the only possible change is an added
+  // label, not worth failing the common no-override publish on an API blip.
+  if (!livePr && manifest.overrideLabels !== undefined && manifest.overrideLabels.length > 0) {
+    throw new Error(
+      `Cannot verify standing PR #${prNumber} override labels against the manifest — the PR could not be read ` +
+        `from GitHub. Refusing to publish a manifest that carried override labels without confirming they still ` +
+        `match. Re-run once the GitHub API is reachable (or apply the retry label).`,
+    );
+  }
+  if (livePr && manifest.overrideLabels !== undefined) {
+    const prLabels = extractOverrideLabels((livePr.labels ?? []).filter(Boolean), ciConfig);
+    const manifestLabels = [...manifest.overrideLabels].sort();
+    if (prLabels.join('\n') !== manifestLabels.join('\n')) {
+      throw new Error(
+        `Standing PR #${prNumber} override labels changed after the last update — the release manifest is stale.\n` +
+          `  manifest was computed for: [${manifestLabels.join(', ') || '(none)'}]\n` +
+          `  PR now has:                [${prLabels.join(', ') || '(none)'}]\n` +
+          `Re-run 'releasekit standing-pr update' so the manifest matches, then ` +
+          `${action === 'merge' ? 'merge again' : 'merge (or apply the retry label after updating)'}. ` +
+          `Refusing to ${action} a release the labels no longer describe.`,
+      );
+    }
+  }
+
+  return manifest;
+}
+
 /**
  * Every failure throws: once a PR is named there is no "nothing to do" outcome, so a returned result means the
  * publish ran.
@@ -1740,28 +1802,14 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   const releaseBranch = standingPrConfig?.branch ?? 'release/next';
   const deleteBranchOnMerge = standingPrConfig?.deleteBranchOnMerge !== false;
 
-  const manifestComment = await findManifestComment(forge, prNumber);
-  if (!manifestComment) {
-    throw new Error(`Release manifest not found on PR #${prNumber}. Re-run 'standing-pr update' to regenerate.`);
-  }
-
-  // `findComment` prefers a bot-authored match but falls back to a human comment carrying the marker; refuse that.
-  if (!isBotComment(manifestComment)) {
-    throw new Error(
-      `Refusing to publish PR #${prNumber}: the release manifest comment was authored by ` +
-        `'${manifestComment.user?.login ?? 'an unknown user'}', not the release bot. A manifest that did not come ` +
-        `from 'standing-pr update' cannot be trusted. Re-run 'standing-pr update' to regenerate it.`,
-    );
-  }
-
-  let manifest: StandingPRManifest;
+  let livePr: PullRequestDetails | undefined;
   try {
-    manifest = parseManifest(manifestComment.body);
+    livePr = await forge.getPullRequest(prNumber);
   } catch (err) {
-    throw new Error(
-      `Release manifest on PR #${prNumber} is invalid or incompatible. Re-run 'standing-pr update'. Details: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    warn(`Could not read PR #${prNumber}: ${err instanceof Error ? err.message : String(err)}`);
   }
+
+  const manifest = await readVerifiedManifest(forge, prNumber, livePr, releaseKitConfig.ci, 'publish');
 
   // Defense in depth behind the branch-protection ruleset, catching a missing or misconfigured one. Fails open on an
   // unverifiable check since the ruleset already gated the merge.
@@ -1822,37 +1870,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     quiet: options.quiet,
     projectDir: cwd,
   };
-
-  let livePr: PullRequestDetails | undefined;
-  try {
-    livePr = await forge.getPullRequest(prNumber);
-  } catch (err) {
-    warn(`Could not read PR #${prNumber}: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  // Refuse a manifest whose override labels diverge from the merged PR's (a label changed, then merged before the
-  // update re-ran). Fails closed when the PR is unreadable, except for an empty override set: the only possible
-  // change is an added label, not worth failing the common no-override publish on an API blip.
-  if (!livePr && manifest.overrideLabels !== undefined && manifest.overrideLabels.length > 0) {
-    throw new Error(
-      `Cannot verify standing PR #${prNumber} override labels against the manifest — the PR could not be read ` +
-        `from GitHub. Refusing to publish a manifest that carried override labels without confirming they still ` +
-        `match. Re-run once the GitHub API is reachable (or apply the retry label).`,
-    );
-  }
-  if (livePr && manifest.overrideLabels !== undefined) {
-    const mergedLabels = extractOverrideLabels((livePr.labels ?? []).filter(Boolean), releaseKitConfig.ci);
-    const manifestLabels = [...manifest.overrideLabels].sort();
-    if (mergedLabels.join('\n') !== manifestLabels.join('\n')) {
-      throw new Error(
-        `Standing PR #${prNumber} override labels changed after the last update — the release manifest is stale.\n` +
-          `  manifest was computed for: [${manifestLabels.join(', ') || '(none)'}]\n` +
-          `  PR now has:                [${mergedLabels.join(', ') || '(none)'}]\n` +
-          `Re-run 'releasekit standing-pr update' so the manifest matches, then merge (or apply the retry label after ` +
-          `updating). Refusing to publish a release the labels no longer describe.`,
-      );
-    }
-  }
 
   // From the body, not the manifest: the manifest holds machine state only.
   let editedNotes: Record<string, string> = {};
@@ -2056,17 +2073,11 @@ export async function runStandingPRPublish(
   return publishFromManifest(inferred, options);
 }
 
-export async function runStandingPRMerge(
-  options: StandingPROptions,
-  flags: { publish: boolean },
-): Promise<StandingPRMergeResult> {
-  const cwd = options.projectDir;
-
-  const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
+export async function runStandingPRMerge(options: StandingPROptions): Promise<StandingPRMergeResult> {
+  const releaseKitConfig = loadReleaseKitConfig({ cwd: options.projectDir, configPath: options.config });
   const standingPrConfig = releaseKitConfig.ci?.standingPr;
   const branch = standingPrConfig?.branch ?? 'release/next';
   const mergeMethod = (standingPrConfig?.mergeMethod ?? 'merge') as 'merge' | 'squash' | 'rebase';
-  const deleteBranchOnMerge = standingPrConfig?.deleteBranchOnMerge !== false;
 
   const forge = forgeFor(requireGitHubContext('the standing PR cannot be merged'));
 
@@ -2076,11 +2087,23 @@ export async function runStandingPRMerge(
     return null;
   }
 
+  const livePr = await forge.getPullRequest(pr.number);
+  const manifest = await readVerifiedManifest(forge, pr.number, livePr, releaseKitConfig.ci, 'merge');
+  // Older manifests lack `headSha`, so this only stops a push that lands between the read and the merge.
+  const sha = manifest.headSha ?? livePr.headSha;
+
   info(`Merging standing PR #${pr.number} via ${mergeMethod}...`);
   try {
-    await forge.mergePullRequest(pr.number, mergeMethod);
+    await forge.mergePullRequest(pr.number, mergeMethod, sha);
   } catch (err) {
-    if (forgeErrorStatus(err) === 405) {
+    const status = forgeErrorStatus(err);
+    if (status === 409) {
+      throw new Error(
+        `Cannot merge standing PR #${pr.number}: '${branch}' has moved since the release manifest was written. ` +
+          `Wait for the standing-PR update to finish, or re-run it if it failed, then merge again.`,
+      );
+    }
+    if (status === 405) {
       // The forge surfaces the raw error, so a non-GitHub adapter yields 'unknown reason'.
       const reason =
         (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'unknown reason';
@@ -2090,13 +2113,5 @@ export async function runStandingPRMerge(
   }
   success(`Standing PR #${pr.number} merged`);
 
-  if (!flags.publish) {
-    if (deleteBranchOnMerge) {
-      await deleteReleaseBranch(branch, cwd);
-    }
-    return { merged: true, prNumber: pr.number };
-  }
-
-  // publishFromManifest deletes the branch only after a clean publish.
-  return publishFromManifest(pr.number, options);
+  return { merged: true, prNumber: pr.number };
 }

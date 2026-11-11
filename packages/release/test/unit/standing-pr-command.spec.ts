@@ -42,13 +42,10 @@ describe('createStandingPRCommand', () => {
     }
   });
 
-  it.each([
-    [['merge'], false],
-    [['merge', '--publish'], true],
-  ])('should pass %j to runStandingPRMerge with publish: %s', async (args, publish) => {
+  it('should call runStandingPRMerge for merge subcommand', async () => {
     const { runStandingPRMerge } = await import('../../src/standing-pr/standing-pr.js');
-    await parseCommand([...args, '--project-dir', '/test']);
-    expect(runStandingPRMerge).toHaveBeenLastCalledWith(expect.objectContaining({ projectDir: '/test' }), { publish });
+    await parseCommand(['merge', '--project-dir', '/test']);
+    expect(runStandingPRMerge).toHaveBeenLastCalledWith(expect.objectContaining({ projectDir: '/test' }));
   });
 
   it('should call runStandingPRUpdate for update subcommand', async () => {

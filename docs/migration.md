@@ -264,6 +264,14 @@ diagnostic output.
 A release finds the previous one by its tag name. If your tag names change, tag your last release's commit under
 the new name before the next release, e.g. `git tag scope-pkg@v1.2.3 v1.2.3^{}`, and push it.
 
+### `standing-pr merge` only merges
+
+- `--publish` is removed. The publish workflow publishes the merged PR, as for a merge in GitHub's UI. Set
+  `GITHUB_TOKEN` to a personal access token or GitHub App token for `merge`, since a merge made with the workflow's
+  default token doesn't start the publish workflow.
+- `merge` refuses to merge unless the release manifest passes the checks `standing-pr publish` runs.
+- `merge` no longer deletes the release branch; the publish does.
+
 ### Version mismatches warn without a version block
 
 With no `version` block, a mismatch between `package.json` and the latest tag warns (`mismatchStrategy: "warn"`, as

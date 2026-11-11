@@ -38,7 +38,7 @@ Every command that produces a JSON result — `release`, `gate`, `standing-pr`, 
   - A dry run is never `changed`.
   - `publish`: a registry publish or a new release commit.
   - `standing-pr publish`: registry publishes only, since the merge already made the commit. A re-run where every version was already published reports `false`.
-  - `standing-pr merge`: the merge, so `--publish` reports `true` even when every version was already published. No open standing PR reports `false`.
+  - `standing-pr merge`: the merge. No open standing PR reports `false`.
   - `gate` is read-only, so always `false`.
 - **`errors[]`** replaces prose-only failures in JSON mode. Each carries a stable machine `code`, a coarse `category` (its family in the table below), a `retryable` flag (only `true` for known-transient failures — a timeout, 429, or 5xx from a provider — so an agent never retries an unknown failure), and a human `message`.
 - **Stream discipline:** the envelope is the only thing on stdout; all diagnostics (progress, warnings, error text) go to stderr. Parsing stdout as JSON is always safe, and no command prompts interactively on a CI path.
@@ -220,14 +220,12 @@ releasekit standing-pr publish --pr 123
 
 ### `releasekit standing-pr merge`
 
-Merge the open standing release PR, optionally publishing immediately. A merge made with a workflow's default `GITHUB_TOKEN` doesn't start other workflows, so the publish workflow won't run. Without `--publish`, set `GITHUB_TOKEN` to a personal access token or GitHub App token instead. With `--publish`, such a token also starts the publish workflow, so two runs publish the same release.
+Merge the open standing release PR. The publish workflow then publishes it, as for a merge in GitHub's UI. A merge made with a workflow's default `GITHUB_TOKEN` doesn't start other workflows, so set `GITHUB_TOKEN` to a personal access token or GitHub App token.
 
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--publish` | boolean | `false` | Publish packages immediately after merging |
+Before merging, it checks the release manifest as `standing-pr publish` does (written by the release bot, valid, override labels unchanged). It merges only the release-branch commit the manifest describes, so it fails if an update has moved the branch.
 
 ```bash
-releasekit standing-pr merge --publish
+releasekit standing-pr merge
 ```
 
 ---

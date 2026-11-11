@@ -71,7 +71,7 @@ export class FakeForge implements Forge {
   readonly upsertedComments: Array<{ prNumber: number; marker: string; body: string }> = [];
   readonly createdPullRequests: NewPullRequest[] = [];
   readonly updatedPullRequests: Array<{ prNumber: number; changes: PullRequestChanges }> = [];
-  readonly mergedPullRequests: Array<{ prNumber: number; method: MergeMethod }> = [];
+  readonly mergedPullRequests: Array<{ prNumber: number; method: MergeMethod; sha?: string }> = [];
   readonly createdIssues: NewIssue[] = [];
   readonly updatedIssues: Array<{ issueNumber: number; changes: IssueChanges }> = [];
   readonly createdLabels: NewLabel[] = [];
@@ -157,8 +157,13 @@ export class FakeForge implements Forge {
     this.updatedPullRequests.push({ prNumber, changes });
   }
 
-  async mergePullRequest(prNumber: number, method: MergeMethod): Promise<void> {
-    this.mergedPullRequests.push({ prNumber, method });
+  async mergePullRequest(prNumber: number, method: MergeMethod, sha?: string): Promise<void> {
+    const head = this.pullRequestDetails[prNumber]?.headSha;
+    if (sha && head && sha !== head) {
+      // GitHub's response when the PR's head isn't `sha`.
+      throw Object.assign(new Error('Head branch was modified. Review and try the merge again.'), { status: 409 });
+    }
+    this.mergedPullRequests.push({ prNumber, method, sha });
   }
 
   async createIssue(issue: NewIssue): Promise<IssueRef> {

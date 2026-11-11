@@ -233,10 +233,16 @@ describe('GitHubForge', () => {
       });
     });
 
-    it('should merge via the requested method', async () => {
+    it('should merge via the requested method, pinned to the given head', async () => {
       const { octokit, fns } = makeOctokit();
-      await new GitHubForge(octokit, 'o', 'r').mergePullRequest(7, 'squash');
-      expect(fns.pullsMerge).toHaveBeenCalledWith({ owner: 'o', repo: 'r', pull_number: 7, merge_method: 'squash' });
+      await new GitHubForge(octokit, 'o', 'r').mergePullRequest(7, 'squash', 'abc');
+      expect(fns.pullsMerge).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        pull_number: 7,
+        merge_method: 'squash',
+        sha: 'abc',
+      });
     });
   });
 
