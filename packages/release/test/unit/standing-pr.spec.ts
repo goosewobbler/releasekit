@@ -3586,6 +3586,15 @@ describe('runStandingPRPublish', () => {
     ).rejects.toThrow(/No merged standing release PR found/);
   });
 
+  it('should throw rather than infer a PR when the event payload is malformed', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue('not json {');
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/Failed to read the GitHub event at \/tmp\/test-event\.json: .*pass --pr explicitly/);
+  });
+
   it('should throw when inference is needed but no GitHub token is available', async () => {
     delete process.env.GITHUB_EVENT_PATH;
     delete process.env.GITHUB_TOKEN;

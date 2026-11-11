@@ -245,15 +245,12 @@ describe('runPreview', () => {
   describe('standing release PR skip', () => {
     afterEach(() => {
       delete process.env.GITHUB_EVENT_PATH;
-      // clearAllMocks() (in beforeEach) clears calls but not return-value impls, so reset the fs
-      // mocks explicitly - otherwise withHeadRef's `existsSync → true` leaks into later tests.
-      mockFsExistsSync.mockReturnValue(false);
+      // clearAllMocks() in beforeEach keeps mock implementations, so withHeadRef's payload would leak into later tests.
       mockFsReadFileSync.mockReset();
     });
 
     function withHeadRef(ref: string): void {
       process.env.GITHUB_EVENT_PATH = '/tmp/event.json';
-      mockFsExistsSync.mockReturnValue(true);
       mockFsReadFileSync.mockReturnValue(JSON.stringify({ pull_request: { head: { ref } } }));
     }
 
@@ -1136,7 +1133,7 @@ describe('runPreview', () => {
 
       afterEach(() => {
         process.env = { ...originalEnv };
-        mockFsExistsSync.mockReturnValue(false);
+        mockFsReadFileSync.mockReset();
       });
 
       it("should fall back to the event's base SHA as baseRef when there's no base ref to resolve", async () => {
@@ -1144,7 +1141,6 @@ describe('runPreview', () => {
         mockFetchPRLabels.mockResolvedValue([]); // no bump label - advisory mode
 
         process.env.GITHUB_EVENT_PATH = '/tmp/event.json';
-        mockFsExistsSync.mockReturnValue(true);
         mockFsReadFileSync.mockReturnValue(JSON.stringify({ pull_request: { base: { sha: 'pr-base-sha-abc' } } }));
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
@@ -1158,7 +1154,6 @@ describe('runPreview', () => {
         mockFetchPRLabels.mockResolvedValue([]);
 
         process.env.GITHUB_EVENT_PATH = '/tmp/event.json';
-        mockFsExistsSync.mockReturnValue(true);
         mockFsReadFileSync.mockReturnValue(JSON.stringify({ pull_request: { number: 7, base: { sha: 'pr-7-base' } } }));
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
@@ -1173,7 +1168,6 @@ describe('runPreview', () => {
         mockFetchPRLabels.mockResolvedValue(['release:immediate', 'bump:patch']);
 
         process.env.GITHUB_EVENT_PATH = '/tmp/event.json';
-        mockFsExistsSync.mockReturnValue(true);
         mockFsReadFileSync.mockReturnValue(JSON.stringify({ pull_request: { base: { sha: 'should-not-be-used' } } }));
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
@@ -1202,7 +1196,9 @@ describe('runPreview', () => {
         mockFetchPRLabels.mockResolvedValue([]);
 
         process.env.GITHUB_EVENT_PATH = '/tmp/nonexistent-event.json';
-        mockFsExistsSync.mockReturnValue(false);
+        mockFsReadFileSync.mockImplementation(() => {
+          throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' });
+        });
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
@@ -1215,7 +1211,6 @@ describe('runPreview', () => {
         mockFetchPRLabels.mockResolvedValue([]);
 
         process.env.GITHUB_EVENT_PATH = '/tmp/event.json';
-        mockFsExistsSync.mockReturnValue(true);
         mockFsReadFileSync.mockReturnValue('not valid json {{{{');
 
         await expect(

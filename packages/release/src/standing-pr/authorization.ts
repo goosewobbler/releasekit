@@ -1,6 +1,6 @@
-import * as fs from 'node:fs';
 import type { StandingPrConfig } from '@releasekit/config';
 import type { Forge, RepoPermission } from '@releasekit/forge';
+import { readGitHubEvent } from '../github-event.js';
 
 export type StandingPrAuthorization = NonNullable<StandingPrConfig['authorization']>;
 
@@ -22,26 +22,21 @@ export interface EventActor {
 }
 
 export function getEventActor(): EventActor {
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath) {
+  const event = readGitHubEvent<{
+    action?: string;
+    sender?: { login?: string; type?: string };
+    pull_request?: { merged_by?: { login?: string; type?: string } | null };
+  }>();
+  if (!event) {
     return {};
   }
-  try {
-    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as {
-      action?: string;
-      sender?: { login?: string; type?: string };
-      pull_request?: { merged_by?: { login?: string; type?: string } | null };
-    };
-    return {
-      action: event.action,
-      login: event.sender?.login,
-      type: event.sender?.type,
-      mergedBy: event.pull_request?.merged_by?.login,
-      mergedByType: event.pull_request?.merged_by?.type,
-    };
-  } catch {
-    return {};
-  }
+  return {
+    action: event.action,
+    login: event.sender?.login,
+    type: event.sender?.type,
+    mergedBy: event.pull_request?.merged_by?.login,
+    mergedByType: event.pull_request?.merged_by?.type,
+  };
 }
 
 function isBot(login: string | undefined, type: string | undefined): boolean {
