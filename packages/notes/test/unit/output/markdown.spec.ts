@@ -253,6 +253,24 @@ describe('formatVersion: breaking changes section', () => {
     );
   });
 
+  it('should order sections in Keep a Changelog order without LLM categories', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      entries: [
+        { type: 'fixed', description: 'A fix' },
+        { type: 'deprecated', description: 'A deprecation' },
+        { type: 'changed', description: 'A change' },
+        { type: 'added', description: 'A feature' },
+      ],
+    });
+
+    const headings = formatVersion(ctx)
+      .split('\n')
+      .filter((l) => l.startsWith('### '));
+    expect(headings).toEqual(['### Added', '### Changed', '### Deprecated', '### Fixed']);
+  });
+
   it('should not render a Breaking section when no entries have breaking: true', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
 

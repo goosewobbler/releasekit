@@ -99,6 +99,23 @@ describe('changelog-region', () => {
       );
     });
 
+    it('should order sections as the published changelog does', () => {
+      const footer = renderCombinedFooter(
+        output({
+          changelogs: [
+            cl('@scope/a', [
+              { type: 'fix', description: 'A fix' },
+              { type: 'deprecated', description: 'A deprecation' },
+              { type: 'changed', description: 'A change' },
+              { type: 'feat', description: 'A feature' },
+            ]),
+          ],
+        }),
+      );
+      const headings = footer.split('\n').filter((l) => l.startsWith('> #### '));
+      expect(headings).toEqual(['> #### Added', '> #### Changed', '> #### Deprecated', '> #### Fixed']);
+    });
+
     it('should keep a breaking change apart from a non-breaking one with the same subject', () => {
       const footer = renderCombinedFooter(
         output({
