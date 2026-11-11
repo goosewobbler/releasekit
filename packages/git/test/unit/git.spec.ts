@@ -289,6 +289,12 @@ describe('GitCli mutations', () => {
     expect(calls[0].args).toEqual(['commit', '-m', 'chore: release', '--no-verify', '--', 'CHANGELOG.md']);
   });
 
+  it('should pass --allow-empty when requested', async () => {
+    const { run, calls } = makeRunner();
+    await new GitCli(run).commit('chore: release preparation', { allowEmpty: true });
+    expect(calls[0].args).toEqual(['commit', '-m', 'chore: release preparation', '--allow-empty']);
+  });
+
   it('should commit with a bare -m when no options are given', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).commit('feat: x');

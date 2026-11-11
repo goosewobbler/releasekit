@@ -6,8 +6,10 @@ import {
   computeHierarchy,
   extractChannelSelection,
   extractSelection,
+  extractSyncGraduation,
   type PrimaryConfig,
   renderSelectionRegion,
+  renderSyncGraduation,
   resolveChannelConflicts,
   selectionWarnings,
   validatePrimaryPackages,
@@ -634,6 +636,36 @@ describe('selection-region', () => {
       });
     });
 
+    describe('graduation rows', () => {
+      const graduation = (ticked: string[] = []) => ({
+        updates: [{ packageName: '@scope/c', newVersion: '2.1.0', filePath: '', channel: 'stable' as const }],
+        ticked: new Set(ticked),
+      });
+
+      it('should render graduation rows under their own heading after the release rows', () => {
+        const updates: Update[] = [{ packageName: '@scope/a', newVersion: '1.1.0', filePath: '' }];
+        const region = renderSelectionRegion(updates, new Set(), undefined, undefined, undefined, graduation());
+        expect(region).toContain('Untick a package to hold it back');
+        expect(region.indexOf('#### Graduate to stable')).toBeGreaterThan(region.indexOf('<!-- rk-sel:@scope/a -->'));
+        expect(region).toContain('- [ ] `@scope/c` graduate to stable → 2.1.0 <!-- rk-grad:@scope/c -->');
+      });
+
+      it('should lead a graduation-only region with its own hint and no heading', () => {
+        const region = renderSelectionRegion([], new Set(), undefined, undefined, undefined, graduation(['@scope/c']));
+        expect(region).toContain('Tick a package to graduate it to stable');
+        expect(region).not.toContain('#### Graduate to stable');
+        expect(region).toContain('- [x] `@scope/c` graduate to stable → 2.1.0 <!-- rk-grad:@scope/c -->');
+      });
+    });
+
+    describe('sync graduation checkbox', () => {
+      it('should round-trip the tick through its marker', () => {
+        expect(extractSyncGraduation(renderSyncGraduation('v1.1.0', true))).toBe(true);
+        expect(extractSyncGraduation(renderSyncGraduation('v1.1.0', false))).toBe(false);
+        expect(extractSyncGraduation('- [x] some other row')).toBe(false);
+      });
+    });
+
     describe('extractChannelSelection', () => {
       it('should read ticked rk-pre and rk-grad markers back from a rendered body', () => {
         const updates: Update[] = [
@@ -647,17 +679,47 @@ describe('selection-region', () => {
           undefined,
           channel({ prereleased: new Set(['@scope/a']), graduated: new Set(['@scope/b']) }),
         );
-        expect(extractChannelSelection(region)).toEqual({ prereleased: ['@scope/a'], graduated: ['@scope/b'] });
+        expect(extractChannelSelection(region)).toEqual({
+          prereleased: ['@scope/a'],
+          graduated: ['@scope/b'],
+          graduationRows: [],
+        });
       });
 
       it('should return empty sets when the body carries no selection region', () => {
-        expect(extractChannelSelection('nothing to see here')).toEqual({ prereleased: [], graduated: [] });
+        expect(extractChannelSelection('nothing to see here')).toEqual({
+          prereleased: [],
+          graduated: [],
+          graduationRows: [],
+        });
       });
 
       it('should ignore an unticked channel toggle', () => {
         const updates: Update[] = [{ packageName: '@scope/a', newVersion: '10.2.0', filePath: '', channel: 'stable' }];
         const region = renderSelectionRegion(updates, new Set(), undefined, undefined, channel());
-        expect(extractChannelSelection(region)).toEqual({ prereleased: [], graduated: [] });
+        expect(extractChannelSelection(region)).toEqual({ prereleased: [], graduated: [], graduationRows: [] });
+      });
+
+      it('should tell a graduation row from a nested toggle by whether the package has its own row', () => {
+        const updates: Update[] = [
+          { packageName: '@scope/b', newVersion: '1.0.0-next.4', filePath: '', channel: 'prerelease' },
+        ];
+        const region = renderSelectionRegion(
+          updates,
+          new Set(),
+          undefined,
+          undefined,
+          channel({ graduated: new Set(['@scope/b']) }),
+          {
+            updates: [{ packageName: '@scope/c', newVersion: '2.1.0', filePath: '', channel: 'stable' }],
+            ticked: new Set(['@scope/c']),
+          },
+        );
+        expect(extractChannelSelection(region)).toEqual({
+          prereleased: [],
+          graduated: ['@scope/b'],
+          graduationRows: ['@scope/c'],
+        });
       });
 
       it('should drop a ticked channel toggle whose row is held back — held back wins', () => {
@@ -668,7 +730,7 @@ describe('selection-region', () => {
           '  - [x] ship as prerelease → `10.2.0-next.0` · `next` <!-- rk-pre:@scope/a -->',
           '<!-- releasekit-selection-end -->',
         ].join('\n');
-        expect(extractChannelSelection(region)).toEqual({ prereleased: [], graduated: [] });
+        expect(extractChannelSelection(region)).toEqual({ prereleased: [], graduated: [], graduationRows: [] });
       });
     });
 
