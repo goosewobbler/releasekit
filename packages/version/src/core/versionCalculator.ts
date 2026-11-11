@@ -199,7 +199,8 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         manifestResult.manifestFound && manifestResult.version ? manifestResult.version : undefined;
 
       versionSource = await getBestVersionSource(
-        latestTag,
+        // A manifest-derived tag is a version base, not a git ref, so there's nothing to verify.
+        options.hasRealTag === false ? undefined : latestTag,
         packageVersion,
         packageDir,
         mismatchStrategy,

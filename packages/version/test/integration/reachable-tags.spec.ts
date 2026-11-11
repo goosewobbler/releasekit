@@ -58,13 +58,13 @@ describe('baseline tag reachability', () => {
   });
 
   describe('with package-specific tags', () => {
-    function setUp(strictReachable: boolean): void {
+    function writeConfig(strictReachable: boolean, packages = ['packages/core']): void {
       writeFileSync(
         join(tempDir, 'releasekit.config.json'),
         JSON.stringify({
           version: {
             preset: 'angular',
-            packages: ['packages/core'],
+            packages,
             sync: false,
             packageSpecificTags: true,
             versionPrefix: 'v',
@@ -74,6 +74,10 @@ describe('baseline tag reachability', () => {
       );
       git('add releasekit.config.json');
       git('commit -q -m "chore: package tags"');
+    }
+
+    function setUp(strictReachable: boolean): void {
+      writeConfig(strictReachable);
       git('tag test-core@v1.0.0');
       const mainBranch = git('rev-parse --abbrev-ref HEAD');
       git('checkout -q -b side');
@@ -106,6 +110,24 @@ describe('baseline tag reachability', () => {
 
       expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('1.0.1');
       expect(output.tags).toEqual(['test-core@v1.0.1']);
+      expect(output.changelogs[0]?.revisionRange).toBe('test-core@v1.0.0..HEAD');
+    });
+
+    it("should release a package's first version from its manifest when strictReachable is set", () => {
+      git('tag -d v1.0.0');
+      // A second package makes this a multi-package run, which bases an untagged package on its manifest version.
+      mkdirSync(join(tempDir, 'packages/utils'), { recursive: true });
+      createPackageJson(join(tempDir, 'packages/utils'), '@test/utils', '1.0.0');
+      writeConfig(true, ['packages/core', 'packages/utils']);
+      writeFileSync(join(tempDir, 'packages/core/index.js'), '// changed\n');
+      createConventionalCommit(tempDir, 'fix', 'patch core', 'core', false, ['packages/core']);
+
+      const result = executeCliCommand('--json', tempDir);
+      expect(result.status).toBe(0);
+      const output = readVersionOutput(result.stdout);
+
+      expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('1.0.1');
+      expect(output.tags).toContain('test-core@v1.0.1');
     });
   });
 });
