@@ -1730,10 +1730,7 @@ async function assertManifestMatchesSource(
   }
 }
 
-/**
- * The checks a standing PR's manifest must pass before the PR is merged or published from: present, bot-authored,
- * schema-valid and computed under the PR's current override labels. `livePr` is undefined when the PR is unreadable.
- */
+/** `livePr` is undefined when the PR couldn't be read. */
 async function readVerifiedManifest(
   forge: Forge,
   prNumber: number,
@@ -1764,7 +1761,6 @@ async function readVerifiedManifest(
     );
   }
 
-  // Refuse a manifest whose override labels diverge from the PR's (a label changed and the update hasn't re-run).
   // Fails closed when the PR is unreadable, except for an empty override set: the only possible change is an added
   // label, not worth failing the common no-override publish on an API blip.
   if (!livePr && manifest.overrideLabels !== undefined && manifest.overrideLabels.length > 0) {
@@ -2093,7 +2089,7 @@ export async function runStandingPRMerge(options: StandingPROptions): Promise<St
 
   const livePr = await forge.getPullRequest(pr.number);
   const manifest = await readVerifiedManifest(forge, pr.number, livePr, releaseKitConfig.ci, 'merge');
-  // Older manifests lack `headSha`, so pin to the head whose labels were just checked.
+  // Older manifests lack `headSha`, so this only stops a push that lands between the read and the merge.
   const sha = manifest.headSha ?? livePr.headSha;
 
   info(`Merging standing PR #${pr.number} via ${mergeMethod}...`);

@@ -207,9 +207,9 @@ releasekit standing-pr publish --pr 123
 
 ### `releasekit standing-pr merge`
 
-Merge the open standing release PR. The publish workflow then publishes it, as it does for a merge in GitHub's UI. A merge made with a workflow's default `GITHUB_TOKEN` doesn't start other workflows, so set `GITHUB_TOKEN` to a personal access token or GitHub App token, or the publish workflow won't run.
+Merge the open standing release PR. The publish workflow then publishes it, as for a merge in GitHub's UI. A merge made with a workflow's default `GITHUB_TOKEN` doesn't start other workflows, so set `GITHUB_TOKEN` to a personal access token or GitHub App token.
 
-Before merging, it checks the release manifest as `standing-pr publish` does (written by the release bot, valid, override labels unchanged). It merges only the release-branch commit the manifest describes, so it fails if an update has moved the branch since.
+Before merging, it checks the release manifest as `standing-pr publish` does (written by the release bot, valid, override labels unchanged). It merges only the release-branch commit the manifest describes, so it fails if an update has moved the branch.
 
 ```bash
 releasekit standing-pr merge

@@ -266,8 +266,8 @@ the new name before the next release, e.g. `git tag scope-pkg@v1.2.3 v1.2.3^{}`,
 
 ### `standing-pr merge` only merges
 
-- `--publish` is removed. The publish workflow publishes the merged PR, as it does for a merge in GitHub's UI. Run
-  `merge` with a personal access token or GitHub App token as `GITHUB_TOKEN`, since a merge made with the workflow's
+- `--publish` is removed. The publish workflow publishes the merged PR, as for a merge in GitHub's UI. Set
+  `GITHUB_TOKEN` to a personal access token or GitHub App token for `merge`, since a merge made with the workflow's
   default token doesn't start the publish workflow.
 - `merge` refuses to merge unless the release manifest passes the checks `standing-pr publish` runs.
 - `merge` no longer deletes the release branch; the publish does.
