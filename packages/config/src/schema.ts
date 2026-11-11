@@ -94,7 +94,6 @@ export const DEFAULT_PRESET: Preset = 'conventionalcommits';
 const VersionConfigBaseSchema = z.object({
   tagTemplate: z
     .string()
-    // Pattern (not a refine) so it round-trips into the JSON Schema as `pattern`.
     .regex(/\$\{version\}$/, {
       message:
         // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting the expected placeholder syntax to the user

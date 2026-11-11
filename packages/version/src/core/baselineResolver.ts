@@ -8,7 +8,7 @@ import { isStableTag, isStableVersion } from '../utils/versionUtils.js';
 export interface BaselineResolverOptions {
   /** Already normalised via `formatVersionPrefix`. */
   versionPrefix: string;
-  /** The prefix sync found its latest global tag by, so the stable lookup searches the same tags. */
+  /** The prefix the latest global tag was found by, so the stable lookup searches the same tags. */
   globalTagPrefix?: string;
   /** Used by the graduation stable-tag lookup in the package-specific series. */
   tagTemplate?: string;

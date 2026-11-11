@@ -63,7 +63,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
       const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, mainPackage);
 
-      // Package tags are found per package below; this lookup stays their fallback to any semver tag.
+      // With packageSpecificTags this only backs up the per-package lookup below, so it accepts any version tag.
       const globalPrefix =
         baselineTagPrefix ??
         (config.packageSpecificTags ? undefined : deriveBaselineTagPrefix(tagTemplate, formattedPrefix));

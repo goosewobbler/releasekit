@@ -57,7 +57,7 @@ export async function reconstructChangelogs(opts: ReconstructOptions): Promise<R
       })
     : await listGlobalTags(globalPrefix);
 
-  // Past the prefix, so version-shaped text in it (`releases/2026.1/${version}`) isn't read as the version.
+  // Read after the prefix, so version-shaped text in it (`releases/2026.1/${version}`) isn't taken as the version.
   const versioned = tags
     .map((tag) => ({ tag, version: versionFromTag(tag.slice(globalPrefix.length)) }))
     .filter((t): t is { tag: string; version: string } => t.version !== null)
