@@ -37,4 +37,5 @@ export const VersionOutputSchema = z.looseObject({
   commitMessage: z.string().optional(),
   tags: z.array(z.string()),
   baselineTags: z.array(z.string()).optional(),
+  additionalFiles: z.array(z.string()).optional(),
 });

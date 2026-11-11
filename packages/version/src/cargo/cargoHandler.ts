@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { CargoManifest } from '@releasekit/config';
 import { isCargoToml, parseCargoToml } from '@releasekit/config';
 import * as TOML from 'smol-toml';
-import { addPackageUpdate, recordPendingWrite } from '../utils/jsonOutput.js';
+import { addPackageUpdate, writeVersionFile } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { recordCargoBump } from './cargoLock.js';
 
@@ -85,11 +85,7 @@ export function updateCargoVersion(
 
     // TOML.stringify does not preserve original formatting or comments.
     const updatedContent = TOML.stringify(cargo as Record<string, unknown>);
-    if (dryRun) {
-      recordPendingWrite(cargoPath, updatedContent);
-    } else {
-      fs.writeFileSync(cargoPath, updatedContent);
-    }
+    writeVersionFile(cargoPath, updatedContent, dryRun);
 
     addPackageUpdate(recordAs ?? packageName, version, cargoPath, isRoot);
     recordCargoBump({ cargoTomlPath: cargoPath, name: packageName, version });

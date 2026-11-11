@@ -7,7 +7,7 @@ export function createPreviewCommand(): Command {
   return new Command('preview')
     .description('Post a release preview comment on the current pull request')
     .option('-c, --config <path>', 'Path to config file')
-    .option('--project-dir <path>', 'Project directory', process.cwd())
+    .option('--project-dir <path>', 'Project directory to run commands in', process.cwd())
     .hook('preAction', enterProjectDir)
     .option('--pr <number>', 'PR number (auto-detected from GitHub Actions)')
     .option('--repo <owner/repo>', 'Repository (auto-detected from GITHUB_REPOSITORY)')

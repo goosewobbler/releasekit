@@ -14,7 +14,7 @@ export function createStandingPRCommand(): Command {
   const sharedOptions = (c: Command): Command =>
     c
       .option('-c, --config <path>', 'Path to config file')
-      .option('--project-dir <path>', 'Project directory', process.cwd())
+      .option('--project-dir <path>', 'Project directory to run commands in', process.cwd())
       .hook('preAction', enterProjectDir)
       .option('--npm-auth <method>', 'NPM auth method (auto|oidc|token)', 'auto')
       .option('-j, --json', 'Output results as JSON', false)

@@ -130,7 +130,11 @@ describe('Pub Handler', () => {
       updatePubVersion(mockPubspecPath, '2.0.0');
 
       expect(fs.readFileSync).toHaveBeenCalledWith(mockPubspecPath, 'utf-8');
-      expect(fs.writeFileSync).toHaveBeenCalledWith(mockPubspecPath, expect.stringContaining('version: 2.0.0'));
+      expect(jsonOutput.writeVersionFile).toHaveBeenCalledWith(
+        mockPubspecPath,
+        expect.stringContaining('version: 2.0.0'),
+        false,
+      );
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test_package', '2.0.0', mockPubspecPath, undefined);
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Updated pubspec.yaml at'), 'success');
     });
@@ -140,7 +144,7 @@ describe('Pub Handler', () => {
 
       updatePubVersion(mockPubspecPath, '2.0.0');
 
-      const [, writtenContent] = vi.mocked(fs.writeFileSync).mock.calls[0] as [string, string];
+      const [, writtenContent] = vi.mocked(jsonOutput.writeVersionFile).mock.calls[0] as [string, string, boolean];
       expect(writtenContent).toContain('name: test_package');
       expect(writtenContent).toContain('version: 2.0.0');
       expect(writtenContent).toContain('sdk: ">=3.0.0 <4.0.0"');
@@ -150,11 +154,10 @@ describe('Pub Handler', () => {
       vi.mocked(jsonOutput.addPackageUpdate, { partial: true }).mockImplementation(() => {});
 
       updatePubVersion(mockPubspecPath, '2.0.0', true);
-
-      expect(fs.writeFileSync).not.toHaveBeenCalled();
-      expect(jsonOutput.recordPendingWrite).toHaveBeenCalledWith(
+      expect(jsonOutput.writeVersionFile).toHaveBeenCalledWith(
         mockPubspecPath,
         expect.stringContaining('version: 2.0.0'),
+        true,
       );
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test_package', '2.0.0', mockPubspecPath, undefined);
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('[DRY RUN] Would update'), 'success');
@@ -171,7 +174,7 @@ describe('Pub Handler', () => {
 
       updatePubVersion(mockPubspecPath, '2.0.0', false);
 
-      expect(fs.writeFileSync).toHaveBeenCalledWith(mockPubspecPath, expect.any(String));
+      expect(jsonOutput.writeVersionFile).toHaveBeenCalledWith(mockPubspecPath, expect.any(String), false);
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test_package', '2.0.0', mockPubspecPath, undefined);
     });
 
@@ -204,7 +207,7 @@ describe('Pub Handler', () => {
 
       updatePubVersion(mockPubspecPath, '2.0.0');
 
-      const [, writtenContent] = vi.mocked(fs.writeFileSync).mock.calls[0] as [string, string];
+      const [, writtenContent] = vi.mocked(jsonOutput.writeVersionFile).mock.calls[0] as [string, string, boolean];
       expect(writtenContent).toContain('version: 2.0.0');
       expect(writtenContent).not.toContain('1.0.0');
     });
@@ -215,7 +218,7 @@ describe('Pub Handler', () => {
 
       updatePubVersion(mockPubspecPath, '2.0.0');
 
-      const [, writtenContent] = vi.mocked(fs.writeFileSync).mock.calls[0] as [string, string];
+      const [, writtenContent] = vi.mocked(jsonOutput.writeVersionFile).mock.calls[0] as [string, string, boolean];
       expect(writtenContent).toContain('version: 2.0.0 # current');
     });
 

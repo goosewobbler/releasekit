@@ -67,6 +67,11 @@ export interface VersionOutput {
    * been force-moved off it.
    */
   baselineTags?: string[];
+  /**
+   * Files the version step wrote that no update names, such as the `Cargo.toml` of a non-releasing crate that depends
+   * on a releasing crate. Absent when there are none, and in older manifests.
+   */
+  additionalFiles?: string[];
 }
 
 export interface VersionPackageUpdate {

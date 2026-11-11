@@ -1,4 +1,4 @@
-import * as fs from 'node:fs';
+import { readGitHubEvent } from '../github-event.js';
 
 export interface PreviewContext {
   prNumber: number;
@@ -28,16 +28,9 @@ function resolvePRNumber(cliValue?: string): number {
     return num;
   }
 
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (eventPath && fs.existsSync(eventPath)) {
-    try {
-      const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
-      if (event.pull_request?.number) {
-        return event.pull_request.number;
-      }
-    } catch {
-      // Ignore malformed JSON and fall through to error
-    }
+  const eventPrNumber = readGitHubEvent<{ pull_request?: { number?: number } }>()?.pull_request?.number;
+  if (eventPrNumber) {
+    return eventPrNumber;
   }
 
   throw new Error('Could not determine PR number. Use --pr <number> or run in a GitHub Actions pull_request workflow.');

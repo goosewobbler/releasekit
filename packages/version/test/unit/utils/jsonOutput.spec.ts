@@ -17,6 +17,7 @@ import {
   setPackageUpdateTag,
   setVersioningStrategy,
   tagPrerequisiteRoles,
+  writeVersionFile,
 } from '../../../src/utils/jsonOutput.js';
 
 vi.mock('node:fs');
@@ -379,6 +380,39 @@ describe('JSON Output Utilities', () => {
 
       expect(() => flushPendingWrites()).toThrow('permission denied');
       expect(getPendingWriteCount()).toBe(0);
+    });
+  });
+
+  describe('writeVersionFile', () => {
+    beforeEach(() => {
+      // An earlier test makes writeFileSync throw, and clearAllMocks keeps implementations.
+      vi.mocked(fs.writeFileSync).mockReset();
+    });
+
+    it('should buffer the write in a dry run and write it otherwise', () => {
+      enableJsonOutput(true);
+      writeVersionFile('/a/Cargo.toml', 'a', true);
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
+      expect(getPendingWriteCount()).toBe(1);
+
+      writeVersionFile('/b/Cargo.toml', 'b', false);
+      expect(fs.writeFileSync).toHaveBeenCalledWith('/b/Cargo.toml', 'b');
+    });
+
+    it('should list the files no update names as additionalFiles', () => {
+      addPackageUpdate('bridge', '2.0.0', '/repo/crates/bridge/Cargo.toml');
+      writeVersionFile('/repo/crates/bridge/Cargo.toml', 'bridge', false);
+      writeVersionFile('/repo/crates/driver/Cargo.toml', 'driver', false);
+      writeVersionFile('/repo/crates/driver/Cargo.toml', 'driver again', false);
+
+      expect(getJsonData().additionalFiles).toEqual(['/repo/crates/driver/Cargo.toml']);
+    });
+
+    it('should leave additionalFiles out when every written file belongs to an update', () => {
+      addPackageUpdate('bridge', '2.0.0', '/repo/crates/bridge/Cargo.toml');
+      writeVersionFile('/repo/crates/bridge/Cargo.toml', 'bridge', false);
+
+      expect(getJsonData()).not.toHaveProperty('additionalFiles');
     });
   });
 

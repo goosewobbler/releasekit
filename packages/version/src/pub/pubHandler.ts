@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isPubspecYaml, type PubspecManifest, parsePubspec } from '@releasekit/config';
-import { addPackageUpdate, recordPendingWrite } from '../utils/jsonOutput.js';
+import { addPackageUpdate, writeVersionFile } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 
 export { isPubspecYaml };
@@ -81,11 +81,7 @@ export function updatePubVersion(
       throw new Error(`No version field found in ${pubspecPath}`);
     }
 
-    if (dryRun) {
-      recordPendingWrite(pubspecPath, updatedContent);
-    } else {
-      fs.writeFileSync(pubspecPath, updatedContent);
-    }
+    writeVersionFile(pubspecPath, updatedContent, dryRun);
 
     addPackageUpdate(recordAs ?? packageName, version, pubspecPath, isRoot);
     log(

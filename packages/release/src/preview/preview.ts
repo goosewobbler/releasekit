@@ -1,4 +1,3 @@
-import * as fs from 'node:fs';
 import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { info, success, warn } from '@releasekit/core';
@@ -9,6 +8,7 @@ import { detectUnresolvedFailure } from '../failure-report/post.js';
 import { evaluatePR } from '../gate/evaluate-pr.js';
 import { getHeadParents } from '../git.js';
 import { fetchPRLabels, forgeFor, postOrUpdateComment } from '../github.js';
+import { readGitHubEvent } from '../github-event.js';
 import { composeBumpFromLabels, DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
 import { runRelease } from '../release.js';
 import { type ChangelogRenderOptions, changelogRenderOptions } from '../standing-pr/changelog-region.js';
@@ -45,18 +45,6 @@ interface PullRequestEvent {
   pull_request?: { number?: number; head?: { ref?: string; sha?: string }; base?: { ref?: string; sha?: string } };
 }
 
-function readEventPayload(): PullRequestEvent | undefined {
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath || !fs.existsSync(eventPath)) {
-    return undefined;
-  }
-  try {
-    return JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as PullRequestEvent;
-  } catch {
-    return undefined;
-  }
-}
-
 export async function runPreview(options: PreviewOptions): Promise<void> {
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
   if (ciConfig?.prPreview?.enabled === false) {
@@ -65,7 +53,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   }
 
   const strategy = ciConfig?.releaseStrategy ?? 'direct';
-  const event = readEventPayload();
+  const event = readGitHubEvent<PullRequestEvent>();
 
   // The standing PR's head already carries the release-prep bump, so re-analysing it would double-count the version.
   if (

@@ -5,7 +5,7 @@ import { type CargoLockBump, findCargoPathDependencies, listCargoManifests } fro
 import { createGitCli } from '@releasekit/git';
 import semver from 'semver';
 import * as TOML from 'smol-toml';
-import { readPendingWrite, recordPendingWrite } from '../utils/jsonOutput.js';
+import { readPendingWrite, writeVersionFile } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { recordedCargoBumps } from './cargoLock.js';
 
@@ -86,11 +86,7 @@ export function raiseRequirementsIn(manifestPaths: string[], bumps: readonly Car
 
   for (const manifestPath of changed) {
     const updated = TOML.stringify(read(manifestPath) as Manifest);
-    if (dryRun) {
-      recordPendingWrite(manifestPath, updated);
-    } else {
-      fs.writeFileSync(manifestPath, updated);
-    }
+    writeVersionFile(manifestPath, updated, dryRun);
   }
 }
 

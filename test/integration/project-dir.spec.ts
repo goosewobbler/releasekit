@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { EXIT_CODES } from '@releasekit/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-const CLI = fileURLToPath(new URL('../../packages/release/dist/dispatcher.js', import.meta.url));
+const RELEASEKIT = fileURLToPath(new URL('../../packages/release/dist/dispatcher.js', import.meta.url));
 
 // Ignore the developer's git config and any real GitHub context the suite runs under.
 const env = {
@@ -39,7 +39,7 @@ function createRepo(dir: string, pkg: string): void {
 }
 
 function run(cwd: string, ...args: string[]) {
-  return spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf-8', env });
+  return spawnSync(process.execPath, [RELEASEKIT, ...args], { cwd, encoding: 'utf-8', env });
 }
 
 describe('--project-dir', () => {
@@ -101,6 +101,18 @@ describe('--project-dir', () => {
         status: 'error',
         errors: [{ code: 'INPUT_ERROR', message: `--project-dir ${missing} is not a directory` }],
       });
+    },
+  );
+
+  it.each(['preview', 'refresh-after-release', 'labels sync'])(
+    'should fail %s up front when the folder is missing',
+    (command) => {
+      const missing = join(root, 'missing');
+
+      const result = run(root, ...command.split(' '), '--project-dir', missing);
+
+      expect(result.status).toBe(EXIT_CODES.INPUT_ERROR);
+      expect(result.stderr).toContain(`--project-dir ${missing} is not a directory`);
     },
   );
 });
