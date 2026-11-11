@@ -31,7 +31,6 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@manypkg/get-packages": "catalog:",
     "chalk": "catalog:",
     "minimatch": "catalog:",
     "smol-toml": "catalog:",

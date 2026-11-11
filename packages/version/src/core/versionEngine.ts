@@ -15,7 +15,6 @@ import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
 import { clearCargoBumps, syncCargoLockfiles } from '../cargo/cargoLock.js';
 import { raiseCargoDependentRequirements } from '../cargo/dependentRequirements.js';
-import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
 import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { isReleasablePubspec } from '../pub/pubHandler.js';
@@ -589,18 +588,8 @@ export class VersionEngine {
         tagPrerequisiteRoles(this.config.overrideScope ?? [], this.prerequisiteOf);
       }
     } catch (error) {
-      if (error instanceof VersionError || error instanceof GitError) {
+      if (error instanceof VersionError) {
         log(`Version engine failed: ${error.message} (${error.code || 'UNKNOWN'})`, 'error');
-
-        if (error instanceof GitError) {
-          log('Git error details:', 'error');
-          if (error.message.includes('Command failed:')) {
-            const cmdOutput = error.message.split('Command failed:')[1];
-            if (cmdOutput) {
-              log(`Command output: ${cmdOutput.trim()}`, 'error');
-            }
-          }
-        }
       } else {
         const errorMessage = error instanceof Error ? error.message : String(error);
         log(`Version engine failed: ${errorMessage}`, 'error');

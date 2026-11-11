@@ -133,10 +133,6 @@ export function hasExplicitGroups(config: Config): boolean {
   return Object.keys(config.groups ?? {}).length > 0;
 }
 
-export function hasGroups(config: Config): boolean {
-  return config.sync === true || hasExplicitGroups(config);
-}
-
 /**
  * Targeting any member of an atomic group (`fixed` or `independent`) pulls in the whole group; we expand
  * rather than error. `linked` groups are untouched - partial targeting is well defined there.

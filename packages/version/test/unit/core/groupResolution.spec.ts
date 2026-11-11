@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   expandTargetsForAtomicGroups,
   hasExplicitGroups,
-  hasGroups,
   IMPLICIT_SYNC_GROUP,
   normalizeGroupDefinitions,
   resolveGroups,
@@ -125,16 +124,10 @@ describe('groupResolution', () => {
     });
   });
 
-  describe('hasExplicitGroups / hasGroups', () => {
+  describe('hasExplicitGroups', () => {
     it('should report explicit groups only for hasExplicitGroups', () => {
       expect(hasExplicitGroups(base({ sync: true }))).toBe(false);
       expect(hasExplicitGroups(base({ groups: { g: { packages: ['a'], sync: 'fixed' } } }))).toBe(true);
-    });
-
-    it('should report sync:true as a group mechanism for hasGroups', () => {
-      expect(hasGroups(base({ sync: true }))).toBe(true);
-      expect(hasGroups(base({ sync: false }))).toBe(false);
-      expect(hasGroups(base({ sync: false, groups: { g: { packages: ['a'], sync: 'linked' } } }))).toBe(true);
     });
   });
 

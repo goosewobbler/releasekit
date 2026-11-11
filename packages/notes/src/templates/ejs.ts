@@ -19,18 +19,3 @@ export function renderEjsFile(filePath: string, context: TemplateContext | Docum
   const template = fs.readFileSync(filePath, 'utf-8');
   return renderEjs(template, context);
 }
-
-export async function renderEjsFileAsync(
-  filePath: string,
-  context: TemplateContext | DocumentContext,
-): Promise<string> {
-  if (!fs.existsSync(filePath)) {
-    throw new TemplateError(`Template file not found: ${filePath}`);
-  }
-
-  try {
-    return await ejs.renderFile(filePath, context);
-  } catch (error) {
-    throw new TemplateError(`EJS render error: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}

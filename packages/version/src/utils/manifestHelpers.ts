@@ -95,13 +95,3 @@ export function readManifestVersion(manifestPath: string): string | undefined {
   }
   throw new Error(`${manifestPath} is not a package.json, Cargo.toml or pubspec.yaml`);
 }
-
-export function throwIfNoManifestsFound(packageDir: string): never {
-  const packageJsonPath = path.join(packageDir, 'package.json');
-  const cargoTomlPath = path.join(packageDir, 'Cargo.toml');
-  const pubspecPath = path.join(packageDir, 'pubspec.yaml');
-
-  throw new Error(
-    `Neither package.json, Cargo.toml, nor pubspec.yaml found at ${packageDir}. Checked paths: ${packageJsonPath}, ${cargoTomlPath}, ${pubspecPath}. Cannot determine version.`,
-  );
-}

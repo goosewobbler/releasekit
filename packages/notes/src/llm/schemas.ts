@@ -23,10 +23,6 @@ export const CategorizeOutputSchema = z.object({
   entries: z.array(CategorizeEntryOutputSchema),
 });
 
-export type EntryOutput = z.infer<typeof EntryOutputSchema>;
-export type EnhanceAndCategorizeOutput = z.infer<typeof EnhanceAndCategorizeOutputSchema>;
-export type CategorizeOutput = z.infer<typeof CategorizeOutputSchema>;
-
 // JSON schema builders (for provider-level structured output enforcement).
 // OpenAI strict mode requires optional fields to be in `required` with nullable types.
 function nullableString(): JSONSchema {

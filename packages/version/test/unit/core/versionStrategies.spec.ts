@@ -7,7 +7,6 @@ import * as commitParser from '../../../src/changelog/commitParser.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
 import type { PackagesWithRoot } from '../../../src/core/versionEngine.js';
 import * as strategies from '../../../src/core/versionStrategies.js';
-import * as gitCommands from '../../../src/git/commands.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
 import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
@@ -19,7 +18,6 @@ import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
 
 vi.mock('../../../src/cargo/cargoLock.js');
-vi.mock('../../../src/git/commands.js');
 vi.mock('../../../src/git/tagsAndBranches.js');
 vi.mock('../../../src/git/tagVerification.js');
 vi.mock('../../../src/utils/logging.js');
@@ -66,7 +64,6 @@ vi.mock('node:fs');
 vi.mock('node:path');
 
 const git = {
-  ...gitCommands,
   ...gitTags,
 };
 

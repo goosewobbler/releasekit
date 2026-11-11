@@ -22,7 +22,6 @@ export default mergeConfig(
           'src/llm/base.ts',
           'src/llm/provider.ts',
           'src/monorepo/aggregator.ts',
-          'src/output/github-release.ts',
           'src/templates/ejs.ts',
           'src/templates/handlebars.ts',
           'src/templates/liquid.ts',
