@@ -836,6 +836,16 @@ describe('runRelease', () => {
         expect(result).toBeNull();
         expect(mockVersionEngineRun).not.toHaveBeenCalled();
       });
+
+      it('should graduate to stable on a release:graduate label', async () => {
+        merge({ number: 123, labels: ['release:graduate'] });
+
+        const verdict = await gate();
+        await runRelease(noTarget);
+
+        expect(verdict.stable).toBe(true);
+        expect(versionRunOptions()).toMatchObject({ stable: true });
+      });
     });
 
     describe('standing-pr strategy', () => {
@@ -859,6 +869,17 @@ describe('runRelease', () => {
           expect(versionRunOptions().bump).toBe(bump);
         },
       );
+
+      it('should not release an immediate PR labelled release:skip in commit mode, as the gate decides', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
+        merge({ number: 123, labels: ['release:immediate', 'release:skip'] });
+
+        const verdict = await gate();
+        const result = await runRelease(noTarget);
+
+        expect(verdict.shouldRelease).toBe(false);
+        expect(result).toBeNull();
+      });
 
       it.each([
         { trigger: 'label', labels: ['bump:major'] },

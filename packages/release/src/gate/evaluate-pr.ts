@@ -123,6 +123,19 @@ export function evaluatePR(
 
   const bump = composeBumpFromLabels(labels, labelConfig);
 
+  if (trigger === 'commit' && labels.includes(labelConfig.skip)) {
+    return {
+      prNumber,
+      labels,
+      shouldRelease: false,
+      scope,
+      target,
+      stable: false,
+      reason: `${labelConfig.skip} label found`,
+      hasReleaseIntent,
+    };
+  }
+
   // Whatever the trigger, commits decide the bump as merging the standing PR would; bump and channel labels override.
   if (inStandingPr) {
     return {
@@ -185,20 +198,6 @@ export function evaluatePR(
     };
   }
 
-  const hasSkipLabel = labels.includes(labelConfig.skip);
-  if (hasSkipLabel) {
-    return {
-      prNumber,
-      labels,
-      shouldRelease: false,
-      scope,
-      target,
-      stable: false,
-      reason: `${labelConfig.skip} label found`,
-      hasReleaseIntent,
-    };
-  }
-
   return {
     prNumber,
     labels,
@@ -206,7 +205,7 @@ export function evaluatePR(
     bump,
     scope,
     target,
-    stable: false,
+    stable: labels.includes(labelConfig.graduate),
     reason: 'No skip label in commit mode - proceeding with release',
     hasReleaseIntent,
   };
