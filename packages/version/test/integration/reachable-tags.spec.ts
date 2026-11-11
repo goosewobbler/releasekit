@@ -3,14 +3,14 @@
  * Requires `pnpm build` in @releasekit/version first.
  */
 import { execSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { executeCliCommand, readVersionOutput } from '../utils/cli.js';
-import { createConventionalCommit, initGitRepo } from '../utils/git.js';
+import { executeCliCommand, runVersionJson } from '../utils/cli.js';
+import { createConventionalCommit } from '../utils/git.js';
 import { createPackageJson } from '../utils/package.js';
-import { cleanupTempDir, symlinkNodeModules } from '../utils/tempFixture.js';
+import { cleanupTempDir } from '../utils/tempFixture.js';
+import { createWorkspaceRepo, writeVersionConfig } from '../utils/workspace.js';
 
 let tempDir: string;
 
@@ -18,18 +18,12 @@ const git = (args: string) => execSync(`git ${args}`, { cwd: tempDir, encoding: 
 
 describe('baseline tag reachability', () => {
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), 'rk-reachable-'));
-    writeFileSync(join(tempDir, 'package.json'), JSON.stringify({ name: 'monorepo', version: '1.0.0', private: true }));
-    writeFileSync(join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n');
-    mkdirSync(join(tempDir, 'packages/core'), { recursive: true });
-    createPackageJson(join(tempDir, 'packages/core'), '@test/core', '1.0.0');
-    writeFileSync(
-      join(tempDir, 'releasekit.config.json'),
-      JSON.stringify({ version: { preset: 'angular', packages: ['packages/core'], sync: true, versionPrefix: 'v' } }),
-    );
-    symlinkNodeModules(tempDir);
-    initGitRepo(tempDir);
-    git('tag v1.0.0');
+    tempDir = createWorkspaceRepo('rk-reachable-', {
+      packages: { core: '@test/core' },
+      version: '1.0.0',
+      config: { preset: 'angular', packages: ['packages/core'], sync: true, versionPrefix: 'v' },
+      tags: ['v1.0.0'],
+    });
   });
 
   afterEach(() => {
@@ -46,9 +40,7 @@ describe('baseline tag reachability', () => {
     writeFileSync(join(tempDir, 'packages/core/index.js'), '// changed\n');
     createConventionalCommit(tempDir, 'fix', 'patch core', 'core', false, ['packages/core']);
 
-    const result = executeCliCommand('--json', tempDir);
-    expect(result.status).toBe(0);
-    const output = readVersionOutput(result.stdout);
+    const output = runVersionJson(tempDir);
 
     expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('1.0.1');
     expect(output.tags).toEqual(['v1.0.1']);
@@ -59,19 +51,14 @@ describe('baseline tag reachability', () => {
 
   describe('with package-specific tags', () => {
     function writeConfig(strictReachable: boolean, packages = ['packages/core']): void {
-      writeFileSync(
-        join(tempDir, 'releasekit.config.json'),
-        JSON.stringify({
-          version: {
-            preset: 'angular',
-            packages,
-            sync: false,
-            packageSpecificTags: true,
-            versionPrefix: 'v',
-            strictReachable,
-          },
-        }),
-      );
+      writeVersionConfig(tempDir, {
+        preset: 'angular',
+        packages,
+        sync: false,
+        packageSpecificTags: true,
+        versionPrefix: 'v',
+        strictReachable,
+      });
       git('add releasekit.config.json');
       git('commit -q -m "chore: package tags"');
     }
@@ -104,9 +91,7 @@ describe('baseline tag reachability', () => {
     it('should fall back without strictReachable', () => {
       setUp(false);
 
-      const result = executeCliCommand('--json', tempDir);
-      expect(result.status).toBe(0);
-      const output = readVersionOutput(result.stdout);
+      const output = runVersionJson(tempDir);
 
       expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('1.0.1');
       expect(output.tags).toEqual(['test-core@v1.0.1']);
@@ -122,9 +107,7 @@ describe('baseline tag reachability', () => {
       writeFileSync(join(tempDir, 'packages/core/index.js'), '// changed\n');
       createConventionalCommit(tempDir, 'fix', 'patch core', 'core', false, ['packages/core']);
 
-      const result = executeCliCommand('--json', tempDir);
-      expect(result.status).toBe(0);
-      const output = readVersionOutput(result.stdout);
+      const output = runVersionJson(tempDir);
 
       expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('1.0.1');
       expect(output.tags).toContain('test-core@v1.0.1');
