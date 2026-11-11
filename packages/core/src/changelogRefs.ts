@@ -1,5 +1,7 @@
 /* eslint-disable local/no-bare-issue-refs -- the #NNN below are examples of the reference format this module renders, not issue citations */
 
+import { escapeCommentOpeners } from './marker.js';
+
 export type ChangelogRefsMode = 'strip' | 'escape' | 'link';
 
 export function parseGitHubOwnerRepo(repoUrl: string): { owner: string; repo: string } | null {
@@ -136,4 +138,32 @@ export function removeDescriptionRefs(text: string, refs: Array<string | undefin
       return num !== undefined && remove.has(Number(num)) ? '' : match;
     })
     .trim();
+}
+
+export interface ChangelogEntryLineInput {
+  description: string;
+  scope?: string;
+  issueIds?: string[];
+  prNumber?: string;
+  breaking?: boolean;
+}
+
+export function renderChangelogEntryLine(
+  entry: ChangelogEntryLineInput,
+  mode: ChangelogRefsMode,
+  repoUrl: string | null,
+  suffix = '',
+): string {
+  const description = neutralizeDescriptionRefs(
+    entry.description,
+    [...(entry.issueIds ?? []), entry.prNumber],
+    mode,
+    repoUrl,
+  );
+  const scope = entry.scope ? ` (\`${entry.scope}\`)` : '';
+  const refs = renderIssueRefs(entry.issueIds ?? [], mode, repoUrl, entry.prNumber);
+  const line = `- ${entry.breaking ? '**BREAKING** ' : ''}${description}${scope}${refs ? ` ${refs}` : ''}${suffix}`;
+  // Last, over the whole line: a backtick in the description can pair with the scope's, and removing a ref can join
+  // the halves of a split opener.
+  return escapeCommentOpeners(escapeChangelogMentions(line));
 }

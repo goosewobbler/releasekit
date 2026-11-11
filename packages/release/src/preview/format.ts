@@ -1,10 +1,9 @@
 import { DEFAULT_DEMOTE_SCOPES } from '@releasekit/config';
 import {
+  type ChangelogEntryLineInput,
   type ChangelogRefsMode,
-  escapeChangelogMentions,
   groupChangelogSections,
-  neutralizeDescriptionRefs,
-  renderIssueRefs,
+  renderChangelogEntryLine,
   type VersionChangelogEntry,
   type VersionPackageChangelog,
 } from '@releasekit/core';
@@ -468,29 +467,14 @@ function formatPackageChangelog(changelog: VersionPackageChangelog, render: Chan
 
 function formatEntryGroup(
   label: string,
-  entries: { description: string; scope?: string; issueIds?: string[]; prNumber?: string; breaking?: boolean }[],
+  entries: ChangelogEntryLineInput[],
   refs: ChangelogRefsMode,
   repoUrl: string | null,
 ): string[] {
   const lines: string[] = [`#### ${label}`, ''];
 
   for (const entry of entries) {
-    // The scope is backticked, so only the description needs mention escaping. Bare `#N` refs from the commit
-    // subject are de-duped against the appended refs.
-    const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
-    const description = escapeChangelogMentions(
-      neutralizeDescriptionRefs(entry.description, appendedRefs, refs, repoUrl),
-    );
-    let line = `- ${entry.breaking ? '**BREAKING** ' : ''}${description}`;
-    if (entry.scope) {
-      line += ` (\`${entry.scope}\`)`;
-    }
-    // renderIssueRefs includes its own parens.
-    const renderedRefs = renderIssueRefs(entry.issueIds ?? [], refs, repoUrl, entry.prNumber);
-    if (renderedRefs) {
-      line += ` ${renderedRefs}`;
-    }
-    lines.push(line);
+    lines.push(renderChangelogEntryLine(entry, refs, repoUrl));
   }
 
   lines.push('');

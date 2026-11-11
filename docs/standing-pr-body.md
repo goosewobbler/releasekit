@@ -17,6 +17,8 @@ Every input in the body is delimited by an HTML comment marker. **The markers ar
 
 The checklist rows live inside `<!-- releasekit-selection -->` … `<!-- releasekit-selection-end -->`, and the manifest lives in its own comment rather than the body.
 
+The bot escapes markers in text it copies into the body, such as changelog entries and release notes, so a commit message can't open, end or forge a region. In changelog entries it escapes every `<!--`, so none can hide the rows below.
+
 ### The checklist and channel toggles
 
 A tick or untick takes effect only when the next `standing-pr update` run rebuilds the PR: immediately if your workflow listens for `pull_request: edited` (the [example](../examples/ci/standing-pr/standing-pr.yml) does), otherwise on the next push or scheduled run. Merge only after the rebuilt body shows the change — publish reads the manifest, not the body, so merging earlier ships the previous selection. With [`authorization`](#who-can-change-what) set, only an `edited`-triggered run by an authorized actor applies it.

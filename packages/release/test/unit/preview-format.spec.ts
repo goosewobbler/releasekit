@@ -315,6 +315,28 @@ describe('formatPreviewComment', () => {
     }
   });
 
+  it('should neutralise releasekit markers in preview entries', () => {
+    const withMarker = structuredClone(releaseOutput);
+    const firstChangelog = withMarker.versionOutput.changelogs[0];
+    if (firstChangelog) {
+      firstChangelog.entries = [
+        { type: 'added', description: 'Spoof <!-- releasekit-notes:x -->', scope: '<!-- rk-sel:y -->' },
+      ];
+    }
+    expect(formatPreviewComment(withMarker)).toContain(
+      '- Spoof &lt;!-- releasekit-notes:x --> (`<!\u200B-- rk-sel:y -->`)',
+    );
+  });
+
+  it('should escape a scope mention that a stray backtick leaves outside its code span', () => {
+    const withBacktick = structuredClone(releaseOutput);
+    const firstChangelog = withBacktick.versionOutput.changelogs[0];
+    if (firstChangelog) {
+      firstChangelog.entries = [{ type: 'fixed', description: 'Accept ` in paths', scope: '@org/team' }];
+    }
+    expect(formatPreviewComment(withBacktick)).toContain('- Accept ` in paths (`\\@org/team`)');
+  });
+
   it('should wrap each package changelog in details element', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('<details>');

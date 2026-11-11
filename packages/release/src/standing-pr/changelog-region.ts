@@ -1,10 +1,8 @@
 import { DEFAULT_DEMOTE_SCOPES, type ReleaseKitConfig } from '@releasekit/config';
 import {
   type ChangelogRefsMode,
-  escapeChangelogMentions,
   groupChangelogSections,
-  neutralizeDescriptionRefs,
-  renderIssueRefs,
+  renderChangelogEntryLine,
   type VersionChangelogEntry,
   type VersionOutput,
 } from '@releasekit/core';
@@ -78,17 +76,8 @@ interface RefRenderOptions {
 
 function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOptions): string {
   const { entry, pkgs } = d;
-  // A bare `@scope/pkg` or `@user` would be a GitHub mention (and could ping a real team), so always neutralise it.
-  // Bare `#N` refs from the commit subject are de-duped against the appended refs.
-  const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
-  const description = escapeChangelogMentions(
-    neutralizeDescriptionRefs(entry.description, appendedRefs, refOpts.refs, refOpts.repoUrl),
-  );
-  const scope = entry.scope ? ` (\`${entry.scope}\`)` : '';
-  const refs = renderIssueRefs(entry.issueIds ?? [], refOpts.refs, refOpts.repoUrl, entry.prNumber);
-  const issues = refs ? ` ${refs}` : '';
   const attr = attribution && pkgs.size > 0 ? ` _(${[...pkgs].map(shortName).sort().join(', ')})_` : '';
-  return `- ${entry.breaking ? '**BREAKING** ' : ''}${description}${scope}${issues}${attr}`;
+  return renderChangelogEntryLine(entry, refOpts.refs, refOpts.repoUrl, attr);
 }
 
 /** Demoted entries are moved, never removed, so the caller's de-duplicated change count still holds. */

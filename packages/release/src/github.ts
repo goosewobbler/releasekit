@@ -47,14 +47,6 @@ export async function findMergedPRsSinceLastRelease(forge: Forge, projectDir: st
   return [...seen];
 }
 
-export async function findPreviewComment(
-  forge: Forge,
-  prNumber: number,
-  marker: string = MARKER,
-): Promise<number | null> {
-  return (await forge.findComment(prNumber, marker))?.id ?? null;
-}
-
 export async function fetchPRLabels(forge: Forge, prNumber: number): Promise<string[]> {
   const issue = await forge.getIssue(prNumber);
   return issue.labels;

@@ -1,9 +1,9 @@
 import * as fs from 'node:fs';
 import type { VersionOutput } from '@releasekit/core';
 import { info, warn } from '@releasekit/core';
-import type { Forge } from '@releasekit/forge';
+import { type Forge, type ForgeComment, isBotComment } from '@releasekit/forge';
 import type { PipelineError } from '@releasekit/publish';
-import { findPreviewComment, postOrUpdateComment } from '../github.js';
+import { postOrUpdateComment } from '../github.js';
 import {
   FAILURE_MARKER,
   type FailureReportMode,
@@ -58,8 +58,8 @@ export async function resolveFailureReportIfPresent(
   versionOutput: VersionOutput,
 ): Promise<void> {
   try {
-    const existing = await findPreviewComment(forge, prNumber, FAILURE_MARKER);
-    if (existing === null) {
+    const existing = await forge.findComment(prNumber, FAILURE_MARKER);
+    if (existing === null || !isBotComment(existing)) {
       return;
     }
     await postOrUpdateComment(forge, prNumber, renderResolvedReport(versionOutput), FAILURE_MARKER);
@@ -91,16 +91,18 @@ export interface UnresolvedFailure {
 }
 
 export async function detectUnresolvedFailure(forge: Forge, prNumber: number): Promise<UnresolvedFailure | null> {
-  let body: string | undefined;
+  let comment: ForgeComment | null;
   try {
-    body = (await forge.findComment(prNumber, FAILURE_MARKER))?.body;
+    comment = await forge.findComment(prNumber, FAILURE_MARKER);
   } catch {
     return null;
   }
 
-  if (!body) {
+  // `findComment` falls back to a human comment carrying the marker, and its numbers could be anything.
+  if (!comment?.body || !isBotComment(comment)) {
     return null;
   }
+  const body = comment.body;
   if (parseFailureReportStatus(body) !== 'unresolved') {
     return null;
   }

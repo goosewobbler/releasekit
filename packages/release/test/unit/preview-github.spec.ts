@@ -1,13 +1,7 @@
 import { createFakeForge } from '@releasekit/forge';
 import { FakeGit, type FakeGitSeed } from '@releasekit/git';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  fetchPRLabels,
-  findMergedPRsSinceLastRelease,
-  findPreviewComment,
-  findStandingPR,
-  postOrUpdateComment,
-} from '../../src/github.js';
+import { fetchPRLabels, findMergedPRsSinceLastRelease, findStandingPR, postOrUpdateComment } from '../../src/github.js';
 
 // The merge-PR lookup is driven by seeded `describeTags` (nearest tag) and `log` (commit SHAs).
 let fakeGit: FakeGit;
@@ -83,39 +77,6 @@ describe('findMergedPRsSinceLastRelease', () => {
     const result = await findMergedPRsSinceLastRelease(forge, '/project');
 
     expect(result).toEqual([]);
-  });
-});
-
-describe('findPreviewComment', () => {
-  it('should return comment ID when marker is found', async () => {
-    const forge = createFakeForge({
-      comments: [
-        { id: 1, body: 'Some other comment' },
-        { id: 2, body: '<!-- releasekit-preview -->\n## Release Preview' },
-      ],
-    });
-
-    const result = await findPreviewComment(forge, 1);
-    expect(result).toBe(2);
-  });
-
-  it('should return null when no marker comment exists', async () => {
-    const forge = createFakeForge({
-      comments: [
-        { id: 1, body: 'Regular comment' },
-        { id: 2, body: 'Another comment' },
-      ],
-    });
-
-    const result = await findPreviewComment(forge, 1);
-    expect(result).toBeNull();
-  });
-
-  it('should return null when no comments exist', async () => {
-    const forge = createFakeForge({ comments: [] });
-
-    const result = await findPreviewComment(forge, 1);
-    expect(result).toBeNull();
   });
 });
 

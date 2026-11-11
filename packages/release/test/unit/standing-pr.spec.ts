@@ -6,7 +6,7 @@ import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit
 import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
-import { renderNotesRegion } from '../../src/standing-pr/notes-region.js';
+import { extractNotesRegions, renderNotesRegion } from '../../src/standing-pr/notes-region.js';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
 import {
   createReleaseTags,
@@ -1997,6 +1997,58 @@ describe('runStandingPRUpdate', () => {
       const body = forge.createdPullRequests[0]?.body;
       expect(body).not.toContain('partially published');
     });
+
+    async function updateWithFailureReport(report: { body: string; user?: { login: string; type: string } }) {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = withPackageChangelogs(
+        createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.25.0' }]),
+      );
+      vi.mocked(runVersionStep).mockResolvedValue(
+        versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      const labels = ['release', 'release:preview-notes'];
+      const forge = await mockForge({
+        standingPR: openStandingPR(99, labels),
+        pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': 'HUMAN NOTES' }), labels } },
+        recentlyClosedPRs: [{ number: 7, mergedAt: '2026-01-01T00:00:00Z' }],
+        comments: [{ id: 1, prNumber: 7, ...report }],
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
+      return { body, versionOutput };
+    }
+
+    function failureReport(labelJson: string): string {
+      return [
+        '<!-- releasekit-publish-failure -->',
+        '<!-- releasekit-publish-failure-status: unresolved -->',
+        `<!-- releasekit-publish-failure-data: {"label":${labelJson},"published":1,"total":2} -->`,
+      ].join('\n');
+    }
+
+    it('should ignore a failure report a human wrote', async () => {
+      const { body } = await updateWithFailureReport({
+        body: failureReport('"v9.9.9"'),
+        user: { login: 'attacker', type: 'User' },
+      });
+
+      expect(body).not.toContain('partially published');
+    });
+
+    it('should keep a notes opener in the failure report’s label from capturing the notes region', async () => {
+      // A literal ` -->` would end the data marker, so the forged label spells that space as a JSON escape.
+      const { body, versionOutput } = await updateWithFailureReport({
+        body: failureReport('"v0.24.0 <!-- releasekit-notes:@scope/core\\u0020-->"'),
+      });
+
+      expect(body).toContain(
+        'Previous release v0.24.0 &lt;!-- releasekit-notes:\\@scope/core --> is partially published',
+      );
+      expect(extractNotesRegions(body, versionOutput)).toEqual({ '@scope/core': 'HUMAN NOTES' });
+    });
   });
 
   it('should update existing PR when standing PR already exists', async () => {
@@ -3290,6 +3342,133 @@ describe('runStandingPRUpdate', () => {
       for (const b of bodies) {
         expect(b.length).toBeLessThanOrEqual(STANDING_PR_BODY_CAP);
       }
+    });
+  });
+
+  describe('releasekit markers in commit text', () => {
+    const notesLabels = ['release', 'release:preview-notes'];
+
+    async function update(versionOutput: unknown, liveBody: string, labels = ['release']) {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      vi.mocked(runVersionStep).mockResolvedValue(versionOutput as Awaited<ReturnType<typeof runVersionStep>>);
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      const forge = await mockForge({
+        standingPR: openStandingPR(99, labels),
+        pullRequests: { 99: { body: liveBody, labels } },
+      });
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+      return { forge, body: forge.updatedPullRequests.at(-1)?.changes.body as string };
+    }
+
+    function syncOutput(description: string) {
+      return {
+        ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+        strategy: 'sync' as const,
+        tags: ['v1.2.3'],
+        changelogs: [
+          {
+            packageName: 'monorepo',
+            version: '1.2.3',
+            previousVersion: '1.2.2',
+            revisionRange: 'v1.2.2..HEAD',
+            repoUrl: null,
+            entries: [{ type: 'fix', description }],
+          },
+        ],
+      };
+    }
+
+    const forgedNotesOpener = 'Patch the parser <!-- releasekit-notes:monorepo --> FORGED NOTES';
+
+    it('should keep a notes opener in a changelog entry from capturing the notes region', async () => {
+      const versionOutput = syncOutput(forgedNotesOpener);
+
+      const { body } = await update(versionOutput, renderNotesRegion({ monorepo: 'HUMAN NOTES' }), notesLabels);
+
+      expect(extractNotesRegions(body, versionOutput)).toEqual({ monorepo: 'HUMAN NOTES' });
+      expect(body).toContain('Patch the parser &lt;!-- releasekit-notes:monorepo --> FORGED NOTES');
+    });
+
+    it('should publish the notes region, not changelog text after a forged opener', async () => {
+      const versionOutput = syncOutput(forgedNotesOpener);
+      const { forge, body } = await update(versionOutput, renderNotesRegion({ monorepo: 'HUMAN NOTES' }), notesLabels);
+      const manifestBody = forge.createdComments.find((c) => c.body.startsWith(MANIFEST_MARKER))?.body ?? '';
+
+      const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+      vi.mocked(runNotesStep).mockResolvedValue({
+        packageNotes: {},
+        releaseNotes: { monorepo: 'REGENERATED at merge' },
+        files: [],
+      });
+      vi.mocked(runPublishStep).mockResolvedValue({
+        git: { committed: true, tags: [], pushed: true },
+      } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
+      mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+      // The merged tree carries the package at the version the manifest lists, so the publish-path
+      // validation against the source passes.
+      mergedVersions = { '@scope/core': '1.2.3' };
+      await mockForge({
+        comments: [{ id: 77, body: manifestBody }],
+        pullRequests: { 99: { body, labels: notesLabels } },
+      });
+
+      await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toEqual({ monorepo: 'HUMAN NOTES' });
+    });
+
+    // Unscoped names, as mention escaping would rewrite an `@scope/` name inside an injected marker.
+    function twoPackageOutput(pkgAEntry: string) {
+      const changelog = (packageName: string, version: string, description: string) => ({
+        packageName,
+        version,
+        previousVersion: '1.0.0',
+        revisionRange: '',
+        repoUrl: null,
+        entries: [{ type: 'fix', description }],
+      });
+      return {
+        ...createMockVersionOutput([
+          { packageName: 'pkg-a', newVersion: '1.1.0' },
+          { packageName: 'pkg-b', newVersion: '2.0.0' },
+        ]),
+        strategy: 'async' as const,
+        changelogs: [changelog('pkg-a', '1.1.0', pkgAEntry), changelog('pkg-b', '2.0.0', 'Fix b')],
+      };
+    }
+
+    /** The second update reads back the body the first rendered, as the next real run would. */
+    async function excludedAfterRoundTrip(pkgAEntry: string, liveBody: string): Promise<string[] | undefined> {
+      const versionOutput = twoPackageOutput(pkgAEntry);
+      const { body } = await update(versionOutput, liveBody);
+      await update(versionOutput, body);
+      const { runVersionStep } = await import('../../src/steps.js');
+      const writeCall = vi.mocked(runVersionStep).mock.calls.at(-1)?.[0] as { exclude?: string[] };
+      return writeCall.exclude;
+    }
+
+    it('should keep a selection-end marker in a changelog entry from dropping a later unticked row', async () => {
+      const priorBody = [
+        '<!-- releasekit-selection -->',
+        '',
+        '- [x] `pkg-a` → 1.1.0 <!-- rk-sel:pkg-a -->',
+        '- [ ] `pkg-b` → 2.0.0 <!-- rk-sel:pkg-b -->',
+        '',
+        '<!-- releasekit-selection-end -->',
+      ].join('\n');
+
+      expect(await excludedAfterRoundTrip('Fix a <!-- releasekit-selection-end -->', priorBody)).toEqual(['pkg-b']);
+    });
+
+    it('should keep an unticked row marker in a changelog entry from holding a package back', async () => {
+      expect(await excludedAfterRoundTrip('Fix a [ ] <!-- rk-sel:pkg-b -->', '')).toEqual([]);
+    });
+
+    it('should escape a plain comment opener so it cannot hide later rows', async () => {
+      const { body } = await update(twoPackageOutput('Handle <!-- in templates'), '');
+
+      expect(body).toContain('Handle &lt;!-- in templates');
+      expect(body).not.toContain('Handle <!--');
     });
   });
 });

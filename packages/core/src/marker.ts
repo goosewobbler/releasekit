@@ -55,6 +55,20 @@ export function neutralizeMarkers(content: string): string {
   return content.replace(/<!--(?= ?(?:releasekit-|rk-))/g, '&lt;!--');
 }
 
+// Single-backtick spans only, as in the mention regex. GitHub doesn't decode `&lt;` in a code span, so a zero-width
+// space breaks the opener there instead.
+const CODE_SPAN_OR_COMMENT_OPEN = /`[^`]*`|<!--/g;
+
+/**
+ * Escapes every opener, not just releasekit markers: in commit text, any `<!--` hides the body up to the next `-->`.
+ * Notes use {@link neutralizeMarkers}, as people write comments in them on purpose.
+ */
+export function escapeCommentOpeners(text: string): string {
+  return text.replace(CODE_SPAN_OR_COMMENT_OPEN, (match) =>
+    match.startsWith('`') ? match.replaceAll('<!--', '<!\u200B--') : '&lt;!--',
+  );
+}
+
 export function wrapMarkerRegion(content: string, open: string, close: string): string {
   return `${open}\n\n${content.trim()}\n\n${close}`;
 }
