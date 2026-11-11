@@ -138,7 +138,7 @@ describe('Cargo Handler', () => {
         }),
       );
 
-      expect(fs.writeFileSync).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML');
+      expect(jsonOutput.writeVersionFile).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML', false);
 
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Updated Cargo.toml at'), 'success');
 
@@ -149,10 +149,8 @@ describe('Cargo Handler', () => {
       vi.mocked(jsonOutput.addPackageUpdate, { partial: true }).mockImplementation(() => {});
 
       updateCargoVersion(mockCargoPath, '2.0.0', true);
-
-      expect(fs.writeFileSync).not.toHaveBeenCalled();
       expect(TOML.stringify).toHaveBeenCalled();
-      expect(jsonOutput.recordPendingWrite).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML');
+      expect(jsonOutput.writeVersionFile).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML', true);
 
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath, undefined);
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('[DRY RUN] Would update'), 'success');
@@ -169,7 +167,7 @@ describe('Cargo Handler', () => {
       updateCargoVersion(mockCargoPath, '2.0.0', false);
 
       expect(TOML.stringify).toHaveBeenCalled();
-      expect(fs.writeFileSync).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML');
+      expect(jsonOutput.writeVersionFile).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML', false);
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath, undefined);
       expect(recordCargoBump).toHaveBeenCalledWith({
         cargoTomlPath: mockCargoPath,

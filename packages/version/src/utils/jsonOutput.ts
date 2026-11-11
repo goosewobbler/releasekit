@@ -16,6 +16,7 @@ export type JsonOutputData = VersionOutput;
 let _jsonOutputMode = false;
 
 const _pendingWrites: Array<{ path: string; content: string }> = [];
+const _writtenFiles = new Set<string>();
 
 const _jsonData: VersionOutput = {
   dryRun: false,
@@ -38,6 +39,19 @@ export function enableJsonOutput(dryRun = false): void {
   _jsonData.baselineTags = undefined;
   _jsonData.commitMessage = undefined;
   _pendingWrites.length = 0;
+  _writtenFiles.clear();
+}
+
+/** Writes the file, or in a dry run buffers it for {@link flushPendingWrites}, and lists it in `--json` output. */
+export function writeVersionFile(filePath: string, content: string, dryRun: boolean): void {
+  if (dryRun) {
+    recordPendingWrite(filePath, content);
+  } else {
+    fs.writeFileSync(filePath, content);
+  }
+  if (_jsonOutputMode) {
+    _writtenFiles.add(path.resolve(filePath));
+  }
 }
 
 /** Dry-run writes are buffered here and applied later via flushPendingWrites. */
@@ -247,16 +261,26 @@ export function setCommitMessage(message: string): void {
   _jsonData.commitMessage = message;
 }
 
+/** Files no update names reach publish's commit only through this list. */
+function withAdditionalFiles(data: VersionOutput): VersionOutput {
+  const named = new Set(data.updates.flatMap((u) => [u.filePath, ...(u.files ?? [])].map((f) => path.resolve(f))));
+  const additionalFiles = [..._writtenFiles].filter((f) => !named.has(f));
+  return additionalFiles.length > 0 ? { ...data, additionalFiles } : { ...data };
+}
+
 export function getJsonData(): VersionOutput {
-  return { ..._jsonData };
+  return withAdditionalFiles(_jsonData);
 }
 
 export function printJsonOutput(outputPath?: string): void {
   if (!_jsonOutputMode) {
     return;
   }
-  writeEnvelope(successEnvelope(_jsonData, { changed: !_jsonData.dryRun && _jsonData.updates.length > 0 }), {
-    json: true,
-    output: outputPath,
-  });
+  writeEnvelope(
+    successEnvelope(withAdditionalFiles(_jsonData), { changed: !_jsonData.dryRun && _jsonData.updates.length > 0 }),
+    {
+      json: true,
+      output: outputPath,
+    },
+  );
 }
