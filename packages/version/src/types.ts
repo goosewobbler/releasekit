@@ -187,6 +187,7 @@ export function toVersionConfig(config: VersionConfig = VersionConfigSchema.pars
     commitMessage: config.commitMessage,
     mismatchStrategy: config.mismatchStrategy,
     allowFirstBump: config.allowFirstBump,
+    strictReachable: config.strictReachable,
     zeroMajor: config.zeroMajor,
     versionPrefix: config.versionPrefix,
     prereleaseIdentifier: config.prereleaseIdentifier,

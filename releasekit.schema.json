@@ -207,7 +207,7 @@
         "strictReachable": {
           "type": "boolean",
           "default": false,
-          "description": "Only use reachable tags"
+          "description": "Fail the run when the previous release tag isn't reachable from HEAD, instead of falling back."
         },
         "zeroMajor": {
           "type": "string",

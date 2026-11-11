@@ -4,6 +4,7 @@ import { createGitCli, type Git } from '@releasekit/git';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
 
+import { StrictReachableError } from '../errors/strictReachableError.js';
 import { verifyTag } from '../git/tagVerification.js';
 import { log } from './logging.js';
 
@@ -211,7 +212,7 @@ export async function getBestVersionSource(
 
   if (!verification.exists || !verification.reachable) {
     if (strictReachable) {
-      throw new Error(
+      throw new StrictReachableError(
         `Git tag '${tagName}' is not reachable from the current commit. ` +
           `The tag exists but cannot be reached from HEAD, which usually means you're on a different branch or the tag is orphaned. ` +
           `To allow fallback to package version, set strictReachable to false in your configuration.`,
