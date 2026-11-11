@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mockLoadReleaseKitConfig = vi.fn();
 const mockForgeFor = vi.fn();
 const mockFindMergedPRsSinceLastRelease = vi.fn();
+const mockFindMergedPRsForCommit = vi.fn();
 const mockFetchPRLabels = vi.fn();
 const mockPostOrUpdateComment = vi.fn();
 
@@ -28,6 +29,7 @@ vi.mock('node:child_process', () => ({
 vi.mock('../../src/github.js', () => ({
   forgeFor: (...args: unknown[]) => mockForgeFor(...args),
   findMergedPRsSinceLastRelease: (...args: unknown[]) => mockFindMergedPRsSinceLastRelease(...args),
+  findMergedPRsForCommit: (...args: unknown[]) => mockFindMergedPRsForCommit(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
   postOrUpdateComment: (...args: unknown[]) => mockPostOrUpdateComment(...args),
 }));
@@ -54,6 +56,8 @@ describe('Gate', () => {
     vi.clearAllMocks();
 
     mockForgeFor.mockReturnValue(createFakeForge());
+    // The triggering commit is a PR's merge, not a direct push.
+    mockFindMergedPRsForCommit.mockResolvedValue([1]);
     mockLoadReleaseKitConfig.mockReturnValue({
       ci: {
         releaseTrigger: 'label',

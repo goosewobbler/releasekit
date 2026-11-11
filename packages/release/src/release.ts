@@ -7,7 +7,7 @@ import { PipelineError } from '@releasekit/publish';
 import { postFailureReport, resolveFailureReportIfPresent } from './failure-report/post.js';
 import { decideFromMergedPRs, type GateOutput } from './gate/gate.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
-import { findMergedPRsForCommit, forgeFor, PRLookupError } from './github.js';
+import { findMergedPRsForCommit, forgeFor } from './github.js';
 import { resolveScopeToTarget } from './label-utils.js';
 import { markFeederPreviewsStale } from './preview/stale.js';
 import { mergeNotesRegions } from './standing-pr/notes-region.js';
@@ -81,23 +81,9 @@ async function decideFromPRs(releaseKitConfig: ReleaseKitConfig, projectDir: str
   }
 
   const forge = forgeFor({ token: githubContext.token, owner: githubContext.owner, repo: githubContext.repo });
-  let pushedPRs: number[];
-  try {
-    pushedPRs = await findMergedPRsForCommit(forge, githubContext.sha);
-  } catch (err) {
-    throw new PRLookupError(
-      `Could not look up the PR for ${githubContext.sha}: ${err instanceof Error ? err.message : String(err)}. ` +
-        'Grant the workflow token `pull-requests: read`.',
-    );
-  }
-  // A direct push is released on its own say, not by labels on PRs that merged before it.
-  if (pushedPRs.length === 0) {
-    info('The pushed commit is not from a merged PR, so merged PR labels are ignored');
-    return null;
-  }
   // A failed lookup throws rather than releasing from commits: labels can block or change a release, and a re-run is
   // cheaper than a wrong version.
-  const verdict = await decideFromMergedPRs({ forge, releaseKitConfig, projectDir });
+  const verdict = await decideFromMergedPRs({ forge, releaseKitConfig, projectDir, pushedSha: githubContext.sha });
   return verdict.prNumbers.length > 0 ? verdict : null;
 }
 
@@ -106,6 +92,7 @@ function applyVerdict(options: ReleaseOptions, verdict: GateOutput): void {
   if (options.bump === undefined && !options.stable && options.prerelease === undefined) {
     options.bump = verdict.bump;
     options.stable = verdict.stable;
+    options.prerelease = verdict.prerelease;
   }
   options.target ??= verdict.target;
 }

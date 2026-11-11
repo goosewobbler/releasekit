@@ -145,8 +145,9 @@ releasekit release --dry-run
 In GitHub Actions (`GITHUB_REPOSITORY`, `GITHUB_SHA` and `GITHUB_TOKEN` set, outside `workflow_dispatch`), `release` first makes [`gate`](#releasekit-release-gate)'s decision on the PRs merged since the last release, with the same code. The newest PR whose labels call for a release wins.
 
 - **No release**: no PR's labels call for one, or HEAD matches `release.ci.skipPatterns`. A PR calls for a release with a `bump:*` or `release:graduate` label under `ci.releaseTrigger: "label"`, without `release:skip` under `"commit"`, and with `release:immediate` in `standing-pr` strategy. `release` exits 0, logs the reason, and `--json` reports `changed: false`. A PR with conflicting labels blocks the release the same way.
-- **Release**: the winning PR's `bump:*` and `channel:prerelease` labels set the bump (under `"commit"`, only `bump:major` does), `release:graduate` the graduation and `scope:*` the target. `--bump`, `--stable` or `--prerelease` replace its bump and graduation, and `--target` or `--scope` its scope. Without a scope label, every changed package releases.
-- **A direct push** (the pushed commit isn't from a merged PR), no merged PR since the last release, or no GitHub context: `release` releases from commits.
+- **Release**: the winning PR's `bump:*` and `channel:prerelease` labels set the bump (under `"commit"`, commits set it: only `bump:major` overrides it, and `channel:prerelease` makes it a prerelease), `release:graduate` the graduation and `scope:*` the target. `--bump`, `--stable` or `--prerelease` replace its bump and graduation, and `--target` or `--scope` its scope. Without a scope label, every changed package releases.
+- **A direct push** (the pushed commit isn't from a merged PR): under `"commit"` in direct strategy, `release` releases from commits whatever earlier PRs say. Elsewhere it carries no labels, so it doesn't release.
+- **No merged PR** since the last release, or no GitHub context: `release` releases from commits.
 
 Listing the PRs needs `pull-requests: read`. If the lookup fails, `release` fails and names the permission. `--draft` and `--from-draft` ignore PR labels.
 

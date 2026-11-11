@@ -140,7 +140,7 @@ Setting `publishOrder` turns off the automatic sort, so list every crate in a pa
 
 ## GitHub Actions workflow
 
-A minimal release workflow for a Rust-only repository:
+A minimal release workflow for a Rust-only repository. It releases on every push to `main`, which needs `"ci": { "releaseTrigger": "commit" }` in `releasekit.config.json`:
 
 ```yaml
 name: Release

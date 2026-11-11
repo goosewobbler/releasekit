@@ -9,6 +9,8 @@ export interface PREvaluation {
   scope?: string;
   target?: string;
   stable?: boolean;
+  /** Commit mode's `channel:prerelease`: a prerelease at the bump the commits give. */
+  prerelease?: boolean;
   blocked?: boolean;
   reason?: string;
   /** The merged PR is the standing release PR, which publishes from its manifest. The release fails on it. */
@@ -202,7 +204,9 @@ export function evaluatePR(
     prNumber,
     labels,
     shouldRelease: true,
-    bump: labels.includes(labelConfig.major) ? bump : undefined,
+    // Commits set the bump in commit mode, as the preview shows: only bump:major overrides it.
+    bump: labels.includes(labelConfig.major) && !labels.includes(labelConfig.graduate) ? 'major' : undefined,
+    prerelease: labels.includes(labelConfig.prerelease) || undefined,
     scope,
     target,
     stable: labels.includes(labelConfig.graduate),

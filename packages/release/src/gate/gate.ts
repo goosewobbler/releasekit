@@ -5,6 +5,7 @@ import type { Forge } from '@releasekit/forge';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
 import {
   fetchPRLabels,
+  findMergedPRsForCommit,
   findMergedPRsSinceLastRelease,
   forgeFor,
   PRLookupError,
@@ -21,6 +22,7 @@ export interface GateOutput {
   scope?: string;
   target?: string;
   stable?: boolean;
+  prerelease?: boolean;
   labels: string[];
   prNumbers: number[];
   blocked?: boolean;
@@ -73,6 +75,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
       forge,
       releaseKitConfig,
       projectDir: options.projectDir,
+      pushedSha: githubContext.sha,
       scope: options.scope,
     });
   } catch (err) {
@@ -99,6 +102,8 @@ export interface MergedPRDecisionInput {
   forge: Forge;
   releaseKitConfig: ReleaseKitConfig;
   projectDir: string;
+  /** The commit the run was triggered for, so a direct push in commit mode isn't judged by earlier PRs. */
+  pushedSha?: string;
   scope?: string;
 }
 
@@ -107,8 +112,34 @@ export interface MergedPRDecisionInput {
  * when none merged; a failed lookup throws a {@link PRLookupError}.
  */
 export async function decideFromMergedPRs(input: MergedPRDecisionInput): Promise<GateOutput> {
-  const { forge, releaseKitConfig, projectDir, scope } = input;
+  const { forge, releaseKitConfig, projectDir, pushedSha, scope } = input;
   const ciConfig = releaseKitConfig.ci;
+
+  // Commit mode releases every push, so a release:skip PR still in the window mustn't hold a later direct push back.
+  // Elsewhere a direct push has no labels and doesn't release.
+  const commitMode =
+    (ciConfig?.releaseTrigger ?? 'label') === 'commit' && (ciConfig?.releaseStrategy ?? 'direct') === 'direct';
+  if (commitMode && pushedSha) {
+    let pushedPRs: number[];
+    try {
+      pushedPRs = await findMergedPRsForCommit(forge, pushedSha);
+    } catch (err) {
+      throw new PRLookupError(
+        `Could not look up the PR for ${pushedSha}: ${err instanceof Error ? err.message : String(err)}. ` +
+          'Grant the workflow token `pull-requests: read`.',
+      );
+    }
+    if (pushedPRs.length === 0) {
+      info('The pushed commit is not from a merged PR, so it releases from commits');
+      return {
+        shouldRelease: true,
+        labels: [],
+        prNumbers: [],
+        evaluations: [],
+        reason: 'The pushed commit is not from a merged PR',
+      };
+    }
+  }
 
   // Since the last release tag, not just the triggering SHA: a later push (e.g. dependabot) can cancel the original
   // run and fire the gate with a different head_sha.
@@ -229,6 +260,7 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
     scope: resolvedScope,
     target: resolvedTarget,
     stable: winner.stable,
+    prerelease: winner.prerelease,
     labels: winner.labels,
     prNumbers,
     evaluations,

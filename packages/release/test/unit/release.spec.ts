@@ -854,6 +854,16 @@ describe('runRelease', () => {
         expect(versionRunOptions()).toMatchObject({ stable: true });
       });
 
+      it('should release a prerelease at the bump its commits give on channel:prerelease', async () => {
+        merge({ number: 123, labels: ['channel:prerelease', 'bump:minor'] });
+
+        const verdict = await gate();
+        await runRelease(noTarget);
+
+        expect(verdict).toMatchObject({ shouldRelease: true, prerelease: true, bump: undefined });
+        expect(versionRunOptions()).toMatchObject({ bump: undefined, prerelease: true });
+      });
+
       it.each([
         { labels: ['bump:patch'], bump: undefined },
         { labels: ['bump:major'], bump: 'major' },
@@ -960,15 +970,26 @@ describe('runRelease', () => {
       expect(verdict).toMatchObject({ shouldRelease: false, reason: expect.stringContaining('`pull-requests: read`') });
     });
 
-    it('should release a direct push from commits, whatever the PRs merged before it say', async () => {
+    it('should release a direct push from commits in commit mode, whatever PRs merged before it say', async () => {
       mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
       merge({ number: 10, labels: ['release:skip'] });
       vi.stubEnv('GITHUB_SHA', 'sha-direct-push');
 
+      const verdict = await gate();
       const result = await runRelease(noTarget);
 
+      expect(verdict.shouldRelease).toBe(true);
       expect(result).not.toBeNull();
-      expect(info).toHaveBeenCalledWith(expect.stringContaining('not from a merged PR'));
+    });
+
+    it('should not release a direct push in label mode', async () => {
+      merge({ number: 10, labels: [] });
+      vi.stubEnv('GITHUB_SHA', 'sha-direct-push');
+
+      const result = await runRelease(noTarget);
+
+      expect(result).toBeNull();
+      expect(mockVersionEngineRun).not.toHaveBeenCalled();
     });
 
     describe('standing-pr: a merged PR carrying the immediate label', () => {
