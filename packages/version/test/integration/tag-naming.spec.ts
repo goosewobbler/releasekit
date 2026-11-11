@@ -147,6 +147,21 @@ describe('tag naming', () => {
     });
   });
 
+  describe('tagTemplate in single mode', () => {
+    it('should find its own template tag on the next run', () => {
+      createRepo('single', { sync: false, tagTemplate: 'release-${version}' });
+      feat();
+      expect(release().tags).toEqual(['release-0.2.0']);
+
+      feat();
+
+      expect(version().changelogs[0]).toMatchObject({
+        previousVersion: 'release-0.2.0',
+        revisionRange: 'release-0.2.0..HEAD',
+      });
+    });
+  });
+
   describe('tagTemplate in sync mode', () => {
     it('should tag with the template and bump from that tag on the next run', () => {
       createRepo('monorepo', { sync: true, tagTemplate: 'release-${version}' });

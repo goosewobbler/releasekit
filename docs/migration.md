@@ -260,6 +260,7 @@ diagnostic output.
 - Sync mode (the default) tags with `version.tagTemplate`, which it used to ignore.
 - `version.versionPrefix: ""` gives `1.2.3` tags; it used to give `v1.2.3`.
 - `version.tagTemplate` and `version.baselineTagTemplate` must end with `${version}`; text after it fails config loading.
+- With no `version` block, a version mismatch between `package.json` and the latest tag warns (`mismatchStrategy: "warn"`); it used to fail.
 
 A release finds the previous one by its tag name. If your tag names change, tag your last release's commit under
 the new name before the next release, e.g. `git tag scope-pkg@v1.2.3 v1.2.3^{}`, and push it.

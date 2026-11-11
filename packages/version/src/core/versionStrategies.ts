@@ -432,9 +432,12 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         packageSpecificTags: config.packageSpecificTags,
       });
       const usedPackageSpecificTag = !!latestTagResult;
+      const globalPrefix = config.packageSpecificTags
+        ? undefined
+        : deriveBaselineTagPrefix(tagTemplate, formattedPrefix);
 
       if (!latestTagResult) {
-        const globalTagResult = await getLatestTag();
+        const globalTagResult = await getLatestTag(globalPrefix);
         latestTagResult = globalTagResult || '';
       }
 
@@ -469,6 +472,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       const baselineResolver = new BaselineResolver({
         versionPrefix: formattedPrefix,
+        globalTagPrefix: globalPrefix,
         tagTemplate,
         packageSpecificTags: config.packageSpecificTags ?? false,
         strictReachable: config.strictReachable ?? false,

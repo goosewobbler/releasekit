@@ -356,16 +356,15 @@ This is the default.
 -   **Behaviour (Default - No `-t` flag):** The tool analyzes commits to determine which specific packages within the monorepo have changed since the last relevant commit/tag.
     -   It calculates an appropriate version bump **independently for each changed package** based on the commits affecting that package.
     -   Only the `package.json` files of the changed packages are updated.
-    -   A **single commit** is created grouping all the version bumps, using the commit message template. **No Git tags are created** in this mode.
+    -   A **single commit** is created grouping all the version bumps, using the commit message template, and each updated package gets its own tag.
 -   **Use Case:** Suitable for monorepos where packages are versioned independently, but a single commit represents the batch of updates for traceability.
 
 -   **Behaviour (Targeted - With `-t` flag):** When using the `-t, --target <targets>` flag:
     -   Only the specified packages (respecting the `skip` list) are considered for versioning.
     -   It calculates an appropriate version bump **independently for each targeted package** based on its commit history.
     -   The `package.json` file of each successfully updated targeted package is modified.
-    -   An **individual Git tag** (e.g., `packageName@1.2.3`) is created **for each successfully updated package** immediately after its version is bumped.
+    -   Each successfully updated package gets its own tag (e.g. `scope-pkg@v1.2.3` with `packageSpecificTags`) immediately after its version is bumped.
     -   Finally, a **single commit** is created including all the updated `package.json` files, using a summary commit message (e.g., `chore: release pkg-a, pkg-b v1.2.3 [skip ci]`).
-    -   **Important:** Only package-specific tags are created. The global tag (e.g., `v1.2.3`) is **not** automatically generated in this mode. If your release process (like GitHub Releases) depends on a global tag, you'll need to create it manually in your CI/CD script *after* `releasekit-version` completes.
 -   **Use Case:** Releasing specific packages independently while still tagging each released package individually.
 
 ## Prerelease Handling

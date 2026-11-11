@@ -4,8 +4,7 @@
     "branch": "main"
   },
   "version": {
-    "preset": "angular",
-    "versionPrefix": "v"
+    "preset": "angular"
   },
   "notes": {
     "releaseNotes": {}

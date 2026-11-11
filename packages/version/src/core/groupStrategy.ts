@@ -424,9 +424,13 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
     try {
       setVersioningStrategy('group');
       const formattedPrefix = formatVersionPrefix(config.versionPrefix);
-      const globalTag = await getLatestTag(deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix));
+      const globalPrefix =
+        deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix) ??
+        (config.packageSpecificTags ? undefined : deriveBaselineTagPrefix(config.tagTemplate, formattedPrefix));
+      const globalTag = await getLatestTag(globalPrefix);
       const baselineResolver = new BaselineResolver({
         versionPrefix: formattedPrefix,
+        globalTagPrefix: globalPrefix,
         tagTemplate: config.tagTemplate,
         packageSpecificTags: config.packageSpecificTags ?? false,
         strictReachable: config.strictReachable ?? false,
