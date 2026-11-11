@@ -109,7 +109,7 @@ ReleaseKit uses a single `releasekit.config.json` file:
     }
   },
   "notes": {
-    "output": [{ "format": "markdown", "file": "CHANGELOG.md" }]
+    "changelog": { "mode": "root" }
   },
   "ci": {
     "releaseStrategy": "direct",

@@ -34,13 +34,20 @@ describe('generate-schema', () => {
         const obj = node as Record<string, unknown>;
         if (obj.type === 'object') {
           objectsChecked++;
-          // Allowed: `false` (closed object) or an object schema (z.record value type).
-          if (obj.additionalProperties === undefined) {
+          // Allowed: `false` or a z.record value schema. `{}`, from a loose object or catchall(z.unknown()), accepts
+          // anything, like `true`.
+          const extra = obj.additionalProperties;
+          if (extra === undefined) {
             violations.push(
               `object node missing additionalProperties: ${JSON.stringify(obj.properties ? Object.keys(obj.properties) : obj)}`,
             );
-          } else if (obj.additionalProperties === true) {
-            violations.push('object node has additionalProperties: true (silent leniency)');
+          } else if (
+            extra === true ||
+            (typeof extra === 'object' && extra !== null && Object.keys(extra).length === 0)
+          ) {
+            violations.push(
+              `object node accepts any additional property: ${JSON.stringify(obj.properties ? Object.keys(obj.properties) : extra)}`,
+            );
           }
         }
         for (const value of Object.values(obj)) {

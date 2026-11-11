@@ -15,6 +15,39 @@ type ZodIssue = z.core.$ZodIssue;
 
 const LLM_MODEL_PATH = ['notes', 'releaseNotes', 'llm', 'model'];
 
+const RELEASE_NOTES_OUTPUT =
+  'release notes go to the GitHub release body by default; for in-repo per-version files set ' +
+  'notes.releaseNotes.file to { "dir": "release-notes" }, and for a cumulative changelog use notes.changelog.mode';
+
+const VERSION_BUMPS =
+  'use Conventional Commits or --bump for version bumps, version.groups for coupled packages, and ' +
+  "release:with-prerequisites / --include-prerequisites to release a package's changed dependencies";
+
+const REMOVED_KEYS = new Map<string, string>([
+  ['notes.releaseNotes.mode', `removed - ${RELEASE_NOTES_OUTPUT}`],
+  ['notes.releaseNotes.directory', `removed - ${RELEASE_NOTES_OUTPUT}`],
+  [
+    'notes.releaseNotes.llm.prompts.templates',
+    'removed - use notes.releaseNotes.llm.prompts.instructions to add to the built-in prompts',
+  ],
+  ['version.versionStrategy', `removed - ${VERSION_BUMPS}`],
+  ['version.branchPatterns', `removed - ${VERSION_BUMPS}`],
+  ['version.defaultReleaseType', `removed - ${VERSION_BUMPS}`],
+  ['version.updateInternalDependencies', `removed - ${VERSION_BUMPS}`],
+  ['version.baseBranch', 'moved to git.branch'],
+  ['version.skipHooks', 'moved to git.skipHooks'],
+  ['ci.autoRelease', 'removed - it had no effect'],
+  ['ci.skipPatterns', 'moved to release.ci.skipPatterns'],
+  ['ci.minChanges', 'moved to release.ci.minChanges'],
+  [
+    'ci.prPreview.refreshAfterRelease',
+    "renamed to markStaleAfterRelease, which marks open PRs' previews stale after a release instead of recomputing them",
+  ],
+  ['ci.labels.stable', 'renamed to ci.labels.graduate'],
+  ['monorepo.mainPackage', 'moved to version.mainPackage'],
+  ['monorepo.mode', 'removed - changelog aggregation is set by notes.changelog.mode'],
+]);
+
 const unsetEnvByOwner = new WeakMap<object, Map<PropertyKey, string>>();
 
 function configValidationError(issues: ConfigIssue[]): ConfigError {
@@ -30,16 +63,30 @@ function isRootTypeMismatch(issue: ZodIssue): boolean {
   return issue.path.length === 0 && (issue.code === 'invalid_type' || issue.code === 'invalid_value');
 }
 
-// Zod reports a failed union as "Invalid input" at the union's path; when exactly one branch matched the value's
-// type, its issues say what's actually wrong.
-function flattenIssues(issues: readonly ZodIssue[], prefix: PropertyKey[] = []): ConfigIssue[] {
+function flattenIssues(
+  issues: readonly ZodIssue[],
+  unsetEnv: UnsetEnvReference[],
+  prefix: PropertyKey[] = [],
+): ConfigIssue[] {
   return issues.flatMap((issue) => {
     const path = [...prefix, ...issue.path];
     if (issue.code === 'invalid_union') {
+      // Zod reports a failed union as "Invalid input" at the union's path; when exactly one branch matched the
+      // value's type, its issues say what's actually wrong.
       const matched = issue.errors.filter((branch) => !branch.every(isRootTypeMismatch));
       if (matched.length === 1) {
-        return flattenIssues(matched[0], path);
+        return flattenIssues(matched[0], unsetEnv, path);
       }
+    }
+    if (issue.code === 'unrecognized_keys') {
+      return issue.keys.map((key) => {
+        const keyPath = [...path, key];
+        return { path: keyPath, message: REMOVED_KEYS.get(keyPath.join('.')) ?? 'unknown key' };
+      });
+    }
+    const ref = unsetEnv.find((r) => samePath(r.path, path));
+    if (ref) {
+      return [{ path, message: unsetEnvMessage(ref.name) }];
     }
     return [{ path, message: issue.message }];
   });
@@ -50,12 +97,7 @@ function samePath(a: PropertyKey[], b: PropertyKey[]): boolean {
 }
 
 export function zodConfigError(error: z.ZodError, unsetEnv: UnsetEnvReference[]): ConfigError {
-  return configValidationError(
-    flattenIssues(error.issues).map((issue) => {
-      const ref = unsetEnv.find((r) => samePath(r.path, issue.path));
-      return ref ? { path: issue.path, message: unsetEnvMessage(ref.name) } : issue;
-    }),
-  );
+  return configValidationError(flattenIssues(error.issues, unsetEnv));
 }
 
 /** Records each unset reference against the parsed object that would have held it, for checks after load. */

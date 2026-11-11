@@ -84,13 +84,6 @@ function normalise(node: unknown): unknown {
     delete out.default;
   }
 
-  // Editor/ajv strictness without making the Zod parser strict (load.ts strips
-  // unknown keys leniently). Record/map schemas such as version.groups keep
-  // their schema-valued additionalProperties.
-  if (out.type === 'object' && 'properties' in out && !('additionalProperties' in out)) {
-    out.additionalProperties = false;
-  }
-
   return out;
 }
 

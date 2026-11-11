@@ -116,25 +116,103 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).toThrow(/version\.tagTemplate: tagTemplate can't contain a version before/);
   });
 
-  it('should throw a migration error for the renamed ci.prPreview.refreshAfterRelease', () => {
+  it('should reject an unknown key, naming its full path', () => {
     mockedFs.existsSync.mockReturnValue(true);
-    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ ci: { prPreview: { refreshAfterRelease: true } } }));
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ ci: { labels: { bogus: 'release:bogus' } } }));
 
-    expect(() => loadConfig()).toThrow(/ci\.prPreview\.refreshAfterRelease was renamed to markStaleAfterRelease/);
+    expect(() => loadConfig()).toThrow(ConfigError);
+    expect(() => loadConfig()).toThrow(/^Config validation errors:\n {2}ci\.labels\.bogus: unknown key$/);
   });
 
-  it('should throw a migration error for the removed notes.releaseNotes.mode', () => {
+  it('should report every unknown key, including top-level, union-branch and map-value keys', () => {
     mockedFs.existsSync.mockReturnValue(true);
-    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ notes: { releaseNotes: { mode: 'versioned' } } }));
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        typo: true,
+        ci: { prPreview: { enabled: true, stale: true } },
+        notes: { changelog: { mode: 'root', bogus: 1, other: 2 } },
+        version: { sync: false, groups: { core: { packages: ['@scope/*'], sync: 'fixed', extra: 1 } } },
+      }),
+    );
 
-    expect(() => loadConfig()).toThrow(/notes\.releaseNotes no longer supports mode/);
+    expect(() => loadConfig()).toThrow(
+      [
+        'Config validation errors:',
+        '  version.groups.core.extra: unknown key',
+        '  notes.changelog.bogus: unknown key',
+        '  notes.changelog.other: unknown key',
+        '  ci.prPreview.stale: unknown key',
+        '  typo: unknown key',
+      ].join('\n'),
+    );
+  });
+
+  it('should accept arbitrary keys in free-form maps', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        version: { sync: false, groups: { 'any-name': { packages: ['@scope/*'], sync: 'linked' } } },
+        ci: { scopeLabels: { 'scope:anything': '@scope/*' } },
+      }),
+    );
+
+    const result = loadConfig();
+    expect(result.version?.groups?.['any-name']?.sync).toBe('linked');
+    expect(result.ci?.scopeLabels).toEqual({ 'scope:anything': '@scope/*' });
+  });
+
+  it.each([
+    [
+      'ci.prPreview.refreshAfterRelease',
+      { ci: { prPreview: { refreshAfterRelease: true } } },
+      /renamed to markStaleAfterRelease/,
+    ],
+    ['ci.labels.stable', { ci: { labels: { stable: 'release:stable' } } }, /renamed to ci\.labels\.graduate/],
+    ['ci.skipPatterns', { ci: { skipPatterns: ['chore: release '] } }, /moved to release\.ci\.skipPatterns/],
+    ['notes.releaseNotes.mode', { notes: { releaseNotes: { mode: 'versioned' } } }, /notes\.changelog\.mode/],
+    [
+      'notes.releaseNotes.llm.prompts.templates',
+      { notes: { releaseNotes: { llm: { provider: 'ollama', model: 'm', prompts: { templates: {} } } } } },
+      /prompts\.instructions/,
+    ],
+    ['version.versionStrategy', { version: { versionStrategy: 'branchPattern' } }, /Conventional Commits/],
+    ['version.baseBranch', { version: { baseBranch: 'main' } }, /moved to git\.branch/],
+    ['version.skipHooks', { version: { skipHooks: true } }, /moved to git\.skipHooks/],
+    ['monorepo.mainPackage', { monorepo: { mainPackage: 'core' } }, /moved to version\.mainPackage/],
+    ['monorepo.mode', { monorepo: { mode: 'packages' } }, /notes\.changelog\.mode/],
+  ])('should name the replacement for the removed %s', (key, config, guidance) => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify(config));
+
+    expect(() => loadConfig()).toThrow(`Config validation errors:\n  ${key}: `);
+    expect(() => loadConfig()).toThrow(guidance);
+  });
+
+  it('should report a removed key together with the other errors', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ monorepo: { mode: 'packages' }, ci: { labls: {} } }));
+
+    expect(() => loadConfig()).toThrow(
+      [
+        'Config validation errors:',
+        '  monorepo.mode: removed - changelog aggregation is set by notes.changelog.mode',
+        '  ci.labls: unknown key',
+      ].join('\n'),
+    );
   });
 
   it('should throw a migration error when notes.releaseNotes.file is a string', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ notes: { releaseNotes: { file: 'RELEASE_NOTES.md' } } }));
 
-    expect(() => loadConfig()).toThrow(/file \(string\)/);
+    expect(() => loadConfig()).toThrow(/notes\.releaseNotes\.file: the string form was removed/);
+  });
+
+  it('should keep the type error when notes.releaseNotes.file is not a string or object', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ notes: { releaseNotes: { file: false } } }));
+
+    expect(() => loadConfig()).toThrow('notes.releaseNotes.file: Invalid input: expected object, received boolean');
   });
 
   it('should accept the new notes.releaseNotes.file object shape', () => {
@@ -144,34 +222,6 @@ describe('loadConfig', () => {
     );
 
     expect(() => loadConfig()).not.toThrow();
-  });
-
-  it('should throw a migration error for removed version fields', () => {
-    mockedFs.existsSync.mockReturnValue(true);
-    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: { versionStrategy: 'branchPattern' } }));
-
-    expect(() => loadConfig()).toThrow(/version no longer supports/);
-  });
-
-  it('should throw a migration error for removed ci fields', () => {
-    mockedFs.existsSync.mockReturnValue(true);
-    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ ci: { skipPatterns: ['chore: release '] } }));
-
-    expect(() => loadConfig()).toThrow(/ci no longer supports/);
-  });
-
-  it('should throw a migration error for the removed monorepo.mainPackage', () => {
-    mockedFs.existsSync.mockReturnValue(true);
-    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ monorepo: { mainPackage: 'core' } }));
-
-    expect(() => loadConfig()).toThrow(/monorepo\.mainPackage was removed/);
-  });
-
-  it('should throw a migration error for the removed monorepo.mode', () => {
-    mockedFs.existsSync.mockReturnValue(true);
-    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ monorepo: { mode: 'packages' } }));
-
-    expect(() => loadConfig()).toThrow(/monorepo\.mode was removed/);
   });
 
   it('should parse JSONC with comments', () => {
@@ -254,6 +304,13 @@ describe('loadConfig', () => {
       expect(() => loadConfig()).toThrow(
         'Config validation errors:\n  notes.releaseNotes.llm.provider: {env:LLM_PROVIDER} is not set',
       );
+    });
+
+    it('should report a misspelled key as unknown even when its value is an unset {env:} variable', () => {
+      vi.stubEnv('OPENAI_KEY', undefined);
+      mockConfig({ notes: { releaseNotes: { llm: { provider: 'openai', model: 'm', apiKye: '{env:OPENAI_KEY}' } } } });
+
+      expect(() => loadConfig()).toThrow('Config validation errors:\n  notes.releaseNotes.llm.apiKye: unknown key');
     });
 
     it('should load with llm.model from an unset {env:} variable', () => {
