@@ -3069,19 +3069,49 @@ describe('runStandingPRUpdate', () => {
         expect(body()).toBeUndefined();
       });
 
-      it('should offer the checkbox for a first release staged at a prerelease, before any tag exists', async () => {
-        const { body } = await setup({ versions: syncVersions, sync: true });
-        const { runVersionStep } = await import('../../src/steps.js');
-        const engine = vi.mocked(runVersionStep).getMockImplementation() as typeof runVersionStep;
-        vi.mocked(runVersionStep).mockImplementation(async (opts) => {
-          const output = await engine(opts);
-          return { ...output, updates: output.updates.map((u) => ({ ...u, action: 'first-release' as const })) };
+      describe('before any tag exists', () => {
+        async function firstRelease(opts: Parameters<typeof setup>[0]) {
+          const result = await setup(opts);
+          const { runVersionStep } = await import('../../src/steps.js');
+          const engine = vi.mocked(runVersionStep).getMockImplementation() as typeof runVersionStep;
+          vi.mocked(runVersionStep).mockImplementation(async (o) => {
+            const output = await engine(o);
+            return { ...output, updates: output.updates.map((u) => ({ ...u, action: 'first-release' as const })) };
+          });
+          return result;
+        }
+
+        it('should offer the checkbox for a first release staged at a prerelease', async () => {
+          const { body } = await firstRelease({ versions: syncVersions, sync: true });
+
+          const result = await run({ reconcile: true });
+
+          expect(result.action).toBe('created');
+          expect(body()).toContain('- [ ] graduate to stable → v1.1.0 <!-- rk-grad-sync -->');
         });
 
-        const result = await run({ reconcile: true });
+        it('should keep an approved tick across a later update under authorization', async () => {
+          const ticked = await firstRelease({
+            versions: syncVersions,
+            sync: true,
+            body: '- [x] graduate to stable → v1.1.0 <!-- rk-grad-sync -->',
+          });
+          await run();
+          const approved = ticked.manifest();
+          expect(approved.graduated).toEqual(['a', 'b']);
 
-        expect(result.action).toBe('created');
-        expect(body()).toContain('- [ ] graduate to stable → v1.1.0 <!-- rk-grad-sync -->');
+          const later = await firstRelease({
+            versions: syncVersions,
+            sync: true,
+            standingPr: { authorization: { requiredPermission: 'admin' } },
+            body: '- [ ] graduate to stable → v1.1.0 <!-- rk-grad-sync -->',
+            manifest: { graduated: approved.graduated, graduationRows: approved.graduationRows },
+          });
+          await run();
+
+          expect(later.writeCall().stable).toBe(true);
+          expect(later.body()).toContain('- [x] graduate to stable → v1.1.0 <!-- rk-grad-sync -->');
+        });
       });
 
       it('should tick the checkbox from release:graduate', async () => {

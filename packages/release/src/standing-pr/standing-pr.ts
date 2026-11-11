@@ -731,14 +731,23 @@ function prereleasePackageNames(versionOutput: VersionOutput): string[] {
  * Widened for group atomicity: a fixed/linked member that adopted the group version from a different baseline
  * reads `'bumped'` but still graduated with its group.
  */
-function graduatedPackageNames(versionOutput: VersionOutput): string[] {
+function graduatedPackageNames(versionOutput: VersionOutput, currentVersions: Record<string, string> = {}): string[] {
   const updates = publishableUpdates(versionOutput);
-  const graduatedGroups = new Set(
-    updates.filter((u) => u.action === 'graduated' && u.group).map((u) => u.group as string),
-  );
+  // Before any tag exists the engine says 'first-release', so a move from the current prerelease to its base counts.
+  const graduates = (u: VersionPackageUpdate): boolean => {
+    const current = currentVersions[u.packageName];
+    return (
+      u.action === 'graduated' ||
+      (u.action === 'first-release' &&
+        current !== undefined &&
+        deriveReleaseChannel(current) === 'prerelease' &&
+        current.split('-')[0] === u.newVersion)
+    );
+  };
+  const graduatedGroups = new Set(updates.filter((u) => graduates(u) && u.group).map((u) => u.group as string));
   const names = new Set<string>();
   for (const u of updates) {
-    if (u.action === 'graduated' || (u.group && graduatedGroups.has(u.group))) {
+    if (graduates(u) || (u.group && graduatedGroups.has(u.group))) {
       names.add(u.packageName);
     }
   }
@@ -1121,12 +1130,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     versionOutputRows = await runVersionStep(buildBaseReleaseOptions(options, true, graduationExtras));
   }
   // The prerelease may be a package the release doesn't version (skipped or out of scope), leaving nothing to graduate.
-  // Checked by channel, not the update's action, which reads 'first-release' before any tag exists.
   const syncGraduationOffered =
-    syncGraduationPossible &&
-    publishableUpdates(versionOutputRows).some(
-      (u) => prereleaseLine.includes(u.packageName) && updateChannel(u) === 'stable',
-    );
+    syncGraduationPossible && graduatedPackageNames(versionOutputRows, workspaceVersions).length > 0;
   const candidateSet = new Set(candidates);
   const graduationUpdates = sync
     ? []
@@ -1553,7 +1558,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     firstUpdatedAt = existingManifest.firstUpdatedAt ?? existingManifest.createdAt;
   }
 
-  const graduatedPackages = graduatedPackageNames(versionOutput);
+  const graduatedPackages = graduatedPackageNames(versionOutput, workspaceVersions);
   const rowGraduated =
     sync && syncGraduated && !queued
       ? graduatedPackages
