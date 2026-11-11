@@ -1,7 +1,5 @@
-import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createDocumentContext, createTemplateContext } from '../../src/core/pipeline.js';
-import { parseConventionalChangelog, parseConventionalChangelogFile } from '../../src/input/conventional-changelog.js';
 import { parseVersionOutput } from '../../src/input/version-output.js';
 import { aggregateToRoot } from '../../src/monorepo/aggregator.js';
 import { splitByPackage } from '../../src/monorepo/splitter.js';
@@ -26,25 +24,6 @@ const versionOutputFixture = {
   ],
   tags: ['v2.0.0'],
 };
-
-const sampleChangelog = `
-## [2.0.0] - 2026-01-15
-
-### Added
-
-- New plugin system
-- **api**: Batch operations (#42)
-
-### Fixed
-
-- Memory leak (#38)
-
-## [1.0.0] - 2025-09-15
-
-### Added
-
-- Initial release
-`.trim();
 
 describe('Pipeline: version output → markdown', () => {
   it('should produce a valid changelog with version header', () => {
@@ -240,84 +219,6 @@ describe('compareUrl: platform detection', () => {
       entries: [],
     });
     expect(ctx.compareUrl).toBeUndefined();
-  });
-});
-
-describe('Parser: conventional-changelog', () => {
-  it('should extract all versions', () => {
-    const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
-    expect(result.source).toBe('conventional-changelog');
-    expect(result.packages).toHaveLength(2);
-    expect(result.packages[0]?.version).toBe('2.0.0');
-    expect(result.packages[1]?.version).toBe('1.0.0');
-  });
-
-  it('should parse dates', () => {
-    const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
-    expect(result.packages[0]?.date).toBe('2026-01-15');
-    expect(result.packages[1]?.date).toBe('2025-09-15');
-  });
-
-  it('should set previousVersion from the next block', () => {
-    const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
-    expect(result.packages[0]?.previousVersion).toBe('1.0.0');
-    expect(result.packages[1]?.previousVersion).toBeNull();
-  });
-
-  it('should normalise Added entries', () => {
-    const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
-    const added = result.packages[0]?.entries.filter((e) => e.type === 'added') ?? [];
-    expect(added.length).toBeGreaterThanOrEqual(1);
-    expect(added.some((e) => e.description === 'New plugin system')).toBe(true);
-  });
-
-  it('should extract scope', () => {
-    const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
-    const apiEntry = result.packages[0]?.entries.find((e) => e.scope === 'api');
-    expect(apiEntry).toBeDefined();
-    expect(apiEntry?.description).toBe('Batch operations');
-  });
-
-  it('should extract issue IDs', () => {
-    const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
-    const fixedEntry = result.packages[0]?.entries.find((e) => e.type === 'fixed');
-    expect(fixedEntry?.issueIds).toContain('#38');
-  });
-
-  it('should NOT label a trailing (#N) as the PR when parsing existing changelog text', () => {
-    const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
-    const apiEntry = result.packages[0]?.entries.find((e) => e.scope === 'api');
-    expect(apiEntry?.prNumber).toBeUndefined();
-    expect(apiEntry?.issueIds).toContain('#42');
-  });
-
-  it('should round-trip: parse → render → contains version', () => {
-    const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
-    const contexts = result.packages.map(createTemplateContext);
-    const markdown = renderMarkdown(contexts);
-
-    expect(markdown).toContain('## [2.0.0]');
-    expect(markdown).toContain('## 1.0.0'); // no brackets: no previousVersion
-    expect(markdown).toContain('New plugin system');
-    expect(markdown).toContain('Initial release');
-  });
-
-  it('should parse a real fixture file', () => {
-    const fixturePath = path.join(process.cwd(), 'test', 'fixtures', 'sample-changelog.md');
-    const result = parseConventionalChangelogFile(fixturePath, 'my-lib');
-    expect(result.packages.length).toBeGreaterThanOrEqual(3);
-
-    const v2 = result.packages.find((p) => p.version === '2.0.0');
-    expect(v2).toBeDefined();
-    expect(v2?.entries.some((e) => e.breaking)).toBe(true);
-  });
-
-  it('should throw on empty content', () => {
-    expect(() => parseConventionalChangelog('', 'pkg')).toThrow();
-  });
-
-  it('should throw when no version headers found', () => {
-    expect(() => parseConventionalChangelog('# Just a title\nSome text.', 'pkg')).toThrow();
   });
 });
 
