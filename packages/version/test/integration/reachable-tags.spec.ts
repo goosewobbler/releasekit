@@ -56,4 +56,53 @@ describe('baseline tag reachability', () => {
     // previousVersion shows the difference.
     expect(output.changelogs[0]).toMatchObject({ previousVersion: 'v1.0.0', revisionRange: 'v1.0.0..HEAD' });
   });
+
+  describe('with package-specific tags', () => {
+    function setUp(strictReachable: boolean): void {
+      writeFileSync(
+        join(tempDir, 'releasekit.config.json'),
+        JSON.stringify({
+          version: {
+            preset: 'angular',
+            packages: ['packages/core'],
+            sync: false,
+            packageSpecificTags: true,
+            versionPrefix: 'v',
+            strictReachable,
+          },
+        }),
+      );
+      git('add releasekit.config.json');
+      git('commit -q -m "chore: package tags"');
+      git('tag test-core@v1.0.0');
+      const mainBranch = git('rev-parse --abbrev-ref HEAD');
+      git('checkout -q -b side');
+      createConventionalCommit(tempDir, 'feat', 'side work');
+      // Dated after test-core@v1.0.0, which it would otherwise tie with on creation time.
+      execSync('git tag -a -m side test-core@v3.0.0', {
+        cwd: tempDir,
+        env: { ...process.env, GIT_COMMITTER_DATE: '2099-01-01T00:00:00Z' },
+      });
+      git(`checkout -q ${mainBranch}`);
+      writeFileSync(join(tempDir, 'packages/core/index.js'), '// changed\n');
+      createConventionalCommit(tempDir, 'fix', 'patch core', 'core', false, ['packages/core']);
+    }
+
+    it('should fail when strictReachable is set and the latest tag is on an unmerged branch', () => {
+      setUp(true);
+
+      const result = executeCliCommand('--json', tempDir);
+
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout}${result.stderr}`).toContain('not reachable');
+    });
+
+    it('should fall back without strictReachable', () => {
+      setUp(false);
+
+      const result = executeCliCommand('--json', tempDir);
+
+      expect(result.status).toBe(0);
+    });
+  });
 });
