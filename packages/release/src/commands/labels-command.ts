@@ -60,7 +60,7 @@ export function createLabelsCommand(): Command {
     .command('sync')
     .description('Ensure every config-implied label exists in the repo (idempotent)')
     .option('-c, --config <path>', 'Path to config file')
-    .option('--project-dir <path>', 'Project directory', process.cwd())
+    .option('--project-dir <path>', 'Project directory to run commands in', process.cwd())
     .hook('preAction', enterProjectDir)
     .option('--repo <owner/repo>', 'Repository (auto-detected from GITHUB_REPOSITORY or the origin remote)')
     .option('--check', 'Report missing/misnamed labels and exit non-zero without making changes', false)

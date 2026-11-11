@@ -47,7 +47,7 @@ export function createReleaseCommand(): Command {
     .option('--output <path>', 'Write the JSON result to a file instead of stdout')
     .option('-v, --verbose', 'Verbose logging', false)
     .option('-q, --quiet', 'Suppress non-error output', false)
-    .option('--project-dir <path>', 'Project directory', process.cwd())
+    .option('--project-dir <path>', 'Project directory to run commands in', process.cwd())
     .hook('preAction', enterProjectDir)
     .action(async (opts) => {
       const io = { json: opts.json, output: opts.output };

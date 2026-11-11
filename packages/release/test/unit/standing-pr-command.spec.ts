@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { PipelineError, type PublishOutput } from '@releasekit/publish';
 import { describe, expect, it, vi } from 'vitest';
@@ -9,7 +10,7 @@ vi.mock('../../src/standing-pr/standing-pr.js', () => ({
   runStandingPRMerge: vi.fn().mockResolvedValue(null),
 }));
 
-const projectDir = tmpdir();
+const projectDir = realpathSync(tmpdir());
 
 async function parseCommand(argv: string[]) {
   const program = createStandingPRCommand();

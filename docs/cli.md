@@ -89,7 +89,7 @@ Post a release preview comment on the current pull request. This is the default 
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-c, --config <path>` | string | auto-discovered | Path to config file |
-| `--project-dir <path>` | string | `cwd` | Project directory |
+| `--project-dir <path>` | string | `cwd` | Project directory to run commands in |
 | `--pr <number>` | string | auto | PR number (auto-detected from GitHub Actions) |
 | `--repo <owner/repo>` | string | auto | Repository (auto-detected from `GITHUB_REPOSITORY`) |
 | `-p, --prerelease [identifier]` | boolean \| string | auto | Force prerelease preview (auto-detected by default) |
@@ -132,7 +132,7 @@ Run the full release pipeline: version, changelog, publish, git, and GitHub Rele
 | `--output <path>` | string | stdout | Write the JSON result to a file instead of stdout |
 | `-v, --verbose` | boolean | `false` | Verbose logging |
 | `-q, --quiet` | boolean | `false` | Suppress non-error output |
-| `--project-dir <path>` | string | `cwd` | Project directory |
+| `--project-dir <path>` | string | `cwd` | Project directory to run commands in |
 
 `--stable` and `--prerelease` are mutually exclusive, as are `--draft` and `--from-draft`.
 
@@ -179,7 +179,7 @@ Manage the standing release PR (create/update or publish on merge). Pick a subco
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-c, --config <path>` | string | auto-discovered | Path to config file |
-| `--project-dir <path>` | string | `cwd` | Project directory |
+| `--project-dir <path>` | string | `cwd` | Project directory to run commands in |
 | `--npm-auth <method>` | `auto` \| `oidc` \| `token` | `auto` | NPM auth method |
 | `-j, --json` | boolean | `false` | Output results as JSON |
 | `--output <path>` | string | stdout | Write the JSON result to a file instead of stdout |
@@ -240,7 +240,7 @@ that were just published. A failure fails the job, including a missing `GITHUB_R
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-c, --config <path>` | string | auto-discovered | Path to config file |
-| `--project-dir <path>` | string | `cwd` | Project directory |
+| `--project-dir <path>` | string | `cwd` | Project directory to run commands in |
 
 ```bash
 releasekit refresh-after-release
@@ -261,7 +261,7 @@ Idempotently create every config-implied label that is missing from the repo. Ex
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-c, --config <path>` | string | auto-discovered | Path to config file |
-| `--project-dir <path>` | string | `cwd` | Project directory |
+| `--project-dir <path>` | string | `cwd` | Project directory to run commands in |
 | `--repo <owner/repo>` | string | auto | Repository (auto-detected from `GITHUB_REPOSITORY` or the `origin` remote) |
 | `--check` | boolean | `false` | Report missing/misnamed labels and exit non-zero **without** making any changes |
 
@@ -413,7 +413,7 @@ The `gate` command — used by the GitHub Action's `gate` mode — checks whethe
 | `--output <path>` | string | stdout | Write the JSON result to a file instead of stdout |
 | `-v, --verbose` | boolean | `false` | Verbose logging |
 | `-q, --quiet` | boolean | `false` | Suppress non-error output |
-| `--project-dir <path>` | string | `cwd` | Project directory |
+| `--project-dir <path>` | string | `cwd` | Project directory to run commands in |
 
 `gate` exits 0 whether or not a release should proceed; with `--json`, the decision is in `data.shouldRelease`.
 

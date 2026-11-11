@@ -21,5 +21,5 @@ export function enterProjectDir(_hooked: Command, actionCommand: Command): void 
     const reason = code === 'ENOENT' || code === 'ENOTDIR' ? 'is not a directory' : `can't be entered (${code})`;
     failInput(`--project-dir ${projectDir} ${reason}`, actionCommand.opts());
   }
-  actionCommand.setOptionValue('projectDir', projectDir);
+  actionCommand.setOptionValue('projectDir', process.cwd());
 }
