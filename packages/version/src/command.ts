@@ -10,7 +10,7 @@ import { log } from './utils/logging.js';
 export function createVersionCommand(): Command {
   return new Command('version')
     .description('Version a package or packages based on configuration')
-    .option('-c, --config <path>', 'Path to config file (defaults to releasekit.config.json in current directory)')
+    .option('-c, --config <path>', 'Path to config file')
     .option('-d, --dry-run', 'Dry run (no changes made)', false)
     .option('-b, --bump <type>', 'Specify bump type (patch|minor|major|prerelease)')
     .option('-p, --prerelease [identifier]', 'Create prerelease version')

@@ -12,7 +12,7 @@ inputs:
     required: false
     default: preview
   config:
-    description: Path to releasekit config file
+    description: Path to the releasekit config file, relative to project-dir
     required: false
   project-dir:
     description: Project directory to run in

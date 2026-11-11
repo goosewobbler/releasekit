@@ -92,7 +92,9 @@ jobs:
         run: pnpm test:harness:multi-npm-disabled
 
       # The harness calls the runner directly; these steps run action.yml itself, with a relative project-dir and config.
+      # Not on a push: the merged releasekit PR's labels would decide the fixture's release.
       - name: Create a fixture project for the action
+        if: github.event_name != 'push'
         run: |
           git init -q --bare "$RUNNER_TEMP/fixture-origin.git"
           mkdir -p fixture/packages/rk-fixture
@@ -114,6 +116,7 @@ jobs:
           git push -q origin main --tags
 
       - name: Run the action on the fixture
+        if: github.event_name != 'push'
         id: fixture-release
         uses: ./
         with:
@@ -126,6 +129,7 @@ jobs:
           skip-notes: 'true'
 
       - name: Check the action released the fixture
+        if: github.event_name != 'push'
         env:
           HAS_CHANGES: ${{ steps.fixture-release.outputs.has-changes }}
           VERSION_OUTPUT: ${{ steps.fixture-release.outputs.version-output }}
