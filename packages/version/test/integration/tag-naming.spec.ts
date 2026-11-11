@@ -163,5 +163,25 @@ describe('tag naming', () => {
         revisionRange: 'release-0.2.0..HEAD',
       });
     });
+
+    it('should graduate with a changelog from the last stable tag of the template', () => {
+      createRepo('monorepo', { sync: true, tagTemplate: 'release-${version}' });
+      feat();
+      release();
+      feat();
+      const prerelease = executeCliCommand('--json --prerelease next', tempDir, false);
+      expect(prerelease.status).toBe(0);
+      git('add -A');
+      git('commit -q -m "chore: release"');
+      for (const tag of readVersionOutput(prerelease.stdout).tags) {
+        git(`tag ${tag}`);
+      }
+      feat();
+
+      const result = executeCliCommand('--json --stable', tempDir, true);
+      expect(result.status).toBe(0);
+
+      expect(readVersionOutput(result.stdout).changelogs[0]?.revisionRange).toBe('release-0.2.0..HEAD');
+    });
   });
 });

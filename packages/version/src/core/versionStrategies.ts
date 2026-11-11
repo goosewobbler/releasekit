@@ -64,10 +64,10 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, mainPackage);
 
       // Package tags are found per package below; this lookup stays their fallback to any semver tag.
-      let latestTag = await getLatestTag(
+      const globalPrefix =
         baselineTagPrefix ??
-          (config.packageSpecificTags ? undefined : deriveBaselineTagPrefix(tagTemplate, formattedPrefix)),
-      );
+        (config.packageSpecificTags ? undefined : deriveBaselineTagPrefix(tagTemplate, formattedPrefix));
+      let latestTag = await getLatestTag(globalPrefix);
 
       const repoRoot = packages.root ?? process.cwd();
 
@@ -216,6 +216,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
       const baselineResolver = new BaselineResolver({
         versionPrefix: formattedPrefix,
+        globalTagPrefix: globalPrefix,
         tagTemplate,
         packageSpecificTags: config.packageSpecificTags ?? false,
         strictReachable: config.strictReachable ?? false,

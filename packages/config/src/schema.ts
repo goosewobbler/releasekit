@@ -92,22 +92,31 @@ export const PresetSchema = z.enum(['angular', 'conventionalcommits']);
 export const DEFAULT_PRESET: Preset = 'conventionalcommits';
 
 const VersionConfigBaseSchema = z.object({
-  tagTemplate: z.string().optional().describe(
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
-    'Template for Git tags. Available variables: ${version} (version number), ${prefix} (versionPrefix value, e.g. \'v\'), ${packageName} (sanitized package name, e.g. \'scope-pkg\'). Example: "${packageName}-${prefix}${version}" produces "scope-pkg-v1.2.3". Defaults to "${packageName}@${prefix}${version}" with packageSpecificTags, otherwise "${prefix}${version}".',
-  ),
-  baselineTagTemplate: z
+  tagTemplate: z
     .string()
     // Pattern (not a refine) so it round-trips into the JSON Schema as `pattern`.
-    .regex(/.*\$\{version\}.*/, {
+    .regex(/\$\{version\}$/, {
       message:
         // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting the expected placeholder syntax to the user
-        'baselineTagTemplate must contain a ${version} placeholder so the prefix can be derived (e.g. "release/${prefix}${version}").',
+        'tagTemplate must end with ${version}: tags are found by the text before it, so text after it breaks the next release.',
     })
     .optional()
     .describe(
       // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
-      'Optional secondary tag template for an internal \'baseline\' marker that records the release commit on the source branch. Use this when tagTemplate resolves to a tag that gets force-moved off the source branch by a downstream step (e.g. a GitHub Action distributing built artifacts at the version tag) — the baseline tag stays on the release commit so future version-bump and changelog calculations can still find the previous release. Must contain a ${version} placeholder so the baseline prefix can be derived. Supports the same variables as tagTemplate. Example: "release/${prefix}${version}" produces "release/v1.2.3".',
+      'Template for Git tags, ending with ${version}. Available variables: ${version} (version number), ${prefix} (versionPrefix value, e.g. \'v\'), ${packageName} (sanitized package name, e.g. \'scope-pkg\'). Example: "${packageName}-${prefix}${version}" produces "scope-pkg-v1.2.3". Defaults to "${packageName}@${prefix}${version}" with packageSpecificTags, otherwise "${prefix}${version}".',
+    ),
+  baselineTagTemplate: z
+    .string()
+    // Pattern (not a refine) so it round-trips into the JSON Schema as `pattern`.
+    .regex(/\$\{version\}$/, {
+      message:
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting the expected placeholder syntax to the user
+        'baselineTagTemplate must end with ${version} so the prefix can be derived (e.g. "release/${prefix}${version}").',
+    })
+    .optional()
+    .describe(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
+      'Optional secondary tag template for an internal \'baseline\' marker that records the release commit on the source branch. Use this when tagTemplate resolves to a tag that gets force-moved off the source branch by a downstream step (e.g. a GitHub Action distributing built artifacts at the version tag) — the baseline tag stays on the release commit so future version-bump and changelog calculations can still find the previous release. Must end with ${version} so the baseline prefix can be derived. Supports the same variables as tagTemplate. Example: "release/${prefix}${version}" produces "release/v1.2.3".',
     ),
   packageSpecificTags: z.boolean().default(false).describe(
     // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user

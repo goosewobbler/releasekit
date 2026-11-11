@@ -98,6 +98,15 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).toThrow(/version\.tagTemplate:.*\$\{packageName\}.*packageSpecificTags/);
   });
 
+  it('should reject a tagTemplate with text after ${version}', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({ version: { tagTemplate: 'release-${' + 'version}-stable' } }),
+    );
+
+    expect(() => loadConfig()).toThrow(/version\.tagTemplate: tagTemplate must end with \$\{version\}/);
+  });
+
   it('should throw a migration error for the renamed ci.prPreview.refreshAfterRelease', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ ci: { prPreview: { refreshAfterRelease: true } } }));

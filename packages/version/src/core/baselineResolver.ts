@@ -8,6 +8,8 @@ import { isStableTag, isStableVersion } from '../utils/versionUtils.js';
 export interface BaselineResolverOptions {
   /** Already normalised via `formatVersionPrefix`. */
   versionPrefix: string;
+  /** The prefix sync found its latest global tag by, so the stable lookup searches the same tags. */
+  globalTagPrefix?: string;
   /** Used by the graduation stable-tag lookup in the package-specific series. */
   tagTemplate?: string;
   packageSpecificTags: boolean;
@@ -68,7 +70,7 @@ export class BaselineResolver {
 
   async resolve(input: BaselineInput): Promise<PackageBaseline> {
     const { pkgDir, latestTag, hasRealTag, usedPackageSpecificTag, nextVersion, graduationName } = input;
-    const { baseRef, strictReachable, versionPrefix, tagTemplate } = this.opts;
+    const { baseRef, strictReachable, versionPrefix, globalTagPrefix, tagTemplate } = this.opts;
 
     // On graduation, aggregate the changelog from the last *stable* tag, not the prerelease `latestTag`
     // (which usually holds only the release-prep commit).
@@ -82,7 +84,7 @@ export class BaselineResolver {
               tagTemplate,
               packageSpecificTags: true,
             })
-          : await getLatestStableTag(versionPrefix);
+          : await getLatestStableTag(globalTagPrefix ?? versionPrefix);
     }
 
     let revisionRange = 'HEAD';

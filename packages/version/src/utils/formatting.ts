@@ -125,6 +125,11 @@ export function buildTagStripPatternFromTemplate(template: string, packageName: 
   return escapeRegExp(prefixPattern);
 }
 
+/** The text before `${version}` in a sync or single release's tags. */
+export function globalTagPrefix(tagTemplate: string | undefined, versionPrefix = ''): string {
+  return deriveBaselineTagPrefix(resolveTagTemplate(tagTemplate, false), formatVersionPrefix(versionPrefix)) ?? '';
+}
+
 /** Narrows `getLatestTag` to a template's tag family, and recognises baseline tags when stripping them for display. */
 export function deriveBaselineTagPrefix(
   template: string | undefined,

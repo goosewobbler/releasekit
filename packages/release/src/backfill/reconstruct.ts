@@ -1,6 +1,11 @@
 import type { VersionPackageChangelog } from '@releasekit/core';
 import { createGitCli } from '@releasekit/git';
-import { extractChangelogEntriesFromCommits, listGlobalTags, listPackageTags } from '@releasekit/version';
+import {
+  extractChangelogEntriesFromCommits,
+  globalTagPrefix,
+  listGlobalTags,
+  listPackageTags,
+} from '@releasekit/version';
 import semver from 'semver';
 
 const VERSION_RE = /\d{1,16}\.\d{1,16}\.\d{1,16}(?:-[0-9A-Za-z.-]{1,256})?/;
@@ -49,7 +54,7 @@ export async function reconstructChangelogs(opts: ReconstructOptions): Promise<R
         tagTemplate: opts.tagTemplate,
         packageSpecificTags: true,
       })
-    : await listGlobalTags(opts.versionPrefix);
+    : await listGlobalTags(globalTagPrefix(opts.tagTemplate, opts.versionPrefix));
 
   const versioned = tags
     .map((tag) => ({ tag, version: versionFromTag(tag) }))

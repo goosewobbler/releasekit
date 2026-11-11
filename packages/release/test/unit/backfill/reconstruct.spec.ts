@@ -3,7 +3,8 @@ import * as version from '@releasekit/version';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { reconstructChangelogs, versionFromTag } from '../../../src/backfill/reconstruct.js';
 
-vi.mock('@releasekit/version', () => ({
+vi.mock('@releasekit/version', async (importOriginal) => ({
+  globalTagPrefix: (await importOriginal<typeof import('@releasekit/version')>()).globalTagPrefix,
   listPackageTags: vi.fn(),
   listGlobalTags: vi.fn(),
   // Echo the revision range back as an entry so tests can assert the pairing.
@@ -95,6 +96,20 @@ describe('reconstructChangelogs', () => {
     expect(result.map((r) => r.tag)).toEqual(['v1.0.0', 'v1.1.0']);
     expect(result.map((r) => r.changelog.version)).toEqual(['1.0.0', '1.1.0']);
     expect(result[1]?.changelog.revisionRange).toBe('v1.0.0..v1.1.0');
+  });
+
+  it('should look up global tags by the tagTemplate', async () => {
+    vi.mocked(version.listGlobalTags).mockResolvedValue(['release-1.1.0', 'release-1.0.0']);
+
+    const result = await reconstructChangelogs({
+      packageName: 'pkg',
+      pkgPath: '/p',
+      versionPrefix: 'v',
+      tagTemplate: 'release-${' + 'version}',
+    });
+
+    expect(version.listGlobalTags).toHaveBeenCalledWith('release-');
+    expect(result.map((r) => r.changelog.version)).toEqual(['1.0.0', '1.1.0']);
   });
 
   it('should return an empty list when there are no matching tags', async () => {
