@@ -34,8 +34,8 @@ describe('generate-schema', () => {
         const obj = node as Record<string, unknown>;
         if (obj.type === 'object') {
           objectsChecked++;
-          // Allowed: `false` (closed object) or a non-empty value schema (z.record). A loose object or
-          // catchall(z.unknown()) emits `{}`, which accepts anything, same as `true`.
+          // Allowed: `false` or a z.record value schema. `{}`, from a loose object or catchall(z.unknown()), accepts
+          // anything, like `true`.
           const extra = obj.additionalProperties;
           if (extra === undefined) {
             violations.push(

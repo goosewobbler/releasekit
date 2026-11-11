@@ -15,8 +15,6 @@ type ZodIssue = z.core.$ZodIssue;
 
 const LLM_MODEL_PATH = ['notes', 'releaseNotes', 'llm', 'model'];
 
-const RELEASE_NOTES_FILE_PATH = 'notes.releaseNotes.file';
-
 const RELEASE_NOTES_OUTPUT =
   'release notes go to the GitHub release body by default; for in-repo per-version files set ' +
   'notes.releaseNotes.file to { "dir": "release-notes" }, and for a cumulative changelog use notes.changelog.mode';
@@ -37,6 +35,7 @@ const REMOVED_KEYS = new Map<string, string>([
   ['version.defaultReleaseType', `removed - ${VERSION_BUMPS}`],
   ['version.updateInternalDependencies', `removed - ${VERSION_BUMPS}`],
   ['version.baseBranch', 'moved to git.branch'],
+  ['version.skipHooks', 'moved to git.skipHooks'],
   ['ci.autoRelease', 'removed - it had no effect'],
   ['ci.skipPatterns', 'moved to release.ci.skipPatterns'],
   ['ci.minChanges', 'moved to release.ci.minChanges'],
@@ -64,8 +63,6 @@ function isRootTypeMismatch(issue: ZodIssue): boolean {
   return issue.path.length === 0 && (issue.code === 'invalid_type' || issue.code === 'invalid_value');
 }
 
-// Zod reports a failed union as "Invalid input" at the union's path; when exactly one branch matched the value's
-// type, its issues say what's actually wrong.
 function flattenIssues(
   issues: readonly ZodIssue[],
   unsetEnv: UnsetEnvReference[],
@@ -74,6 +71,8 @@ function flattenIssues(
   return issues.flatMap((issue) => {
     const path = [...prefix, ...issue.path];
     if (issue.code === 'invalid_union') {
+      // Zod reports a failed union as "Invalid input" at the union's path; when exactly one branch matched the
+      // value's type, its issues say what's actually wrong.
       const matched = issue.errors.filter((branch) => !branch.every(isRootTypeMismatch));
       if (matched.length === 1) {
         return flattenIssues(matched[0], unsetEnv, path);
@@ -88,9 +87,6 @@ function flattenIssues(
     const ref = unsetEnv.find((r) => samePath(r.path, path));
     if (ref) {
       return [{ path, message: unsetEnvMessage(ref.name) }];
-    }
-    if (issue.code === 'invalid_type' && path.join('.') === RELEASE_NOTES_FILE_PATH) {
-      return [{ path, message: `the string form was removed - ${RELEASE_NOTES_OUTPUT}` }];
     }
     return [{ path, message: issue.message }];
   });

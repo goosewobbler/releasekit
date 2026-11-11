@@ -432,9 +432,17 @@ export const TemplateConfigSchema = z.strictObject({
 export const LocationModeSchema = z.enum(['root', 'packages', 'both']);
 
 // Release notes are not a changelog, so they get a dedicated `file` config rather than the changelog's `mode` enum.
-export const ReleaseNotesFileConfigSchema = z.strictObject({
-  dir: z.string().default('release-notes').describe('Directory for the per-version release-notes files.'),
-});
+export const ReleaseNotesFileConfigSchema = z.strictObject(
+  {
+    dir: z.string().default('release-notes').describe('Directory for the per-version release-notes files.'),
+  },
+  {
+    error: (issue) =>
+      issue.code === 'invalid_type' && typeof issue.input === 'string'
+        ? 'the string form was removed - set it to { "dir": "release-notes" } for per-version files, or use notes.changelog.mode for a cumulative changelog'
+        : undefined,
+  },
+);
 
 export const ChangelogConfigSchema = z
   .strictObject({

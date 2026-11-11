@@ -177,6 +177,7 @@ describe('loadConfig', () => {
     ],
     ['version.versionStrategy', { version: { versionStrategy: 'branchPattern' } }, /Conventional Commits/],
     ['version.baseBranch', { version: { baseBranch: 'main' } }, /moved to git\.branch/],
+    ['version.skipHooks', { version: { skipHooks: true } }, /moved to git\.skipHooks/],
     ['monorepo.mainPackage', { monorepo: { mainPackage: 'core' } }, /moved to version\.mainPackage/],
     ['monorepo.mode', { monorepo: { mode: 'packages' } }, /notes\.changelog\.mode/],
   ])('should name the replacement for the removed %s', (key, config, guidance) => {
@@ -205,6 +206,13 @@ describe('loadConfig', () => {
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ notes: { releaseNotes: { file: 'RELEASE_NOTES.md' } } }));
 
     expect(() => loadConfig()).toThrow(/notes\.releaseNotes\.file: the string form was removed/);
+  });
+
+  it('should keep the type error when notes.releaseNotes.file is not a string or object', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ notes: { releaseNotes: { file: false } } }));
+
+    expect(() => loadConfig()).toThrow('notes.releaseNotes.file: Invalid input: expected object, received boolean');
   });
 
   it('should accept the new notes.releaseNotes.file object shape', () => {
