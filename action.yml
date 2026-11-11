@@ -320,11 +320,14 @@ runs:
       id: run
       shell: bash
       run: |
-        echo "Current directory: $(pwd)"
-        echo "Git status:"
-        git status --porcelain || echo "Not a git repository"
-        echo "Git config:"
-        git config --list --local | head -10
+        (
+          cd "${INPUT_PROJECT_DIR:-.}" 2>/dev/null || exit 0
+          echo "Current directory: $(pwd)"
+          echo "Git status:"
+          git status --porcelain || echo "Not a git repository"
+          echo "Git config:"
+          git config --list --local | head -10 || true
+        )
         echo "Environment:"
         echo "INPUT_TARGET: $INPUT_TARGET"
         echo "INPUT_DRY_RUN: $INPUT_DRY_RUN"
