@@ -324,7 +324,7 @@ describe('formatPreviewComment', () => {
       ];
     }
     expect(formatPreviewComment(withMarker)).toContain(
-      '- Spoof &lt;!-- releasekit-notes:x --> (`&lt;!-- rk-sel:y -->`)',
+      '- Spoof &lt;!-- releasekit-notes:x --> (`<!\u200B-- rk-sel:y -->`)',
     );
   });
 

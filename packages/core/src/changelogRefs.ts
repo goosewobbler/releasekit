@@ -137,3 +137,44 @@ export function removeDescriptionRefs(text: string, refs: Array<string | undefin
     })
     .trim();
 }
+
+// Single-backtick spans only, as in the mention regex. GitHub doesn't decode `&lt;` inside a code span, so there the
+// opener is broken with a zero-width space instead.
+const CODE_SPAN_OR_COMMENT_OPEN = /`[^`]*`|<!--/g;
+
+/**
+ * Commit text can carry `<!--`. A releasekit marker would then act on the next body read-back, and any other opener
+ * hides the body up to the next `-->`, such as later checklist rows. Unlike `neutralizeMarkers`, this escapes every
+ * opener.
+ */
+function escapeCommentOpeners(text: string): string {
+  return text.replace(CODE_SPAN_OR_COMMENT_OPEN, (match) =>
+    match.startsWith('`') ? match.replaceAll('<!--', '<!​--') : '&lt;!--',
+  );
+}
+
+export interface ChangelogEntryLineInput {
+  description: string;
+  scope?: string;
+  issueIds?: string[];
+  prNumber?: string;
+  breaking?: boolean;
+}
+
+/** One `- …` list item for a GitHub comment or PR body. `suffix` is trusted markdown appended after the refs. */
+export function renderChangelogEntryLine(
+  entry: ChangelogEntryLineInput,
+  mode: ChangelogRefsMode,
+  repoUrl: string | null,
+  suffix = '',
+): string {
+  // The scope is backticked, so only the description needs mention escaping.
+  const description = escapeChangelogMentions(
+    neutralizeDescriptionRefs(entry.description, [...(entry.issueIds ?? []), entry.prNumber], mode, repoUrl),
+  );
+  const scope = entry.scope ? ` (\`${entry.scope}\`)` : '';
+  const refs = renderIssueRefs(entry.issueIds ?? [], mode, repoUrl, entry.prNumber);
+  const line = `- ${entry.breaking ? '**BREAKING** ' : ''}${description}${scope}${refs ? ` ${refs}` : ''}${suffix}`;
+  // Last and over the whole line: the scope is commit text too, and dropping a ref can close up a split opener.
+  return escapeCommentOpeners(line);
+}

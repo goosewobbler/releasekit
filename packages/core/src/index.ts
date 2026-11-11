@@ -8,11 +8,13 @@ export {
   planCargoLockUpdates,
 } from './cargo.js';
 export {
+  type ChangelogEntryLineInput,
   type ChangelogRefsMode,
   escapeChangelogMentions,
   neutralizeDescriptionRefs,
   parseGitHubOwnerRepo,
   removeDescriptionRefs,
+  renderChangelogEntryLine,
   renderIssueRefs,
 } from './changelogRefs.js';
 export { BREAKING_SECTION, breakingFirst, groupChangelogSections } from './changelogSections.js';
@@ -51,7 +53,7 @@ export {
   trace,
   warn,
 } from './logger.js';
-export { extractMarkerRegion, type MarkerData, markerData, neutralizeMarkers, wrapMarkerRegion } from './marker.js';
+export { extractMarkerRegion, type MarkerData, markerData, wrapMarkerRegion } from './marker.js';
 export {
   extractNotesRegion,
   hasUnterminatedNotesRegion,

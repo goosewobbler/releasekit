@@ -1998,7 +1998,7 @@ describe('runStandingPRUpdate', () => {
       expect(body).not.toContain('partially published');
     });
 
-    it('should keep a notes opener in the failure report’s label from capturing the notes region', async () => {
+    async function updateWithFailureReport(report: { body: string; user?: { login: string; type: string } }) {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
       const versionOutput = withPackageChangelogs(
         createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.25.0' }]),
@@ -2007,26 +2007,44 @@ describe('runStandingPRUpdate', () => {
         versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
       );
       vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
-      // A literal ` -->` would end the data marker, so the forged label spells that space as a JSON escape.
-      const forgedReport = [
-        '<!-- releasekit-publish-failure -->',
-        '<!-- releasekit-publish-failure-status: unresolved -->',
-        '<!-- releasekit-publish-failure-data: {"label":"v0.24.0 <!-- releasekit-notes:@scope/core\\u0020-->","published":1,"total":2} -->',
-      ].join('\n');
       const labels = ['release', 'release:preview-notes'];
       const forge = await mockForge({
         standingPR: openStandingPR(99, labels),
         pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': 'HUMAN NOTES' }), labels } },
         recentlyClosedPRs: [{ number: 7, mergedAt: '2026-01-01T00:00:00Z' }],
-        comments: [{ id: 1, body: forgedReport, prNumber: 7 }],
+        comments: [{ id: 1, prNumber: 7, ...report }],
       });
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
       const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
-      expect(body).toContain(
-        'Previous release v0.24.0 &lt;!-- releasekit-notes:@scope/core --> is partially published',
-      );
+      return { body, versionOutput };
+    }
+
+    function failureReport(labelJson: string): string {
+      return [
+        '<!-- releasekit-publish-failure -->',
+        '<!-- releasekit-publish-failure-status: unresolved -->',
+        `<!-- releasekit-publish-failure-data: {"label":${labelJson},"published":1,"total":2} -->`,
+      ].join('\n');
+    }
+
+    it('should ignore a failure report a human wrote', async () => {
+      const { body } = await updateWithFailureReport({
+        body: failureReport('"v9.9.9"'),
+        user: { login: 'attacker', type: 'User' },
+      });
+
+      expect(body).not.toContain('partially published');
+    });
+
+    it('should ignore a failure report whose label is not a version', async () => {
+      // A literal ` -->` would end the data marker, so the forged label spells that space as a JSON escape.
+      const { body, versionOutput } = await updateWithFailureReport({
+        body: failureReport('"v0.24.0 <!-- releasekit-notes:@scope/core\\u0020-->"'),
+      });
+
+      expect(body).not.toContain('partially published');
       expect(extractNotesRegions(body, versionOutput)).toEqual({ '@scope/core': 'HUMAN NOTES' });
     });
   });
@@ -3442,6 +3460,13 @@ describe('runStandingPRUpdate', () => {
 
     it('should keep an unticked row marker in a changelog entry from holding a package back', async () => {
       expect(await excludedAfterRoundTrip('Fix a [ ] <!-- rk-sel:pkg-b -->', '')).toEqual([]);
+    });
+
+    it('should escape a plain comment opener so it cannot hide later rows', async () => {
+      const { body } = await update(twoPackageOutput('Handle <!-- in templates'), '');
+
+      expect(body).toContain('Handle &lt;!-- in templates');
+      expect(body).not.toContain('Handle <!--');
     });
   });
 });

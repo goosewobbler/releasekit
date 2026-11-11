@@ -1,4 +1,4 @@
-import { markerData, neutralizeMarkers, type VersionOutput } from '@releasekit/core';
+import { escapeChangelogMentions, markerData, type VersionOutput } from '@releasekit/core';
 import type { PublishOutput, PublishResult } from '@releasekit/publish';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
@@ -24,6 +24,9 @@ const STATUS_FIELD = markerData<FailureReportStatus>({
   deserialize: (payload) => (payload === 'resolved' || payload === 'unresolved' ? payload : null),
 });
 
+// A version or tag name. Anything else can't have come from `releaseLabel`, and the label is rendered into PR bodies.
+const LABEL_PATTERN = /^[\w.@/+-]*$/;
+
 const DATA_FIELD = markerData<FailureReportData>({
   open: DATA_PREFIX,
   serialize: (data) => JSON.stringify(data),
@@ -32,6 +35,7 @@ const DATA_FIELD = markerData<FailureReportData>({
       const parsed = JSON.parse(payload) as Partial<FailureReportData>;
       if (
         typeof parsed.label !== 'string' ||
+        !LABEL_PATTERN.test(parsed.label) ||
         typeof parsed.published !== 'number' ||
         typeof parsed.total !== 'number'
       ) {
@@ -356,7 +360,7 @@ export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
     ? `Retry it via \`release:retry\` on ${prRef}`
     : `Retry it by dispatching the release workflow against ${prRef}`;
   return [
-    `> ⚠️ **Previous release ${neutralizeMarkers(previousLabel)} is partially published** (${published}/${total} packages on the registry).`,
+    `> ⚠️ **Previous release ${escapeChangelogMentions(previousLabel)} is partially published** (${published}/${total} packages on the registry).`,
     `> ${retryHint}, **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.`,
     '',
   ];

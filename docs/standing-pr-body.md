@@ -17,7 +17,7 @@ Every input in the body is delimited by an HTML comment marker. **The markers ar
 
 The checklist rows live inside `<!-- releasekit-selection -->` … `<!-- releasekit-selection-end -->`, and the manifest lives in its own comment rather than the body.
 
-Text the bot copies into the body, such as changelog entries and release notes, has the `<!--` of any marker escaped to `&lt;!--`, so a commit message can't open, end or forge a region.
+Text the bot copies into the body, such as changelog entries and release notes, has the `<!--` of any marker escaped, so a commit message can't open, end or forge a region. Changelog entries escape every `<!--`, so one can't hide the rows after it either.
 
 ### The checklist and channel toggles
 
