@@ -1,4 +1,3 @@
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { type CIConfig, loadConfig as loadReleaseKitConfig, runFormatCommand } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
@@ -20,6 +19,7 @@ import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure, postFailureReport, resolveFailureReportIfPresent } from '../failure-report/post.js';
 import { getHeadCommitMessage, matchesSkipPattern, requireGitHubContext } from '../git.js';
 import { forgeFor } from '../github.js';
+import { readGitHubEvent } from '../github-event.js';
 import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS, graduatedPackageFromLabel, isGraduatePackageLabel } from '../label-utils.js';
 import { markFeederPreviewsStale } from '../preview/stale.js';
@@ -191,16 +191,8 @@ function isStandingPrEventRun(): boolean {
   if (process.env.GITHUB_EVENT_NAME !== 'pull_request') {
     return false;
   }
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath) {
-    return false;
-  }
-  try {
-    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as { action?: string };
-    return event.action === 'labeled' || event.action === 'unlabeled' || event.action === 'edited';
-  } catch {
-    return false;
-  }
+  const action = readGitHubEvent<{ action?: string }>()?.action;
+  return action === 'labeled' || action === 'unlabeled' || action === 'edited';
 }
 
 interface EventPullRequest {
@@ -211,16 +203,8 @@ interface EventPullRequest {
 
 /** This run's event payload PR, when the event is about PR `prNumber`. */
 function eventPullRequest(prNumber: number): EventPullRequest | undefined {
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath) {
-    return undefined;
-  }
-  try {
-    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as { pull_request?: EventPullRequest };
-    return event.pull_request?.number === prNumber ? event.pull_request : undefined;
-  } catch {
-    return undefined;
-  }
+  const pr = readGitHubEvent<{ pull_request?: EventPullRequest }>()?.pull_request;
+  return pr?.number === prNumber ? pr : undefined;
 }
 
 async function resetReleaseBranch(branch: string, base: string, cwd: string): Promise<void> {
@@ -2023,17 +2007,13 @@ export async function runStandingPRPublish(
   const standingPrConfig = releaseKitConfig.ci?.standingPr;
   const releaseBranch = standingPrConfig?.branch ?? 'release/next';
 
-  const eventPath = process.env.GITHUB_EVENT_PATH;
   let event: { pull_request?: { head?: { ref?: string }; number?: number; merged?: boolean } } | undefined;
-  if (eventPath) {
-    try {
-      event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
-    } catch (err) {
-      throw new Error(
-        `Failed to read the GitHub event at ${eventPath}: ${err instanceof Error ? err.message : String(err)}. ` +
-          `The event payload decides which PR to publish — pass --pr explicitly to bypass it.`,
-      );
-    }
+  try {
+    event = readGitHubEvent({ strict: true });
+  } catch (err) {
+    throw new Error(
+      `${err instanceof Error ? err.message : String(err)}. The event payload decides which PR to publish — pass --pr explicitly to bypass it.`,
+    );
   }
 
   if (event?.pull_request) {

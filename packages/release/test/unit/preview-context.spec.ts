@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolvePreviewContext } from '../../src/preview/context.js';
 
 vi.mock('node:fs', () => ({
-  existsSync: vi.fn(),
   readFileSync: vi.fn(),
 }));
 
@@ -42,7 +41,6 @@ describe('resolvePreviewContext', () => {
   it('should auto-detect PR number from GitHub event payload', () => {
     const eventPath = '/tmp/event.json';
     vi.stubEnv('GITHUB_EVENT_PATH', eventPath);
-    mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ pull_request: { number: 99 } }));
 
     const result = resolvePreviewContext({});
@@ -54,7 +52,6 @@ describe('resolvePreviewContext', () => {
   it('should fall through to error on malformed JSON in event payload', () => {
     const eventPath = '/tmp/event.json';
     vi.stubEnv('GITHUB_EVENT_PATH', eventPath);
-    mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue('not valid json{');
 
     expect(() => resolvePreviewContext({})).toThrow('Could not determine PR number');
