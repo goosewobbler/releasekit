@@ -845,7 +845,7 @@ export const StandingPrConfigSchema = z.object({
     .boolean()
     .default(false)
     .describe(
-      'Add a per-row channel toggle to the standing-PR selection list: a nested checkbox under each releasable row to ship a stable package as a prerelease (→ X.Y.Z-next.0 on the `next` dist-tag) or graduate a prerelease package to its stable base — shifting just that package (and its group) without narrowing the release. Off by default so repos that do not need it keep the tight one-line-per-package list. A held-back (unticked) row hides its channel toggle. No effect on sync releases (which ship atomically as one unit).',
+      'Add a per-row channel toggle to the standing-PR selection list: a nested checkbox under each releasable row to ship a stable package as a prerelease (→ X.Y.Z-next.0 on the `next` dist-tag) or graduate a prerelease package to its stable base — shifting just that package (and its group) without narrowing the release. Off by default so repos that do not need it keep the tight one-line-per-package list. A held-back (unticked) row hides its channel toggle. A sync release, which ships as one unit, instead gets a single graduate-to-stable checkbox under its queued changes when it is on a prerelease line.',
     ),
   summaryTable: z
     .boolean()

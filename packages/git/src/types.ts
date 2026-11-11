@@ -28,6 +28,7 @@ export interface GitCommitOptions {
   cwd?: string;
   paths?: string[];
   skipHooks?: boolean;
+  allowEmpty?: boolean;
 }
 
 export interface GitTagOptions {

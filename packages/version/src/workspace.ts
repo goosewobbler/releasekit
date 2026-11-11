@@ -30,3 +30,21 @@ export async function getWorkspacePackageDirs(
   }
   return dirs;
 }
+
+/** Current version of every workspace package (npm, cargo & pub), keyed by name. */
+export async function getWorkspacePackageVersions(
+  options: { cwd?: string; configPath?: string } = {},
+): Promise<Record<string, string>> {
+  const config = loadConfig({ cwd: options.cwd, configPath: options.configPath });
+  const engine = new VersionEngine(config, { dryRun: true });
+  const { packages } = await engine.getWorkspacePackages(options.cwd);
+  const versions: Record<string, string> = {};
+  for (const p of packages) {
+    const name = p.packageJson.name;
+    const version = p.packageJson.version;
+    if (name && version) {
+      versions[name] = version;
+    }
+  }
+  return versions;
+}
