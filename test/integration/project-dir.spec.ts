@@ -72,7 +72,23 @@ describe('--project-dir', () => {
     expect(names).not.toContain('rk-elsewhere');
   });
 
-  it.each(['release', 'gate', 'standing-pr update'])(
+  it.each(['release', 'version'])('should read a relative --config for %s from where it was run', (command) => {
+    createRepo(join(root, 'project'), 'rk-project');
+    write(
+      join(root, 'custom.json'),
+      JSON.stringify({
+        version: { preset: 'angular', versionPrefix: 'v', commitMessage: 'chore: release custom ${version}' },
+      }),
+    );
+
+    const result = run(root, command, '--dry-run', '--json', '--config', 'custom.json', '--project-dir', 'project');
+
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    const { data } = JSON.parse(result.stdout);
+    expect((data.versionOutput ?? data).commitMessage).toBe('chore: release custom 1.1.0');
+  });
+
+  it.each(['release', 'version', 'gate', 'standing-pr update'])(
     'should fail %s up front when the folder is missing',
     (command) => {
       const missing = join(root, 'missing');

@@ -91,6 +91,52 @@ jobs:
       - name: Run multi-registry test harness (npm disabled, cargo only)
         run: pnpm test:harness:multi-npm-disabled
 
+      # Run action.yml itself on a fixture with a relative project-dir and config, since the test harness doesn't.
+      # Skipped on push, where the release would pick up the labels of the releasekit PR that just merged.
+      - name: Create a fixture project for the action
+        if: github.event_name != 'push'
+        run: |
+          git init -q --bare "$RUNNER_TEMP/fixture-origin.git"
+          mkdir -p fixture/packages/rk-fixture
+          cd fixture
+          git init -q -b main
+          git config user.name test
+          git config user.email test@example.com
+          echo '{ "name": "rk-fixture-root", "private": true }' > package.json
+          printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
+          echo '{ "version": { "preset": "angular", "versionPrefix": "v" }, "ci": { "releaseTrigger": "commit" } }' > releasekit.config.json
+          echo '{ "name": "rk-fixture", "version": "1.0.0" }' > packages/rk-fixture/package.json
+          git add -A
+          git commit -qm "chore: init"
+          git tag v1.0.0
+          echo '// feature' > packages/rk-fixture/index.js
+          git add -A
+          git commit -qm "feat: add a feature"
+          git remote add origin "$RUNNER_TEMP/fixture-origin.git"
+          git push -q origin main --tags
+
+      - name: Run the action on the fixture
+        if: github.event_name != 'push'
+        id: fixture-release
+        uses: ./
+        with:
+          mode: release
+          project-dir: fixture
+          config: releasekit.config.json
+          skip-checkout: 'true'
+          dry-run: 'true'
+          json: 'true'
+          skip-notes: 'true'
+
+      - name: Check the action released the fixture
+        if: github.event_name != 'push'
+        env:
+          HAS_CHANGES: ${{ steps.fixture-release.outputs.has-changes }}
+          VERSION_OUTPUT: ${{ steps.fixture-release.outputs.version-output }}
+        run: |
+          test "$HAS_CHANGES" = true
+          jq -e '.updates[] | select(.packageName == "rk-fixture" and .newVersion == "1.1.0")' <<< "$VERSION_OUTPUT"
+
   lint:
     name: Lint
     needs: [detect-changes, build]

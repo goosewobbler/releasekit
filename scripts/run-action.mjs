@@ -35,7 +35,6 @@ export function buildReleaseArgs(input) {
   const args = ['release'];
 
   pushOptionalArg(args, '--config', input.config);
-  pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--bump', input.bump);
   pushOptionalArg(args, '--target', input.target);
   pushOptionalArg(args, '--scope', input.scope);
@@ -65,7 +64,6 @@ export function buildPreviewArgs(input) {
   const args = ['preview'];
 
   pushOptionalArg(args, '--config', input.config);
-  pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--pr', input.pr);
   pushOptionalArg(args, '--repo', input.repo);
   pushOptionalArg(args, '--target', input.previewTarget);
@@ -88,7 +86,6 @@ export function buildStandingPRUpdateArgs(input) {
 
   args.push('--json');
   pushOptionalArg(args, '--config', input.config);
-  pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--npm-auth', input.npmAuth);
   pushBooleanFlag(args, '--reconcile', input.reconcile);
   pushBooleanFlag(args, '--verbose', input.verbose);
@@ -102,7 +99,6 @@ export function buildStandingPRPublishArgs(input) {
 
   args.push('--json');
   pushOptionalArg(args, '--config', input.config);
-  pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--npm-auth', input.npmAuth);
   // Publishes funnelled through workflow_dispatch have no pull_request payload, so the merged
   // standing PR's number must be passed explicitly.
@@ -118,7 +114,6 @@ export function buildGateArgs(input) {
 
   args.push('--json');
   pushOptionalArg(args, '--config', input.config);
-  pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--scope', input.scope);
   pushBooleanFlag(args, '--verbose', input.verbose);
   pushBooleanFlag(args, '--quiet', input.quiet);
@@ -129,7 +124,6 @@ export function buildGateArgs(input) {
 export function buildBackfillArgs(input) {
   const args = ['backfill'];
 
-  // backfill has no --project-dir flag; the runner already spawns the CLI with cwd = projectDir.
   pushOptionalArg(args, '--config', input.config);
   pushOptionalArg(args, '--package', input.backfillPackage);
   pushOptionalArg(args, '--path', input.backfillPath);
@@ -149,7 +143,6 @@ export function buildRefreshAfterReleaseArgs(input) {
   const args = ['refresh-after-release'];
 
   pushOptionalArg(args, '--config', input.config);
-  pushOptionalArg(args, '--project-dir', input.projectDir);
 
   return args;
 }
@@ -341,17 +334,9 @@ export async function runAction(input, options = {}) {
     args.push('--output', outputFile);
   }
 
-  const projectDir = input.projectDir || '.';
   const actionDir = fileURLToPath(import.meta.url).replace(/[/\\]scripts[/\\]run-action.mjs$/, '');
-
-  let resolvedProjectDir;
-  if (path.isAbsolute(projectDir)) {
-    resolvedProjectDir = projectDir;
-  } else if (projectDir === '.') {
-    resolvedProjectDir = process.cwd();
-  } else {
-    resolvedProjectDir = path.resolve(process.cwd(), projectDir);
-  }
+  // The CLI runs in the project folder, so the arg builders don't pass --project-dir.
+  const resolvedProjectDir = path.resolve(input.projectDir || '.');
 
   try {
     const stats = fs.statSync(resolvedProjectDir);

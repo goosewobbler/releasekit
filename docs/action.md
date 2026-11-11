@@ -62,8 +62,8 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 | Input | Default | Description |
 |---|---|---|
 | `mode` | `preview` | `release`, `preview`, `gate`, `standing-pr-update`, `standing-pr-publish`, `backfill`, or `refresh-after-release` |
-| `config` | - | Path to `releasekit.config.json` |
-| `project-dir` | `.` | Project directory |
+| `config` | - | Path to `releasekit.config.json`, relative to `project-dir` |
+| `project-dir` | `.` | Folder to run in, relative to the workspace |
 | `dry-run` | `false` | Dry-run for `release`, `preview` and `backfill`; other modes fail if it's set |
 | `github-token` | workflow token | Token for GitHub API calls and git pushes |
 | `node-version` | `24` | Node.js version for the action's setup-node step |

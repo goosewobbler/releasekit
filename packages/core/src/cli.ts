@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type Envelope, errorEnvelope, toEnvelopeError } from './envelope.js';
+import { InputError } from './errors.js';
 import { log } from './logger.js';
 
 export function writeEnvelope(envelope: Envelope, opts: { json?: boolean; output?: string }): void {
@@ -43,4 +44,32 @@ export function readPackageVersion(importMetaUrl: string): string {
   } catch {
     return '0.0.0';
   }
+}
+
+export interface ProjectDirOptions {
+  projectDir?: string;
+  config?: string;
+  output?: string;
+}
+
+/**
+ * Applies `--project-dir`: resolves `--config` and `--output` from where the command was run, then enters the project
+ * folder, so package discovery and git run there too. Returns the options with absolute paths.
+ */
+export function enterProjectDir<T extends ProjectDirOptions>(options: T): T & { projectDir: string } {
+  const resolved = { ...options, projectDir: path.resolve(options.projectDir ?? '.') };
+  for (const key of ['config', 'output'] as const) {
+    if (typeof options[key] === 'string') {
+      resolved[key] = path.resolve(options[key]);
+    }
+  }
+  try {
+    process.chdir(resolved.projectDir);
+  } catch (error) {
+    const { code } = error as NodeJS.ErrnoException;
+    const reason = code === 'ENOENT' || code === 'ENOTDIR' ? 'is not a directory' : `can't be entered (${code})`;
+    throw new InputError(`--project-dir ${resolved.projectDir} ${reason}`);
+  }
+  // process.cwd() is the real path, which a symlinked --project-dir isn't.
+  return { ...resolved, projectDir: process.cwd() };
 }

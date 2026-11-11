@@ -18,7 +18,13 @@ export {
   renderIssueRefs,
 } from './changelogRefs.js';
 export { BREAKING_SECTION, breakingFirst, groupChangelogSections } from './changelogSections.js';
-export { readPackageVersion, writeEnvelope, writeErrorEnvelope } from './cli.js';
+export {
+  enterProjectDir,
+  type ProjectDirOptions,
+  readPackageVersion,
+  writeEnvelope,
+  writeErrorEnvelope,
+} from './cli.js';
 export {
   buildDependencyGraph,
   type Ecosystem,

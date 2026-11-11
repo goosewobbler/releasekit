@@ -12,7 +12,7 @@ inputs:
     required: false
     default: preview
   config:
-    description: Path to releasekit config file
+    description: Path to the releasekit config file, relative to project-dir
     required: false
   project-dir:
     description: Project directory to run in
@@ -319,13 +319,15 @@ runs:
     - name: Run ReleaseKit action
       id: run
       shell: bash
-      working-directory: ${{ inputs.project-dir || '.' }}
       run: |
-        echo "Current directory: $(pwd)"
-        echo "Git status:"
-        git status --porcelain || echo "Not a git repository"
-        echo "Git config:"
-        git config --list --local | head -10
+        (
+          cd "${INPUT_PROJECT_DIR:-.}" 2>/dev/null || exit 0
+          echo "Current directory: $(pwd)"
+          echo "Git status:"
+          git status --porcelain || echo "Not a git repository"
+          echo "Git config:"
+          git config --list --local | head -10 || true
+        )
         echo "Environment:"
         echo "INPUT_TARGET: $INPUT_TARGET"
         echo "INPUT_DRY_RUN: $INPUT_DRY_RUN"

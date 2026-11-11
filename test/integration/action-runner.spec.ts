@@ -113,8 +113,6 @@ describe('action runner', () => {
         'release',
         '--config',
         'releasekit.config.json',
-        '--project-dir',
-        '.',
         '--bump',
         'minor',
         '--prerelease',
@@ -159,8 +157,6 @@ describe('action runner', () => {
     expect(args).toEqual(
       expect.arrayContaining([
         'release',
-        '--project-dir',
-        '.',
         '--bump',
         'prerelease',
         '--branch',
@@ -200,8 +196,6 @@ describe('action runner', () => {
         'preview',
         '--config',
         'releasekit.config.json',
-        '--project-dir',
-        '.',
         '--pr',
         '42',
         '--repo',
@@ -229,8 +223,6 @@ describe('action runner', () => {
         '--json',
         '--config',
         'releasekit.config.json',
-        '--project-dir',
-        '.',
         '--npm-auth',
         'oidc',
         '--pr',
@@ -268,7 +260,7 @@ describe('action runner', () => {
 
   it('should build refresh-after-release args', () => {
     const args = buildRefreshAfterReleaseArgs({ config: 'releasekit.config.json', projectDir: '.' });
-    expect(args).toEqual(['refresh-after-release', '--config', 'releasekit.config.json', '--project-dir', '.']);
+    expect(args).toEqual(['refresh-after-release', '--config', 'releasekit.config.json']);
   });
 
   it('should accept refresh-after-release mode and run the cli with its args', async () => {
@@ -283,7 +275,7 @@ describe('action runner', () => {
     );
 
     expect(result.status).toBe(0);
-    expect(result.args).toEqual(['refresh-after-release', '--config', 'releasekit.config.json', '--project-dir', '.']);
+    expect(result.args).toEqual(['refresh-after-release', '--config', 'releasekit.config.json']);
   });
 
   it('should parse INPUT_RECONCILE into the reconcile input', () => {
@@ -401,6 +393,23 @@ describe('action runner', () => {
     expect(result.args).toContain('--dry-run');
   });
 
+  it('should run the cli in a relative project-dir without passing it again', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
+    tempDirs.push(tempDir);
+    const projectDir = path.join(tempDir, 'app');
+    fs.mkdirSync(projectDir);
+    const cliPath = path.join(tempDir, 'fake-cli.mjs');
+    fs.writeFileSync(cliPath, 'console.log(process.cwd())\n', 'utf-8');
+
+    const result = await runAction(
+      { mode: 'release', projectDir: path.relative(process.cwd(), projectDir) },
+      { cliPath },
+    );
+
+    expect(result.stdout.trim()).toBe(fs.realpathSync(projectDir));
+    expect(result.args).not.toContain('--project-dir');
+  });
+
   it('should pass --output and read the structured result from that file (not stdout)', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
     tempDirs.push(tempDir);
@@ -455,16 +464,7 @@ describe('action runner', () => {
     });
 
     expect(args).toEqual(
-      expect.arrayContaining([
-        'gate',
-        '--json',
-        '--config',
-        'releasekit.config.json',
-        '--project-dir',
-        '.',
-        '--scope',
-        'electron',
-      ]),
+      expect.arrayContaining(['gate', '--json', '--config', 'releasekit.config.json', '--scope', 'electron']),
     );
   });
 
