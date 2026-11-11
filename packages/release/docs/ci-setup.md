@@ -528,6 +528,7 @@ With OIDC, no `NPM_TOKEN` secret is required. The workflow exchanges a GitHub-is
 permissions:
   contents: write
   id-token: write    # grants the OIDC token
+  pull-requests: read
 ```
 
 ReleaseKit detects OIDC availability automatically (`npm-auth: auto`). To force it:
@@ -558,6 +559,7 @@ pub.dev supports automated publishing without a token if you configure a publish
 permissions:
   contents: write
   id-token: write   # required for pub.dev OIDC publishing
+  pull-requests: read
 ```
 
 ReleaseKit will run `dart pub publish --force` (or `flutter pub publish --force` for Flutter packages) directly. No credential setup step is needed.

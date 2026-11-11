@@ -104,7 +104,7 @@ releasekit release --bump prerelease
 
 ### Gate mode in CI
 
-`release` makes the gate's decision itself, so one release step is enough. Run `gate` as its own job to skip the release job's setup when nothing will release, or to use its outputs:
+`release` makes the gate's decision itself, so one release step is enough. Run `gate` as its own job to skip the release job's setup when nothing will release:
 
 ```yaml
 jobs:
@@ -112,9 +112,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should-release: ${{ steps.gate.outputs.should-release }}
-      bump: ${{ steps.gate.outputs.bump }}
-      gate-target: ${{ steps.gate.outputs.gate-target }}
-      gate-stable: ${{ steps.gate.outputs.gate-stable }}
     steps:
       - id: gate
         uses: goosewobbler/releasekit@v0
@@ -129,9 +126,6 @@ jobs:
       - uses: goosewobbler/releasekit@v0
         with:
           mode: release
-          bump: ${{ needs.gate.outputs.bump }}
-          target: ${{ needs.gate.outputs.gate-target }}
-          stable: ${{ needs.gate.outputs.gate-stable }}
 ```
 
 ## Programmatic API
@@ -266,7 +260,7 @@ A PR's first matching scope label applies. `--target` or `--scope` replace it.
 **Label conflicts:**
 
 Conflicting labels on a PR block the release, and `gate` comments on the PR to explain:
-- Multiple bump labels (`bump:major` + `bump:minor` + `bump:patch`) → blocked in label trigger mode
+- Multiple bump labels (`bump:major` + `bump:minor` + `bump:patch`) → blocked in label trigger mode, and on a `release:immediate` PR in `standing-pr` strategy
 - Conflicting release type (`release:graduate` + `channel:prerelease`) → blocked in both modes
 
 **How it works:**

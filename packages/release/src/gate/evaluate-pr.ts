@@ -202,7 +202,7 @@ export function evaluatePR(
     prNumber,
     labels,
     shouldRelease: true,
-    bump,
+    bump: labels.includes(labelConfig.major) ? bump : undefined,
     scope,
     target,
     stable: labels.includes(labelConfig.graduate),

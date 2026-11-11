@@ -346,9 +346,9 @@ See [ci-setup.md — CI concurrency caveat](../packages/release/docs/ci-setup.md
 
 ---
 
-### Release ignores PR labels: `Could not look up the PRs merged since the last release`
+### Release fails: `Could not look up the PR`
 
-**Symptom:** `releasekit release` warns that it couldn't look up the merged PRs, then releases from commits: an unlabelled PR releases in label mode, or `release:skip` has no effect.
+**Symptom:** `releasekit release` fails with `Could not look up the PR for <sha>` or `Could not look up the PRs merged since the last release`, naming `pull-requests: read`.
 
 **Cause:** The workflow token can't list the PRs for a commit. An explicit `permissions:` block without `pull-requests` denies it.
 

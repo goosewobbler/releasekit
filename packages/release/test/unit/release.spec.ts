@@ -681,9 +681,16 @@ describe('runRelease', () => {
         commits: { 'v1.0.0..HEAD': prs.map((pr) => `sha-${pr.number}\n`).join(''), '*': 'feat: some feature\n' },
       });
       forge = createFakeForge({
-        pullRequestsForCommit: Object.fromEntries(
-          prs.map((pr) => [`sha-${pr.number}`, [{ number: pr.number, mergedAt: '2026-01-01T00:00:00Z' }]]),
-        ),
+        // The pushed commit is the newest PR's merge.
+        pullRequestsForCommit: Object.fromEntries([
+          ...prs.map((pr) => [`sha-${pr.number}`, [{ number: pr.number, mergedAt: '2026-01-01T00:00:00Z' }]]),
+          ...prs
+            .slice(0, 1)
+            .map((pr) => [
+              process.env.GITHUB_SHA ?? 'sha-123',
+              [{ number: pr.number, mergedAt: '2026-01-01T00:00:00Z' }],
+            ]),
+        ]),
         issues: Object.fromEntries(
           prs.map((pr) => [pr.number, { body: '', title: '', labels: pr.labels, isPullRequest: true }]),
         ),
@@ -846,6 +853,17 @@ describe('runRelease', () => {
         expect(verdict.stable).toBe(true);
         expect(versionRunOptions()).toMatchObject({ stable: true });
       });
+
+      it.each([
+        { labels: ['bump:patch'], bump: undefined },
+        { labels: ['bump:major'], bump: 'major' },
+      ])('should let only bump:major set the bump ($labels)', async ({ labels, bump }) => {
+        merge({ number: 123, labels });
+
+        await runRelease(noTarget);
+
+        expect(versionRunOptions().bump).toBe(bump);
+      });
     });
 
     describe('standing-pr strategy', () => {
@@ -929,19 +947,28 @@ describe('runRelease', () => {
       });
     });
 
-    it('should warn naming pull-requests: read, and release from commits, when the PR lookup fails', async () => {
+    it('should fail naming pull-requests: read, rather than release from commits, when the PR lookup fails', async () => {
       merge({ number: 123, labels: ['documentation'] });
       vi.spyOn(forge, 'listPullRequestsForCommit').mockRejectedValue(
         new Error('Resource not accessible by integration'),
       );
 
-      const result = await runRelease(noTarget);
+      await expect(runRelease(noTarget)).rejects.toThrow('`pull-requests: read`');
       const verdict = await gate();
 
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('`pull-requests: read`'));
-      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('No merged PRs'));
-      expect(result).not.toBeNull();
+      expect(mockVersionEngineRun).not.toHaveBeenCalled();
       expect(verdict).toMatchObject({ shouldRelease: false, reason: expect.stringContaining('`pull-requests: read`') });
+    });
+
+    it('should release a direct push from commits, whatever the PRs merged before it say', async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
+      merge({ number: 10, labels: ['release:skip'] });
+      vi.stubEnv('GITHUB_SHA', 'sha-direct-push');
+
+      const result = await runRelease(noTarget);
+
+      expect(result).not.toBeNull();
+      expect(info).toHaveBeenCalledWith(expect.stringContaining('not from a merged PR'));
     });
 
     describe('standing-pr: a merged PR carrying the immediate label', () => {

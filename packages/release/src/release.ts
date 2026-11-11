@@ -81,16 +81,24 @@ async function decideFromPRs(releaseKitConfig: ReleaseKitConfig, projectDir: str
   }
 
   const forge = forgeFor({ token: githubContext.token, owner: githubContext.owner, repo: githubContext.repo });
+  let pushedPRs: number[];
   try {
-    const verdict = await decideFromMergedPRs({ forge, releaseKitConfig, projectDir });
-    return verdict.prNumbers.length > 0 ? verdict : null;
+    pushedPRs = await findMergedPRsForCommit(forge, githubContext.sha);
   } catch (err) {
-    if (!(err instanceof PRLookupError)) {
-      throw err;
-    }
-    warn(`${err.message} Releasing from commits alone.`);
+    throw new PRLookupError(
+      `Could not look up the PR for ${githubContext.sha}: ${err instanceof Error ? err.message : String(err)}. ` +
+        'Grant the workflow token `pull-requests: read`.',
+    );
+  }
+  // A direct push is released on its own say, not by labels on PRs that merged before it.
+  if (pushedPRs.length === 0) {
+    info('The pushed commit is not from a merged PR, so merged PR labels are ignored');
     return null;
   }
+  // A failed lookup throws rather than releasing from commits: labels can block or change a release, and a re-run is
+  // cheaper than a wrong version.
+  const verdict = await decideFromMergedPRs({ forge, releaseKitConfig, projectDir });
+  return verdict.prNumbers.length > 0 ? verdict : null;
 }
 
 /** CLI flags win: `--bump`, `--stable` or `--prerelease` replace the PR's bump and channel, `--target` its scope. */
@@ -162,7 +170,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   const standingRefusal = verdict?.evaluations.find((e) => e.refusedStandingPr);
   if (standingRefusal) {
     // Fail rather than skip, so the job's next step doesn't reconcile the standing PR while it publishes.
-    throw new Error(standingRefusal.reason ?? 'The standing release PR publishes from its manifest');
+    throw new Error(standingRefusal.reason);
   }
   if (verdict && !verdict.shouldRelease) {
     info(`Not releasing: ${verdict.reason}`);
