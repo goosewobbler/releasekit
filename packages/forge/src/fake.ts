@@ -158,6 +158,11 @@ export class FakeForge implements Forge {
   }
 
   async mergePullRequest(prNumber: number, method: MergeMethod, sha?: string): Promise<void> {
+    const head = this.pullRequestDetails[prNumber]?.headSha;
+    if (sha && head && sha !== head) {
+      // GitHub's response when the PR's head isn't `sha`.
+      throw Object.assign(new Error('Head branch was modified. Review and try the merge again.'), { status: 409 });
+    }
     this.mergedPullRequests.push({ prNumber, method, sha });
   }
 

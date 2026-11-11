@@ -13,8 +13,8 @@ vi.mock('../../../src/github.js', async (importOriginal) => ({
   forgeFor: vi.fn(),
 }));
 
-const MANIFEST_HEAD = 'a'.repeat(40);
-const PR_HEAD = 'b'.repeat(40);
+const HEAD = 'a'.repeat(40);
+const MOVED_HEAD = 'b'.repeat(40);
 
 const manifest: StandingPRManifest = {
   schemaVersion: 2,
@@ -23,7 +23,7 @@ const manifest: StandingPRManifest = {
   notesFiles: [],
   createdAt: '2026-01-01T00:00:00.000Z',
   baseSha: 'c'.repeat(40),
-  headSha: MANIFEST_HEAD,
+  headSha: HEAD,
   overrideLabels: [],
 };
 
@@ -53,7 +53,7 @@ describe('standing-pr merge', () => {
   function seedForge(seed: FakeForgeSeed) {
     const forge = createFakeForge({
       standingPR,
-      pullRequests: { 42: { body: '', labels: [], headSha: PR_HEAD } },
+      pullRequests: { 42: { body: '', labels: [], headSha: HEAD } },
       ...seed,
     });
     vi.mocked(forgeFor).mockReturnValue(forge);
@@ -80,7 +80,7 @@ describe('standing-pr merge', () => {
     const envelope = await merge();
 
     expect(envelope).toMatchObject({ status: 'success', changed: true, data: { merged: true, prNumber: 42 } });
-    expect(forge.mergedPullRequests).toEqual([{ prNumber: 42, method: 'merge', sha: MANIFEST_HEAD }]);
+    expect(forge.mergedPullRequests).toEqual([{ prNumber: 42, method: 'merge', sha: HEAD }]);
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
@@ -89,7 +89,7 @@ describe('standing-pr merge', () => {
 
     await merge();
 
-    expect(forge.mergedPullRequests).toEqual([{ prNumber: 42, method: 'merge', sha: PR_HEAD }]);
+    expect(forge.mergedPullRequests).toEqual([{ prNumber: 42, method: 'merge', sha: HEAD }]);
   });
 
   it.each<[string, FakeForgeSeed, RegExp]>([
@@ -105,10 +105,18 @@ describe('standing-pr merge', () => {
       /Release manifest on PR #42 is invalid/,
     ],
     [
+      'an update moved the release branch after the manifest was written',
+      {
+        comments: [{ id: 1, body: serializeManifest(manifest) }],
+        pullRequests: { 42: { body: '', labels: [], headSha: MOVED_HEAD } },
+      },
+      /'release\/next' has moved since the release manifest was written/,
+    ],
+    [
       'the override labels changed since the manifest was written',
       {
         comments: [{ id: 1, body: serializeManifest(manifest) }],
-        pullRequests: { 42: { body: '', labels: ['bump:major'], headSha: MANIFEST_HEAD } },
+        pullRequests: { 42: { body: '', labels: ['bump:major'], headSha: HEAD } },
       },
       /override labels changed after the last update[\s\S]*Refusing to merge/,
     ],
