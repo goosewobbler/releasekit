@@ -30,6 +30,7 @@ import type {
   LLMConfig,
   PackageChangelog,
   PRContext,
+  ReleaseNotesConfig,
   TemplateContext,
   TemplateEngine,
 } from './types.js';
@@ -188,9 +189,8 @@ async function processWithLLM(
     packageNames,
   };
 
-  const enhanced: EnhancedData = {
-    entries: context.entries,
-  };
+  let entries = context.entries;
+  const enhanced: EnhancedData = {};
 
   let provider: LLMProvider;
   try {
@@ -235,10 +235,10 @@ async function processWithLLM(
   if (tasks.enhance && tasks.categorize) {
     try {
       info('Enhancing and categorizing entries with LLM...');
-      const result = await enhanceAndCategorize(provider, context.entries, llmContext);
-      enhanced.entries = result.enhancedEntries;
+      const result = await enhanceAndCategorize(provider, entries, llmContext);
+      entries = result.enhancedEntries;
       enhanced.categories = buildOrderedCategories(result.categories, llmContext.categories);
-      info(`Enhanced ${enhanced.entries.length} entries into ${result.categories.length} categories`);
+      info(`Enhanced ${entries.length} entries into ${result.categories.length} categories`);
     } catch (error) {
       taskFailed('enhance+categorize', error);
     }
@@ -246,8 +246,8 @@ async function processWithLLM(
     if (tasks.enhance) {
       try {
         info('Enhancing entries with LLM...');
-        enhanced.entries = await enhanceEntries(provider, context.entries, llmContext, llmConfig.concurrency);
-        info(`Enhanced ${enhanced.entries.length} entries`);
+        entries = await enhanceEntries(provider, entries, llmContext, llmConfig.concurrency);
+        info(`Enhanced ${entries.length} entries`);
       } catch (error) {
         taskFailed('enhance', error);
       }
@@ -256,7 +256,7 @@ async function processWithLLM(
     if (tasks.categorize) {
       try {
         info('Categorizing entries with LLM...');
-        const categorized = await categorizeEntries(provider, enhanced.entries, llmContext);
+        const categorized = await categorizeEntries(provider, entries, llmContext);
         enhanced.categories = buildOrderedCategories(categorized, llmContext.categories);
         info(`Created ${categorized.length} categories`);
       } catch (error) {
@@ -268,7 +268,7 @@ async function processWithLLM(
   if (tasks.summarize) {
     try {
       info('Summarizing entries with LLM...');
-      enhanced.summary = await summarizeEntries(provider, enhanced.entries, llmContext);
+      enhanced.summary = await summarizeEntries(provider, entries, llmContext);
       if (enhanced.summary) {
         info('Summary generated successfully');
         debug(`Summary: ${enhanced.summary.substring(0, 100)}...`);
@@ -283,7 +283,7 @@ async function processWithLLM(
   if (tasks.releaseNotes) {
     try {
       info('Generating release notes with LLM...');
-      enhanced.releaseNotes = await generateReleaseNotes(provider, enhanced.entries, llmContext);
+      enhanced.releaseNotes = await generateReleaseNotes(provider, entries, llmContext);
       if (enhanced.releaseNotes) {
         info('Release notes generated successfully');
       } else {
@@ -296,6 +296,7 @@ async function processWithLLM(
 
   return {
     ...context,
+    entries,
     enhanced,
   };
 }
@@ -329,7 +330,7 @@ async function generateWithTemplate(
     templatePath = getBuiltinTemplatePath('keep-a-changelog');
   }
 
-  const documentContext = createDocumentContext(contexts, templatesConfig?.path ? undefined : repoUrl);
+  const documentContext = createDocumentContext(contexts, repoUrl);
 
   const result = renderTemplate(templatePath, documentContext, templatesConfig?.engine as TemplateEngine | undefined);
 
@@ -352,6 +353,22 @@ async function generateWithTemplate(
   fs.writeFileSync(outputPath, result.content, 'utf-8');
   const label = /changelog/i.test(outputPath) ? 'Changelog' : 'Release notes';
   success(`${label} written to ${outputPath} (using ${result.engine} template)`);
+}
+
+// Never the changelog document - release notes aren't a changelog.
+function renderReleaseNotes(
+  ctx: TemplateContext,
+  output: 'file' | 'release',
+  releaseNotesConfig: ReleaseNotesConfig,
+  fmtOpts: FormatVersionOptions,
+): string {
+  if (releaseNotesConfig.templates?.path) {
+    const templatePath = path.resolve(releaseNotesConfig.templates.path);
+    const docCtx = { ...createDocumentContext([ctx], ctx.repoUrl ?? undefined), perPackage: true, output };
+    return renderTemplate(templatePath, docCtx, releaseNotesConfig.templates.engine as TemplateEngine | undefined)
+      .content;
+  }
+  return ctx.enhanced?.releaseNotes ?? formatVersion(ctx, fmtOpts);
 }
 
 export interface PipelineResult {
@@ -518,21 +535,9 @@ export async function runPipeline(
       const { detectMonorepo } = await import('../monorepo/aggregator.js');
       const nested = detectMonorepo(process.cwd()).isMonorepo || releaseNotesContexts.length > 1;
 
-      // Never the changelog document - release notes aren't a changelog.
-      const renderContent = (ctx: TemplateContext): string => {
-        if (releaseNotesConfig.templates?.path) {
-          const templatePath = path.resolve(releaseNotesConfig.templates.path);
-          const docCtx = { ...createDocumentContext([ctx], undefined), perPackage: true, output: 'file' as const };
-          return renderTemplate(templatePath, docCtx, releaseNotesConfig.templates.engine as TemplateEngine | undefined)
-            .content;
-        }
-        if (ctx.enhanced?.releaseNotes) {
-          return ctx.enhanced.releaseNotes;
-        }
-        return formatVersion(ctx, fmtOpts);
-      };
-
-      const versionedFiles = writeVersionedNotes(releaseNotesContexts, dir, dryRun, nested, renderContent);
+      const versionedFiles = writeVersionedNotes(releaseNotesContexts, dir, dryRun, nested, (ctx) =>
+        renderReleaseNotes(ctx, 'file', releaseNotesConfig, fmtOpts),
+      );
       files.push(...versionedFiles);
     } catch (error) {
       warn(`Failed to write release notes: ${error instanceof Error ? error.message : String(error)}`);
@@ -552,31 +557,16 @@ export async function runPipeline(
       // Leave the map empty, or the callsite treats it as available content and propagates it.
       continue;
     }
-    if (ctx.enhanced?.releaseNotes) {
-      releaseNotesResult[ctx.packageName] = ctx.enhanced.releaseNotes;
-    } else if (releaseNotesConfig) {
-      if (releaseNotesConfig.templates?.path) {
-        try {
-          const templatePath = path.resolve(releaseNotesConfig.templates.path);
-          const docCtx = { ...createDocumentContext([ctx], undefined), perPackage: true, output: 'release' as const };
-          const rendered = renderTemplate(
-            templatePath,
-            docCtx,
-            releaseNotesConfig.templates.engine as TemplateEngine | undefined,
-          );
-          releaseNotesResult[ctx.packageName] = rendered.content;
-        } catch (err) {
-          warn(
-            `Failed to render release notes template for ${ctx.packageName}: ${err instanceof Error ? err.message : String(err)}`,
-          );
-          warn(`Release notes preview will not be available for ${ctx.packageName} in the workflow summary`);
-        }
-      } else {
-        info(
-          `No LLM release notes or template output for ${ctx.packageName}, using formatted changelog as release notes preview`,
-        );
-        releaseNotesResult[ctx.packageName] = formatVersion(ctx, { firstRelease: releaseNotesConfig?.firstRelease });
-      }
+    if (!releaseNotesConfig) {
+      continue;
+    }
+    try {
+      releaseNotesResult[ctx.packageName] = renderReleaseNotes(ctx, 'release', releaseNotesConfig, fmtOpts);
+    } catch (err) {
+      warn(
+        `Failed to render release notes template for ${ctx.packageName}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      warn(`Release notes preview will not be available for ${ctx.packageName} in the workflow summary`);
     }
   }
 

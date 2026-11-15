@@ -96,7 +96,7 @@ Each version block (`version`) receives:
 | `date` | `string` | Release date in `YYYY-MM-DD` format |
 | `repoUrl` | `string \| null` | Repository URL |
 | `compareUrl` | `string \| undefined` | Link to diff between previous and current version |
-| `entries` | `ChangelogEntry[]` | Raw changelog entries |
+| `entries` | `ChangelogEntry[]` | Changelog entries, rewritten by the LLM when `tasks.enhance` is on |
 | `enhanced` | `EnhancedData \| undefined` | LLM-processed data (see below) |
 
 ### Entry
@@ -118,7 +118,6 @@ Present in release-notes templates when any LLM task ran successfully. Changelog
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `enhanced.entries` | `ChangelogEntry[]` | Entries with rewritten `description` fields (`enhance` task) |
 | `enhanced.summary` | `string \| undefined` | 2–3 sentence release summary (`summarize` task) |
 | `enhanced.categories` | `Category[] \| undefined` | Grouped entries (`categorize` task) |
 | `enhanced.releaseNotes` | `string \| undefined` | Full prose release notes (`releaseNotes` task) |
