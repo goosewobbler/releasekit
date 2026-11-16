@@ -94,6 +94,26 @@ describe('backfill commit scope', () => {
     expect(await backfilledEntries('packages/app')).toEqual(['correct a typo', 'add a crate API']);
   });
 
+  it('should ignore cargo.paths in group mode, as version does', async () => {
+    createRepo(
+      { app: 'app' },
+      {
+        sync: false,
+        cargo: { paths: ['../../crates/app'] },
+        groups: { app: { packages: ['app'], sync: 'independent' } },
+      },
+    );
+    write(dir, 'crates/app/Cargo.toml', '[package]\nname = "app"\nversion = "1.0.0"\npublish = false\n');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-q', '-m', 'chore: add crate');
+    git(dir, 'tag', 'app@v1.0.0');
+    commit(dir, 'crates/app/src/lib.rs', 'feat: add a crate API');
+    commit(dir, 'packages/app/index.js', 'fix: correct a typo');
+    git(dir, 'tag', 'app@v1.1.0');
+
+    expect(await backfilledEntries('packages/app')).toEqual(['correct a typo']);
+  });
+
   it("should leave out a nested package's commits when it releases on its own", async () => {
     createRepo({ host: 'host', 'host/plugin': 'plugin' });
     git(dir, 'tag', 'host@v1.0.0');

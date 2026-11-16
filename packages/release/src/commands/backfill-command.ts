@@ -129,6 +129,8 @@ export function createBackfillCommand(): Command {
         const { scope, pathsError } = resolveCommitScope(target.pkgPath, versionConfig, {
           repoRoot: workspace.root,
           releasableDirs,
+          // As in version: group mode doesn't read cargo.paths or pub.paths.
+          ignorePaths: !versionConfig.sync && Object.keys(versionConfig.groups ?? {}).length > 0,
         });
         if (pathsError) {
           warn(`Reading ${target.packageName}'s commits without a native manifest: ${pathsError.message}`);
