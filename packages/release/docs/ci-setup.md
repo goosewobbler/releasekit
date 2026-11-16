@@ -275,7 +275,7 @@ With `authorization` configured (threshold `admin` shown):
 | Tick/untick a selection checkbox | Triage (edit PR body) | Honored only if the editor is authorized; otherwise reverted to the manifest, with a notice. |
 | Add/remove a release label (`bump:*`, `scope:*`, `channel:*`, `release:with-prerequisites`) | Triage | Same — unauthorized changes are reverted and a notice posted. |
 | Add/remove a non-release label (`area:*`, …) | Triage | Unaffected — ReleaseKit only reconciles release-control labels. |
-| Merge the standing PR (**= publish**) | Write | Refused at publish if the merger isn't authorized (`enforceMergeAuthor`); the branch ruleset below is the primary gate. |
+| Merge the standing PR (**= publish**) | Write | Refused at publish if the merger isn't authorized or can't be determined (`enforceMergeAuthor`); the branch ruleset below is the primary gate. |
 
 #### Branch rulesets (the merge gate)
 
