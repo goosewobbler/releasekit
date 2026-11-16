@@ -28,7 +28,6 @@ export function changelogInputHash(changelog: VersionPackageChangelog, config: u
   return shortHash(JSON.stringify({ version, previousVersion, entries, config }));
 }
 
-/** Keyed like the notes regions. */
 /**
  * From `loadRawConfig`: an `{env:}` value such as the model can resolve differently in the update and publish jobs,
  * and would make every region look stale at publish.
