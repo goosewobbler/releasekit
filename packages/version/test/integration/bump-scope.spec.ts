@@ -87,7 +87,7 @@ describe('bump scope', () => {
   });
 
   it.each([false, true])(
-    'should list every commit in the repo in a synced release with a mainPackage (packageSpecificTags: %s)',
+    'should list commits from every package in a synced release with a mainPackage (packageSpecificTags: %s)',
     (packageSpecificTags) => {
       createRepo({ sync: true, packages: ['core', 'cli'], version: { mainPackage: 'core', packageSpecificTags } });
       commitTo('packages/cli', 'feat', 'drop the old CLI flags', true);
