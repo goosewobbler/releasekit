@@ -1873,7 +1873,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     notesFiles = [...notesFiles, ...newFiles];
   } catch (err) {
     warn(`Release notes generation failed: ${err instanceof Error ? err.message : String(err)}`);
-    warn('Publish will proceed with empty release notes; GitHub release will use auto-generated notes.');
+    warn('Publish will proceed without release notes.');
   }
 
   // So main matches the GitHub release body.

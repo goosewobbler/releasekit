@@ -227,7 +227,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { 'pkg-b': 'B' } });
 
-    expect(releaseBodies()).toEqual({ 'pkg-a-v1.2.3': GENERATED });
+    expect(releaseBodies()).toEqual({ 'pkg-a-v1.2.3': '- Fix pkg-a' });
   });
 
   it("should not give a package's notes to a longer-named package with empty notes", async () => {
@@ -235,7 +235,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { pkg: 'P', 'pkg-2': '' } });
 
-    expect(releaseBodies()).toEqual({ 'pkg-v1.2.3': 'P', 'pkg-2-v1.2.3': GENERATED });
+    expect(releaseBodies()).toEqual({ 'pkg-v1.2.3': 'P', 'pkg-2-v1.2.3': '- Fix pkg-2' });
   });
 
   it("should match per-package tags from a custom template to each package's own notes", async () => {
@@ -300,20 +300,47 @@ describe('GitHub release bodies in the publish pipeline', () => {
     expect(releaseBodies()).toEqual({ 'v1.2.3': 'A', 'v2.0.0': GENERATED });
   });
 
-  it.each(['auto', 'releaseNotes'] as const)(
-    'should warn naming only the tag no notes match when body is %s',
-    async (body) => {
-      const config = getDefaultConfig();
-      config.githubRelease.body = body;
-      const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
+  it('should warn naming only the tag no notes match when body is releaseNotes', async () => {
+    const config = getDefaultConfig();
+    config.githubRelease.body = 'releaseNotes';
+    const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
 
-      await runPipeline(input, config, { ...options, releaseNotes: { 'pkg-a': 'A' } });
+    await runPipeline(input, config, { ...options, releaseNotes: { 'pkg-a': 'A' } });
 
-      expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': 'A', 'pkg-b/1.2.3': GENERATED });
-      expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
-      expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': 'A', 'pkg-b/1.2.3': GENERATED });
+    expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
+    expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
+  });
+
+  it("should give a tag without release notes its changelog's entries when body is auto", async () => {
+    const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
+
+    await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { 'pkg-a': 'A' } });
+
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': 'A', 'pkg-b/1.2.3': '- Fix pkg-b' });
+    expect(warnMock).not.toHaveBeenCalled();
+  });
+
+  it.each(['release-1.2.3', 'app-v1.2.3'])(
+    'should give a sync release tagged %s the sole changelog when body is auto and release notes are disabled',
+    async (tag) => {
+      await runPipeline(syncInput(tag), getDefaultConfig(), options);
+
+      expect(releaseBodies()).toEqual({ [tag]: '- Fix the sync release' });
+      expect(warnMock).not.toHaveBeenCalled();
     },
   );
+
+  it('should warn naming only the tag with neither release notes nor a changelog when body is auto', async () => {
+    const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
+    input.changelogs = input.changelogs.filter((c) => c.packageName === 'pkg-a');
+
+    await runPipeline(input, getDefaultConfig(), options);
+
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
+    expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
+    expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
+  });
 
   it('should warn naming only the tag no changelog matches when body is changelog', async () => {
     const config = getDefaultConfig();

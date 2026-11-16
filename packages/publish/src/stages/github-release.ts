@@ -68,11 +68,13 @@ function resolveNotes(
     if (body) {
       return { body, useGithubNotes: false };
     }
-    warn(
-      `Release notes configured but no content found for tag ${release.tag}, falling back to GitHub auto-generated notes`,
-    );
   }
 
+  const changelogBody = formatChangelogForTag(release);
+  if (changelogBody) {
+    return { body: changelogBody, useGithubNotes: false };
+  }
+  warn(`No release notes or changelog found for tag ${release.tag}, falling back to GitHub auto-generated notes`);
   return { useGithubNotes: true };
 }
 

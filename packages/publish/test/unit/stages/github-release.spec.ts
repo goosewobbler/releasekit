@@ -127,83 +127,6 @@ describe('github-release stage', () => {
     expect(args).not.toContain('--generate-notes');
   });
 
-  it('should fall back to --generate-notes (not changelog) when release notes configured but not found for tag', async () => {
-    const { execCommand } = await import('../../../src/utils/exec.js');
-
-    const ctx = createContext({
-      input: {
-        dryRun: false,
-        updates: [],
-        changelogs: [
-          {
-            packageName: 'pkg-a',
-            version: '1.0.0',
-            previousVersion: '0.9.0',
-            revisionRange: 'v0.9.0..HEAD',
-            repoUrl: null,
-            entries: [{ type: 'fix', description: 'fix a bug' }],
-          },
-        ],
-        tags: ['pkg-a@v1.0.0'],
-      },
-      output: {
-        dryRun: false,
-        git: { committed: true, tags: ['pkg-a@v1.0.0'], pushed: true },
-        npm: [],
-        cargo: [],
-        verification: [],
-        githubReleases: [],
-      },
-      // Release notes exist but for a different package - no match for this tag
-      releaseNotes: { 'other-pkg': 'Notes for a different package' },
-    });
-
-    await runGithubReleaseStage(ctx);
-
-    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args).not.toContain('fix a bug');
-    expect(args).toContain('--generate-notes');
-  });
-
-  it('should use --generate-notes when notes is auto and no release notes are configured', async () => {
-    const { execCommand } = await import('../../../src/utils/exec.js');
-
-    const ctx = createContext({
-      input: {
-        dryRun: false,
-        updates: [],
-        changelogs: [
-          {
-            packageName: 'pkg-a',
-            version: '1.0.0',
-            previousVersion: '0.9.0',
-            revisionRange: 'v0.9.0..HEAD',
-            repoUrl: null,
-            entries: [
-              { type: 'feat', description: 'add new feature', scope: 'core' },
-              { type: 'fix', description: 'fix a bug' },
-            ],
-          },
-        ],
-        tags: ['pkg-a@v1.0.0'],
-      },
-      output: {
-        dryRun: false,
-        git: { committed: true, tags: ['pkg-a@v1.0.0'], pushed: true },
-        npm: [],
-        cargo: [],
-        verification: [],
-        githubReleases: [],
-      },
-    });
-
-    await runGithubReleaseStage(ctx);
-
-    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args).toContain('--generate-notes');
-    expect(args).not.toContain('--notes');
-  });
-
   it('should not false-match notes when package name is a prefix of another', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
 
@@ -340,7 +263,6 @@ describe('github-release stage', () => {
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     expect(args).toContain('--title');
     expect(args[args.indexOf('--title') + 1]).toBe('@releasekit/version: v0.4.1');
-    expect(args).toContain('--generate-notes');
   });
 
   it('should match sanitized tag to release notes keyed by scoped package name', async () => {
