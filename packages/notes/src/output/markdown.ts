@@ -325,7 +325,7 @@ function versionSectionsStart(rendered: string): number {
   return index === -1 ? -1 : index + 1;
 }
 
-function prependChangelog(existingPath: string, rendered: string): string {
+function prependChangelog(existingPath: string, rendered: string): string | undefined {
   const existing = fs.existsSync(existingPath) ? fs.readFileSync(existingPath, 'utf-8') : '';
   if (existing.trim() === '') {
     return rendered;
@@ -334,7 +334,7 @@ function prependChangelog(existingPath: string, rendered: string): string {
   const sectionsStart = versionSectionsStart(rendered);
   if (sectionsStart === -1) {
     warn(`Rendered changelog has no version section (a line starting with "## "); nothing added to ${existingPath}`);
-    return existing;
+    return undefined;
   }
   const sections = `${rendered.slice(sectionsStart).trimEnd()}\n`;
 
@@ -348,16 +348,16 @@ function prependChangelog(existingPath: string, rendered: string): string {
   return `${existing.slice(0, headerEnd).trimEnd()}\n\n${sections}\n${existing.slice(headerEnd)}`;
 }
 
-export function writeChangelog(outputPath: string, content: string, dryRun: boolean): void {
+export function writeChangelog(outputPath: string, content: string, dryRun: boolean): boolean {
   if (dryRun) {
     info(`[DRY RUN] Changelog preview (would write to ${outputPath}):`);
     info(content);
-    return;
+    return false;
   }
 
   if (outputPath === '-') {
     process.stdout.write(content);
-    return;
+    return false;
   }
 
   const dir = path.dirname(outputPath);
@@ -365,6 +365,11 @@ export function writeChangelog(outputPath: string, content: string, dryRun: bool
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  fs.writeFileSync(outputPath, prependChangelog(outputPath, content), 'utf-8');
+  const updated = prependChangelog(outputPath, content);
+  if (updated === undefined) {
+    return false;
+  }
+  fs.writeFileSync(outputPath, updated, 'utf-8');
   success(`Changelog written to ${outputPath}`);
+  return true;
 }

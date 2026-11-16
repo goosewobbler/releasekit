@@ -289,6 +289,14 @@ the new name before the next release, e.g. `git tag scope-pkg@v1.2.3 v1.2.3^{}`,
 With no `version` block, a mismatch between `package.json` and the latest tag warns (`mismatchStrategy: "warn"`, as
 with a `version` block); it used to fail.
 
+### Changelogs always prepend
+
+- `notes.updateStrategy` is removed, and config loading fails if it's set. The notes CLI's `--regenerate` is removed.
+- A custom changelog template (`notes.changelog.templates`) no longer overwrites the file: its output from the first
+  `## ` line goes under the existing header. See
+  [Templates](../packages/notes/docs/templates.md#writing-to-an-existing-changelog).
+- In `packages` and `both` modes, per-package changelogs use the custom template too.
+
 ---
 
 ## Further reading

@@ -451,8 +451,7 @@ export async function runPipeline(
 
     try {
       if (mode === 'root' || mode === 'both') {
-        writeChangelog(fileName, renderChangelog(changelogContexts, fmtOpts), dryRun);
-        if (!dryRun) {
+        if (writeChangelog(fileName, renderChangelog(changelogContexts, fmtOpts), dryRun)) {
           files.push(fileName);
         }
       }

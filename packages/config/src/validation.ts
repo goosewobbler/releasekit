@@ -46,6 +46,7 @@ const REMOVED_KEYS = new Map<string, string>([
   ['ci.labels.stable', 'renamed to ci.labels.graduate'],
   ['monorepo.mainPackage', 'moved to version.mainPackage'],
   ['monorepo.mode', 'removed - changelog aggregation is set by notes.changelog.mode'],
+  ['notes.updateStrategy', 'removed - changelogs always prepend the new versions'],
 ]);
 
 const unsetEnvByOwner = new WeakMap<object, Map<PropertyKey, string>>();

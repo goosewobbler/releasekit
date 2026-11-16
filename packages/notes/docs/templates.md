@@ -60,7 +60,7 @@ The `entry.liquid` template receives the `ChangelogEntry` fields directly as top
 A changelog template renders only this run's versions, in `versions`. How the output reaches the file:
 
 - **New or empty file:** the whole output is written.
-- **Existing file:** the output from its first line starting with `## ` goes directly under the file's header, which is everything before the file's first `## ` line. The rest of the file is kept. Anything the template renders before its first `## ` line, such as its own header, is dropped.
+- **Existing file:** the output from its first line starting with `## ` goes directly under the file's header, which is everything before the file's first `## ` line. The rest of the file is kept. Anything the template renders before its first `## ` line, such as its own header, is dropped. Everything from that line to the end of the output is inserted, so don't render a footer, such as link reference definitions.
 
 So start each version section with a level-2 heading (`## `). If the output has none, an existing file is left unchanged and a warning is logged.
 

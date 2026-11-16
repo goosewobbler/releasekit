@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { info } from '@releasekit/core';
+import { debug, info } from '@releasekit/core';
 import type { TemplateContext } from '../core/types.js';
 import { writeChangelog } from '../output/markdown.js';
 import { splitByPackage } from './splitter.js';
@@ -50,9 +50,11 @@ export function writeMonorepoChangelogs(
 
     if (packageDir) {
       const changelogPath = path.join(packageDir, options.fileName ?? 'CHANGELOG.md');
-      info(`Writing changelog for ${packageName} to ${changelogPath}`);
-      writeChangelog(changelogPath, render([ctx]), dryRun);
-      if (!dryRun) {
+      const content = render([ctx]);
+      if (dryRun) {
+        info(`Would write changelog for ${packageName} to ${changelogPath}`);
+        debug(content);
+      } else if (writeChangelog(changelogPath, content, false)) {
         files.push(changelogPath);
       }
     } else {
