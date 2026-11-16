@@ -2059,7 +2059,11 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   // From the body, not the manifest: the manifest holds machine state only.
   const bodyNotes = livePr ? extractNotesRegions(livePr.body ?? '', manifest.versionOutput) : {};
-  const usableNotes = publishableNotesRegions(bodyNotes, manifest.notesRegions);
+  const usableNotes = publishableNotesRegions(
+    bodyNotes,
+    manifest.notesRegions,
+    releaseNotesInputHashes(manifest.versionOutput, releaseKitConfig.notes),
+  );
   const notesToGenerate = notesRegionKeys(manifest.versionOutput).filter((key) => !Object.hasOwn(usableNotes, key));
 
   let releaseNotes: Record<string, string> = {};
@@ -2080,7 +2084,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
       warn('Publish will proceed without release notes; GitHub release bodies use the githubRelease.body fallback.');
     }
   }
-  // A truncated region still ships if its regeneration failed.
+  // A region still ships if its regeneration failed.
   const regionNotes = Object.fromEntries(
     Object.entries(bodyNotes)
       .filter(([key]) => !Object.hasOwn(releaseNotes, key))

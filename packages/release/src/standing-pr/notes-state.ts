@@ -108,15 +108,19 @@ export function planNotesRegions(
   return plan;
 }
 
-/** The regions publish can ship as written: all but an unedited one that was truncated. */
+/**
+ * The regions publish can ship as written: all but an unedited one that was truncated or whose inputs changed since
+ * it was generated, as when its regeneration failed.
+ */
 export function publishableNotesRegions(
   regions: Record<string, string>,
   states: NotesRegionStates | undefined,
+  inputHashes: Record<string, string>,
 ): Record<string, string> {
   return Object.fromEntries(
     Object.entries(regions).filter(([key, text]) => {
       const state = states?.[key];
-      return !(isUnedited(text, state) && state.truncated);
+      return !(isUnedited(text, state) && (state.truncated || state.inputHash !== inputHashes[key]));
     }),
   );
 }

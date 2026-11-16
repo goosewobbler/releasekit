@@ -3787,6 +3787,19 @@ describe('runStandingPRUpdate', () => {
         expect(notes).toEqual(seeded.regions);
       });
 
+      it('should regenerate an unedited region the last update failed to refresh', async () => {
+        const seeded = await update(output(initial));
+        const stale = await update(output(newCommits), seeded, failingLlm);
+
+        const notes = await publish(output(newCommits), stale);
+
+        expect(generatedFor).toEqual([['pkg-a', 'pkg-b']]);
+        expect(notes).toEqual({
+          'pkg-a': 'Notes for pkg-a: fix a, fix a again',
+          'pkg-b': 'Notes for pkg-b: fix b, fix b again',
+        });
+      });
+
       it('should ship a truncated region when its regeneration fails', async () => {
         const long = (cl: Changelog) => `- ${'long line\n- '.repeat(1000)}${cl.packageName}`;
         const seeded = await update(output(initial), undefined, long);
