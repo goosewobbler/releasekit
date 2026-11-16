@@ -1,5 +1,4 @@
-import path from 'node:path';
-import { isPathWithinRoot, type VersionChangelogEntry } from '@releasekit/core';
+import type { VersionChangelogEntry } from '@releasekit/core';
 import { createGitCli, type Git } from '@releasekit/git';
 import { log } from '../utils/logging.js';
 
@@ -53,7 +52,7 @@ export async function extractAllChangelogEntriesWithHash(
   }
 }
 
-/** Entries from commits that change nothing under `packageDirs`, the directories every non-shared package owns. */
+/** Entries from commits that change nothing under `packageDirs`, the pathspecs every non-shared package owns. */
 export async function extractRepoLevelChangelogEntries(
   projectDir: string,
   revisionRange: string,
@@ -62,15 +61,19 @@ export async function extractRepoLevelChangelogEntries(
 ): Promise<ChangelogEntry[]> {
   try {
     const allCommits = await extractAllChangelogEntriesWithHash(projectDir, revisionRange, git);
-    if (allCommits.length === 0) {
-      return [];
+    if (packageDirs.length === 0) {
+      return allCommits.map((c) => c.entry);
     }
 
-    const root = await git.topLevel(projectDir);
-    const touches = await Promise.all(
-      allCommits.map((commit) => commitTouchesAnyPackage(projectDir, root, commit.hash, packageDirs, git)),
-    );
-    const repoLevelCommits = allCommits.filter((_commit, i) => !touches[i]);
+    const packageCommits = await git.log({
+      range: revisionRange,
+      format: '%H',
+      extraArgs: ['--no-merges'],
+      paths: packageDirs,
+      cwd: projectDir,
+    });
+    const packageHashes = new Set(packageCommits.split('\n').map((line) => line.trim()));
+    const repoLevelCommits = allCommits.filter((commit) => !packageHashes.has(commit.hash));
 
     if (repoLevelCommits.length > 0) {
       log(`Found ${repoLevelCommits.length} repo-level commit(s)`, 'debug');
@@ -80,25 +83,6 @@ export async function extractRepoLevelChangelogEntries(
   } catch (error) {
     log(`Error extracting repo-level commits: ${error instanceof Error ? error.message : String(error)}`, 'warning');
     return [];
-  }
-}
-
-async function commitTouchesAnyPackage(
-  projectDir: string,
-  root: string,
-  commitHash: string,
-  packageDirs: string[],
-  git: Git,
-): Promise<boolean> {
-  try {
-    const changedFiles = await git.diffTreeNames(commitHash, projectDir);
-    return changedFiles.some((file) => packageDirs.some((dir) => isPathWithinRoot(dir, path.join(root, file))));
-  } catch (error) {
-    log(
-      `Error checking if commit ${commitHash} touches packages: ${error instanceof Error ? error.message : String(error)}`,
-      'debug',
-    );
-    return false;
   }
 }
 

@@ -59,12 +59,6 @@ describe('GitCli queries', () => {
     expect(calls[0].args).toEqual(['rev-parse', 'HEAD']);
   });
 
-  it('should resolve the working tree root from cwd', async () => {
-    const { run, calls } = makeRunner({ stdout: '../../\n' });
-    expect(await new GitCli(run).topLevel('/r/packages/app')).toBe('/r');
-    expect(calls[0].args).toEqual(['rev-parse', '--show-cdup']);
-  });
-
   it('should return the remote url, trimmed', async () => {
     const { run, calls } = makeRunner({ stdout: 'git@github.com:o/r.git\n' });
     expect(await new GitCli(run).remoteUrl('origin', '/r')).toBe('git@github.com:o/r.git');
@@ -185,12 +179,6 @@ describe('GitCli queries', () => {
     const { run, calls } = makeRunner({ stdout: '' });
     await new GitCli(run).log({});
     expect(calls[0].args).toEqual(['log']);
-  });
-
-  it('should list changed paths from diff-tree, splitting and dropping empties', async () => {
-    const { run, calls } = makeRunner({ stdout: 'a.ts\nb.ts\n\n' });
-    expect(await new GitCli(run).diffTreeNames('sha1', '/r')).toEqual(['a.ts', 'b.ts']);
-    expect(calls[0].args).toEqual(['diff-tree', '--no-commit-id', '--name-only', '-r', 'sha1']);
   });
 
   it('should list tracked files NUL-separated, passing pathspecs after --', async () => {
@@ -451,12 +439,6 @@ describe('GitCli option-injection guard', () => {
   it('should refuse a leading-dash remote in push and never call the runner', async () => {
     const { run } = makeRunner();
     await expect(new GitCli(run).push({ remote: '--receive-pack=evil' })).rejects.toBeInstanceOf(GitError);
-    expect(run).not.toHaveBeenCalled();
-  });
-
-  it('should refuse a leading-dash commit in diffTreeNames and never call the runner', async () => {
-    const { run } = makeRunner();
-    await expect(new GitCli(run).diffTreeNames('--output=evil')).rejects.toBeInstanceOf(GitError);
     expect(run).not.toHaveBeenCalled();
   });
 

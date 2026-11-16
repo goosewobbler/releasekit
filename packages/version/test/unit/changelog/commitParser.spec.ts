@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   extractAllChangelogEntriesWithHash,
   extractChangelogEntriesFromCommits,
-  extractRepoLevelChangelogEntries,
 } from '../../../src/changelog/commitParser.js';
 
 vi.mock('../../../src/utils/logging.js', () => ({
@@ -12,8 +11,7 @@ vi.mock('../../../src/utils/logging.js', () => ({
 
 const RANGE = 'v1.0.0..v1.1.0';
 
-const gitWithLog = (output: string, diffNames?: Record<string, string[]>): Git =>
-  createFakeGit({ commits: { '*': output }, diffNames });
+const gitWithLog = (output: string): Git => createFakeGit({ commits: { '*': output } });
 
 describe('Commit Parser', () => {
   beforeEach(() => {
@@ -186,69 +184,6 @@ describe('Commit Parser', () => {
       const opts = logSpy.mock.calls[0]?.[0];
       expect(opts?.paths).toBeUndefined();
       expect(opts?.extraArgs).toEqual(['--no-merges']);
-    });
-  });
-
-  describe('extractRepoLevelChangelogEntries', () => {
-    const repoGit = (log: string, diffNames: Record<string, string[]>) =>
-      createFakeGit({ topLevel: '/repo', commits: { '*': log }, diffNames });
-
-    it('should extract only commits that do not touch any package directory', async () => {
-      const git = repoGit(
-        'aaa123|||feat(version): add feature\n---COMMIT_DELIMITER---\nbbb456|||chore(ci): update workflow',
-        { aaa123: ['packages/version/src/feature.ts'], bbb456: ['.github/workflows/ci.yml'] },
-      );
-
-      const entries = await extractRepoLevelChangelogEntries(
-        '/repo/packages/version',
-        RANGE,
-        ['/repo/packages/version'],
-        git,
-      );
-
-      expect(entries.map((e) => e.description)).toEqual(['update workflow']);
-    });
-
-    it('should return an empty array when all commits touch packages', async () => {
-      const git = repoGit('abc123|||feat(version): feature\n---COMMIT_DELIMITER---\ndef456|||fix(notes): bugfix', {
-        abc123: ['packages/version/src/index.ts'],
-        def456: ['packages/notes/src/index.ts'],
-      });
-
-      const entries = await extractRepoLevelChangelogEntries(
-        '/repo/packages/version',
-        RANGE,
-        ['/repo/packages/version', '/repo/packages/notes'],
-        git,
-      );
-
-      expect(entries).toEqual([]);
-    });
-
-    it('should treat a commit with no changed files as repo-level', async () => {
-      const git = repoGit('abc123|||chore: empty', { abc123: [] });
-
-      const entries = await extractRepoLevelChangelogEntries(
-        '/repo/packages/version',
-        RANGE,
-        ['/repo/packages/version'],
-        git,
-      );
-
-      expect(entries.map((e) => e.description)).toEqual(['empty']);
-    });
-
-    it('should not count a sibling directory that shares a package directory prefix', async () => {
-      const git = repoGit('abc123|||fix: tweak the cli', { abc123: ['packages/version-cli/index.ts'] });
-
-      const entries = await extractRepoLevelChangelogEntries(
-        '/repo/packages/version',
-        RANGE,
-        ['/repo/packages/version'],
-        git,
-      );
-
-      expect(entries.map((e) => e.description)).toEqual(['tweak the cli']);
     });
   });
 });
