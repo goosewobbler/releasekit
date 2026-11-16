@@ -7,6 +7,7 @@ import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js
 import { BaseVersionError } from '../errors/baseError.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
 import { createVersionError, VersionErrorCode } from '../errors/versionError.js';
+import { findStrandedRelease } from '../git/strandedRelease.js';
 import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
@@ -119,6 +120,9 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         }
       }
 
+      const stranded =
+        latestTag && versionSourcePath ? await findStrandedRelease(versionSourcePath, latestTag) : undefined;
+
       const nextVersion = await calculateVersion(config, {
         latestTag,
         versionPrefix: formattedPrefix,
@@ -128,6 +132,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         commitScope: [repoRoot],
         name: versionSourceName,
         type: config.type,
+        stranded,
       });
 
       if (!nextVersion) {
@@ -241,7 +246,9 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        changelogEntries = await extractChangelogEntriesFromCommits(mainPkgPath, revisionRange);
+        changelogEntries = await extractChangelogEntriesFromCommits(mainPkgPath, revisionRange, ['.'], {
+          excludeCommit: stranded?.commit,
+        });
 
         if (changelogEntries.length === 0) {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
@@ -310,6 +317,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
             repoUrl,
             entries: changelogEntries,
             tag: nextTags[i],
+            supersedes: stranded?.version,
           });
         }
       } else {
@@ -321,6 +329,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           repoUrl,
           entries: changelogEntries,
           tag: nextTags[0],
+          supersedes: stranded?.version,
         });
       }
       const commitPackageName = workspaceNames.length > 0 ? workspaceNames.join(', ') : undefined;
@@ -446,6 +455,8 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       const { scope: commitScope, pathsError } = resolveCommitScope(pkgPath, config, { repoRoot });
 
+      const stranded = latestTag ? await findStrandedRelease(pkgPath, latestTag) : undefined;
+
       let nextVersion: string | undefined;
 
       nextVersion = await calculateVersion(config, {
@@ -456,6 +467,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         commitScope,
         name: packageName,
         type: config.type,
+        stranded,
       });
 
       if (!nextVersion) {
@@ -497,7 +509,9 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange, commitScope);
+        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange, commitScope, {
+          excludeCommit: stranded?.commit,
+        });
 
         if (changelogEntries.length === 0) {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
@@ -556,6 +570,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         repoUrl: repoUrl || null,
         entries: changelogEntries,
         tag: tagName,
+        supersedes: stranded?.version,
       });
 
       log(`Updated package ${packageName} to version ${nextVersion}`, 'success');

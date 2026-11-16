@@ -10,6 +10,7 @@ import {
   neutralizeDescriptionRefs,
   renderIssueRefs,
   success,
+  warn,
 } from '@releasekit/core';
 import type {
   ChangelogEntry,
@@ -248,11 +249,14 @@ export interface FormatVersionOptions {
   refs?: ChangelogRefsMode;
 }
 
+function formatVersionLabel(packageName: string, version: string, options?: FormatVersionOptions): string {
+  return options?.includePackageName && packageName ? `${packageName}@${version}` : version;
+}
+
 export function formatVersion(context: TemplateContext, options?: FormatVersionOptions): string {
   const refOpts: EntryRefOptions = { refs: options?.refs ?? 'link', repoUrl: context.repoUrl };
 
-  const versionLabel =
-    options?.includePackageName && context.packageName ? `${context.packageName}@${context.version}` : context.version;
+  const versionLabel = formatVersionLabel(context.packageName, context.version, options);
   const versionHeader = context.previousVersion ? `## [${versionLabel}]` : `## ${versionLabel}`;
 
   const blocks = [`${versionHeader} - ${context.date}`];
@@ -317,12 +321,34 @@ export function renderMarkdown(contexts: TemplateContext[], options?: FormatVers
   return sections.join('\n');
 }
 
+/** Finds the section by the heading {@link formatVersion} writes, so one a custom template wrote is left in place. */
+function removeVersionSection(content: string, label: string, filePath: string): string {
+  const headings = [`## [${label}]`, `## ${label}`];
+  const lines = content.split('\n');
+  const start = lines.findIndex((line) => headings.some((h) => line === h || line.startsWith(`${h} `)));
+  if (start === -1) {
+    warn(`${filePath} has no section for unpublished ${label} to replace; remove it by hand if it has one`);
+    return content;
+  }
+  const next = lines.findIndex((line, i) => i > start && line.startsWith('## '));
+  return [...lines.slice(0, start), ...(next === -1 ? [] : lines.slice(next))].join('\n');
+}
+
 export function prependVersions(
   existingPath: string,
   contexts: TemplateContext[],
   options?: FormatVersionOptions,
 ): string {
-  const existing = fs.existsSync(existingPath) ? fs.readFileSync(existingPath, 'utf-8') : '';
+  let existing = fs.existsSync(existingPath) ? fs.readFileSync(existingPath, 'utf-8') : '';
+  for (const context of contexts) {
+    if (context.supersedes && existing.trim() !== '') {
+      existing = removeVersionSection(
+        existing,
+        formatVersionLabel(context.packageName, context.supersedes, options),
+        existingPath,
+      );
+    }
+  }
   if (existing.trim() === '') {
     return renderMarkdown(contexts, options);
   }

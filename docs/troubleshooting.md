@@ -226,7 +226,7 @@ What was pushed depends on the mode. The order is in [Publish order and partial 
 
 - **Batch mode** (one shared tag): nothing is pushed. In a direct release the version commit is still local. Re-run; packages already on the registry are skipped, then the branch, tags, and GitHub Releases are pushed.
 - **Per-package mode** (each update has its own tag): the release commit and the tags of packages that published are already on the remote. No GitHub Release was created. Roll forward with the next release. Do not delete those tags.
-- **A tag push failed after the branch push** (direct release, either mode): the release commit is on the remote, but its tags are not. A re-run fails every time, because its new release commit can't be pushed over this one. Roll forward with the next release; this version gets no GitHub Release. Before that release, restore the tags with the commands from the failure report. Without them it counts from the previous tag, so its changelog repeats this release's entries and its bump counts this release's commits again. Under `mismatchStrategy: 'error'` it can also throw a version mismatch if this release moved onto or off a prerelease.
+- **A tag push failed after the branch push** (direct release, either mode): the release commit is on the remote, but its tags are not. A re-run fails every time, because its new release commit can't be pushed over this one. Roll forward with the next release; this version gets no GitHub Release. Before that release, restore the tags with the commands from the failure report. Without them it treats this release as unpublished and proposes its version again unless later changes raise it, and publish skips a version that's already on the registry.
 - **Standing-PR mode:** the merge already put the version commit on `main`. Add `release:retry` to the merged standing PR (below). Do not delete a tag whose version was published.
 
 ### The failure report
@@ -250,18 +250,19 @@ A successful retry marks the failure report resolved and clears the supersede wa
 
 ### Recovery path 2 — supersede (let the next release self-heal)
 
-If you would rather move on, **merge the next standing PR**. In sync mode the release partially self-heals at the new version:
+If you would rather move on, **merge the next standing PR**. It versions each package whose release was never tagged as if that release commit weren't there:
 
-- Every package — including the ones that failed before — publishes at the new version.
-- In batch mode the failed release's tag was never pushed, so the next changelog spans both releases' commits. In per-package mode, tags for packages that did publish are already on the remote; leave them.
+- The unpublished version is proposed again, raised only if later changes need it. A package already on the registry at that version is skipped.
+- That version's section in `CHANGELOG.md` is replaced by the new one.
+- In per-package mode, tags for packages that did publish are already on the remote; leave them.
 
-The remaining gap is cosmetic: there may be no GitHub Release for the failed version, and the registry has a version hole for the packages that didn't publish. Nothing is broken; the history simply skips a version for those packages.
+If a version is raised, the registry has a hole where the unpublished version would have been. Nothing is broken; the history simply skips that version.
 
 ### The supersede warning on the next standing PR
 
 So a failed publish does not silently fade away, ReleaseKit warns while a partially-published release remains unresolved. The **next** standing PR's body and the release preview include a block such as:
 
-> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry). Retry it via `release:retry` on the merged standing PR (#42), **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.
+> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry). Retry it via `release:retry` on the merged standing PR (#42), **or** merging this PR supersedes it — this PR re-proposes the unpublished versions, raised only if later changes need it. Do not delete tags for versions that were published.
 
 This gives you an honest choice between the two recovery paths. The warning is keyed off the failure report on the most recently merged standing PR and its resolved status, so it clears automatically once the failed release is retried successfully or superseded by the next release.
 

@@ -1,8 +1,9 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { runPipeline } from '../../src/core/pipeline.js';
+import type { VersionOutput } from '@releasekit/core';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { processInput, runPipeline } from '../../src/core/pipeline.js';
 import type { ChangelogInput, Config, PackageChangelog, TemplateContext } from '../../src/core/types.js';
 import { writeMonorepoChangelogs } from '../../src/monorepo/aggregator.js';
 
@@ -130,6 +131,76 @@ describe('Pipeline: root changelog keeps its history', () => {
     const out = await writeChangelog(single, { changelog: { mode: 'root' } }, existing);
 
     expect(out).toBe(expected);
+  });
+});
+
+describe('Pipeline: a release that supersedes an unpublished version', () => {
+  const STRANDED = `## [1.3.0] - 2026-01-20
+
+### Added
+
+- add a widget
+`;
+
+  async function supersede(version: string, entries: string[], existing: string) {
+    const file = path.join(dir, 'CHANGELOG.md');
+    fs.writeFileSync(file, existing, 'utf-8');
+    const output: VersionOutput = {
+      dryRun: false,
+      updates: [],
+      tags: [`v${version}`],
+      changelogs: [
+        {
+          packageName: 'my-lib',
+          version,
+          previousVersion: '1.0.0',
+          revisionRange: 'v1.0.0..HEAD',
+          repoUrl: null,
+          entries: entries.map((description) => ({ type: 'added', description })),
+          supersedes: '1.3.0',
+        },
+      ],
+    };
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    onTestFinished(() => logged.mockRestore());
+
+    await processInput(JSON.stringify(output), { changelog: { mode: 'root', file } }, false);
+
+    const warnings = logged.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('1.3.0'));
+    return { out: fs.readFileSync(file, 'utf-8'), warnings };
+  }
+
+  it('should replace the unpublished section when the version is unchanged', async () => {
+    const { out, warnings } = await supersede('1.3.0', ['add a widget'], `${HEADER}\n${STRANDED}\n${OLD_RELEASE}`);
+
+    expect(out.match(/^## \[1\.3\.0\]/gm)).toHaveLength(1);
+    expect(out.match(/- add a widget/g)).toHaveLength(1);
+    expect(out).toContain(OLD_RELEASE);
+    expect(warnings).toEqual([]);
+  });
+
+  it('should drop the unpublished section when the version is raised', async () => {
+    const { out } = await supersede(
+      '2.0.0',
+      ['drop the old widget', 'add a widget'],
+      `${HEADER}\n${STRANDED}\n${OLD_RELEASE}`,
+    );
+
+    expect(out).not.toContain('## [1.3.0]');
+    const added = out.slice(out.indexOf('## [2.0.0]'), out.indexOf('## [1.0.0]'));
+    expect(added).toContain('- drop the old widget');
+    expect(added).toContain('- add a widget');
+    expect(out).toContain(OLD_RELEASE);
+  });
+
+  it('should leave a file without that heading as it is, and warn', async () => {
+    const custom = `${HEADER}\n## v1.3.0 (2026-01-20)\n\n- add a widget\n\n${OLD_RELEASE}`;
+
+    const { out, warnings } = await supersede('1.3.0', ['add a widget'], custom);
+
+    expect(out).toContain(custom.slice(HEADER.length));
+    expect(out).toContain('## [1.3.0]');
+    expect(warnings).toEqual([expect.stringContaining('no section for unpublished 1.3.0')]);
   });
 });
 

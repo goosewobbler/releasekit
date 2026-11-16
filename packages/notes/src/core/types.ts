@@ -36,6 +36,8 @@ export interface PackageChangelog {
   repoUrl: string | null;
   date: string;
   entries: ChangelogEntry[];
+  /** An unpublished version whose changelog section this one replaces. */
+  supersedes?: string;
 }
 
 export type InputSource = 'version';
@@ -71,6 +73,8 @@ export interface TemplateContext {
   compareUrl?: string;
   enhanced?: EnhancedData;
   isFirstRelease?: boolean;
+  /** An unpublished version whose changelog section this one replaces. */
+  supersedes?: string;
 }
 
 export interface DocumentContext {

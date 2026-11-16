@@ -192,7 +192,10 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
 
     let versionSource: VersionSourceResult | undefined;
 
-    if (pkgPath) {
+    if (pkgPath && options.stranded) {
+      versionSource = { source: 'git', version: latestTag, reason: `${options.stranded.version} never shipped` };
+      log(`Using version source: git (${versionSource.reason})`, 'info');
+    } else if (pkgPath) {
       const packageDir = pkgPath;
       const manifestResult = getVersionFromManifests(packageDir);
       const packageVersion =
@@ -346,7 +349,14 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         ...(bumpFrom ? { from: bumpFrom } : {}),
         ...(commitScope.length > 0 ? { path: commitScope } : {}),
       });
-      const recommendedBump = await bumper.bump(presetConfig.whatBump);
+      const strandedCommit = options.stranded?.commit;
+      const whatBump: BumperPreset['whatBump'] = strandedCommit
+        ? (commits) => {
+            const kept = commits.filter((commit) => commit.hash !== strandedCommit);
+            return kept.length > 0 ? presetConfig.whatBump(kept) : null;
+          }
+        : presetConfig.whatBump;
+      const recommendedBump = await bumper.bump(whatBump);
       const releaseTypeFromCommits =
         recommendedBump && 'releaseType' in recommendedBump ? (recommendedBump.releaseType as ReleaseType) : undefined;
       log(`Conventional commits release type: ${releaseTypeFromCommits}`, 'debug');

@@ -1,5 +1,6 @@
 import { type Preset, type VersionConfig, VersionConfigSchema, type VersionGroup } from '@releasekit/config';
 import type { ReleaseType } from 'semver';
+import type { StrandedRelease } from './git/strandedRelease.js';
 import { resolveTagTemplate } from './utils/formatting.js';
 
 /** `name` is the group's config key. */
@@ -155,4 +156,6 @@ export function toVersionConfig(config: VersionConfig = VersionConfigSchema.pars
 export interface VersionOptions extends VersionConfigBase {
   latestTag: string;
   hasRealTag?: boolean;
+  /** Versions from `latestTag` over every commit except the stranded release commit. */
+  stranded?: StrandedRelease;
 }

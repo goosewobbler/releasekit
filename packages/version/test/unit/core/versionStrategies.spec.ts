@@ -19,6 +19,7 @@ import * as logging from '../../../src/utils/logging.js';
 
 vi.mock('../../../src/cargo/cargoLock.js');
 vi.mock('../../../src/git/tagsAndBranches.js');
+vi.mock('../../../src/git/strandedRelease.js');
 vi.mock('../../../src/git/tagVerification.js');
 vi.mock('../../../src/utils/logging.js');
 vi.mock('../../../src/core/versionCalculator.js');
@@ -574,7 +575,12 @@ describe('Version Strategies', () => {
 
         await syncStrategy(mockPackages);
 
-        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'v1.0.0..HEAD');
+        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith(
+          '/test/workspace',
+          'v1.0.0..HEAD',
+          ['.'],
+          { excludeCommit: undefined },
+        );
 
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith({
           packageName: 'monorepo',
@@ -616,7 +622,9 @@ describe('Version Strategies', () => {
 
         await syncStrategy(mockPackages);
 
-        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD');
+        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD', ['.'], {
+          excludeCommit: undefined,
+        });
         expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('could not be verified from HEAD'), 'warning');
         // previousVersion omitted so the changelog doesn't claim a baseline it never diffed against.
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
@@ -654,7 +662,9 @@ describe('Version Strategies', () => {
 
         await syncStrategy(mockPackages);
 
-        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD');
+        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD', ['.'], {
+          excludeCommit: undefined,
+        });
 
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -677,6 +687,8 @@ describe('Version Strategies', () => {
         expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith(
           '/test/workspace',
           'deadbeef1234..HEAD',
+          ['.'],
+          { excludeCommit: undefined },
         );
       });
 
@@ -696,7 +708,9 @@ describe('Version Strategies', () => {
         const syncStrategy = strategies.createSyncStrategy(config as Config);
         await syncStrategy(mockPackages);
 
-        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD');
+        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD', ['.'], {
+          excludeCommit: undefined,
+        });
       });
 
       it('should create one tag per workspace package when packageSpecificTags is true', async () => {

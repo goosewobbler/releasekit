@@ -245,7 +245,6 @@ async function commitAndForcePush(
   cwd: string,
   skipHooks: boolean,
   formatCommand: string | undefined,
-  allowEmpty: boolean,
 ): Promise<void> {
   const git = createGitCli();
   if (formatCommand) {
@@ -253,11 +252,9 @@ async function commitAndForcePush(
     await runFormatCommand(formatCommand, await git.lsFiles({ changed: true, cwd }), cwd);
   }
   await git.addAll(cwd);
-
-  const status = (await git.status({ porcelain: true, cwd })).trim();
-  if (status || allowEmpty) {
-    await git.commit(subject, { cwd, skipHooks, allowEmpty });
-  }
+  // GitHub won't open a PR with no commits, and an update can change nothing: with nothing ticked, or when it
+  // re-proposes a stranded release unchanged.
+  await git.commit(subject, { cwd, skipHooks, allowEmpty: true });
 
   await git.push({ remote: 'origin', ref: branch, forceWithLease: true, cwd });
 }
@@ -1393,14 +1390,12 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const title = safeStandingPrTitle(renderedTitle, skipPatterns);
   info(`Committing and pushing '${branch}'...`);
-  // With nothing ticked there's nothing to commit, and GitHub won't open a PR with no commits.
   await commitAndForcePush(
     branch,
     title,
     cwd,
     releaseKitConfig.git?.skipHooks ?? false,
     releaseKitConfig.git?.formatCommand,
-    count === 0,
   );
 
   const releaseBranchSha = await getHeadSha(cwd);

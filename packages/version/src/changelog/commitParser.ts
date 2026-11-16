@@ -115,32 +115,35 @@ export async function extractRepoLevelChangelogEntries(
   }
 }
 
+export interface ExtractChangelogOptions {
+  /** A commit in the range to leave out. */
+  excludeCommit?: string;
+  git?: Git;
+}
+
 /** `paths` are pathspecs, relative to `projectDir` or absolute. */
-export function extractChangelogEntriesFromCommits(
+export async function extractChangelogEntriesFromCommits(
   projectDir: string,
   revisionRange: string,
   paths: string[] = ['.'],
-  git: Git = createGitCli(),
-): Promise<ChangelogEntry[]> {
-  return extractCommitsFromGitLog(projectDir, revisionRange, paths, git);
-}
-
-async function extractCommitsFromGitLog(
-  projectDir: string,
-  revisionRange: string,
-  paths: string[] | undefined,
-  git: Git = createGitCli(),
+  { excludeCommit, git = createGitCli() }: ExtractChangelogOptions = {},
 ): Promise<ChangelogEntry[]> {
   try {
     const output = await git.log({
       range: revisionRange,
-      format: '%B---COMMIT_DELIMITER---',
+      format: excludeCommit ? '%H|||%B---COMMIT_DELIMITER---' : '%B---COMMIT_DELIMITER---',
       extraArgs: ['--no-merges'],
       paths,
       cwd: projectDir,
     });
 
-    const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
+    let commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
+    if (excludeCommit) {
+      commits = commits
+        .map((commit) => commit.trim().split('|||'))
+        .filter(([hash]) => hash !== excludeCommit)
+        .map((parts) => parts.slice(1).join('|||'));
+    }
 
     return commits
       .map((commit) => parseCommitMessage(commit))

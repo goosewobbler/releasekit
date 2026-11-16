@@ -1299,6 +1299,7 @@ describe('runStandingPRUpdate', () => {
       skipPatterns: string[],
       standingPR: ReturnType<typeof openStandingPR> | null = null,
       git: Record<string, unknown> = {},
+      status = ' M package.json',
     ) {
       const { loadConfig } = await import('@releasekit/config');
       vi.mocked(loadConfig).mockReturnValue({
@@ -1307,7 +1308,7 @@ describe('runStandingPRUpdate', () => {
         ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, title } },
         release: { ci: { skipPatterns } },
       } as unknown as ReturnType<typeof loadConfig>);
-      setupGit({ status: ' M package.json' });
+      setupGit({ status });
 
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
       const versionOutput = {
@@ -1403,6 +1404,16 @@ describe('runStandingPRUpdate', () => {
       await runWithTitle(undefined, ['chore: release '], null, git);
 
       expect(fakeGit.committed.map((c) => c.skipHooks)).toEqual([expected]);
+    });
+
+    it('should push a commit when re-proposing a stranded release changes no file', async () => {
+      const { forge } = await runWithTitle(undefined, ['chore: release '], null, {}, '');
+
+      expect(fakeGit.committed).toEqual([
+        expect.objectContaining({ message: 'chore: release v1.2.3', allowEmpty: true }),
+      ]);
+      expect(fakeGit.pushed).toEqual([expect.objectContaining({ ref: 'release/next' })]);
+      expect(forge.createdPullRequests[0]?.title).toBe('chore: release v1.2.3');
     });
   });
 

@@ -147,6 +147,7 @@ export function createTemplateContext(pkg: PackageChangelog): TemplateContext {
     entries: pkg.entries,
     compareUrl,
     isFirstRelease: pkg.previousVersion === null,
+    supersedes: pkg.supersedes,
   };
 }
 

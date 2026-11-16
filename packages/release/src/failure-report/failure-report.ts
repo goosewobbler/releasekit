@@ -357,7 +357,7 @@ export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
     : `Retry it by dispatching the release workflow against ${prRef}`;
   return [
     `> ⚠️ **Previous release ${escapeChangelogMentions(escapeCommentOpeners(previousLabel))} is partially published** (${published}/${total} packages on the registry).`,
-    `> ${retryHint}, **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.`,
+    `> ${retryHint}, **or** merging this PR supersedes it — this PR re-proposes the unpublished versions, raised only if later changes need it. Do not delete tags for versions that were published.`,
     '',
   ];
 }

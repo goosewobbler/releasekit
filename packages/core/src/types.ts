@@ -29,6 +29,11 @@ export interface VersionPackageChangelog {
   entries: VersionChangelogEntry[];
   /** The tag this changelog releases: the package's own, or a sync release's shared one. Absent in older manifests. */
   tag?: string;
+  /**
+   * A version a merged release set but never published or tagged. Its section in the changelog file is replaced by
+   * this one. Absent otherwise, and in older manifests.
+   */
+  supersedes?: string;
 }
 
 /** `'graduated'`: a prerelease promoted to stable, ignoring any requested bump. `'first-release'`: no prior tag. */

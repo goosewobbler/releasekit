@@ -7,6 +7,7 @@ import { extractChangelogEntriesFromCommits, extractRepoLevelChangelogEntries } 
 import { BaselineResolver } from '../core/baselineResolver.js';
 import { calculateVersion } from '../core/versionCalculator.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
+import { findStrandedRelease } from '../git/strandedRelease.js';
 import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import type { Config, VersionConfigBase } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
@@ -174,6 +175,7 @@ export class PackageProcessor {
 
       const latestTag = latestTagResult;
       const { scope: commitScope, pathsError } = resolveCommitScope(pkgPath, this.fullConfig, { repoRoot });
+      const stranded = hasRealTag ? await findStrandedRelease(pkgPath, latestTag) : undefined;
 
       const nextVersion = await calculateVersion(this.fullConfig, {
         latestTag,
@@ -184,6 +186,7 @@ export class PackageProcessor {
         name,
         prereleaseIdentifier: this.config.prereleaseIdentifier,
         type: this.config.type,
+        stranded,
       });
 
       if (!nextVersion) {
@@ -236,7 +239,9 @@ export class PackageProcessor {
           );
         }
 
-        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange, commitScope);
+        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange, commitScope, {
+          excludeCommit: stranded?.commit,
+        });
 
         const sharedPackagePatterns = this.fullConfig.sharedPackages ?? [];
         const sharedPackageDirs =
@@ -332,6 +337,7 @@ export class PackageProcessor {
         repoUrl: repoUrl || null,
         entries: changelogEntries,
         tag: packageTag,
+        supersedes: stranded?.version,
       });
       addTag(packageTag);
       setPackageUpdateTag(name, packageTag);

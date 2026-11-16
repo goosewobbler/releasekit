@@ -45,6 +45,7 @@ export function versionOutputToChangelogInput(
     revisionRange: changelog.revisionRange,
     repoUrl: changelog.repoUrl,
     date: new Date().toISOString().split('T')[0] ?? '',
+    supersedes: changelog.supersedes,
     entries: changelog.entries.map((entry) => ({
       type: normalizeEntryType(entry.type),
       description: entry.description,

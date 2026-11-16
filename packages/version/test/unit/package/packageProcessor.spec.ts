@@ -22,6 +22,7 @@ vi.mock('node:path');
 vi.mock('node:process');
 vi.mock('../../../src/package/packageManagement.js');
 vi.mock('../../../src/git/tagsAndBranches.js');
+vi.mock('../../../src/git/strandedRelease.js');
 vi.mock('../../../src/git/tagVerification.js');
 vi.mock('../../../src/utils/logging.js');
 vi.mock('../../../src/utils/formatting.js', () => ({
@@ -259,8 +260,18 @@ describe('Package Processor', () => {
       );
       expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalledWith('package-b', expect.anything());
       // Checked before the changelog is built, so its repo-level entries don't reach sharedEntries.
-      expect(extractEntries).toHaveBeenCalledWith('/path/to/package-a', expect.anything(), expect.anything());
-      expect(extractEntries).not.toHaveBeenCalledWith('/path/to/package-b', expect.anything(), expect.anything());
+      expect(extractEntries).toHaveBeenCalledWith(
+        '/path/to/package-a',
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(extractEntries).not.toHaveBeenCalledWith(
+        '/path/to/package-b',
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      );
       expect(logging.log).toHaveBeenCalledWith(
         'Not releasing package-b: it has no manifest releasekit can bump',
         'warning',

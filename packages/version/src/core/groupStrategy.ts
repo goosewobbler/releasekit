@@ -14,6 +14,7 @@ import semver from 'semver';
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { BaseVersionError } from '../errors/baseError.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
+import { findStrandedRelease, type StrandedRelease } from '../git/strandedRelease.js';
 import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import type { Config } from '../types.js';
@@ -67,6 +68,7 @@ interface MemberPlan {
   ownNext: string;
   changed: boolean;
   commitScope: string[];
+  stranded?: StrandedRelease;
 }
 
 function cleanBaseline(version: string | undefined): string {
@@ -102,6 +104,7 @@ async function planMember(
   }
 
   const commitScope = resolveCommitScope(pkg.dir, config, { ignorePaths: true }).scope;
+  const stranded = latestTag ? await findStrandedRelease(pkg.dir, latestTag) : undefined;
   const ownNext = await calculateVersion(config, {
     latestTag,
     versionPrefix: formattedPrefix,
@@ -110,14 +113,16 @@ async function planMember(
     commitScope,
     name,
     type: config.type,
+    stranded,
   });
 
-  const manifestVersion = pkg.packageJson.version;
+  // A stranded version never shipped, so the group bumps from the tag.
+  const manifestVersion = stranded ? undefined : pkg.packageJson.version;
   const tagVersion = latestTag ? cleanBaseline(latestTag) : undefined;
   const candidates = [manifestVersion, tagVersion].map(cleanBaseline).filter((v) => v !== '0.0.0');
   const baseline = candidates.length > 0 ? candidates.sort(semver.rcompare)[0] : '0.0.0';
 
-  return { pkg, baseline, latestTag, usedPackageSpecificTag, ownNext, changed: !!ownNext, commitScope };
+  return { pkg, baseline, latestTag, usedPackageSpecificTag, ownNext, changed: !!ownNext, commitScope, stranded };
 }
 
 function memberBumpRank(plan: MemberPlan): number {
@@ -272,6 +277,7 @@ async function extractEntries(
   input: {
     pkgDir: string;
     commitScope: string[];
+    excludeCommit: string | undefined;
     latestTag: string;
     hasRealTag: boolean;
     usedPackageSpecificTag: boolean;
@@ -299,7 +305,9 @@ async function extractEntries(
     });
     revisionRange = baseline.revisionRange;
     previousVersion = baseline.previousVersion;
-    entries = await extractChangelogEntriesFromCommits(input.pkgDir, revisionRange, input.commitScope);
+    entries = await extractChangelogEntriesFromCommits(input.pkgDir, revisionRange, input.commitScope, {
+      excludeCommit: input.excludeCommit,
+    });
   } catch (error) {
     if (error instanceof StrictReachableError) {
       throw error;
@@ -383,6 +391,7 @@ async function releaseGroup(
     const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
       pkgDir: pkg.dir,
       commitScope: plan.commitScope,
+      excludeCommit: plan.stranded?.commit,
       latestTag: plan.latestTag,
       hasRealTag: plan.latestTag !== '',
       usedPackageSpecificTag: plan.usedPackageSpecificTag,
@@ -400,6 +409,7 @@ async function releaseGroup(
       repoUrl: readRepoUrl(pkg.dir),
       entries,
       tag,
+      supersedes: plan.stranded?.version,
     });
     setPackageUpdatePreviousVersion(name, previousVersion);
 
@@ -537,6 +547,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
           pkgDir: pkg.dir,
           commitScope: plan.commitScope,
+          excludeCommit: plan.stranded?.commit,
           latestTag: plan.latestTag,
           hasRealTag: plan.latestTag !== '',
           usedPackageSpecificTag: plan.usedPackageSpecificTag,
@@ -554,6 +565,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
           repoUrl: readRepoUrl(pkg.dir),
           entries,
           tag,
+          supersedes: plan.stranded?.version,
         });
         setPackageUpdatePreviousVersion(name, previousVersion);
         if (config.baselineTagTemplate) {
