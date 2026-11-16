@@ -739,7 +739,7 @@ describe('runRelease', () => {
       merge({ number: 123, labels: ['bump:major'] });
       fakeGit = new FakeGit({
         nearestTag: 'v2.0.0',
-        ancestors: { 'v2.0.0': ['sha-123'] },
+        ancestors: { 'v2.0.0': ['sha-123'], HEAD: ['v2.0.0'] },
         commits: { '*': 'feat: some feature\n' },
       });
 

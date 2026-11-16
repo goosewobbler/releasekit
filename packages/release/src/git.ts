@@ -1,5 +1,5 @@
 import { ReleaseKitError } from '@releasekit/core';
-import { createGitCli } from '@releasekit/git';
+import { createGitCli, isTagAfter } from '@releasekit/git';
 
 export async function getHeadCommitMessage(cwd?: string): Promise<string | null> {
   return headLog('%s', cwd);
@@ -9,17 +9,11 @@ export async function getHeadParents(cwd?: string): Promise<string[]> {
   return (await headLog('%P', cwd))?.split(' ') ?? [];
 }
 
-/**
- * The checkout's nearest tag when it comes after `sha`, so `sha` was already released. A tag on `sha` itself doesn't
- * count: running again there retries that release.
- */
+/** The checkout's nearest tag when it comes after `sha`, so `sha` was already released. */
 export async function tagAfter(sha: string, cwd?: string): Promise<string | null> {
   const git = createGitCli();
   const tag = await git.describeTags(cwd);
-  if (!tag || !(await git.isAncestor(sha, tag, cwd)) || (await git.isAncestor(tag, sha, cwd))) {
-    return null;
-  }
-  return tag;
+  return tag && (await isTagAfter(git, tag, sha, cwd)) ? tag : null;
 }
 
 async function headLog(format: string, cwd?: string): Promise<string | null> {

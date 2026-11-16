@@ -46,6 +46,18 @@ export function isCommitSha(value: string): boolean {
 }
 
 /**
+ * Whether `tag` is reachable from HEAD and comes after `sha`. A tag on `sha` itself doesn't count: running again there
+ * retries that release.
+ */
+export async function isTagAfter(git: Git, tag: string, sha: string, cwd?: string): Promise<boolean> {
+  return (
+    (await git.isAncestor(sha, tag, cwd)) &&
+    !(await git.isAncestor(tag, sha, cwd)) &&
+    (await git.isAncestor(tag, 'HEAD', cwd))
+  );
+}
+
+/**
  * No shell is involved, but git still parses a leading-`-` positional as a flag, so a remote of `--upload-pack=evil`
  * is argument injection (RCE). No legitimate ref/remote/branch/tag starts with `-`; refusing it before it reaches the
  * argv also clears CodeQL's second-order alert.
