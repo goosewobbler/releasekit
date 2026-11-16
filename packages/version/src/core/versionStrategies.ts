@@ -70,9 +70,11 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       let latestTag = await getLatestTag(globalPrefix);
 
       const repoRoot = packages.root ?? process.cwd();
+      // `paths` entries are confined to the workspace, so nothing a synced package versions lives outside it.
+      const commitScope = [repoRoot];
 
-      // mainPkgPath/Name drive the baseline and changelog naming; versionSourcePath/Name only supply the
-      // base version and the package-specific tag lookup.
+      // mainPkgPath/Name name the changelog and baseline tag and locate the repo URL; versionSourcePath/Name
+      // only supply the base version and the package-specific tag lookup.
       let mainPkgPath = packages.root;
       let mainPkgName: string | undefined;
       let versionSourcePath = mainPkgPath;
@@ -124,8 +126,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         versionPrefix: formattedPrefix,
         prereleaseIdentifier,
         path: versionSourcePath,
-        // `paths` entries are confined to the workspace, so nothing a synced package versions lives outside it.
-        commitScope: [repoRoot],
+        commitScope,
         name: versionSourceName,
         type: config.type,
       });
@@ -241,7 +242,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        changelogEntries = await extractChangelogEntriesFromCommits(repoRoot, revisionRange);
+        changelogEntries = await extractChangelogEntriesFromCommits(repoRoot, revisionRange, commitScope);
 
         if (changelogEntries.length === 0) {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];

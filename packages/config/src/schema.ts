@@ -154,7 +154,7 @@ const VersionConfigBaseSchema = z.strictObject({
     .string()
     .optional()
     .describe(
-      "Sync mode: the package whose version and tag the release bumps from, and whose name a release without packageSpecificTags carries. It doesn't scope the changelog, which lists every commit in the release.",
+      'The package a single-mode release versions. In sync mode, the package whose version and tag the release bumps from, and whose name a release without packageSpecificTags carries; the changelog still lists every commit in the release.',
     ),
   skip: z
     .array(z.string())
