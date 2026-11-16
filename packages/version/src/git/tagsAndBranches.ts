@@ -1,5 +1,6 @@
 import { createGitCli, type Git } from '@releasekit/git';
 import semver from 'semver';
+import { StrictReachableError } from '../errors/strictReachableError.js';
 import { escapeRegExp, resolveTagTemplate } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
 import { isStableTag } from '../utils/versionUtils.js';
@@ -48,8 +49,8 @@ export async function getNearestReachableTag(cwd?: string, git: Git = createGitC
   }
 }
 
-async function listReachableSemverTags(versionPrefix: string | undefined, git: Git): Promise<string[]> {
-  const tags = await git.listTags({ sort: '-creatordate', merged: 'HEAD', cwd: process.cwd() });
+async function listSemverTags(versionPrefix: string | undefined, git: Git, merged?: string): Promise<string[]> {
+  const tags = await git.listTags({ sort: '-creatordate', merged, cwd: process.cwd() });
   return tags.filter((tag) => {
     if (!versionPrefix) {
       return semver.valid(tag) !== null;
@@ -61,7 +62,7 @@ async function listReachableSemverTags(versionPrefix: string | undefined, git: G
 /** Sorted semantically, not chronologically, so a tag created out of order (e.g. v0.7.1 after v0.8.0) can't win. */
 export async function getLatestTag(versionPrefix?: string, git: Git = createGitCli()): Promise<string> {
   try {
-    const tags = await listReachableSemverTags(versionPrefix, git);
+    const tags = await listSemverTags(versionPrefix, git, 'HEAD');
 
     if (tags.length === 0) {
       return '';
@@ -97,6 +98,30 @@ export async function getLatestTag(versionPrefix?: string, git: Git = createGitC
   }
 }
 
+export type TagSeries =
+  | { packageName: string; versionPrefix?: string; options: TagSearchOptions }
+  | { globalPrefix: string | undefined };
+
+/**
+ * For `strictReachable`, called once no tag in `series` is reachable from HEAD: fails when one exists anyway
+ * (typically a shallow clone), rather than versioning from the manifest or full history.
+ */
+export async function assertNoUnreachableTags(series: TagSeries[], git: Git = createGitCli()): Promise<void> {
+  for (const entry of series) {
+    const [tag] =
+      'globalPrefix' in entry
+        ? await listSemverTags(entry.globalPrefix, git)
+        : await listPackageTags(entry.packageName, entry.versionPrefix, entry.options, git);
+    if (tag) {
+      throw new StrictReachableError(
+        `No release tag is reachable from the current commit, but '${tag}' exists. ` +
+          `The checkout is likely shallow, or the tag is on another branch; fetch the full history (fetch-depth: 0). ` +
+          `To fall back instead, set strictReachable to false.`,
+      );
+    }
+  }
+}
+
 /** Global tags (e.g. `v1.2.0`), most-recently-created first, whether or not they're reachable from HEAD. */
 export async function listGlobalTags(versionPrefix?: string, git: Git = createGitCli()): Promise<string[]> {
   let allTags: string[] = [];
@@ -114,14 +139,15 @@ export async function listGlobalTags(versionPrefix?: string, git: Git = createGi
 }
 
 /**
- * Most-recently-created first; `[]` when package-specific tags are disabled (callers fall back to the
- * global series).
+ * Most-recently-created first, limited to tags reachable from `merged` when given; `[]` when package-specific
+ * tags are disabled (callers fall back to the global series).
  */
 export async function listPackageTags(
   packageName: string,
   versionPrefix?: string,
   options?: TagSearchOptions,
   git: Git = createGitCli(),
+  merged?: string,
 ): Promise<string[]> {
   const packageSpecificTags = options?.packageSpecificTags ?? false;
   const tagTemplate = resolveTagTemplate(options?.tagTemplate, packageSpecificTags);
@@ -145,7 +171,7 @@ export async function listPackageTags(
   // (v0.3.0-next.4) counts as latest.
   let allTags: string[] = [];
   try {
-    allTags = await git.listTags({ sort: '-creatordate', cwd: process.cwd() });
+    allTags = await git.listTags({ sort: '-creatordate', merged, cwd: process.cwd() });
   } catch (err) {
     log(`Error getting tags: ${err instanceof Error ? err.message : String(err)}`, 'error');
   }
@@ -180,7 +206,7 @@ export async function getLatestTagForPackage(
   git: Git = createGitCli(),
 ): Promise<string> {
   try {
-    const packageTags = await listPackageTags(packageName, versionPrefix, options, git);
+    const packageTags = await listPackageTags(packageName, versionPrefix, options, git, 'HEAD');
     if (packageTags.length > 0) {
       log(`Found ${packageTags.length} package tags using configured pattern`, 'debug');
       log(`Using most recently created tag: ${packageTags[0]}`, 'debug');
@@ -204,7 +230,7 @@ export async function getLatestStableTagForPackage(
   git: Git = createGitCli(),
 ): Promise<string> {
   try {
-    const packageTags = await listPackageTags(packageName, versionPrefix, options, git);
+    const packageTags = await listPackageTags(packageName, versionPrefix, options, git, 'HEAD');
     const stable = packageTags.find((tag) => isStableTag(tag));
     if (stable) {
       log(`Using most recently created stable tag for ${packageName}: ${stable}`, 'debug');
@@ -222,7 +248,7 @@ export async function getLatestStableTagForPackage(
 
 export async function getLatestStableTag(versionPrefix?: string, git: Git = createGitCli()): Promise<string> {
   try {
-    const tags = await listReachableSemverTags(versionPrefix, git);
+    const tags = await listSemverTags(versionPrefix, git, 'HEAD');
     const stripPrefix = (tag: string) =>
       versionPrefix && tag.startsWith(versionPrefix) ? tag.slice(versionPrefix.length) : tag;
 

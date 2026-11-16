@@ -7,7 +7,7 @@ import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js
 import { BaseVersionError } from '../errors/baseError.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
 import { createVersionError, VersionErrorCode } from '../errors/versionError.js';
-import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
+import { assertNoUnreachableTags, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
@@ -119,6 +119,21 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         } else {
           log(`No package-specific tag found for ${versionSourceName}, using global tag: ${latestTag}`, 'debug');
         }
+      }
+
+      if (!latestTag && config.strictReachable && !config.baseRef) {
+        await assertNoUnreachableTags([
+          { globalPrefix },
+          ...(versionSourceName && !config.baselineTagTemplate
+            ? [
+                {
+                  packageName: versionSourceName,
+                  versionPrefix: formattedPrefix,
+                  options: { tagTemplate, packageSpecificTags: config.packageSpecificTags },
+                },
+              ]
+            : []),
+        ]);
       }
 
       const nextVersion = await calculateVersion(config, {
@@ -443,6 +458,16 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       }
 
       const latestTag = latestTagResult;
+      if (!latestTag && config.strictReachable && !config.baseRef) {
+        await assertNoUnreachableTags([
+          {
+            packageName,
+            versionPrefix: formattedPrefix,
+            options: { tagTemplate, packageSpecificTags: config.packageSpecificTags },
+          },
+          { globalPrefix },
+        ]);
+      }
       const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, packageName);
 
       const { scope: commitScope, pathsError } = resolveCommitScope(pkgPath, config, { repoRoot });

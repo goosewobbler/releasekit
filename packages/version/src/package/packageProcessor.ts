@@ -7,7 +7,7 @@ import { extractChangelogEntriesFromCommits, extractRepoLevelChangelogEntries } 
 import { BaselineResolver } from '../core/baselineResolver.js';
 import { calculateVersion } from '../core/versionCalculator.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
-import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
+import { assertNoUnreachableTags, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import type { Config, VersionConfigBase } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
@@ -146,6 +146,16 @@ export class PackageProcessor {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         log(`Error getting package-specific tag for ${name}, falling back to global tag: ${errorMessage}`, 'warning');
+      }
+
+      if (!latestTagResult && this.config.strictReachable && !this.fullConfig.baseRef) {
+        await assertNoUnreachableTags([
+          {
+            packageName: name,
+            versionPrefix: this.versionPrefix,
+            options: { tagTemplate: this.tagTemplate, packageSpecificTags: this.fullConfig.packageSpecificTags },
+          },
+        ]);
       }
 
       if (!latestTagResult) {
