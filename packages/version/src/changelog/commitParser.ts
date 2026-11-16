@@ -68,7 +68,8 @@ export async function extractRepoLevelChangelogEntries(
     const packageCommits = await git.log({
       range: revisionRange,
       format: '%H',
-      extraArgs: ['--no-merges'],
+      // Without it, history simplification hides a side branch whose merge leaves a package unchanged.
+      extraArgs: ['--no-merges', '--full-history'],
       paths: packageDirs,
       cwd: projectDir,
     });

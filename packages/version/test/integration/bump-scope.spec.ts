@@ -122,6 +122,14 @@ describe('bump scope', () => {
     expect(output.sharedEntries?.map((e) => e.description)).toEqual(['readme']);
   });
 
+  it('should list commits to a shared package as project-wide', () => {
+    createRepo({ packages: ['app', 'core'], version: { sharedPackages: ['core'] } });
+    commitTo('packages/app', 'fix', 'app fix');
+    commitTo('packages/core', 'fix', 'core fix');
+
+    expect(runVersionJson(tempDir).sharedEntries?.map((e) => e.description)).toEqual(['core fix']);
+  });
+
   it('should still list project-wide commits when a package versions a crate at the repository root', () => {
     createRepo({ packages: ['app', 'other'], version: { cargo: { paths: ['../..'] } } });
     writeFileSync(join(tempDir, 'Cargo.toml'), '[package]\nname = "app"\nversion = "1.0.0"\npublish = false\n');
