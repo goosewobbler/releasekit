@@ -5108,6 +5108,67 @@ describe('publishFromManifest', () => {
       expect(body).not.toContain("Retrying won't help");
     });
   });
+
+  describe('merge author without merged_by in the event', () => {
+    const options = { projectDir: '/test', verbose: false, quiet: false, json: false };
+    const manifestComment = { id: 77, body: serializeManifest(baseManifest) };
+
+    beforeEach(async () => {
+      const { loadConfig } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ci: {
+          standingPr: {
+            branch: 'release/next',
+            authorization: { requiredPermission: 'admin', enforceMergeAuthor: true },
+          },
+        },
+        git: { branch: 'main' },
+      } as unknown as ReturnType<typeof loadConfig>);
+    });
+
+    it('should refuse a PR the forge reports was merged by an unauthorized user', async () => {
+      await mockForge({
+        comments: [manifestComment],
+        pullRequests: { 99: { body: '', labels: [], mergedBy: { login: 'rando', type: 'User' } } },
+        actorPermissions: { rando: 'write' },
+      });
+
+      await expect(publishFromManifest(99, options)).rejects.toThrow(/merged by 'rando'/);
+
+      const { runPublishStep } = await import('../../src/steps.js');
+      expect(runPublishStep).not.toHaveBeenCalled();
+    });
+
+    it('should publish a PR the forge reports was merged by an authorized user', async () => {
+      await mockForge({
+        comments: [manifestComment],
+        pullRequests: { 99: { body: '', labels: [], mergedBy: { login: 'admin-user', type: 'User' } } },
+        actorPermissions: { 'admin-user': 'admin' },
+      });
+      const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+        ReturnType<typeof runPublishStep>
+      >);
+
+      await publishFromManifest(99, options);
+
+      expect(runPublishStep).toHaveBeenCalled();
+    });
+
+    it('should refuse as retryable when the forge cannot return the merger', async () => {
+      const forge = await mockForge({ comments: [manifestComment] });
+      vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('API unavailable'));
+
+      await expect(publishFromManifest(99, options)).rejects.toThrow(/merger is unknown/);
+
+      const { runPublishStep } = await import('../../src/steps.js');
+      expect(runPublishStep).not.toHaveBeenCalled();
+      const report = forge.comments.find((c) => c.prNumber === 99 && c.body.startsWith(FAILURE_MARKER));
+      expect(report?.body).toContain('Retrying is safe');
+      expect(report?.body).not.toContain("Retrying won't help");
+    });
+  });
 });
 
 describe('runStandingPRMerge', () => {
