@@ -143,7 +143,9 @@ describe('Pipeline: rendered notes', () => {
 
       expect(out.body).toBe(out.perVersionFile);
       expect(out.body).toContain('- [Docs](https://docs.example.com)');
-      expect(out.body?.indexOf('### Fixes')).toBeLessThan(out.body?.indexOf('### Highlights') ?? -1);
+      const fixes = out.body?.indexOf('### Fixes') ?? -1;
+      expect(fixes).toBeGreaterThanOrEqual(0);
+      expect(fixes).toBeLessThan(out.body?.indexOf('### Highlights') ?? -1);
     });
 
     it('should render the configured template for both', async () => {

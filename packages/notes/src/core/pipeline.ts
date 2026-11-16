@@ -553,11 +553,8 @@ export async function runPipeline(
   );
   const releaseNotesResult: Record<string, string> = {};
   for (const ctx of releaseNotesContexts) {
-    if (pipelineOptions?.skipReleaseNotes) {
-      // Leave the map empty, or the callsite treats it as available content and propagates it.
-      continue;
-    }
-    if (!releaseNotesConfig) {
+    // Under skipReleaseNotes, leave the map empty, or the callsite treats it as available content and propagates it.
+    if (pipelineOptions?.skipReleaseNotes || !releaseNotesConfig) {
       continue;
     }
     try {
