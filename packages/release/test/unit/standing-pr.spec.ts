@@ -3222,6 +3222,21 @@ describe('runStandingPRUpdate', () => {
         expect(body()).toBeUndefined();
       });
 
+      it.each([
+        ['a hand-typed [X]', '- [X] graduate to stable → v1.1.0 <!-- rk-grad-sync -->', true],
+        [
+          'only the checkbox row, not a copy behind a quote',
+          '> - [x] graduate to stable → v1.1.0 <!-- rk-grad-sync -->\n- [ ] graduate to stable → v1.1.0 <!-- rk-grad-sync -->',
+          undefined,
+        ],
+      ])('should read %s', async (_label, body, stable) => {
+        const { writeCall } = await setup({ versions: syncVersions, sync: true, body });
+
+        await run();
+
+        expect(writeCall().stable).toBe(stable);
+      });
+
       describe('before any tag exists', () => {
         async function firstRelease(opts: Parameters<typeof setup>[0]) {
           const result = await setup(opts);
@@ -3338,6 +3353,21 @@ describe('runStandingPRUpdate', () => {
       const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
       expect(body).toContain('HUMAN EDITED notes');
       expect(body).not.toContain('REGENERATED notes');
+    });
+
+    it('should read a human edit from a CRLF body with LF line endings', async () => {
+      const editedBody = renderNotesRegion({ '@scope/core': 'HUMAN line one\n\nline two' }).replaceAll('\n', '\r\n');
+      const { forge } = await setupPreviewPR({
+        labels: ['release', 'release:preview-notes'],
+        liveBody: editedBody,
+        freshNotes: { '@scope/core': 'REGENERATED notes' },
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
+      expect(body).toContain('HUMAN line one\n\nline two');
+      expect(body).not.toContain('\r');
     });
 
     it('should preserve a sync monorepo notes region across an update', async () => {
