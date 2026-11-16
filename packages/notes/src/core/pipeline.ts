@@ -368,7 +368,7 @@ function renderReleaseNotes(
     return renderTemplate(templatePath, docCtx, releaseNotesConfig.templates.engine as TemplateEngine | undefined)
       .content;
   }
-  return ctx.enhanced?.releaseNotes ?? formatVersion(ctx, fmtOpts);
+  return ctx.enhanced?.releaseNotes || formatVersion(ctx, fmtOpts);
 }
 
 export interface PipelineResult {
@@ -564,7 +564,7 @@ export async function runPipeline(
       releaseNotesResult[ctx.packageName] = renderReleaseNotes(ctx, 'release', releaseNotesConfig, fmtOpts);
     } catch (err) {
       warn(
-        `Failed to render release notes template for ${ctx.packageName}: ${err instanceof Error ? err.message : String(err)}`,
+        `Failed to render release notes for ${ctx.packageName}: ${err instanceof Error ? err.message : String(err)}`,
       );
       warn(`Release notes preview will not be available for ${ctx.packageName} in the workflow summary`);
     }

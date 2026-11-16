@@ -37,7 +37,7 @@ const input: ChangelogInput = {
   ],
 };
 
-function stubProvider(): LLMProvider {
+function stubProvider(prose = 'LLM prose'): LLMProvider {
   return {
     name: 'stub',
     capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
@@ -58,7 +58,7 @@ function stubProvider(): LLMProvider {
         return { content, structured: JSON.parse(content) };
       }
       if (system.startsWith('You are writing release notes')) {
-        return { content: 'LLM prose' };
+        return { content: prose };
       }
       throw new Error(`unexpected prompt: ${system.slice(0, 40)}`);
     },
@@ -166,6 +166,19 @@ describe('Pipeline: rendered notes', () => {
       });
 
       expect(out.body).toBe('LLM prose');
+      expect(out.perVersionFile).toBe(out.body);
+    });
+
+    it('should fall back to the formatted changelog for both when the LLM prose is blank', async () => {
+      const { createProvider } = await import('../../src/llm/index.js');
+      vi.mocked(createProvider).mockReturnValue(stubProvider('  \n'));
+
+      const out = await render({
+        changelog: false,
+        releaseNotes: { file: { dir: path.join(tmpDir, 'notes') }, llm: llm({ releaseNotes: true }) },
+      });
+
+      expect(out.body).toContain('add streaming');
       expect(out.perVersionFile).toBe(out.body);
     });
 

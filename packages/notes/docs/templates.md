@@ -108,7 +108,7 @@ Each entry in `entries` has:
 | `type` | `ChangelogType` | `"added"`, `"changed"`, `"deprecated"`, `"removed"`, `"fixed"`, `"security"` |
 | `description` | `string` | Entry description (rewritten by LLM if `tasks.enhance` is on) |
 | `scope` | `string \| undefined` | Conventional commit scope (may be assigned or validated by LLM) |
-| `breaking` | `boolean \| undefined` | `true` for breaking changes |
+| `breaking` | `boolean \| undefined` | `true` for breaking changes. Combined `enhanceAndCategorize` can also set it. |
 | `issueIds` | `string[] \| undefined` | Referenced issue/PR numbers |
 | `leadIn` | `string \| undefined` | Short scannable phrase for notable entries (e.g. `"Streaming API"`). Set by the LLM during `enhance` or combined `enhanceAndCategorize`. `undefined` for routine entries. |
 
