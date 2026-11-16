@@ -13,14 +13,14 @@ export interface PubInfo {
   dir: string;
 }
 
-export function getPubInfo(pubspecPath: string): PubInfo {
-  if (!fs.existsSync(pubspecPath)) {
+export function getPubInfo(pubspecPath: string, content?: string): PubInfo {
+  if (content === undefined && !fs.existsSync(pubspecPath)) {
     log(`pubspec.yaml not found at: ${pubspecPath}`, 'error');
     throw new Error(`pubspec.yaml not found at: ${pubspecPath}`);
   }
 
   try {
-    const pubspec = parsePubspec(pubspecPath);
+    const pubspec = parsePubspec(pubspecPath, content);
 
     if (!pubspec.name) {
       log(`Package name not found in: ${pubspecPath}`, 'error');

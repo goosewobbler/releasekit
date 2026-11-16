@@ -17,14 +17,14 @@ export interface CargoInfo {
   content: CargoManifest;
 }
 
-export function getCargoInfo(cargoPath: string): CargoInfo {
-  if (!fs.existsSync(cargoPath)) {
+export function getCargoInfo(cargoPath: string, content?: string): CargoInfo {
+  if (content === undefined && !fs.existsSync(cargoPath)) {
     log(`Cargo.toml file not found at: ${cargoPath}`, 'error');
     throw new Error(`Cargo.toml file not found at: ${cargoPath}`);
   }
 
   try {
-    const cargo = parseCargoToml(cargoPath);
+    const cargo = parseCargoToml(cargoPath, content);
 
     if (!cargo.package?.name) {
       log(`Package name not found in: ${cargoPath}`, 'error');

@@ -1644,12 +1644,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
  */
 async function assertManifestMatchesSource(
   manifest: StandingPRManifest,
+  packageDirs: Record<string, string>,
   cwd: string,
-  configPath: string | undefined,
   prNumber: number,
 ): Promise<void> {
-  const { getWorkspacePackageDirs, readManifestVersion } = await import('@releasekit/version');
-  const packageDirs = await getWorkspacePackageDirs({ cwd, configPath });
+  const { readManifestVersion } = await import('@releasekit/version');
   const publishable = publishableUpdates(manifest.versionOutput);
 
   const validatedVersions: string[] = [];
@@ -1718,13 +1717,14 @@ async function assertManifestMatchesSource(
 const VERSION_MANIFESTS = ['package.json', 'Cargo.toml', 'pubspec.yaml'];
 
 /** Workspace packages whose version `mergeSha` changes against its first parent. */
-async function packagesBumpedBy(mergeSha: string, cwd: string, configPath: string | undefined): Promise<string[]> {
-  const { getWorkspacePackageDirs, readManifestVersion } = await import('@releasekit/version');
+async function packagesBumpedBy(mergeSha: string, packageDirs: Record<string, string>, cwd: string): Promise<string[]> {
+  const { readManifestVersion } = await import('@releasekit/version');
   const git = createGitCli();
   const bumped: string[] = [];
-  for (const [name, dir] of Object.entries(await getWorkspacePackageDirs({ cwd, configPath }))) {
+  for (const [name, dir] of Object.entries(packageDirs)) {
     for (const file of VERSION_MANIFESTS) {
-      const relative = path.relative(cwd, path.join(dir, file));
+      // Git reads `<rev>:<path>` with forward slashes only.
+      const relative = path.relative(cwd, path.join(dir, file)).split(path.sep).join('/');
       const after = await git.readFileAt(mergeSha, relative, cwd);
       if (after === null) {
         continue;
@@ -1747,8 +1747,8 @@ async function packagesBumpedBy(mergeSha: string, cwd: string, configPath: strin
 async function assertManifestCoversMerge(
   manifest: StandingPRManifest,
   merged: { headSha?: string; mergeCommitSha?: string },
+  packageDirs: Record<string, string>,
   cwd: string,
-  configPath: string | undefined,
   prNumber: number,
 ): Promise<void> {
   const { headSha, mergeCommitSha } = merged;
@@ -1763,7 +1763,7 @@ async function assertManifestCoversMerge(
     );
   }
   const listed = new Set(publishableUpdates(manifest.versionOutput).map((u) => u.packageName));
-  const missing = (await packagesBumpedBy(mergeCommitSha, cwd, configPath)).filter((name) => !listed.has(name));
+  const missing = (await packagesBumpedBy(mergeCommitSha, packageDirs, cwd)).filter((name) => !listed.has(name));
   if (missing.length > 0) {
     throw new Error(
       `Refusing to publish: ${heads}. The merge bumps ${missing.map((name) => `'${name}'`).join(', ')}, which the ` +
@@ -1893,7 +1893,9 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     );
   }
 
-  await assertManifestMatchesSource(manifest, cwd, options.config, prNumber);
+  const { getWorkspacePackageDirs } = await import('@releasekit/version');
+  const packageDirs = await getWorkspacePackageDirs({ cwd, configPath: options.config });
+  await assertManifestMatchesSource(manifest, packageDirs, cwd, prNumber);
 
   const eventPr = eventPullRequest(prNumber);
   await assertManifestCoversMerge(
@@ -1902,8 +1904,8 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
       headSha: livePr?.headSha ?? eventPr?.head?.sha,
       mergeCommitSha: livePr?.mergeCommitSha ?? eventPr?.merge_commit_sha ?? undefined,
     },
+    packageDirs,
     cwd,
-    options.config,
     prNumber,
   );
 

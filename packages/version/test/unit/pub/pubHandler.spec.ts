@@ -56,7 +56,7 @@ describe('Pub Handler', () => {
       const info = getPubInfo(mockPubspecPath);
 
       expect(fs.existsSync).toHaveBeenCalledWith(mockPubspecPath);
-      expect(parsePubspec).toHaveBeenCalledWith(mockPubspecPath);
+      expect(parsePubspec).toHaveBeenCalledWith(mockPubspecPath, undefined);
 
       expect(info).toEqual({
         name: 'test_package',

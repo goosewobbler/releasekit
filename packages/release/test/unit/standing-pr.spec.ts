@@ -4798,6 +4798,21 @@ describe('publishFromManifest', () => {
       expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
     });
 
+    it('should refuse when the merge commit is unknown', async () => {
+      const { runPublishStep } = await import('../../src/steps.js');
+      mergeBumpingCoreAndExtra();
+      await mockForge({
+        comments: [{ id: 77, body: serializeManifest({ ...baseManifest, headSha: MANIFEST_HEAD }) }],
+        pullRequests: { 99: { body: '', labels: [], headSha: MERGED_HEAD } },
+      });
+
+      await expect(
+        publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+      ).rejects.toThrow('the merge commit is unknown');
+      expect(fakeGit.tagged).toHaveLength(0);
+      expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+    });
+
     it('should publish as before when the manifest has no headSha', async () => {
       const { runPublishStep } = await import('../../src/steps.js');
       mergeBumpingCoreAndExtra();

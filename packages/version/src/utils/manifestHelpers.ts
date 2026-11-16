@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { isCargoToml, isPubspecYaml, parseCargoToml, parsePubspec } from '@releasekit/config';
+import { isCargoToml, isPubspecYaml, parsePubspec } from '@releasekit/config';
 import { getCargoInfo } from '../cargo/cargoHandler.js';
 import { getPubInfo } from '../pub/pubHandler.js';
 import { log } from './logging.js';
@@ -86,12 +86,10 @@ export function getVersionFromManifests(packageDir: string): ManifestVersionResu
 /** With `content`, parses that instead of reading `manifestPath`, e.g. the manifest as committed at another ref. */
 export function readManifestVersion(manifestPath: string, content?: string): string | undefined {
   if (isCargoToml(manifestPath)) {
-    return content === undefined
-      ? getCargoInfo(manifestPath).version
-      : parseCargoToml(manifestPath, content).package?.version;
+    return getCargoInfo(manifestPath, content).version;
   }
   if (isPubspecYaml(manifestPath)) {
-    return content === undefined ? getPubInfo(manifestPath).version : parsePubspec(manifestPath, content).version;
+    return getPubInfo(manifestPath, content).version;
   }
   if (path.basename(manifestPath) === 'package.json') {
     return JSON.parse(content ?? fs.readFileSync(manifestPath, 'utf-8')).version;
