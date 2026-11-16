@@ -312,13 +312,35 @@ describe('GitHub release bodies in the publish pipeline', () => {
     expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
   });
 
-  it("should give a tag without release notes its changelog's entries when body is auto", async () => {
+  it("should give a tag without release notes its changelog's entries, warning naming it, when body is auto", async () => {
     const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
 
     await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { 'pkg-a': 'A' } });
 
     expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': 'A', 'pkg-b/1.2.3': '- Fix pkg-b' });
-    expect(warnMock).not.toHaveBeenCalled();
+    expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
+    expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
+  });
+
+  it('should escape mentions in a changelog body', async () => {
+    const input = syncInput('v1.2.3');
+    input.changelogs = [changelog('monorepo', "Handle @octocat's case")];
+
+    await runPipeline(input, getDefaultConfig(), options);
+
+    expect(releaseBodies()).toEqual({ 'v1.2.3': "- Handle \\@octocat's case" });
+  });
+
+  it('should not give a tag a changelog of only lockstep version-bump placeholders', async () => {
+    const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
+    input.changelogs[1] = {
+      ...changelog('pkg-b', 'Update version to 1.2.3'),
+      entries: [{ type: 'changed', description: 'Update version to 1.2.3', synthetic: true }],
+    };
+
+    await runPipeline(input, getDefaultConfig(), options);
+
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
   });
 
   it.each(['release-1.2.3', 'app-v1.2.3'])(

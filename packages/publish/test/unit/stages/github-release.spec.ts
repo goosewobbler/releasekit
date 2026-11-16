@@ -225,7 +225,7 @@ describe('github-release stage', () => {
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     expect(args[args.indexOf('--notes') + 1]).toBe(
-      '- **BREAKING** **config:** Reject the old preset\n- Patch serializer',
+      '- **BREAKING** Reject the old preset (`config`)\n- Patch serializer',
     );
   });
 

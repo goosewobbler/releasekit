@@ -1,10 +1,16 @@
-import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
+import type {
+  VersionChangelogEntry,
+  VersionOutput,
+  VersionPackageChangelog,
+  VersionPackageUpdate,
+} from '@releasekit/core';
 import {
   assertNotOption,
   breakingFirst,
   debug,
   info,
   matchesPackageName,
+  renderChangelogEntryLine,
   sanitizePackageName,
   success,
   warn,
@@ -72,9 +78,12 @@ function resolveNotes(
 
   const changelogBody = formatChangelogForTag(release);
   if (changelogBody) {
+    if (releaseNotesEnabled) {
+      warn(`No release notes found for tag ${release.tag}, falling back to its changelog`);
+    }
     return { body: changelogBody, useGithubNotes: false };
   }
-  warn(`No release notes or changelog found for tag ${release.tag}, falling back to GitHub auto-generated notes`);
+  warn(`No release notes or changelog match tag ${release.tag}, falling back to GitHub auto-generated notes`);
   return { useGithubNotes: true };
 }
 
@@ -191,25 +200,27 @@ function findNotesForTag(release: ReleaseTag, notes: Record<string, string>): st
   return key === undefined || !notes[key]?.trim() ? undefined : notes[key];
 }
 
+/** Synthetic lockstep-carry placeholders (`Update version to X`) aren't changes. */
+function realEntries(changelog: VersionPackageChangelog): VersionChangelogEntry[] {
+  return changelog.entries.filter((e) => !e.synthetic);
+}
+
 function formatChangelogForTag(release: ReleaseTag): string | undefined {
   const { changelogs } = release.input;
   const key = resolveTagKey(
     release,
     changelogs.map((c) => c.packageName),
-    changelogs.filter((c) => c.entries.length > 0).map((c) => c.packageName),
+    changelogs.filter((c) => realEntries(c).length > 0).map((c) => c.packageName),
   );
   const target = changelogs.find((c) => c.packageName === key);
-
-  if (!target || target.entries.length === 0) {
+  const entries = target ? realEntries(target) : [];
+  if (!target || entries.length === 0) {
     return undefined;
   }
 
-  const lines: string[] = [];
-  for (const entry of breakingFirst(target.entries)) {
-    const scope = entry.scope ? `**${entry.scope}:** ` : '';
-    lines.push(`- ${entry.breaking ? '**BREAKING** ' : ''}${scope}${entry.description}`);
-  }
-  return lines.join('\n');
+  return breakingFirst(entries)
+    .map((entry) => renderChangelogEntryLine(entry, 'link', target.repoUrl))
+    .join('\n');
 }
 
 /** Error strategy: CATCHES per-tag. Non-critical. */
