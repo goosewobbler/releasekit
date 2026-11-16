@@ -1716,7 +1716,10 @@ async function assertManifestMatchesSource(
 
 const VERSION_MANIFESTS = ['package.json', 'Cargo.toml', 'pubspec.yaml'];
 
-/** Workspace packages whose version `mergeSha` changes against its first parent. */
+/**
+ * Workspace packages whose version `mergeSha` changes against its first parent. Like discovery, a package's version
+ * is its first manifest that has one, so a sibling such as a virtual-workspace Cargo.toml is never parsed.
+ */
 async function packagesBumpedBy(mergeSha: string, packageDirs: Record<string, string>, cwd: string): Promise<string[]> {
   const { readManifestVersion } = await import('@releasekit/version');
   const git = createGitCli();
@@ -1726,14 +1729,15 @@ async function packagesBumpedBy(mergeSha: string, packageDirs: Record<string, st
       // Git reads `<rev>:<path>` with forward slashes only.
       const relative = path.relative(cwd, path.join(dir, file)).split(path.sep).join('/');
       const after = await git.readFileAt(mergeSha, relative, cwd);
-      if (after === null) {
+      const version = after === null ? undefined : readManifestVersion(relative, after);
+      if (version === undefined) {
         continue;
       }
       const before = await git.readFileAt(`${mergeSha}^1`, relative, cwd);
-      if (before === null || readManifestVersion(relative, before) !== readManifestVersion(relative, after)) {
+      if (before === null || readManifestVersion(relative, before) !== version) {
         bumped.push(name);
-        break;
       }
+      break;
     }
   }
   return bumped;
@@ -1762,7 +1766,8 @@ async function assertManifestCoversMerge(
         `against the manifest.`,
     );
   }
-  const listed = new Set(publishableUpdates(manifest.versionOutput).map((u) => u.packageName));
+  // Every update, not just the publishable ones: a sync root bump is listed and lands as planned.
+  const listed = new Set(manifest.versionOutput.updates.map((u) => u.packageName));
   const missing = (await packagesBumpedBy(mergeCommitSha, packageDirs, cwd)).filter((name) => !listed.has(name));
   if (missing.length > 0) {
     throw new Error(
@@ -1898,10 +1903,11 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   await assertManifestMatchesSource(manifest, packageDirs, cwd, prNumber);
 
   const eventPr = eventPullRequest(prNumber);
+  const mergedHead = livePr?.headSha ?? eventPr?.head?.sha;
   await assertManifestCoversMerge(
     manifest,
     {
-      headSha: livePr?.headSha ?? eventPr?.head?.sha,
+      headSha: mergedHead,
       mergeCommitSha: livePr?.mergeCommitSha ?? eventPr?.merge_commit_sha ?? undefined,
     },
     packageDirs,
@@ -2018,7 +2024,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   await resolveFailureReportIfPresent(forge, prNumber, manifest.versionOutput);
 
   if (deleteBranchOnMerge) {
-    const mergedHead = livePr?.headSha ?? eventPr?.head?.sha;
     if (mergedHead && isCommitSha(mergedHead)) {
       await deleteReleaseBranch(releaseBranch, cwd, mergedHead);
     } else {

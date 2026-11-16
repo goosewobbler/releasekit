@@ -4798,6 +4798,49 @@ describe('publishFromManifest', () => {
       expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
     });
 
+    it('should count a sync root bump the manifest lists as covered', async () => {
+      const { runPublishStep } = await import('../../src/steps.js');
+      mergeBumpingCoreAndExtra();
+      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+      const manifest = {
+        ...baseManifest,
+        headSha: MANIFEST_HEAD,
+        versionOutput: {
+          ...versionOutput,
+          updates: [
+            ...versionOutput.updates,
+            { packageName: '@scope/extra', newVersion: '2.0.0', filePath: 'package.json', isRoot: true },
+          ],
+        },
+      };
+
+      const { run } = await publishMerged(manifest, MERGED_HEAD);
+      await run;
+
+      expect(vi.mocked(runPublishStep)).toHaveBeenCalledOnce();
+    });
+
+    it("should not parse a package's other manifests once one carries its version", async () => {
+      const { runPublishStep } = await import('../../src/steps.js');
+      const virtualWorkspace = '[workspace]\nmembers = ["crates/*"]\n';
+      setupGit({
+        files: {
+          ...packageJsonAt(MERGE_COMMIT, '@scope/core', '1.2.3'),
+          ...packageJsonAt(`${MERGE_COMMIT}^1`, '@scope/core', '1.2.2'),
+          ...packageJsonAt(MERGE_COMMIT, '@scope/napi', '1.0.0'),
+          ...packageJsonAt(`${MERGE_COMMIT}^1`, '@scope/napi', '1.0.0'),
+          [`${MERGE_COMMIT}:packages/@scope/napi/Cargo.toml`]: virtualWorkspace,
+          [`${MERGE_COMMIT}^1:packages/@scope/napi/Cargo.toml`]: virtualWorkspace,
+        },
+      });
+      mergedVersions = { '@scope/core': '1.2.3', '@scope/napi': '1.0.0' };
+
+      const { run } = await publishMerged({ ...baseManifest, headSha: MANIFEST_HEAD }, MERGED_HEAD);
+      await run;
+
+      expect(vi.mocked(runPublishStep)).toHaveBeenCalledOnce();
+    });
+
     it('should refuse when the merge commit is unknown', async () => {
       const { runPublishStep } = await import('../../src/steps.js');
       mergeBumpingCoreAndExtra();
