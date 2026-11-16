@@ -372,6 +372,8 @@ export interface PipelineOptions {
   skipReleaseNotes?: boolean;
   /** Use during publish from manifest to regenerate only the release notes against an already-bumped tree. */
   skipChangelogs?: boolean;
+  /** Render the changelog from the unprocessed entries; the LLM pass still shapes the release notes. */
+  plainChangelog?: boolean;
 }
 
 export async function runPipeline(
@@ -383,6 +385,7 @@ export async function runPipeline(
   debug(`Processing ${input.packages.length} package(s)`);
 
   let contexts = input.packages.map(createTemplateContext);
+  const plainContexts = contexts;
 
   const changelogConfig = config.changelog === false ? false : { mode: 'root' as const, ...(config.changelog ?? {}) };
   const releaseNotesConfig =
@@ -467,6 +470,7 @@ export async function runPipeline(
   };
 
   if (!pipelineOptions?.skipChangelogs && changelogConfig !== false && changelogConfig.mode) {
+    const changelogContexts = pipelineOptions?.plainChangelog ? plainContexts : contexts;
     const fileName = changelogConfig.file ?? 'CHANGELOG.md';
     const mode = changelogConfig.mode;
 
@@ -476,14 +480,14 @@ export async function runPipeline(
       if (mode === 'root' || mode === 'both') {
         if (changelogConfig.templates?.path) {
           await generateWithTemplate(
-            contexts,
+            changelogContexts,
             changelogConfig.templates,
             fileName,
-            contexts[0]?.repoUrl ?? undefined,
+            changelogContexts[0]?.repoUrl ?? undefined,
             dryRun,
           );
         } else {
-          writeMarkdown(fileName, contexts, config, dryRun, fmtOpts);
+          writeMarkdown(fileName, changelogContexts, config, dryRun, fmtOpts);
         }
         if (!dryRun) {
           files.push(fileName);
@@ -492,7 +496,7 @@ export async function runPipeline(
 
       if (mode === 'packages' || mode === 'both') {
         const monoFiles = await writeMonorepoFiles(
-          contexts,
+          changelogContexts,
           config,
           dryRun,
           changelogConfig.file ?? 'CHANGELOG.md',

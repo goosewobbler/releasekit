@@ -458,7 +458,7 @@ Applying the label to a non-standing or unmerged PR simply doesn't match the job
 
 #### Previewing and editing release notes
 
-By default the standing PR generates only changelogs — LLM release notes are produced at **publish** time, so the workflow never depends on LLM availability on every push. To review and **edit** the release notes *before* merging, label the standing PR **`release:preview-notes`** (configurable via `ci.labels.previewNotes`).
+By default the standing PR generates only changelogs — LLM release notes are produced at **publish** time, so the workflow never depends on LLM availability on every push. In standing-PR mode the LLM tasks shape the release notes only: `CHANGELOG.md` stays plain, including on the update that seeds preview notes. To review and **edit** the release notes *before* merging, label the standing PR **`release:preview-notes`** (configurable via `ci.labels.previewNotes`).
 
 1. Add the label to the standing PR (`gh pr edit <n> --add-label release:preview-notes`).
 2. On the next `standing-pr update` — the next push to `main`, the hourly `schedule`, or a manual re-run of the workflow — releasekit generates LLM release notes into an editable **`## Release Notes`** region in the PR body, with one block per package delimited by `<!-- releasekit-notes:<package> -->` markers.

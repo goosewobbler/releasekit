@@ -26,6 +26,8 @@ export interface ReleaseOptions {
   skipReleaseNotes?: boolean;
   /** CHANGELOG.md only; release notes are still generated. */
   skipChangelogs?: boolean;
+  /** CHANGELOG.md without the LLM passes; release notes keep them. Set by the standing-PR update; not a CLI flag. */
+  plainChangelog?: boolean;
   skipPublish: boolean;
   skipGit: boolean;
   skipGitCommit?: boolean;
