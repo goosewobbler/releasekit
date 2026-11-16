@@ -54,20 +54,23 @@ const CATEGORIZED = JSON.stringify({
 });
 
 const PREVIEW_NOTES = 'release:preview-notes';
+const LLM_URL = 'http://llm.test';
 
 // Runs the real notes pipeline, whose first import can exceed the 5s default under a full turbo run.
 describe('runStandingPRUpdate: CHANGELOG.md', { timeout: 15_000 }, () => {
   const dirs: string[] = [];
-  const llmFetch = vi.fn(
-    async () => new Response(`${JSON.stringify({ message: { content: CATEGORIZED }, done: true })}\n`),
+  const fetchStub = vi.fn(
+    async (_url: string | URL | Request) =>
+      new Response(`${JSON.stringify({ message: { content: CATEGORIZED }, done: true })}\n`),
   );
+  const llmCalls = () => fetchStub.mock.calls.filter(([url]) => String(url).startsWith(LLM_URL));
 
   beforeEach(async () => {
     vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
     vi.stubEnv('GITHUB_TOKEN', 'test-token');
     vi.stubEnv('GITHUB_EVENT_NAME', 'push');
-    vi.stubGlobal('fetch', llmFetch);
-    llmFetch.mockClear();
+    vi.stubGlobal('fetch', fetchStub);
+    fetchStub.mockClear();
     const { runVersionStep } = await import('../../src/steps.js');
     vi.mocked(runVersionStep).mockImplementation(async () => structuredClone(versionOutput));
   });
@@ -92,7 +95,7 @@ describe('runStandingPRUpdate: CHANGELOG.md', { timeout: 15_000 }, () => {
         notes: {
           changelog: { mode: 'root' },
           releaseNotes: {
-            llm: { provider: 'ollama', model: 'test', baseURL: 'http://llm.test', tasks: { categorize: true } },
+            llm: { provider: 'ollama', model: 'test', baseURL: LLM_URL, tasks: { categorize: true } },
           },
         },
       }),
@@ -114,13 +117,13 @@ describe('runStandingPRUpdate: CHANGELOG.md', { timeout: 15_000 }, () => {
 
   it('should write the same plain changelog on the preview-notes seeding update and a later update', async () => {
     const seeding = await update({ labels: ['release', PREVIEW_NOTES], body: '' });
-    expect(llmFetch).toHaveBeenCalled();
+    expect(llmCalls().length).toBeGreaterThan(0);
     const seededBody = seeding.forge.updatedPullRequests.at(-1)?.changes.body as string;
     expect(seededBody).toContain('### New\n\n- Add streaming support\n- Fix null pointer');
 
-    llmFetch.mockClear();
+    fetchStub.mockClear();
     const later = await update({ labels: ['release', PREVIEW_NOTES], body: seededBody });
-    expect(llmFetch).not.toHaveBeenCalled();
+    expect(llmCalls()).toHaveLength(0);
 
     expect(seeding.changelog).toContain('### Added\n\n- Add streaming support');
     expect(seeding.changelog).not.toContain('### New');
@@ -130,7 +133,7 @@ describe('runStandingPRUpdate: CHANGELOG.md', { timeout: 15_000 }, () => {
   it('should make no LLM call without the preview-notes label', async () => {
     const { changelog } = await update({ labels: ['release'], body: '' });
 
-    expect(llmFetch).not.toHaveBeenCalled();
+    expect(llmCalls()).toHaveLength(0);
     expect(changelog).toContain('### Fixed\n\n- Fix null pointer');
   });
 });
