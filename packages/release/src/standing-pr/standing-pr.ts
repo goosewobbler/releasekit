@@ -205,6 +205,7 @@ interface EventPullRequest {
   head?: { sha?: string };
   base?: { ref?: string };
   merge_commit_sha?: string | null;
+  merged_by?: { login?: string; type?: string } | null;
 }
 
 /** This run's event payload PR, when the event is about PR `prNumber`. */
@@ -1875,18 +1876,19 @@ async function assertMergeAuthorized(
   if (!authz?.enforceMergeAuthor) {
     return;
   }
-  const actor = getEventActor();
-  // A retry or dispatched publish has no merged_by in its event.
-  const merger = actor.mergedBy ? { login: actor.mergedBy, type: actor.mergedByType } : livePr?.mergedBy;
+  // A dispatched publish has no PR in its event.
+  const eventMerger = eventPullRequest(prNumber)?.merged_by;
+  const merger = eventMerger?.login ? { login: eventMerger.login, type: eventMerger.type } : livePr?.mergedBy;
   if (!merger) {
     throw new ManifestRefusal(
-      `Refusing to publish PR #${prNumber}: enforceMergeAuthor is set but the merger is unknown - the event has no ` +
-        `merged_by and GitHub did not return one for the PR. Re-run once the GitHub API is reachable (or apply the ` +
-        `retry label).`,
-      true,
+      livePr
+        ? `Refusing to publish PR #${prNumber}: enforceMergeAuthor is set but GitHub reports no merger for it.`
+        : `Refusing to publish PR #${prNumber}: enforceMergeAuthor is set but the merger is unknown - the PR could ` +
+            `not be read from GitHub. Re-run once the GitHub API is reachable (or apply the retry label).`,
+      !livePr,
     );
   }
-  // Fails open on an unverifiable check since the ruleset already gated the merge.
+  // A failed permission lookup fails open, since the ruleset already gated the merge.
   let authorized = true;
   try {
     authorized = await isAuthorizedActor(forge, merger.login, merger.type, authz);

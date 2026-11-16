@@ -5168,6 +5168,30 @@ describe('publishFromManifest', () => {
       expect(report?.body).toContain('Retrying is safe');
       expect(report?.body).not.toContain("Retrying won't help");
     });
+
+    it('should refuse without retry advice when the forge reports no merger', async () => {
+      const forge = await mockForge({ comments: [manifestComment], pullRequests: { 99: { body: '', labels: [] } } });
+
+      await expect(publishFromManifest(99, options)).rejects.toThrow(/reports no merger/);
+
+      const report = forge.comments.find((c) => c.prNumber === 99 && c.body.startsWith(FAILURE_MARKER));
+      expect(report?.body).toContain("Retrying won't help");
+    });
+
+    it('should ignore merged_by from an event about another PR', async () => {
+      process.env.GITHUB_EVENT_PATH = '/tmp/test-event.json';
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({ pull_request: { number: 7, merged: true, merged_by: { login: 'admin-user' } } }),
+      );
+      await mockForge({
+        comments: [manifestComment],
+        pullRequests: { 99: { body: '', labels: [], mergedBy: { login: 'rando', type: 'User' } } },
+        actorPermissions: { 'admin-user': 'admin', rando: 'write' },
+      });
+
+      await expect(publishFromManifest(99, options)).rejects.toThrow(/merged by 'rando'/);
+    });
   });
 });
 

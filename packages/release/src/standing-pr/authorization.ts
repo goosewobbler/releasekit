@@ -17,15 +17,12 @@ export interface EventActor {
   action?: string;
   login?: string;
   type?: string;
-  mergedBy?: string;
-  mergedByType?: string;
 }
 
 export function getEventActor(): EventActor {
   const event = readGitHubEvent<{
     action?: string;
     sender?: { login?: string; type?: string };
-    pull_request?: { merged_by?: { login?: string; type?: string } | null };
   }>();
   if (!event) {
     return {};
@@ -34,8 +31,6 @@ export function getEventActor(): EventActor {
     action: event.action,
     login: event.sender?.login,
     type: event.sender?.type,
-    mergedBy: event.pull_request?.merged_by?.login,
-    mergedByType: event.pull_request?.merged_by?.type,
   };
 }
 
