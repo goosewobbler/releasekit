@@ -7,7 +7,7 @@ import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js
 import { BaseVersionError } from '../errors/baseError.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
 import { createVersionError, VersionErrorCode } from '../errors/versionError.js';
-import { assertNoUnreachableTags, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
+import { checkUnreachableTags, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
@@ -121,19 +121,22 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         }
       }
 
-      if (!latestTag && config.strictReachable && !config.baseRef) {
-        await assertNoUnreachableTags([
-          { globalPrefix },
-          ...(versionSourceName && !config.baselineTagTemplate
-            ? [
-                {
-                  packageName: versionSourceName,
-                  versionPrefix: formattedPrefix,
-                  options: { tagTemplate, packageSpecificTags: config.packageSpecificTags },
-                },
-              ]
-            : []),
-        ]);
+      if (!latestTag && !config.baseRef) {
+        await checkUnreachableTags(
+          [
+            { globalPrefix },
+            ...(versionSourceName && !config.baselineTagTemplate
+              ? [
+                  {
+                    packageName: versionSourceName,
+                    versionPrefix: formattedPrefix,
+                    options: { tagTemplate, packageSpecificTags: config.packageSpecificTags },
+                  },
+                ]
+              : []),
+          ],
+          config.strictReachable ?? false,
+        );
       }
 
       const nextVersion = await calculateVersion(config, {
@@ -458,15 +461,18 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       }
 
       const latestTag = latestTagResult;
-      if (!latestTag && config.strictReachable && !config.baseRef) {
-        await assertNoUnreachableTags([
-          {
-            packageName,
-            versionPrefix: formattedPrefix,
-            options: { tagTemplate, packageSpecificTags: config.packageSpecificTags },
-          },
-          { globalPrefix },
-        ]);
+      if (!latestTag && !config.baseRef) {
+        await checkUnreachableTags(
+          [
+            {
+              packageName,
+              versionPrefix: formattedPrefix,
+              options: { tagTemplate, packageSpecificTags: config.packageSpecificTags },
+            },
+            { globalPrefix },
+          ],
+          config.strictReachable ?? false,
+        );
       }
       const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, packageName);
 

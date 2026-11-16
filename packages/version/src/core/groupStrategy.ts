@@ -14,7 +14,7 @@ import semver from 'semver';
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { BaseVersionError } from '../errors/baseError.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
-import { assertNoUnreachableTags, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
+import { checkUnreachableTags, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import type { Config } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
@@ -101,19 +101,22 @@ async function planMember(
   if (!latestTag) {
     latestTag = globalTag;
   }
-  if (!latestTag && config.strictReachable && !config.baseRef) {
-    await assertNoUnreachableTags([
-      ...(config.baselineTagTemplate
-        ? []
-        : [
-            {
-              packageName: name,
-              versionPrefix: formattedPrefix,
-              options: { tagTemplate: config.tagTemplate, packageSpecificTags: config.packageSpecificTags },
-            },
-          ]),
-      { globalPrefix },
-    ]);
+  if (!latestTag && !config.baseRef) {
+    await checkUnreachableTags(
+      [
+        ...(config.baselineTagTemplate
+          ? []
+          : [
+              {
+                packageName: name,
+                versionPrefix: formattedPrefix,
+                options: { tagTemplate: config.tagTemplate, packageSpecificTags: config.packageSpecificTags },
+              },
+            ]),
+        { globalPrefix },
+      ],
+      config.strictReachable ?? false,
+    );
   }
 
   const commitScope = resolveCommitScope(pkg.dir, config, { ignorePaths: true }).scope;

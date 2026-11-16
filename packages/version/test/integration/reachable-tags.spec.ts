@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { VersionOutput } from '@releasekit/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { executeCliCommand, runVersionJson } from '../utils/cli.js';
+import { executeCliCommand, readVersionOutput, runVersionJson } from '../utils/cli.js';
 import { createConventionalCommit } from '../utils/git.js';
 import { createPackageJson } from '../utils/package.js';
 import { cleanupTempDir } from '../utils/tempFixture.js';
@@ -169,6 +169,22 @@ describe('baseline tag reachability', () => {
         );
       },
     );
+
+    it('should warn and version from the manifest without strictReachable when the only package tag is unreachable', () => {
+      git('tag -d v1.0.0');
+      writeConfig(false);
+      tagOnSideBranch('test-core@v1.0.0');
+      writeFileSync(join(tempDir, 'packages/core/index.js'), '// changed\n');
+      createConventionalCommit(tempDir, 'fix', 'patch core', 'core', false, ['packages/core']);
+
+      const result = executeCliCommand('--json', tempDir);
+
+      expect(result.status).toBe(0);
+      expect(readVersionOutput(result.stdout).tags).toEqual(['test-core@v1.0.1']);
+      expect(result.stderr).toContain(
+        "No release tag for @test/core is reachable from the current commit, but 'test-core@v1.0.0' exists. Versioning from the manifest.",
+      );
+    });
 
     it("should release a package's first version from its manifest when strictReachable is set", () => {
       git('tag -d v1.0.0');

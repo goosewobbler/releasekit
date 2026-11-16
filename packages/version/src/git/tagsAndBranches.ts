@@ -103,23 +103,32 @@ export type TagSeries =
   | { globalPrefix: string | undefined };
 
 /**
- * For `strictReachable`, called once no tag in `series` is reachable from HEAD: fails when one exists anyway
- * (typically a shallow clone), rather than versioning from the manifest or full history.
+ * Called once no tag in `series` is reachable from HEAD. A tag that exists anyway (typically a shallow clone) fails
+ * the run under `strict`, and is otherwise warned about before versioning from the manifest.
  */
-export async function assertNoUnreachableTags(series: TagSeries[], git: Git = createGitCli()): Promise<void> {
+export async function checkUnreachableTags(
+  series: TagSeries[],
+  strict: boolean,
+  git: Git = createGitCli(),
+): Promise<void> {
   for (const entry of series) {
     const [tag] =
       'globalPrefix' in entry
         ? await listSemverTags(entry.globalPrefix, git)
         : await listPackageTags(entry.packageName, entry.versionPrefix, entry.options, git);
-    if (tag) {
-      const subject = 'globalPrefix' in entry ? 'No release tag' : `No release tag for ${entry.packageName}`;
+    if (!tag) {
+      continue;
+    }
+    const subject = 'globalPrefix' in entry ? 'No release tag' : `No release tag for ${entry.packageName}`;
+    const found = `${subject} is reachable from the current commit, but '${tag}' exists.`;
+    const fetchHint = 'If the checkout is shallow, fetch the full history (fetch-depth: 0).';
+    if (strict) {
       throw new StrictReachableError(
-        `${subject} is reachable from the current commit, but '${tag}' exists. ` +
-          `If the checkout is shallow, fetch the full history (fetch-depth: 0). ` +
-          `To version from the manifest instead, set strictReachable to false.`,
+        `${found} ${fetchHint} To version from the manifest instead, set strictReachable to false.`,
       );
     }
+    log(`${found} Versioning from the manifest. ${fetchHint}`, 'warning');
+    return;
   }
 }
 
