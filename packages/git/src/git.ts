@@ -208,6 +208,11 @@ export class GitCli implements Git {
     return stdout;
   }
 
+  async readFileAt(ref: string, file: string, cwd?: string): Promise<string | null> {
+    assertNotOption(ref, 'ref');
+    return (await this.runSoft(['cat-file', 'blob', `${ref}:./${file}`], { cwd: this.cwd(cwd) }))?.stdout ?? null;
+  }
+
   async lsFiles(opts: GitLsFilesOptions = {}): Promise<string[]> {
     const args = ['ls-files', '-z'];
     if (opts.changed) {

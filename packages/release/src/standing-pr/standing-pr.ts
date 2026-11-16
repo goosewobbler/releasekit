@@ -199,6 +199,7 @@ interface EventPullRequest {
   number?: number;
   head?: { sha?: string };
   base?: { ref?: string };
+  merge_commit_sha?: string | null;
 }
 
 /** This run's event payload PR, when the event is about PR `prNumber`. */
@@ -1714,6 +1715,65 @@ async function assertManifestMatchesSource(
   }
 }
 
+const VERSION_MANIFESTS = ['package.json', 'Cargo.toml', 'pubspec.yaml'];
+
+/** Workspace packages whose version `mergeSha` changes against its first parent. */
+async function packagesBumpedBy(mergeSha: string, cwd: string, configPath: string | undefined): Promise<string[]> {
+  const { getWorkspacePackageDirs, readManifestVersion } = await import('@releasekit/version');
+  const git = createGitCli();
+  const bumped: string[] = [];
+  for (const [name, dir] of Object.entries(await getWorkspacePackageDirs({ cwd, configPath }))) {
+    for (const file of VERSION_MANIFESTS) {
+      const relative = path.relative(cwd, path.join(dir, file));
+      const after = await git.readFileAt(mergeSha, relative, cwd);
+      if (after === null) {
+        continue;
+      }
+      const before = await git.readFileAt(`${mergeSha}^1`, relative, cwd);
+      if (before === null || readManifestVersion(relative, before) !== readManifestVersion(relative, after)) {
+        bumped.push(name);
+        break;
+      }
+    }
+  }
+  return bumped;
+}
+
+/**
+ * The branch can move after the last update, so the PR may merge a head the manifest doesn't describe. Its versions
+ * are already checked against the merged tree; what it can still miss is a package the merge bumps, which would stay
+ * on the base branch untagged and unpublished.
+ */
+async function assertManifestCoversMerge(
+  manifest: StandingPRManifest,
+  merged: { headSha?: string; mergeCommitSha?: string },
+  cwd: string,
+  configPath: string | undefined,
+  prNumber: number,
+): Promise<void> {
+  const { headSha, mergeCommitSha } = merged;
+  if (!manifest.headSha || !headSha || headSha === manifest.headSha) {
+    return;
+  }
+  const heads = `PR #${prNumber} merged head ${headSha}, but its release manifest describes ${manifest.headSha}`;
+  if (!mergeCommitSha) {
+    throw new Error(
+      `Refusing to publish: ${heads}, and the merge commit is unknown, so the packages it bumps can't be checked ` +
+        `against the manifest.`,
+    );
+  }
+  const listed = new Set(publishableUpdates(manifest.versionOutput).map((u) => u.packageName));
+  const missing = (await packagesBumpedBy(mergeCommitSha, cwd, configPath)).filter((name) => !listed.has(name));
+  if (missing.length > 0) {
+    throw new Error(
+      `Refusing to publish: ${heads}. The merge bumps ${missing.map((name) => `'${name}'`).join(', ')}, which the ` +
+        `manifest doesn't list, so publishing would leave them versioned but never tagged or published. Requiring ` +
+        `the 'releasekit/standing-pr' status check stops a merge landing before its manifest is written.`,
+    );
+  }
+  warn(`${heads}. Publishing anyway: the manifest lists every package the merge bumps.`);
+}
+
 /** `livePr` is undefined when the PR couldn't be read. */
 async function readVerifiedManifest(
   forge: Forge,
@@ -1835,6 +1895,18 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   await assertManifestMatchesSource(manifest, cwd, options.config, prNumber);
 
+  const eventPr = eventPullRequest(prNumber);
+  await assertManifestCoversMerge(
+    manifest,
+    {
+      headSha: livePr?.headSha ?? eventPr?.head?.sha,
+      mergeCommitSha: livePr?.mergeCommitSha ?? eventPr?.merge_commit_sha ?? undefined,
+    },
+    cwd,
+    options.config,
+    prNumber,
+  );
+
   info(`Publishing from manifest: ${publishableUpdates(manifest.versionOutput).length} package(s)`);
 
   // Generated here rather than in the update so the standing-PR workflow needn't depend on LLM availability.
@@ -1943,7 +2015,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // Also clears the supersede warning the next standing PR would otherwise show.
   await resolveFailureReportIfPresent(forge, prNumber, manifest.versionOutput);
 
-  const eventPr = eventPullRequest(prNumber);
   if (deleteBranchOnMerge) {
     const mergedHead = livePr?.headSha ?? eventPr?.head?.sha;
     if (mergedHead && isCommitSha(mergedHead)) {
