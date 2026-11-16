@@ -133,6 +133,11 @@ export function hasExplicitGroups(config: Pick<Config, 'groups'>): boolean {
   return Object.keys(config.groups ?? {}).length > 0;
 }
 
+/** Group mode bumps only a package's own manifests, so it ignores `cargo.paths` and `pub.paths`. */
+export function isGroupMode(config: Pick<Config, 'sync' | 'groups'>): boolean {
+  return !config.sync && hasExplicitGroups(config);
+}
+
 /**
  * Targeting any member of an atomic group (`fixed` or `independent`) pulls in the whole group; we expand
  * rather than error. `linked` groups are untouched - partial targeting is well defined there.

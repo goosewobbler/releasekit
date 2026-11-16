@@ -73,7 +73,7 @@ export function createBackfillCommand(): Command {
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
 
-      const { loadConfig: loadVersionConfig, resolveCommitScope } = await import('@releasekit/version');
+      const { loadConfig: loadVersionConfig, isGroupMode, resolveCommitScope } = await import('@releasekit/version');
       const {
         versionOutputToChangelogInput,
         runPipeline,
@@ -113,18 +113,20 @@ export function createBackfillCommand(): Command {
       const force = options.force === true;
       const noLlm = options.llm === false;
 
-      const workspace = await discoverWorkspace(versionConfig);
-      const targets = resolveTargets(options, cwd, workspace);
+      // A synced release's notes read the package's whole directory, nested packages included, so only --all needs
+      // discovery then.
+      const workspace = options.all || !versionConfig.sync ? await discoverWorkspace(versionConfig) : undefined;
+      const targets = resolveTargets(options, cwd, workspace?.packages ?? []);
       // Discovery applies the private filter and version.packages, so these are the packages that release on their own.
-      const releasableDirs = workspace.packages.map((p) => p.dir);
+      const releasableDirs = workspace?.packages.map((p) => p.dir) ?? [];
       const commitScopeFor = (target: BackfillTarget): string[] | undefined => {
-        // A synced release's notes read its whole directory, nested packages included.
-        if (versionConfig.sync) {
+        if (versionConfig.sync || !workspace) {
           return undefined;
         }
         const { scope, pathsError } = resolveCommitScope(target.pkgPath, versionConfig, {
           repoRoot: workspace.root,
           releasableDirs,
+          ignorePaths: isGroupMode(versionConfig),
         });
         if (pathsError) {
           warn(`Reading ${target.packageName}'s commits without a native manifest: ${pathsError.message}`);
@@ -145,9 +147,9 @@ export function createBackfillCommand(): Command {
           pkgPath: target.pkgPath,
           commitScope: commitScopeFor(target),
           repoUrl: target.repoUrl,
-          versionPrefix: versionConfig?.versionPrefix,
-          tagTemplate: versionConfig?.tagTemplate,
-          packageSpecificTags: versionConfig?.packageSpecificTags,
+          versionPrefix: versionConfig.versionPrefix,
+          tagTemplate: versionConfig.tagTemplate,
+          packageSpecificTags: versionConfig.packageSpecificTags,
           from: options.from,
           to: options.to,
         });
@@ -345,7 +347,7 @@ async function discoverWorkspace(versionConfig: VersionConfig): Promise<Workspac
 function resolveTargets(
   options: { all?: boolean; package?: string; path: string },
   cwd: string,
-  { packages }: Workspace,
+  packages: Workspace['packages'],
 ): BackfillTarget[] {
   if (options.all) {
     const targets = packages

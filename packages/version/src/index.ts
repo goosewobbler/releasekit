@@ -2,6 +2,7 @@ export type { VersionOutput } from '@releasekit/core';
 export { extractChangelogEntriesFromCommits } from './changelog/commitParser.js';
 export { createVersionCommand } from './command.js';
 export { loadConfig } from './config.js';
+export { isGroupMode } from './core/groupResolution.js';
 export { calculateVersion } from './core/versionCalculator.js';
 export { VersionEngine } from './core/versionEngine.js';
 export { createAsyncStrategy, createSingleStrategy, createSyncStrategy } from './core/versionStrategies.js';

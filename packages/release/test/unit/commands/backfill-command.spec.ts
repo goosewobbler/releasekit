@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@releasekit/version', () => ({
   loadConfig: vi.fn(() => ({})),
+  isGroupMode: vi.fn(() => false),
   resolveCommitScope: vi.fn((dir: string) => ({ scope: [dir] })),
   VersionEngine: class {
     getWorkspacePackages = async () => ({ root: process.cwd(), packages: [] });
