@@ -63,7 +63,7 @@ describe('backfill commit scope', () => {
       dir,
       'releasekit.config.json',
       JSON.stringify({
-        version: { packageSpecificTags: true, tagTemplate: '${packageName}@v${version}', ...version },
+        version: { sync: false, packageSpecificTags: true, tagTemplate: '${packageName}@v${version}', ...version },
         notes: { releaseNotes: { file: { dir: 'release-notes' } } },
       }),
     );
@@ -122,5 +122,15 @@ describe('backfill commit scope', () => {
     git(dir, 'tag', 'host@v1.1.0');
 
     expect(await backfilledEntries('packages/host')).toEqual(['correct a typo']);
+  });
+
+  it("should keep every workspace package's commits in a synced release's notes", async () => {
+    createRepo({ app: 'app', lib: 'lib' }, { sync: true, packageSpecificTags: false, tagTemplate: 'v${version}' });
+    git(dir, 'tag', 'v1.0.0');
+    commit(dir, 'packages/lib/index.js', 'feat: add a lib API');
+    commit(dir, 'packages/app/index.js', 'fix: correct a typo');
+    git(dir, 'tag', 'v1.1.0');
+
+    expect(await backfilledEntries('.')).toEqual(['correct a typo', 'add a lib API']);
   });
 });

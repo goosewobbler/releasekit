@@ -23,7 +23,6 @@ import { resolveCommitScope } from '../utils/commitScope.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
 import { tagPrerequisiteRoles } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
-import { hasExplicitGroups } from './groupResolution.js';
 import { resolvePrerequisiteTargets } from './prerequisiteScope.js';
 import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
 import { buildWorkspaceGraph } from './workspaceGraph.js';
@@ -355,8 +354,6 @@ export class VersionEngine {
    */
   private async detectChangedPackages(packages: Package[], repoRoot: string): Promise<Set<string>> {
     const formattedPrefix = formatVersionPrefix(this.config.versionPrefix);
-    // Group mode bumps only a package's own manifests, so ignore `paths` here too.
-    const ignorePaths = !this.config.sync && hasExplicitGroups(this.config);
     const results = await Promise.all(
       packages.map(async (pkg) => {
         let tag = '';
@@ -371,7 +368,7 @@ export class VersionEngine {
         } catch {
           // No tag resolvable - getCommitsLength falls back to git describe / full history.
         }
-        const { scope, pathsError } = resolveCommitScope(pkg.dir, this.config, { repoRoot, ignorePaths });
+        const { scope, pathsError } = resolveCommitScope(pkg.dir, this.config, { repoRoot });
         if (pathsError) {
           log(
             `Checking ${pkg.packageJson.name} for changes without a native manifest: ${pathsError.message}`,

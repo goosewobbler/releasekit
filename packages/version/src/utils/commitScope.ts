@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { isPathWithinRoot } from '@releasekit/core';
+import { hasExplicitGroups } from '../core/groupResolution.js';
 import type { Config } from '../types.js';
 import { type NativeManifestOptions, nativeManifestsToBump } from './manifestUpdates.js';
 
-type ScopeConfig = Pick<Config, 'cargo' | 'pub' | 'releasablePackageDirs'>;
+type ScopeConfig = Pick<Config, 'cargo' | 'pub' | 'releasablePackageDirs' | 'sync' | 'groups'>;
 
 export interface CommitScopeOptions extends Pick<NativeManifestOptions, 'repoRoot' | 'ignorePaths'> {
   releasableDirs?: string[];
@@ -20,14 +21,19 @@ export interface CommitScope {
 /**
  * The commits that belong to a package: its directory and the native manifests it versions through
  * `cargo.paths` / `pub.paths`, minus nested packages that release on their own (one that doesn't ships inside it).
+ * Group mode bumps only a package's own manifests, so it ignores `paths` by default.
  */
 export function resolveCommitScope(
   pkgDir: string,
   config: ScopeConfig,
-  { releasableDirs = config.releasablePackageDirs ?? [], ...manifestOptions }: CommitScopeOptions = {},
+  {
+    releasableDirs = config.releasablePackageDirs ?? [],
+    ignorePaths = !config.sync && hasExplicitGroups(config),
+    ...manifestOptions
+  }: CommitScopeOptions = {},
 ): CommitScope {
   const dir = path.resolve(pkgDir);
-  const { dirs: included, error } = ownedDirs(dir, config, manifestOptions);
+  const { dirs: included, error } = ownedDirs(dir, config, { ...manifestOptions, ignorePaths });
   // A crate this package versions may also be discovered as a package (a Tauri `src-tauri`).
   const nested = releasableDirs
     .map((d) => path.resolve(d))

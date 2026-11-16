@@ -117,6 +117,20 @@ export function createBackfillCommand(): Command {
       const targets = resolveTargets(options, cwd, workspace);
       // Discovery applies the private filter and version.packages, so these are the packages that release on their own.
       const releasableDirs = workspace.packages.map((p) => p.dir);
+      const commitScopeFor = (target: BackfillTarget): string[] | undefined => {
+        // A synced release's notes read its whole directory, nested packages included.
+        if (versionConfig.sync) {
+          return undefined;
+        }
+        const { scope, pathsError } = resolveCommitScope(target.pkgPath, versionConfig, {
+          repoRoot: workspace.root,
+          releasableDirs,
+        });
+        if (pathsError) {
+          warn(`Reading ${target.packageName}'s commits without a native manifest: ${pathsError.message}`);
+        }
+        return scope;
+      };
 
       let totalReleaseCount = 0;
       const releasesByTarget: Array<{
@@ -126,19 +140,10 @@ export function createBackfillCommand(): Command {
 
       // A first pass so the LLM cost estimate covers every target.
       for (const target of targets) {
-        const { scope, pathsError } = resolveCommitScope(target.pkgPath, versionConfig, {
-          repoRoot: workspace.root,
-          releasableDirs,
-          // As in version: group mode doesn't read cargo.paths or pub.paths.
-          ignorePaths: !versionConfig.sync && Object.keys(versionConfig.groups ?? {}).length > 0,
-        });
-        if (pathsError) {
-          warn(`Reading ${target.packageName}'s commits without a native manifest: ${pathsError.message}`);
-        }
         const reconstructed = await reconstructChangelogs({
           packageName: target.packageName,
           pkgPath: target.pkgPath,
-          commitScope: scope,
+          commitScope: commitScopeFor(target),
           repoUrl: target.repoUrl,
           versionPrefix: versionConfig?.versionPrefix,
           tagTemplate: versionConfig?.tagTemplate,
@@ -329,18 +334,14 @@ function countEnabledLlmTasks(tasks?: {
 async function discoverWorkspace(versionConfig: VersionConfig): Promise<Workspace> {
   const { VersionEngine } = await import('@releasekit/version');
   try {
-    const { root, packages }: Workspace = await new VersionEngine(versionConfig).getWorkspacePackages();
-    return { root, packages };
+    return await new VersionEngine(versionConfig).getWorkspacePackages();
   } catch (err) {
     error(`Could not discover workspace packages: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(EXIT_CODES.GENERAL_ERROR);
   }
 }
 
-/**
- * `--all` reuses the version stage's discovery, so it finds the packages a live release would (npm & pure-Cargo,
- * scoped by `config.packages`). Pub-only packages aren't discovered; pass those via `--package`.
- */
+/** `--all` targets the packages a live release would version, as discovered by the version stage. */
 function resolveTargets(
   options: { all?: boolean; package?: string; path: string },
   cwd: string,
