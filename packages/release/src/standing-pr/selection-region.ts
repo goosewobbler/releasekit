@@ -519,7 +519,7 @@ export function renderSyncGraduation(version: string, ticked: boolean): string {
   return `- ${checkbox(ticked)} graduate to stable → ${version} ${RK_GRAD_SYNC_MARKER}`;
 }
 
-/** Task-list rows, trimmed. GitHub renders `[X]` as ticked too. */
+/** GitHub renders `[X]` as ticked too. */
 function* checklistRows(text: string): Generator<{ line: string; ticked: boolean }> {
   for (const raw of text.split('\n')) {
     const line = raw.trim();
@@ -554,9 +554,9 @@ function markerHits(region: string, marker: string): Array<{ name: string; ticke
     if (markerStart === -1) {
       continue;
     }
-    const nameStart = markerStart + open.length;
-    if (line.indexOf(MARKER_CLOSE, nameStart) === line.length - MARKER_CLOSE.length) {
-      hits.push({ name: line.slice(nameStart, -MARKER_CLOSE.length), ticked });
+    const name = line.slice(markerStart + open.length, -MARKER_CLOSE.length);
+    if (line.endsWith(MARKER_CLOSE) && !name.includes(MARKER_CLOSE)) {
+      hits.push({ name, ticked });
     }
   }
   return hits;

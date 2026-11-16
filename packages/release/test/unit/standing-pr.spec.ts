@@ -3355,7 +3355,7 @@ describe('runStandingPRUpdate', () => {
       expect(body).not.toContain('REGENERATED notes');
     });
 
-    it('should read a human edit from a CRLF body with LF line endings', async () => {
+    it('should normalise a human edit’s CRLF line endings to LF', async () => {
       const editedBody = renderNotesRegion({ '@scope/core': 'HUMAN line one\n\nline two' }).replaceAll('\n', '\r\n');
       const { forge } = await setupPreviewPR({
         labels: ['release', 'release:preview-notes'],
