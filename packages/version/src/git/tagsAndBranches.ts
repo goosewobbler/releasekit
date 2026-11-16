@@ -36,6 +36,15 @@ export function refExists(ref: string, cwd?: string, git: Git = createGitCli()):
   return git.refExists(ref, cwd);
 }
 
+/** A tag on `sha` itself doesn't count: running again there retries that release. */
+export async function isTagAfter(tag: string, sha: string, cwd?: string, git: Git = createGitCli()): Promise<boolean> {
+  return (
+    (await git.isAncestor(sha, tag, cwd)) &&
+    !(await git.isAncestor(tag, sha, cwd)) &&
+    (await git.isAncestor(tag, 'HEAD', cwd))
+  );
+}
+
 /**
  * Unlike `getLatestTag`, which only sees bare semver tags, also finds per-package tags such as `pkg@vX.Y.Z` and
  * `release/vX.Y.Z`.

@@ -19,6 +19,15 @@ function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf-8', env }).trim();
 }
 
+// Tags sort by creation date, so a tag made later in the same second would tie with the fixture's own.
+function commitInPast(cwd: string, ...args: string[]): void {
+  const date = '2026-01-01T00:00:00Z';
+  execFileSync('git', ['commit', ...args], {
+    cwd,
+    env: { ...env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
+  });
+}
+
 function write(path: string, content: string): void {
   mkdirSync(join(path, '..'), { recursive: true });
   writeFileSync(path, content);
@@ -33,8 +42,8 @@ describe('direct release after a merged PR', () => {
 
   afterEach(() => rmSync(repo, { recursive: true, force: true }));
 
-  /** Two packages that both change in the merged PR's commit, released with `ci` and the PR carrying `labels`. */
-  function releaseAfterMerge(ci: Record<string, unknown>, labels: string[]) {
+  /** Two packages that both change in the merged PR's commit, configured with `ci` and `version`. Returns that commit. */
+  function mergePR(ci: Record<string, unknown>, version: Record<string, unknown> = {}): string {
     write(join(repo, 'package.json'), '{ "name": "rk-fixture", "private": true }\n');
     write(join(repo, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n');
     write(
@@ -45,6 +54,7 @@ describe('direct release after a merged PR', () => {
           versionPrefix: 'v',
           tagTemplate: '${packageName}@v${version}',
           packageSpecificTags: true,
+          ...version,
         },
         publish: { npm: { enabled: false }, git: { push: false }, githubRelease: { enabled: false } },
         ci,
@@ -59,16 +69,19 @@ describe('direct release after a merged PR', () => {
     git(repo, 'config', 'user.name', 'test');
     git(repo, 'config', 'user.email', 'test@example.com');
     git(repo, 'add', '-A');
-    git(repo, 'commit', '-qm', 'chore: init');
+    commitInPast(repo, '-qm', 'chore: init');
     git(repo, 'tag', 'rk-a@v1.0.0');
     git(repo, 'tag', 'rk-b@v1.0.0');
     for (const name of ['a', 'b']) {
       write(join(repo, 'packages', name, 'index.js'), '// feature\n');
     }
-    git(repo, 'commit', '-qam', 'feat: add features (#7)');
-    const mergeSha = git(repo, 'rev-parse', 'HEAD');
+    commitInPast(repo, '-qam', 'feat: add features (#7)');
+    return git(repo, 'rev-parse', 'HEAD');
+  }
 
-    const result = spawnSync(
+  /** `release` for a run triggered by `mergeSha`, whose PR carries `labels`. */
+  function release(mergeSha: string, labels: string[]) {
+    return spawnSync(
       process.execPath,
       [
         '--import',
@@ -93,7 +106,19 @@ describe('direct release after a merged PR', () => {
         },
       },
     );
-    return { result, mergeSha };
+  }
+
+  function releaseAfterMerge(ci: Record<string, unknown>, labels: string[], version?: Record<string, unknown>) {
+    const mergeSha = mergePR(ci, version);
+    return { result: release(mergeSha, labels), mergeSha };
+  }
+
+  /** A later merge that touches neither package, as `skip-checkout` finds at the branch tip on a re-run. */
+  function mergeUnrelatedPR(): string {
+    write(join(repo, 'README.md'), '# fixture\n');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-qm', 'docs: add readme (#8)');
+    return git(repo, 'rev-parse', 'HEAD');
   }
 
   it('should release every changed package for a PR with no scope label, without --target', () => {
@@ -118,5 +143,35 @@ describe('direct release after a merged PR', () => {
     expect(JSON.parse(result.stdout)).toMatchObject({ status: 'success', changed: false, data: null });
     expect(result.stderr).toContain('No release labels found');
     expect(git(repo, 'rev-parse', 'HEAD')).toBe(mergeSha);
+  });
+
+  it("should not release the PR's packages again on a re-run after they were tagged", () => {
+    const { result: first, mergeSha } = releaseAfterMerge(
+      { releaseStrategy: 'direct', releaseTrigger: 'label' },
+      ['bump:major'],
+      { sync: false },
+    );
+    expect(first.status, `${first.stdout}\n${first.stderr}`).toBe(0);
+    const tip = mergeUnrelatedPR();
+
+    const rerun = release(mergeSha, ['bump:major']);
+
+    expect(rerun.status, `${rerun.stdout}\n${rerun.stderr}`).toBe(0);
+    expect(JSON.parse(rerun.stdout)).toMatchObject({ status: 'success', changed: false, data: null });
+    expect(git(repo, 'rev-parse', 'HEAD')).toBe(tip);
+    expect(git(repo, 'tag', '--list', '*@v3*')).toBe('');
+  });
+
+  it('should release a package tagged before the pushed commit when another was tagged after it', () => {
+    const mergeSha = mergePR({ releaseStrategy: 'direct', releaseTrigger: 'label' }, { sync: false });
+    write(join(repo, 'packages', 'a', 'package.json'), '{ "name": "rk-a", "version": "2.0.0" }\n');
+    git(repo, 'commit', '-qam', 'chore: release rk-a v2.0.0');
+    git(repo, 'tag', 'rk-a@v2.0.0');
+    mergeUnrelatedPR();
+
+    const result = release(mergeSha, ['bump:major']);
+
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    expect(git(repo, 'tag', '--points-at', 'HEAD')).toBe('rk-b@v2.0.0');
   });
 });

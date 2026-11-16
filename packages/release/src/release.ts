@@ -164,6 +164,9 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   }
   if (verdict) {
     applyVerdict(options, verdict);
+    // A re-run keeps its GITHUB_SHA, but `skip-checkout` syncs past that commit's release, so its labels would
+    // bump each package again.
+    options.skipTaggedAfter = getGitHubContext()?.sha ?? undefined;
   }
 
   if (releaseConfig?.ci?.skipPatterns?.length) {

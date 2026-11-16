@@ -7,7 +7,7 @@ import { Bumper, type Preset as BumperPreset } from 'conventional-recommended-bu
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
 import { BREAKING_HEADER_PATTERN, HEADER_PATTERN } from '../changelog/commitParser.js';
-import { getCommitsLength, refExists } from '../git/tagsAndBranches.js';
+import { getCommitsLength, isTagAfter, refExists } from '../git/tagsAndBranches.js';
 import type { Config, VersionOptions } from '../types.js';
 import { buildTagStripPatternFromTemplate, deriveBaselineTagPrefix, escapeRegExp } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
@@ -122,6 +122,16 @@ function guardFirstReleaseBump(config: Config, name: string | undefined, current
 }
 
 export async function calculateVersion(config: Config, options: VersionOptions): Promise<string> {
+  const { latestTag } = options;
+  if (
+    config.skipTaggedAfter &&
+    options.hasRealTag !== false &&
+    latestTag &&
+    (await isTagAfter(latestTag, config.skipTaggedAfter, options.path))
+  ) {
+    log(`Skipping ${options.name || 'project'}: ${latestTag} already released ${config.skipTaggedAfter}`, 'info');
+    return '';
+  }
   const scoped = applyOverrideScope(config, options);
   return calculateVersionInner(scoped.config, scoped.options);
 }
