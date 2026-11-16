@@ -685,13 +685,16 @@ describe('runStandingPRUpdate', () => {
         standingPr: {
           branch: 'release/next',
           deleteBranchOnMerge: true,
-          primaryPackages: ['@wdio/tauri-service'],
           selection: 'streamlined',
         },
       },
       git: { branch: 'main' },
       release: { ci: { skipPatterns: ['chore: release '] } },
-      version: { sync: false, groups: { tauri: { sync: 'linked', packages: ['@wdio/tauri-*'] } } },
+      version: {
+        sync: false,
+        groups: { tauri: { sync: 'linked', packages: ['@wdio/tauri-*'] } },
+        primaryPackages: ['@wdio/tauri-service'],
+      },
     } as unknown as ReturnType<typeof import('@releasekit/config').loadConfig>);
     mockGetWorkspacePackageNames.mockResolvedValue(['@wdio/tauri-service', '@wdio/tauri-plugin']);
   };

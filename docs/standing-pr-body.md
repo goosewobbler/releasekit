@@ -26,7 +26,7 @@ A tick or untick takes effect only when the next `standing-pr update` run rebuil
 - Sync releases have no checklist — they ship as one unit. On a prerelease line they get the `rk-grad-sync` checkbox instead.
 - A package on a prerelease line with nothing queued gets an `rk-grad` row of its own, with or without the toggles below. A `graduate:<pkg>` or `release:graduate` label ticks it while the label is on. See [Graduation rows](../packages/release/docs/ci-setup.md#label-semantics-in-standing-pr-mode).
 - In the flat and granular lists, a member of a `fixed` or `linked` group can't be held back on its own; its untick is ignored and the row re-ticks.
-- With [`ci.standingPr.primaryPackages`](./configuration.md#cistandingpr) in the default `streamlined` mode, only primaries (and packages outside every unit) have checkboxes; unticking a primary holds back its unit, except members it shares with another selected primary.
+- With [`version.primaryPackages`](./configuration.md#version) in the default `streamlined` mode, only primaries (and packages outside every unit) have checkboxes; unticking a primary holds back its unit, except members it shares with another selected primary.
 - The nested `rk-pre` / `rk-grad` toggles appear only with `ci.standingPr.channelToggle: true`. A toggle moves the package's whole group, a held-back row's toggle is ignored, and a package set to both prerelease and graduate (say, `rk-pre` plus a `graduate:` label) goes prerelease.
 
 ### Editable release notes

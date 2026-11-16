@@ -169,6 +169,11 @@ describe('loadConfig', () => {
     ],
     ['ci.labels.stable', { ci: { labels: { stable: 'release:stable' } } }, /renamed to ci\.labels\.graduate/],
     ['ci.skipPatterns', { ci: { skipPatterns: ['chore: release '] } }, /moved to release\.ci\.skipPatterns/],
+    [
+      'ci.standingPr.primaryPackages',
+      { ci: { standingPr: { primaryPackages: ['@scope/app'] } } },
+      /moved to version\.primaryPackages/,
+    ],
     ['notes.releaseNotes.mode', { notes: { releaseNotes: { mode: 'versioned' } } }, /notes\.changelog\.mode/],
     [
       'notes.releaseNotes.llm.prompts.templates',
