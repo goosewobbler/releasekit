@@ -34,7 +34,7 @@ releasekit-notes --template ./my-changelog.liquid
 }
 ```
 
-The file receives the full [Document context](#document-context) and must render the complete changelog document.
+The file receives the full [Document context](#document-context) and renders a changelog document, which is [merged into an existing file](#writing-to-an-existing-changelog).
 
 ### Composable directory layout
 
@@ -54,6 +54,17 @@ releasekit-notes --template ./templates/
 All three files are optional — omit any you don't need to customise, and the built-in for that level is used.
 
 The `entry.liquid` template receives the `ChangelogEntry` fields directly as top-level variables: `type`, `description`, `scope`, `breaking`, `issueIds`, `leadIn`.
+
+### Writing to an existing changelog
+
+A changelog template renders only this run's versions, in `versions`. How the output reaches the file:
+
+- **New or empty file:** the whole output is written.
+- **Existing file:** the output from its first line starting with `## ` goes directly under the file's header, which is everything before the file's first `## ` line. The rest of the file is kept. Anything the template renders before its first `## ` line, such as its own header, is dropped.
+
+So start each version section with a level-2 heading (`## `). If the output has none, an existing file is left unchanged and a warning is logged.
+
+In `packages` and `both` modes, each package's changelog is rendered on its own: `versions` holds only that package's version, and `project.name` is the package name.
 
 ---
 

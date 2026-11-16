@@ -1,7 +1,6 @@
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { assertLlmModel, runsLlmTasks } from '@releasekit/config';
-import { type ChangelogRefsMode, debug, info, parseGitHubOwnerRepo, success, warn } from '@releasekit/core';
+import { debug, info, parseGitHubOwnerRepo, warn } from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
 import { withContentHashCache } from '../llm/cache.js';
 import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken } from '../llm/context/prFetcher.js';
@@ -15,7 +14,7 @@ import { enhanceEntries } from '../llm/tasks/enhance.js';
 import { enhanceAndCategorize } from '../llm/tasks/enhance-and-categorize.js';
 import { generateReleaseNotes } from '../llm/tasks/release-notes.js';
 import { summarizeEntries } from '../llm/tasks/summarize.js';
-import { type FormatVersionOptions, formatVersion, writeMarkdown } from '../output/markdown.js';
+import { type FormatVersionOptions, formatVersion, renderMarkdown, writeChangelog } from '../output/markdown.js';
 import { writeVersionedNotes } from '../output/versioned.js';
 import { renderTemplate } from '../templates/loader.js';
 import { mapWithConcurrency } from '../utils/concurrency.js';
@@ -301,60 +300,6 @@ async function processWithLLM(
   };
 }
 
-function getBuiltinTemplatePath(style: string): string {
-  let packageRoot: string;
-
-  try {
-    const currentUrl = import.meta.url;
-    packageRoot = path.dirname(new URL(currentUrl).pathname);
-    packageRoot = path.join(packageRoot, '..', '..');
-  } catch {
-    packageRoot = __dirname;
-  }
-
-  return path.join(packageRoot, 'templates', style);
-}
-
-async function generateWithTemplate(
-  contexts: TemplateContext[],
-  templatesConfig: { path?: string; engine?: string } | undefined,
-  outputPath: string,
-  repoUrl: string | undefined,
-  dryRun: boolean,
-): Promise<void> {
-  let templatePath: string;
-
-  if (templatesConfig?.path) {
-    templatePath = path.resolve(templatesConfig.path);
-  } else {
-    templatePath = getBuiltinTemplatePath('keep-a-changelog');
-  }
-
-  const documentContext = createDocumentContext(contexts, repoUrl);
-
-  const result = renderTemplate(templatePath, documentContext, templatesConfig?.engine as TemplateEngine | undefined);
-
-  if (dryRun) {
-    info(`[DRY RUN] Changelog preview (would write to ${outputPath}):`);
-    info(result.content);
-    return;
-  }
-
-  if (outputPath === '-') {
-    process.stdout.write(result.content);
-    return;
-  }
-
-  const dir = path.dirname(outputPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-
-  fs.writeFileSync(outputPath, result.content, 'utf-8');
-  const label = /changelog/i.test(outputPath) ? 'Changelog' : 'Release notes';
-  success(`${label} written to ${outputPath} (using ${result.engine} template)`);
-}
-
 // Never the changelog document - release notes aren't a changelog.
 function renderReleaseNotes(
   ctx: TemplateContext,
@@ -491,34 +436,31 @@ export async function runPipeline(
   if (!pipelineOptions?.skipChangelogs && changelogConfig !== false && changelogConfig.mode) {
     const fileName = changelogConfig.file ?? 'CHANGELOG.md';
     const mode = changelogConfig.mode;
+    const templates = changelogConfig.templates;
+
+    const renderChangelog = (ctxs: TemplateContext[], options: FormatVersionOptions): string =>
+      templates?.path
+        ? renderTemplate(
+            path.resolve(templates.path),
+            createDocumentContext(ctxs, ctxs[0]?.repoUrl ?? undefined),
+            templates.engine,
+          ).content
+        : renderMarkdown(ctxs, options);
 
     info(`Generating changelog → ${fileName}`);
 
     try {
       if (mode === 'root' || mode === 'both') {
-        if (changelogConfig.templates?.path) {
-          await generateWithTemplate(
-            changelogContexts,
-            changelogConfig.templates,
-            fileName,
-            changelogContexts[0]?.repoUrl ?? undefined,
-            dryRun,
-          );
-        } else {
-          writeMarkdown(fileName, changelogContexts, config, dryRun, fmtOpts);
-        }
+        writeChangelog(fileName, renderChangelog(changelogContexts, fmtOpts), dryRun);
         if (!dryRun) {
           files.push(fileName);
         }
       }
 
       if (mode === 'packages' || mode === 'both') {
-        const monoFiles = await writeMonorepoFiles(
-          changelogContexts,
-          config,
-          dryRun,
-          changelogConfig.file ?? 'CHANGELOG.md',
-          fmtOpts.refs ?? 'link',
+        const refs = fmtOpts.refs;
+        const monoFiles = await writeMonorepoFiles(changelogContexts, config, dryRun, fileName, (ctxs) =>
+          renderChangelog(ctxs, { refs }),
         );
         files.push(...monoFiles);
       }
@@ -589,7 +531,7 @@ async function writeMonorepoFiles(
   config: Config,
   dryRun: boolean,
   fileName: string,
-  refs: ChangelogRefsMode,
+  render: (contexts: TemplateContext[]) => string,
 ): Promise<string[]> {
   const { detectMonorepo, writeMonorepoChangelogs } = await import('../monorepo/aggregator.js');
   const cwd = process.cwd();
@@ -599,18 +541,14 @@ async function writeMonorepoFiles(
     return [];
   }
 
-  const monoFiles = writeMonorepoChangelogs(
+  return writeMonorepoChangelogs(
     contexts,
     {
       rootPath: config.monorepo?.rootPath ?? cwd,
       packagesPath: config.monorepo?.packagesPath ?? detected.packagesPath,
-      mode: 'packages',
       fileName,
     },
-    config,
+    render,
     dryRun,
-    refs,
   );
-
-  return monoFiles;
 }

@@ -268,10 +268,6 @@ Poll pub.dev after each publish until the new version is visible.
 Changelog and release notes configuration.
 
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `updateStrategy` | `"prepend"` \| `"regenerate"` | — | How to update existing changelog files. 'prepend' (the default) adds the new entries at the top; 'regenerate' overwrites the file with this run's output. |
-
 ### `notes.changelog`
 
 Changelog generation, on by default. Set to false to disable.

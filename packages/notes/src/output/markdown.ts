@@ -10,10 +10,10 @@ import {
   neutralizeDescriptionRefs,
   renderIssueRefs,
   success,
+  warn,
 } from '@releasekit/core';
 import type {
   ChangelogEntry,
-  Config,
   EnhancedCategory,
   FirstReleaseConfig,
   LinksConfig,
@@ -317,42 +317,46 @@ export function renderMarkdown(contexts: TemplateContext[], options?: FormatVers
   return sections.join('\n');
 }
 
-export function prependVersions(
-  existingPath: string,
-  contexts: TemplateContext[],
-  options?: FormatVersionOptions,
-): string {
+function versionSectionsStart(rendered: string): number {
+  if (rendered.startsWith('## ')) {
+    return 0;
+  }
+  const index = rendered.indexOf('\n## ');
+  return index === -1 ? -1 : index + 1;
+}
+
+function prependChangelog(existingPath: string, rendered: string): string {
   const existing = fs.existsSync(existingPath) ? fs.readFileSync(existingPath, 'utf-8') : '';
   if (existing.trim() === '') {
-    return renderMarkdown(contexts, options);
+    return rendered;
   }
 
-  const sections = contexts.map((context) => formatVersion(context, options)).join('\n');
-  if (existing.startsWith('## ')) {
+  const sectionsStart = versionSectionsStart(rendered);
+  if (sectionsStart === -1) {
+    warn(`Rendered changelog has no version section (a line starting with "## "); nothing added to ${existingPath}`);
+    return existing;
+  }
+  const sections = `${rendered.slice(sectionsStart).trimEnd()}\n`;
+
+  const headerEnd = versionSectionsStart(existing);
+  if (headerEnd === 0) {
     return `${sections}\n${existing}`;
   }
-
-  const headerEnd = existing.indexOf('\n## ');
   if (headerEnd === -1) {
     return `${existing.trimEnd()}\n\n${sections}`;
   }
-  return `${existing.slice(0, headerEnd).trimEnd()}\n\n${sections}\n${existing.slice(headerEnd + 1)}`;
+  return `${existing.slice(0, headerEnd).trimEnd()}\n\n${sections}\n${existing.slice(headerEnd)}`;
 }
 
-export function writeMarkdown(
-  outputPath: string,
-  contexts: TemplateContext[],
-  config: Config,
-  dryRun: boolean,
-  options?: FormatVersionOptions,
-): void {
-  const content = renderMarkdown(contexts, options);
-
-  const label = /changelog/i.test(outputPath) ? 'Changelog' : 'Release notes';
-
+export function writeChangelog(outputPath: string, content: string, dryRun: boolean): void {
   if (dryRun) {
-    info(`[DRY RUN] ${label} preview (would write to ${outputPath}):`);
+    info(`[DRY RUN] Changelog preview (would write to ${outputPath}):`);
     info(content);
+    return;
+  }
+
+  if (outputPath === '-') {
+    process.stdout.write(content);
     return;
   }
 
@@ -361,13 +365,6 @@ export function writeMarkdown(
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  if (outputPath === '-') {
-    process.stdout.write(content);
-    return;
-  }
-
-  const updated = config.updateStrategy === 'regenerate' ? content : prependVersions(outputPath, contexts, options);
-  fs.writeFileSync(outputPath, updated, 'utf-8');
-
-  success(`${label} written to ${outputPath}`);
+  fs.writeFileSync(outputPath, prependChangelog(outputPath, content), 'utf-8');
+  success(`Changelog written to ${outputPath}`);
 }

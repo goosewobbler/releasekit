@@ -345,7 +345,6 @@ Generate changelog from input data (a version-output JSON, read from a file or s
 | `--no-llm` | boolean | - | Disable LLM processing |
 | `--target <package>` | string | all | Filter to a specific package name |
 | `--config <path>` | string | auto-discovered | Config file path |
-| `--regenerate` | boolean | `false` | Regenerate entire changelog instead of prepending new entries |
 | `--dry-run` | boolean | `false` | Preview without writing |
 | `-v, --verbose` | count | `0` | Increase verbosity (repeatable: `-vv`, `-vvv`) |
 | `-q, --quiet` | boolean | `false` | Suppress non-error output |

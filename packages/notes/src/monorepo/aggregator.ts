@@ -1,32 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { type ChangelogRefsMode, debug, info, success } from '@releasekit/core';
+import { info } from '@releasekit/core';
 import type { TemplateContext } from '../core/types.js';
-import { prependVersions, renderMarkdown } from '../output/markdown.js';
+import { writeChangelog } from '../output/markdown.js';
 import { splitByPackage } from './splitter.js';
 
 export interface MonorepoOptions {
   rootPath: string;
   packagesPath: string;
-  mode: 'root' | 'packages' | 'both';
   fileName?: string;
-}
-
-function writeFile(outputPath: string, content: string, dryRun: boolean): boolean {
-  if (dryRun) {
-    info(`Would write to ${outputPath}`);
-    debug(content);
-    return false;
-  }
-
-  const dir = path.dirname(outputPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-
-  fs.writeFileSync(outputPath, content, 'utf-8');
-  success(`Changelog written to ${outputPath}`);
-  return true;
 }
 
 export function aggregateToRoot(contexts: TemplateContext[]): TemplateContext {
@@ -54,48 +36,27 @@ export function aggregateToRoot(contexts: TemplateContext[]): TemplateContext {
 export function writeMonorepoChangelogs(
   contexts: TemplateContext[],
   options: MonorepoOptions,
-  config: { updateStrategy?: 'prepend' | 'regenerate' },
+  render: (contexts: TemplateContext[]) => string,
   dryRun: boolean,
-  refs: ChangelogRefsMode = 'link',
 ): string[] {
   const files: string[] = [];
+  const byPackage = splitByPackage(contexts);
+  const packageDirMap = buildPackageDirMap(options.rootPath, options.packagesPath);
 
-  if (options.mode === 'root' || options.mode === 'both') {
-    const rootPath = path.join(options.rootPath, options.fileName ?? 'CHANGELOG.md');
-    const fmtOpts = { includePackageName: true, refs };
+  for (const [packageName, ctx] of byPackage) {
+    const simpleName = packageName.split('/').pop();
+    const packageDir =
+      packageDirMap.get(packageName) ?? (simpleName ? packageDirMap.get(simpleName) : undefined) ?? null;
 
-    info(`Writing root changelog to ${rootPath}`);
-    const rootContent =
-      config.updateStrategy === 'regenerate'
-        ? renderMarkdown(contexts, fmtOpts)
-        : prependVersions(rootPath, contexts, fmtOpts);
-    if (writeFile(rootPath, rootContent, dryRun)) {
-      files.push(rootPath);
-    }
-  }
-
-  if (options.mode === 'packages' || options.mode === 'both') {
-    const byPackage = splitByPackage(contexts);
-    const packageDirMap = buildPackageDirMap(options.rootPath, options.packagesPath);
-
-    for (const [packageName, ctx] of byPackage) {
-      const simpleName = packageName.split('/').pop();
-      const packageDir =
-        packageDirMap.get(packageName) ?? (simpleName ? packageDirMap.get(simpleName) : undefined) ?? null;
-
-      if (packageDir) {
-        const changelogPath = path.join(packageDir, options.fileName ?? 'CHANGELOG.md');
-        info(`Writing changelog for ${packageName} to ${changelogPath}`);
-        const pkgContent =
-          config.updateStrategy === 'regenerate'
-            ? renderMarkdown([ctx], { refs })
-            : prependVersions(changelogPath, [ctx], { refs });
-        if (writeFile(changelogPath, pkgContent, dryRun)) {
-          files.push(changelogPath);
-        }
-      } else {
-        info(`Could not find directory for package ${packageName}, skipping`);
+    if (packageDir) {
+      const changelogPath = path.join(packageDir, options.fileName ?? 'CHANGELOG.md');
+      info(`Writing changelog for ${packageName} to ${changelogPath}`);
+      writeChangelog(changelogPath, render([ctx]), dryRun);
+      if (!dryRun) {
+        files.push(changelogPath);
       }
+    } else {
+      info(`Could not find directory for package ${packageName}, skipping`);
     }
   }
 

@@ -10,9 +10,6 @@
       "packages/*"
     ]
   },
-  "notes": {
-    "updateStrategy": "prepend"
-  },
   "publish": {
     "npm": {
       "enabled": true,

@@ -118,35 +118,13 @@ describe('Pipeline: config.llm.options passthrough', () => {
   });
 });
 
-describe('Pipeline: mode both does not double-write root', () => {
+describe('Pipeline: per-package changelogs', () => {
   beforeEach(async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false);
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined as never);
     vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
     const { writeMonorepoChangelogs } = await import('../../src/monorepo/aggregator.js');
     vi.mocked(writeMonorepoChangelogs).mockClear();
-  });
-
-  it('should pass mode: packages to writeMonorepoChangelogs when changelog mode is both', async () => {
-    const { writeMonorepoChangelogs } = await import('../../src/monorepo/aggregator.js');
-    const { runPipeline } = await import('../../src/core/pipeline.js');
-
-    const config: Config = { changelog: { mode: 'both' } };
-    await runPipeline(sampleInput, config, false);
-
-    expect(writeMonorepoChangelogs).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ mode: 'packages' }),
-      expect.anything(),
-      false,
-      expect.anything(),
-    );
-    expect(writeMonorepoChangelogs).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ mode: 'both' }),
-      expect.anything(),
-      expect.anything(),
-    );
   });
 
   it('should pass the changelog fileName to writeMonorepoChangelogs', async () => {
@@ -159,9 +137,8 @@ describe('Pipeline: mode both does not double-write root', () => {
     expect(writeMonorepoChangelogs).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ fileName: 'CHANGES.md' }),
-      expect.anything(),
+      expect.any(Function),
       false,
-      expect.anything(),
     );
   });
 
@@ -179,26 +156,29 @@ describe('Pipeline: mode both does not double-write root', () => {
     expect(writeMonorepoChangelogs).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ fileName: 'CHANGELOG.md' }),
-      expect.anything(),
+      expect.any(Function),
       false,
-      expect.anything(),
     );
   });
 
-  it('should forward the configured refs mode to per-package monorepo changelogs', async () => {
+  it('should render per-package changelogs with the configured refs mode', async () => {
     const { writeMonorepoChangelogs } = await import('../../src/monorepo/aggregator.js');
-    const { runPipeline } = await import('../../src/core/pipeline.js');
+    const { runPipeline, createTemplateContext } = await import('../../src/core/pipeline.js');
 
     const config: Config = { changelog: { mode: 'packages', refs: 'strip' } };
     await runPipeline(sampleInput, config, false);
 
-    expect(writeMonorepoChangelogs).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.anything(),
-      false,
-      'strip',
-    );
+    const render = vi.mocked(writeMonorepoChangelogs).mock.calls[0]?.[2];
+    const pkg = sampleInput.packages[0];
+    if (!render || !pkg) {
+      throw new Error('expected a per-package render');
+    }
+    const withRef = createTemplateContext({
+      ...pkg,
+      repoUrl: 'https://github.com/acme/repo',
+      entries: [{ type: 'fixed', description: 'Fix bug', issueIds: ['#12'] }],
+    });
+    expect(render([withRef])).not.toContain('#12');
   });
 });
 
