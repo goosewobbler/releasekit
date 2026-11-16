@@ -7,6 +7,7 @@ describe('FakeGit queries', () => {
       tags: ['v1.0.0', 'v1.1.0'],
       nearestTag: 'v1.1.0',
       headSha: 'deadbeef',
+      topLevel: '/repo',
       currentBranch: 'release/next',
       remoteUrls: { origin: 'git@github.com:o/r.git' },
       commitCounts: { 'v1..HEAD': 3 },
@@ -18,6 +19,7 @@ describe('FakeGit queries', () => {
     expect(await git.listTags()).toEqual(['v1.0.0', 'v1.1.0']);
     expect(await git.describeTags()).toBe('v1.1.0');
     expect(await git.headSha()).toBe('deadbeef');
+    expect(await git.topLevel()).toBe('/repo');
     expect(await git.currentBranch()).toBe('release/next');
     expect(await git.remoteUrl('origin')).toBe('git@github.com:o/r.git');
     expect(await git.remoteUrl('upstream')).toBeNull();
@@ -32,6 +34,7 @@ describe('FakeGit queries', () => {
     expect(await git.isRepository()).toBe(true);
     expect(await git.currentBranch()).toBe('main');
     expect(await git.headSha()).toMatch(/^0+$/);
+    expect(await git.topLevel()).toBe('/');
     expect(await git.describeTags()).toBeNull();
     expect(await git.listTags()).toEqual([]);
     expect(await git.status()).toBe('');

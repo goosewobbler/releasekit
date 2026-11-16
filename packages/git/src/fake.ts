@@ -43,6 +43,8 @@ export interface FakeGitSeed {
   mergedTags?: Record<string, string[]>;
   nearestTag?: string | null;
   headSha?: string;
+  /** Returned by `topLevel`. Defaults to `/`. */
+  topLevel?: string;
   currentBranch?: string;
   remoteUrls?: Record<string, string>;
   existingRefs?: string[];
@@ -78,6 +80,7 @@ export class FakeGit implements Git {
   private readonly mergedTags: Record<string, string[]>;
   private readonly nearestTag: string | null;
   private readonly head: string;
+  private readonly root: string;
   private readonly branch: string;
   private readonly remoteUrls: Record<string, string>;
   private readonly existingRefs: Set<string>;
@@ -107,6 +110,7 @@ export class FakeGit implements Git {
     this.mergedTags = seed.mergedTags ?? {};
     this.nearestTag = seed.nearestTag ?? null;
     this.head = seed.headSha ?? '0000000000000000000000000000000000000000';
+    this.root = seed.topLevel ?? '/';
     this.branch = seed.currentBranch ?? 'main';
     this.remoteUrls = seed.remoteUrls ?? {};
     this.existingRefs = new Set(seed.existingRefs ?? []);
@@ -131,6 +135,10 @@ export class FakeGit implements Git {
 
   async headSha(_cwd?: string): Promise<string> {
     return this.head;
+  }
+
+  async topLevel(_cwd?: string): Promise<string> {
+    return this.root;
   }
 
   async remoteUrl(remote: string, _cwd?: string): Promise<string | null> {

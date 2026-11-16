@@ -59,6 +59,12 @@ describe('GitCli queries', () => {
     expect(calls[0].args).toEqual(['rev-parse', 'HEAD']);
   });
 
+  it('should resolve the working tree root from cwd', async () => {
+    const { run, calls } = makeRunner({ stdout: '../../\n' });
+    expect(await new GitCli(run).topLevel('/r/packages/app')).toBe('/r');
+    expect(calls[0].args).toEqual(['rev-parse', '--show-cdup']);
+  });
+
   it('should return the remote url, trimmed', async () => {
     const { run, calls } = makeRunner({ stdout: 'git@github.com:o/r.git\n' });
     expect(await new GitCli(run).remoteUrl('origin', '/r')).toBe('git@github.com:o/r.git');

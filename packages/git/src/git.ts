@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import path from 'node:path';
 import { promisify } from 'node:util';
 import { GitError, gitExitCode, isCommandNotFound, isExecTimeout } from './errors.js';
 import type {
@@ -121,6 +122,12 @@ export class GitCli implements Git {
   async headSha(cwd?: string): Promise<string> {
     const { stdout } = await this.exec(['rev-parse', 'HEAD'], { cwd: this.cwd(cwd) });
     return stdout.trim();
+  }
+
+  async topLevel(cwd?: string): Promise<string> {
+    const dir = this.cwd(cwd);
+    const { stdout } = await this.exec(['rev-parse', '--show-cdup'], { cwd: dir });
+    return path.resolve(dir, stdout.trim());
   }
 
   async remoteUrl(remote: string, cwd?: string): Promise<string | null> {

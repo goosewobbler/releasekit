@@ -92,6 +92,8 @@ export interface Git {
   isRepository(cwd?: string): Promise<boolean>;
   currentBranch(cwd?: string): Promise<string>;
   headSha(cwd?: string): Promise<string>;
+  /** The working tree's root, resolved from `cwd` so it keeps `cwd`'s spelling (a symlinked path stays symlinked). */
+  topLevel(cwd?: string): Promise<string>;
   remoteUrl(remote: string, cwd?: string): Promise<string | null>;
   listTags(opts?: GitListTagsOptions): Promise<string[]>;
   /** The most recent reachable tag (`describe --tags --abbrev=0`). */
@@ -103,7 +105,7 @@ export interface Git {
   mergeBase(a: string, b: string, cwd?: string): Promise<string | null>;
   countCommits(range: string, opts?: GitCountCommitsOptions): Promise<number>;
   log(opts: GitLogOptions): Promise<string>;
-  /** File paths changed by `commitSha`. */
+  /** File paths changed by `commitSha`, relative to {@link Git.topLevel}. */
   diffTreeNames(commitSha: string, cwd?: string): Promise<string[]>;
   /** Relative to `cwd`, as git prints them. */
   lsFiles(opts?: GitLsFilesOptions): Promise<string[]>;

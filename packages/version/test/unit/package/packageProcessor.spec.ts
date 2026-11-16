@@ -627,7 +627,6 @@ describe('Package Processor', () => {
         expect.any(String),
         'wdio-dioxus-bridge@v1.0.0-next.2..HEAD',
         expect.any(Array),
-        expect.any(Array),
       );
     });
 
@@ -645,11 +644,12 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), 'HEAD', expect.any(Array), expect.any(Array));
+      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), 'HEAD', expect.any(Array));
     });
 
     it('should classify against the full workspace, not the release set, so a non-releasing package does not leak into shared', async () => {
       const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([]);
+      vi.spyOn(path, 'resolve').mockImplementation((dir) => dir);
       const processor = new PackageProcessor({
         ...defaultOptions,
         fullConfig: {
@@ -665,16 +665,15 @@ describe('Package Processor', () => {
       // commit touching only package-b is attributed to it (absent here), not dumped into shared.
       await processor.processPackages([mockPackages[0]]);
 
-      expect(extractSharedSpy).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(String),
-        ['/path/to/package-a', '/path/to/package-b'],
-        expect.any(Array),
-      );
+      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), [
+        '/path/to/package-a',
+        '/path/to/package-b',
+      ]);
     });
 
-    it('should route a configured sharedPackages package to repo-level via its dir', async () => {
+    it('should leave a configured sharedPackages package out of the package dirs, so its commits are repo-level', async () => {
       const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([]);
+      vi.spyOn(path, 'resolve').mockImplementation((dir) => dir);
       const processor = new PackageProcessor({
         ...defaultOptions,
         fullConfig: {
@@ -689,13 +688,12 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), expect.any(Array), [
-        '/path/to/package-b',
-      ]);
+      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), ['/path/to/package-a']);
     });
 
     it('should treat no package as shared when sharedPackages is unset — no hardcoded names', async () => {
       const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([]);
+      vi.spyOn(path, 'resolve').mockImplementation((dir) => dir);
       const processor = new PackageProcessor({
         ...defaultOptions,
         fullConfig: {
@@ -709,7 +707,10 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), expect.any(Array), []);
+      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), [
+        '/path/to/core',
+        '/path/to/package-a',
+      ]);
     });
 
     it('should emit repo-level entries as sharedEntries, not in individual package changelogs', async () => {
