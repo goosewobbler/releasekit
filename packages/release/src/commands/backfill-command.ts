@@ -368,8 +368,10 @@ function resolveTargets(
 
   const named =
     pathGiven || !options.package ? undefined : packages.find((p) => p.packageJson.name === options.package);
-  const pkgPath = named?.dir ?? path.resolve(cwd, options.path);
-  const pkgJson = readPackageJson(pkgPath);
+  const pathDir = path.resolve(cwd, options.path);
+  const pkgPath = named?.dir ?? pathDir;
+  // Read at --path, usually the root, so a package without its own `repository` keeps the repo URL.
+  const pkgJson = readPackageJson(pathDir);
   const packageName = options.package ?? pkgJson.name;
   if (!packageName) {
     error('Could not determine the package name. Pass --package, or run in a directory with a package.json.');

@@ -129,6 +129,11 @@ describe('backfill commit scope', () => {
   });
 
   it('should read the directory of the package --package names when --path is left out', async () => {
+    write(
+      dir,
+      'package.json',
+      JSON.stringify({ name: 'monorepo', private: true, repository: 'https://github.com/owner/repo.git' }),
+    );
     createRepo({ app: 'app', lib: 'lib' });
     git(dir, 'tag', 'app@v1.0.0');
     commit(dir, 'packages/lib/index.js', 'feat: add a lib API');
@@ -136,6 +141,7 @@ describe('backfill commit scope', () => {
     git(dir, 'tag', 'app@v1.1.0');
 
     expect(await backfilledEntries('--package', 'app')).toEqual(['correct a typo']);
+    expect(vi.mocked(runPipeline).mock.calls[0]?.[0].packages[0]?.repoUrl).toBe('https://github.com/owner/repo');
   });
 
   it("should keep every workspace package's commits in a synced release's notes", async () => {
