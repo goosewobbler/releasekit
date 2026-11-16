@@ -1966,6 +1966,7 @@ describe('runStandingPRUpdate', () => {
       expect(body).toContain('partially published');
       expect(body).toContain('1/2 packages');
       expect(body).toContain('#7');
+      expect(body).toContain('the next release proposes the unpublished versions again');
     });
 
     it('should omit the warning when the latest merged standing PR failure is resolved', async () => {

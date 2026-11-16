@@ -1430,6 +1430,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         total: unresolved.total,
         standingPrNumber: unresolved.prNumber,
         retryLabelAvailable: true,
+        unpublished: unresolved.unpublished,
       })
     : undefined;
 

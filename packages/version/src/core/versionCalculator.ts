@@ -124,10 +124,30 @@ function guardFirstReleaseBump(config: Config, name: string | undefined, current
 
 export async function calculateVersion(config: Config, options: VersionOptions): Promise<string> {
   const scoped = applyOverrideScope(config, options);
-  const scopedConfig = options.stranded
-    ? withStrandedChannel(scoped.config, options.stranded.version, options.latestTag)
-    : scoped.config;
-  return calculateVersionInner(scopedConfig, scoped.options);
+  const { stranded } = options;
+  if (!stranded) {
+    return calculateVersionInner(scoped.config, scoped.options);
+  }
+  // A channel label on this run wins over the stranded release's channel.
+  const explicitChannel = !!(scoped.config.stableOnly || scoped.config.isPrerelease);
+  const next = await calculateVersionInner(
+    explicitChannel ? scoped.config : withStrandedChannel(scoped.config, stranded.version, options.latestTag),
+    scoped.options,
+  );
+  return atLeastStranded(next, stranded.version, !!scoped.config.stableOnly);
+}
+
+/**
+ * The label that set the stranded version, such as a bump label, isn't on the next standing PR, so the version never
+ * moves back below it on the same channel.
+ */
+function atLeastStranded(next: string, strandedVersion: string, graduating: boolean): string {
+  if (!next) {
+    const parsed = semver.parse(strandedVersion);
+    return graduating && parsed ? `${parsed.major}.${parsed.minor}.${parsed.patch}` : strandedVersion;
+  }
+  const sameChannel = (semver.prerelease(next) === null) === (semver.prerelease(strandedVersion) === null);
+  return sameChannel && semver.lt(next, strandedVersion) ? strandedVersion : next;
 }
 
 /** The channel label that moved a stranded release onto or off a prerelease line isn't on the next standing PR. */
@@ -403,9 +423,6 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       }
 
       log(`Checking if conventional commits indicate bump`, 'debug');
-      if (!releaseTypeFromCommits && options.stranded) {
-        return options.stranded.version;
-      }
       if (!releaseTypeFromCommits) {
         log(`No release type from commits`, 'debug');
         if (latestTag && latestTag.trim() !== '') {

@@ -171,6 +171,31 @@ describe('renderFailureReport', () => {
     expect(parseFailureReportData(copyEdited)).toEqual(data);
   });
 
+  function unpublishedIn(output: VersionOutput, results: PublishOutput): string[] | undefined {
+    const body = renderFailureReport({
+      versionOutput: output,
+      publishOutput: results,
+      failedStage: 'publish',
+      errorMessage: 'boom',
+      recovery: { mode: 'standing-pr', standingPrNumber: 42 },
+    });
+    return parseFailureReportData(body)?.unpublished;
+  }
+
+  it('should not list a package that reached one of its registries as unpublished', () => {
+    const results = publishOutputFor([npmResult({ packageName: '@scope/a', version: '0.24.0' })]);
+    results.cargo = [
+      npmResult({ packageName: '@scope/a', version: '0.24.0', registry: 'cargo', success: false, reason: 'boom' }),
+      npmResult({ packageName: '@scope/b', version: '0.24.0', registry: 'cargo', success: false, reason: 'boom' }),
+    ];
+
+    expect(unpublishedIn(versionOutput, results)).toEqual(['@scope/b']);
+  });
+
+  it('should list no package of a sync release that partly published', () => {
+    expect(unpublishedIn({ ...versionOutput, strategy: 'sync' }, publishOutput)).toEqual([]);
+  });
+
   it('should return null headline data for non-report bodies and malformed data comments', () => {
     expect(parseFailureReportData('not a report')).toBeNull();
     expect(

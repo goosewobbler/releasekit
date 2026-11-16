@@ -99,6 +99,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
             total: unresolved.total,
             standingPrNumber: unresolved.prNumber,
             retryLabelAvailable: true,
+            unpublished: unresolved.unpublished,
           });
         }
       }

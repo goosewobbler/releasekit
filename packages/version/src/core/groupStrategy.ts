@@ -104,7 +104,7 @@ async function planMember(
   }
 
   const commitScope = resolveCommitScope(pkg.dir, config, { ignorePaths: true }).scope;
-  const stranded = latestTag ? findStrandedRelease(config, name, pkg.dir, latestTag) : undefined;
+  const stranded = usedPackageSpecificTag ? findStrandedRelease(config, name, pkg.dir, latestTag) : undefined;
   const ownNext = await calculateVersion(config, {
     latestTag,
     versionPrefix: formattedPrefix,

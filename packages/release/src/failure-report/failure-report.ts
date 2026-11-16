@@ -16,7 +16,7 @@ export interface FailureReportData {
   label: string;
   published: number;
   total: number;
-  /** Packages that failed or weren't attempted, so the next standing PR proposes their versions again. */
+  /** Packages no registry took, so the next standing PR proposes their versions again. */
   unpublished?: string[];
   /** The publish refused the manifest, so nothing in the release was published. */
   refused?: boolean;
@@ -126,6 +126,24 @@ export function buildLedger(versionOutput: VersionOutput, publishOutput: Publish
       status: 'not-attempted' as const,
     };
   });
+}
+
+/** A sync release ships at one version, so it's proposed again only when no package reached a registry. */
+function packagesToRepropose(
+  versionOutput: VersionOutput,
+  publishOutput: PublishOutput | undefined,
+  ledger: LedgerEntry[],
+): string[] {
+  const results = [...(publishOutput?.npm ?? []), ...(publishOutput?.cargo ?? []), ...(publishOutput?.pub ?? [])];
+  const reached = new Set(
+    results.filter((r) => r.success && (!r.skipped || r.alreadyPublished)).map((r) => r.updatePackageName),
+  );
+  if (versionOutput.strategy === 'sync' && reached.size > 0) {
+    return [];
+  }
+  return ledger
+    .filter((e) => (e.status === 'failed' || e.status === 'not-attempted') && !reached.has(e.packageName))
+    .map((e) => e.packageName);
 }
 
 function publishedFraction(ledger: LedgerEntry[]): { published: number; total: number } {
@@ -289,9 +307,7 @@ export function renderFailureReport(input: FailureReportInput): string {
       label,
       published,
       total,
-      unpublished: ledger
-        .filter((e) => e.status === 'failed' || e.status === 'not-attempted')
-        .map((e) => e.packageName),
+      unpublished: packagesToRepropose(versionOutput, publishOutput, ledger),
     }),
     '',
     `## ❌ Release of ${label} did not complete`,
@@ -365,17 +381,23 @@ export interface SupersedeWarningInput {
   total: number;
   standingPrNumber?: number;
   retryLabelAvailable?: boolean;
+  /** The packages the next release proposes again, from the report. */
+  unpublished?: string[] | 'all';
 }
 
 export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
-  const { previousLabel, published, total, standingPrNumber, retryLabelAvailable } = input;
+  const { previousLabel, published, total, standingPrNumber, retryLabelAvailable, unpublished } = input;
   const prRef = standingPrNumber ? `the merged standing PR (#${standingPrNumber})` : 'the merged standing PR';
   const retryHint = retryLabelAvailable
     ? `Retry it via \`release:retry\` on ${prRef}`
     : `Retry it by dispatching the release workflow against ${prRef}`;
+  const supersede =
+    unpublished === 'all' || (unpublished?.length ?? 0) > 0
+      ? 'the next release proposes the unpublished versions again, raised only if later changes need it'
+      : 'the next release publishes the rest at the new version';
   return [
     `> ⚠️ **Previous release ${escapeChangelogMentions(escapeCommentOpeners(previousLabel))} is partially published** (${published}/${total} packages on the registry).`,
-    `> ${retryHint}, **or** merging this PR supersedes it — this PR re-proposes the unpublished versions, raised only if later changes need it. Do not delete tags for versions that were published.`,
+    `> ${retryHint}, **or** merging this PR supersedes it — ${supersede}. Do not delete tags for versions that were published.`,
     '',
   ];
 }

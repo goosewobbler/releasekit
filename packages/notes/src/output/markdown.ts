@@ -320,10 +320,17 @@ export function renderMarkdown(contexts: TemplateContext[], options?: FormatVers
 
 /**
  * Finds the section by the heading {@link formatVersion} writes, so one a custom template wrote is left in place. The
- * release that wrote it may have prefixed the package name when this one doesn't, so that heading is tried first.
+ * release that wrote it may have prefixed the package name when this one doesn't. A bare version is only tried when
+ * this run writes bare headings, since in a file of prefixed headings it could be another package's.
  */
-function removeVersionSection(content: string, packageName: string, version: string, filePath: string): string {
-  const labels = [...new Set([`${packageName}@${version}`, version])];
+function removeVersionSection(
+  content: string,
+  packageName: string,
+  version: string,
+  filePath: string,
+  options?: FormatVersionOptions,
+): string {
+  const labels = options?.includePackageName ? [`${packageName}@${version}`] : [`${packageName}@${version}`, version];
   const lines = content.split('\n');
   for (const label of labels) {
     const headings = [`## [${label}]`, `## ${label}`];
@@ -345,7 +352,7 @@ export function prependVersions(
   let existing = fs.existsSync(existingPath) ? fs.readFileSync(existingPath, 'utf-8') : '';
   for (const context of contexts) {
     if (context.supersedes && existing.trim() !== '') {
-      existing = removeVersionSection(existing, context.packageName, context.supersedes, existingPath);
+      existing = removeVersionSection(existing, context.packageName, context.supersedes, existingPath, options);
     }
   }
   if (existing.trim() === '') {

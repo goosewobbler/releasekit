@@ -140,6 +140,24 @@ describe('stranded release', () => {
       expect(nextRelease().updates.map((u) => u.newVersion)).toEqual(['1.3.0-next.0']);
     });
 
+    it('should not drop below a stranded version a bump label set', () => {
+      createRepo(perPackage, ['pkg-a@v1.2.0']);
+      commitTo('packages/pkg-a', 'fix', 'mend the widget');
+      strand({ 'packages/pkg-a': '1.3.0' });
+
+      expect(nextRelease().updates.map((u) => u.newVersion)).toEqual(['1.3.0']);
+    });
+
+    it('should graduate a stranded prerelease when this run graduates it', () => {
+      createRepo(perPackage, ['pkg-a@v1.2.0']);
+      commitTo('packages/pkg-a', 'feat', 'add a widget');
+      strand({ 'packages/pkg-a': '1.3.0-next.0' });
+
+      const output = runVersionEngine(tempDir, { unpublished: ['pkg-a'], graduate: ['pkg-a'] });
+
+      expect(output.updates.map((u) => u.newVersion)).toEqual(['1.3.0']);
+    });
+
     it('should leave out every release commit after a re-proposal that also failed', () => {
       createRepo(perPackage, ['pkg-a@v1.2.0']);
       commitTo('packages/pkg-a', 'feat', 'add a widget');

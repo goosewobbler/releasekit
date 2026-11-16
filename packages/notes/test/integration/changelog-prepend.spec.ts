@@ -203,6 +203,33 @@ describe('Pipeline: a release that supersedes an unpublished version', () => {
     expect(warnings).toEqual([]);
   });
 
+  it("should not take another package's bare heading for a prefixed release's section", async () => {
+    const file = path.join(dir, 'CHANGELOG.md');
+    const existing = `${HEADER}\n${STRANDED}\n${OLD_RELEASE}`;
+    fs.writeFileSync(file, existing, 'utf-8');
+    const changelog = (packageName: string, supersedes?: string) => ({
+      packageName,
+      version: '1.3.0',
+      previousVersion: '1.0.0',
+      revisionRange: 'v1.0.0..HEAD',
+      repoUrl: null,
+      entries: [{ type: 'added', description: `change in ${packageName}` }],
+      supersedes,
+    });
+    const output: VersionOutput = {
+      dryRun: false,
+      updates: [],
+      tags: [],
+      changelogs: [changelog('@x/a', '1.3.0'), changelog('@x/b')],
+    };
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    onTestFinished(() => logged.mockRestore());
+
+    await processInput(JSON.stringify(output), { changelog: { mode: 'root', file } }, false);
+
+    expect(fs.readFileSync(file, 'utf-8')).toContain(STRANDED);
+  });
+
   it('should leave a file without that heading as it is, and warn', async () => {
     const custom = `${HEADER}\n## v1.3.0 (2026-01-20)\n\n- add a widget\n\n${OLD_RELEASE}`;
 

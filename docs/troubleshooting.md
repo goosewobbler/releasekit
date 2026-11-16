@@ -250,9 +250,9 @@ A successful retry marks the failure report resolved and clears the supersede wa
 
 ### Recovery path 2 — supersede (let the next release self-heal)
 
-If you would rather move on, **merge the next standing PR**. While the failure report is unresolved, each package it lists as unpublished is versioned as if the release commits weren't there:
+If you would rather move on, **merge the next standing PR**. While the failure report is unresolved, each package no registry took is versioned as if the release commits weren't there:
 
-- The unpublished version is proposed again, raised only if later changes need it. In sync mode the whole release is proposed again, and publish skips the packages already on the registry.
+- The unpublished version is proposed again, raised only if later changes need it. A sync release is proposed again only if no package published; otherwise it publishes at the next version.
 - That version's section in `CHANGELOG.md` is replaced by the new one.
 - A package that did publish bumps from its published version. In per-package mode its tag is already on the remote; leave it.
 
@@ -262,7 +262,9 @@ If a version is raised, the registry has a hole where the unpublished version wo
 
 So a failed publish does not silently fade away, ReleaseKit warns while a partially-published release remains unresolved. The **next** standing PR's body and the release preview include a block such as:
 
-> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry). Retry it via `release:retry` on the merged standing PR (#42), **or** merging this PR supersedes it — this PR re-proposes the unpublished versions, raised only if later changes need it. Do not delete tags for versions that were published.
+> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry). Retry it via `release:retry` on the merged standing PR (#42), **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.
+
+When the next release proposes unpublished versions again (see above), the warning says so instead.
 
 This gives you an honest choice between the two recovery paths. The warning is keyed off the failure report on the most recently merged standing PR and its resolved status, so it clears automatically once the failed release is retried successfully or superseded by the next release.
 
