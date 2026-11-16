@@ -15,6 +15,12 @@ interface BackfillTarget {
   repoUrl: string | null;
 }
 
+// Minimal shape we consume: the version package's built types resolve loosely through re-exports.
+interface Workspace {
+  root: string;
+  packages: Array<{ dir: string; packageJson: { name: string; repository?: unknown } }>;
+}
+
 function readPackageJson(pkgPath: string): { name?: string; repoUrl?: string } {
   const file = path.join(pkgPath, 'package.json');
   let raw: string;
@@ -67,7 +73,7 @@ export function createBackfillCommand(): Command {
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
 
-      const { loadConfig: loadVersionConfig } = await import('@releasekit/version');
+      const { loadConfig: loadVersionConfig, resolveCommitScope } = await import('@releasekit/version');
       const {
         versionOutputToChangelogInput,
         runPipeline,
@@ -107,7 +113,10 @@ export function createBackfillCommand(): Command {
       const force = options.force === true;
       const noLlm = options.llm === false;
 
-      const targets = await resolveTargets(options, cwd, versionConfig);
+      const workspace = await discoverWorkspace(versionConfig);
+      const targets = resolveTargets(options, cwd, workspace);
+      // Discovery applies the private filter and version.packages, so these are the packages that release on their own.
+      const releasableDirs = workspace.packages.map((p) => p.dir);
 
       let totalReleaseCount = 0;
       const releasesByTarget: Array<{
@@ -117,9 +126,17 @@ export function createBackfillCommand(): Command {
 
       // A first pass so the LLM cost estimate covers every target.
       for (const target of targets) {
+        const { scope, pathsError } = resolveCommitScope(target.pkgPath, versionConfig, {
+          repoRoot: workspace.root,
+          releasableDirs,
+        });
+        if (pathsError) {
+          warn(`Reading ${target.packageName}'s commits without a native manifest: ${pathsError.message}`);
+        }
         const reconstructed = await reconstructChangelogs({
           packageName: target.packageName,
           pkgPath: target.pkgPath,
+          commitScope: scope,
           repoUrl: target.repoUrl,
           versionPrefix: versionConfig?.versionPrefix,
           tagTemplate: versionConfig?.tagTemplate,
@@ -307,25 +324,27 @@ function countEnabledLlmTasks(tasks?: {
   return allTaskKeys.filter((k) => tasks[k] !== false).length;
 }
 
+async function discoverWorkspace(versionConfig: VersionConfig): Promise<Workspace> {
+  const { VersionEngine } = await import('@releasekit/version');
+  try {
+    const { root, packages }: Workspace = await new VersionEngine(versionConfig).getWorkspacePackages();
+    return { root, packages };
+  } catch (err) {
+    error(`Could not discover workspace packages: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(EXIT_CODES.GENERAL_ERROR);
+  }
+}
+
 /**
  * `--all` reuses the version stage's discovery, so it finds the packages a live release would (npm & pure-Cargo,
  * scoped by `config.packages`). Pub-only packages aren't discovered; pass those via `--package`.
  */
-async function resolveTargets(
+function resolveTargets(
   options: { all?: boolean; package?: string; path: string },
   cwd: string,
-  versionConfig: VersionConfig,
-): Promise<BackfillTarget[]> {
+  { packages }: Workspace,
+): BackfillTarget[] {
   if (options.all) {
-    const { VersionEngine } = await import('@releasekit/version');
-    // Minimal shape we consume: the version package's built types resolve loosely through re-exports.
-    let packages: Array<{ dir: string; packageJson: { name: string; repository?: unknown } }>;
-    try {
-      ({ packages } = await new VersionEngine(versionConfig).getWorkspacePackages());
-    } catch (err) {
-      error(`Could not discover workspace packages: ${err instanceof Error ? err.message : String(err)}`);
-      process.exit(EXIT_CODES.GENERAL_ERROR);
-    }
     const targets = packages
       .filter((p) => Boolean(p.packageJson.name))
       .map((p) => ({

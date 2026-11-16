@@ -455,7 +455,9 @@ releasekit-release backfill --all --apply
 releasekit-release backfill --package @scope/pkg --update-releases --only-missing --apply
 ```
 
-`--all` discovers every package a release would version — npm/JS workspaces, pure-Cargo crates, and pubspec-only Dart/Flutter packages, scoped by `version.packages` — using the version stage's own discovery, and backfills each; packages with no matching tags are skipped. It is mutually exclusive with `--package`. Tags are resolved per package (package-specific) or from the shared global series (sync/single), and each package's notes are scoped to its own directory's commits.
+`--all` discovers every package a release would version — npm/JS workspaces, pure-Cargo crates, and pubspec-only Dart/Flutter packages, scoped by `version.packages` — using the version stage's own discovery, and backfills each; packages with no matching tags are skipped. It is mutually exclusive with `--package`. Tags are resolved per package (package-specific) or from the shared global series (sync/single).
+
+Each package's notes come from the commits that touch its directory or a crate or Dart package it versions through `cargo.paths` or `pub.paths`. A nested package's commits count only if it never releases on its own (it's private or outside `version.packages`).
 
 `--update-releases` edits existing releases only (it never creates them) and skips any tag without a release. Backfilled bodies carry a `<!-- releasekit-notes -->` marker. By default a run updates bodies that are empty or carry the marker, and skips any other body as hand-edited unless `--force` is passed. `--only-missing` instead updates only bodies without the marker, so re-runs fill only new gaps.
 
