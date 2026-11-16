@@ -113,10 +113,11 @@ export async function assertNoUnreachableTags(series: TagSeries[], git: Git = cr
         ? await listSemverTags(entry.globalPrefix, git)
         : await listPackageTags(entry.packageName, entry.versionPrefix, entry.options, git);
     if (tag) {
+      const subject = 'globalPrefix' in entry ? 'No release tag' : `No release tag for ${entry.packageName}`;
       throw new StrictReachableError(
-        `No release tag is reachable from the current commit, but '${tag}' exists. ` +
-          `The checkout is likely shallow, or the tag is on another branch; fetch the full history (fetch-depth: 0). ` +
-          `To fall back instead, set strictReachable to false.`,
+        `${subject} is reachable from the current commit, but '${tag}' exists. ` +
+          `If the checkout is shallow, fetch the full history (fetch-depth: 0). ` +
+          `To version from the manifest instead, set strictReachable to false.`,
       );
     }
   }

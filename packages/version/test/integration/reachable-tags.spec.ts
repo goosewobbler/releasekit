@@ -165,7 +165,7 @@ describe('baseline tag reachability', () => {
 
         expect(result.status).not.toBe(0);
         expect(`${result.stdout}${result.stderr}`).toContain(
-          "No release tag is reachable from the current commit, but 'test-core@v1.0.0' exists",
+          "No release tag for @test/core is reachable from the current commit, but 'test-core@v1.0.0' exists",
         );
       },
     );

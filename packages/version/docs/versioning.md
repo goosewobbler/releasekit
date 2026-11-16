@@ -61,9 +61,7 @@ This allows you to maintain consistent versioning across JavaScript and Rust com
 
 `releasekit-version` uses a smart version source selection strategy to determine the base version for calculating the next version:
 
-1. First, it checks for Git tags:
-   - In normal mode: Uses the latest reachable tag, falling back to unreachable tags if needed
-   - In strict mode (`--strict-reachable`): Only uses reachable tags
+1. First, it checks for Git tags reachable from HEAD. A tag on an unmerged branch is ignored. When tags exist but none is reachable (typically a shallow clone), `version.strictReachable` fails the run; otherwise it falls back to the manifest version.
    
 2. Then, it checks manifest files (package.json, Cargo.toml):
    - Reads version from package.json if it exists
@@ -94,10 +92,9 @@ Scenario 2:
 Result: Uses v1.0.0 as base (versions equal, prefer Git)
 
 Scenario 3:
-- Git tag: unreachable v2.0.0
+- Git tags: v1.0.0, and v2.0.0 on an unmerged branch
 - package.json: 1.0.0
-Result: Uses 2.0.0 as base in normal mode (unreachable tag is newer)
-        Uses 1.0.0 as base in strict mode (unreachable tag ignored)
+Result: Uses v1.0.0 as base (the unreachable tag is ignored)
 ```
 
 ### Version Mismatch Detection

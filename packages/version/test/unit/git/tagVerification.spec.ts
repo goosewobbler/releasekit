@@ -1,6 +1,5 @@
 import { createFakeGit, type Git } from '@releasekit/git';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { StrictReachableError } from '../../../src/errors/strictReachableError.js';
 import { verifyTag } from '../../../src/git/tagVerification.js';
 import { log } from '../../../src/utils/logging.js';
 import { getBestVersionSource, VersionMismatchError } from '../../../src/utils/versionUtils.js';
@@ -103,7 +102,6 @@ describe('Tag Verification', () => {
         '1.1.0',
         '/test/path',
         'error',
-        false,
         gitWithReachableTag('v1.0.0'),
       );
 
@@ -119,14 +117,7 @@ describe('Tag Verification', () => {
     });
 
     it('should use git tag when it is newer than package version', async () => {
-      const result = await getBestVersionSource(
-        'v1.2.0',
-        '1.0.0',
-        '/test/path',
-        'warn',
-        false,
-        gitWithReachableTag('v1.2.0'),
-      );
+      const result = await getBestVersionSource('v1.2.0', '1.0.0', '/test/path', 'warn', gitWithReachableTag('v1.2.0'));
 
       expect(result.source).toBe('git');
       expect(result.version).toBe('v1.2.0');
@@ -143,7 +134,6 @@ describe('Tag Verification', () => {
         '1.0.0',
         '/test/path',
         'error',
-        false,
         gitWithReachableTag('v1.0.0'),
       );
 
@@ -155,7 +145,7 @@ describe('Tag Verification', () => {
     });
 
     it('should fallback to package version when tag is unreachable', async () => {
-      const result = await getBestVersionSource('v1.0.0', '1.0.0', '/test/path', 'error', false, gitWithMissingTag());
+      const result = await getBestVersionSource('v1.0.0', '1.0.0', '/test/path', 'error', gitWithMissingTag());
 
       expect(result).toEqual({
         source: 'package',
@@ -166,28 +156,6 @@ describe('Tag Verification', () => {
         "Git tag 'v1.0.0' unreachable (Ref 'v1.0.0' not found in repository), using package version: 1.0.0",
         'warning',
       );
-    });
-
-    it('should throw a StrictReachableError when tag is unreachable and strictReachable is true', async () => {
-      await expect(
-        getBestVersionSource('v1.0.0', '1.0.0', '/test/path', 'error', true, gitWithMissingTag()),
-      ).rejects.toBeInstanceOf(StrictReachableError);
-    });
-
-    it('should throw error when tag is unreachable, strictReachable is true, and no package version', async () => {
-      await expect(
-        getBestVersionSource('v1.0.0', undefined, '/test/path', 'error', true, gitWithMissingTag()),
-      ).rejects.toThrow("Git tag 'v1.0.0' is not reachable from the current commit");
-    });
-
-    it('should fallback to package version when strictReachable is false (default)', async () => {
-      const result = await getBestVersionSource('v1.0.0', '1.0.0', '/test/path', 'error', false, gitWithMissingTag());
-
-      expect(result).toEqual({
-        source: 'package',
-        version: '1.0.0',
-        reason: 'Git tag unreachable',
-      });
     });
 
     it('should use package version when no tag provided', async () => {
@@ -211,7 +179,7 @@ describe('Tag Verification', () => {
     });
 
     it('should use initial version when tag unreachable and no package version', async () => {
-      const result = await getBestVersionSource('v1.0.0', undefined, '/test/path', 'error', false, gitWithMissingTag());
+      const result = await getBestVersionSource('v1.0.0', undefined, '/test/path', 'error', gitWithMissingTag());
 
       expect(result).toEqual({
         source: 'initial',
@@ -250,7 +218,6 @@ describe('Tag Verification', () => {
         '1.1.0',
         '/test/path',
         'error',
-        false,
         gitWithReachableTag('my-package@v1.0.0'),
       );
 
@@ -267,7 +234,6 @@ describe('Tag Verification', () => {
         'invalid-version',
         '/test/path',
         'error',
-        false,
         gitWithReachableTag('v1.0.0'),
       );
 
@@ -288,7 +254,6 @@ describe('Tag Verification', () => {
         undefined,
         '/test/path',
         'error',
-        false,
         gitWithReachableTag('v1.0.0'),
       );
 
@@ -306,7 +271,6 @@ describe('Tag Verification', () => {
           '1.0.0-beta.1',
           '/test/path',
           'warn',
-          false,
           gitWithReachableTag('v1.0.0'),
         );
 
@@ -323,7 +287,6 @@ describe('Tag Verification', () => {
           '1.0.0-beta.1',
           '/test/path',
           'prefer-package',
-          false,
           gitWithReachableTag('v1.0.0'),
         );
 
@@ -334,13 +297,13 @@ describe('Tag Verification', () => {
 
       it('should throw VersionMismatchError on mismatch with error strategy', async () => {
         await expect(
-          getBestVersionSource('v1.0.0', '1.0.0-beta.1', '/test/path', 'error', false, gitWithReachableTag('v1.0.0')),
+          getBestVersionSource('v1.0.0', '1.0.0-beta.1', '/test/path', 'error', gitWithReachableTag('v1.0.0')),
         ).rejects.toThrow(VersionMismatchError);
       });
 
       it('should throw VersionMismatchError by default (error is the default strategy)', async () => {
         await expect(
-          getBestVersionSource('v1.0.0', '1.0.0-beta.1', '/test/path', 'error', false, gitWithReachableTag('v1.0.0')),
+          getBestVersionSource('v1.0.0', '1.0.0-beta.1', '/test/path', 'error', gitWithReachableTag('v1.0.0')),
         ).rejects.toThrow(VersionMismatchError);
       });
 
@@ -350,7 +313,6 @@ describe('Tag Verification', () => {
           '1.0.0',
           '/test/path',
           'warn',
-          false,
           gitWithReachableTag('v2.0.0'),
         );
 
@@ -365,7 +327,6 @@ describe('Tag Verification', () => {
           '1.0.0',
           '/test/path',
           'warn',
-          false,
           gitWithReachableTag('v1.5.0'),
         );
 
@@ -380,7 +341,6 @@ describe('Tag Verification', () => {
           '1.0.0',
           '/test/path',
           'error',
-          false,
           gitWithReachableTag('v1.0.5'),
         );
 
@@ -394,7 +354,6 @@ describe('Tag Verification', () => {
           '1.0.0',
           '/test/path',
           'warn',
-          false,
           gitWithReachableTag('v1.0.0-beta.1'),
         );
 
@@ -411,7 +370,6 @@ describe('Tag Verification', () => {
           '1.0.0',
           '/test/path',
           'ignore',
-          false,
           gitWithReachableTag('v2.0.0'),
         );
 
@@ -426,7 +384,6 @@ describe('Tag Verification', () => {
           '1.0.0-beta.1',
           '/test/path',
           'prefer-git',
-          false,
           gitWithReachableTag('v1.0.0'),
         );
 

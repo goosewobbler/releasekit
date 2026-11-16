@@ -146,7 +146,6 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
     versionPrefix,
     prereleaseIdentifier: configPrereleaseIdentifier,
     mismatchStrategy,
-    strictReachable,
   } = config;
 
   const {
@@ -215,7 +214,6 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         packageVersion,
         packageDir,
         mismatchStrategy,
-        strictReachable && !config.baseRef,
       );
       log(`Using version source: ${versionSource.source} (${versionSource.reason})`, 'info');
       log(`Version source version: ${versionSource.version}`, 'debug');
