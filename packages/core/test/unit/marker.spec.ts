@@ -68,6 +68,18 @@ describe('marker region', () => {
       closed: false,
     });
   });
+
+  it('should count an opener or closer only on a line of its own', () => {
+    const body = `x ${open} y\n${open}\n\nnotes with a ${close} inside\n\n${close}`;
+    expect(extractMarkerRegion(body, open, close)).toEqual({ content: `notes with a ${close} inside`, closed: true });
+  });
+
+  it('should read CRLF line endings and indented markers', () => {
+    expect(extractMarkerRegion(`  ${open} \r\n\r\nnotes\r\n\r\n\t${close}\r\n`, open, close)).toEqual({
+      content: 'notes',
+      closed: true,
+    });
+  });
 });
 
 describe('neutralizeMarkers', () => {

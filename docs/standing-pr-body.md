@@ -4,7 +4,7 @@ In standing-PR mode, releasekit keeps one open pull request describing the next 
 
 ## The regions
 
-Every input in the body is delimited by an HTML comment marker. **The markers are the contract.** The bot never parses the surrounding prose — it slices between markers and, for checkboxes, reads only the `[x]` / `[ ]` glyph on the marker's own line. That means you can reword a row's visible label freely; you cannot move, edit, or delete its marker.
+Every input in the body is delimited by an HTML comment marker. **The markers are the contract.** The bot never parses the surrounding prose — it slices between region markers, each on a line of its own, and for checkboxes reads only the `[x]` / `[ ]` glyph of a `- [ ]` row that ends with the marker. That means you can reword a row's visible label freely; you cannot move, edit, or delete its marker.
 
 | Marker | What it is | What an edit does |
 |---|---|---|

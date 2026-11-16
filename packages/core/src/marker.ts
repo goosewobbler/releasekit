@@ -4,24 +4,38 @@ export interface MarkerRegion {
   closed: boolean;
 }
 
-/** Bodies are untrusted, so this slices with `indexOf`: a backtracking regex would be a ReDoS risk. */
+/**
+ * Reads a region written by {@link wrapMarkerRegion}. The opener and closer count only as a whole line, so a marker
+ * copied into the content can't end the region early. Line endings and the whitespace around each marker line are
+ * ignored, as GitHub's editor may change them.
+ */
 export function extractMarkerRegion(body: string, open: string, close: string): MarkerRegion | undefined {
-  const start = body.indexOf(open);
+  const lines = body.replaceAll('\r', '').split('\n');
+  const start = lines.findIndex((line) => line.trim() === open);
   if (start === -1) {
     return undefined;
   }
-  const from = start + open.length;
-  const end = body.indexOf(close, from);
-  if (end === -1) {
-    return { content: body.slice(from).trim(), closed: false };
-  }
-  return { content: body.slice(from, end).trim(), closed: true };
+  const end = lines.findIndex((line, i) => i > start && line.trim() === close);
+  const closed = end !== -1;
+  const content = lines.slice(start + 1, closed ? end : undefined).join('\n');
+  return { content: content.trim(), closed };
 }
 
 export interface MarkerData<T> {
   encode(value: T): string;
   /** Null when the marker is absent or malformed. */
   decode(body: string): T | null;
+}
+
+/** Bodies are untrusted, so this slices with `indexOf`: a backtracking regex would be a ReDoS risk. */
+function sliceInlineMarker(body: string, open: string, close: string): string | undefined {
+  const start = body.indexOf(open);
+  if (start === -1) {
+    return undefined;
+  }
+  const from = start + open.length;
+  const end = body.indexOf(close, from);
+  return end === -1 ? undefined : body.slice(from, end).trim();
 }
 
 export function markerData<T>(opts: {
@@ -39,8 +53,8 @@ export function markerData<T>(opts: {
       return `${open}${opts.serialize(value)}${close}`;
     },
     decode(body) {
-      const payload = extractMarkerRegion(body, open, close);
-      return payload?.closed ? opts.deserialize(payload.content) : null;
+      const payload = sliceInlineMarker(body, open, close);
+      return payload === undefined ? null : opts.deserialize(payload);
     },
   };
 }

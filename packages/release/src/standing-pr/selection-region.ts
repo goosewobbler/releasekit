@@ -519,9 +519,47 @@ export function renderSyncGraduation(version: string, ticked: boolean): string {
   return `- ${checkbox(ticked)} graduate to stable → ${version} ${RK_GRAD_SYNC_MARKER}`;
 }
 
+/** A task-list row's checkbox state, `undefined` for any other line. GitHub renders `[X]` as ticked too. */
+function rowTicked(line: string): boolean | undefined {
+  if (line.startsWith('- [ ]')) {
+    return false;
+  }
+  return line.startsWith('- [x]') || line.startsWith('- [X]') ? true : undefined;
+}
+
 export function extractSyncGraduation(body: string): boolean {
-  const line = body.split('\n').find((l) => l.includes(RK_GRAD_SYNC_MARKER));
-  return !!line && line.slice(0, line.indexOf(RK_GRAD_SYNC_MARKER)).includes('[x]');
+  for (const raw of body.split('\n')) {
+    const line = raw.trim();
+    const ticked = rowTicked(line);
+    if (ticked !== undefined && line.endsWith(RK_GRAD_SYNC_MARKER)) {
+      return ticked;
+    }
+  }
+  return false;
+}
+
+const MARKER_CLOSE = ' -->';
+
+/**
+ * A marker counts only at the end of a task-list row, so one copied into a row's changelog (always behind a `>`) or
+ * into the middle of a line can't forge a row.
+ */
+function markerHits(region: string, marker: string): Array<{ name: string; ticked: boolean }> {
+  const open = `<!-- ${marker}:`;
+  const hits: Array<{ name: string; ticked: boolean }> = [];
+  for (const raw of region.split('\n')) {
+    const line = raw.trim();
+    const ticked = rowTicked(line);
+    if (ticked === undefined || !line.endsWith(MARKER_CLOSE)) {
+      continue;
+    }
+    const markerStart = line.lastIndexOf(open);
+    if (markerStart === -1) {
+      continue;
+    }
+    hits.push({ name: line.slice(markerStart + open.length, -MARKER_CLOSE.length), ticked });
+  }
+  return hits;
 }
 
 /** `undefined` when the body has no selection region (a sync release, or a body predating the feature). */
@@ -530,48 +568,11 @@ export function extractSelection(body: string): { deselected: string[] } | undef
   if (region === undefined) {
     return undefined;
   }
-
-  const deselected: string[] = [];
-  for (const line of region.split('\n')) {
-    const markerStart = line.indexOf('<!-- rk-sel:');
-    if (markerStart === -1) {
-      continue;
-    }
-    const nameStart = markerStart + '<!-- rk-sel:'.length;
-    const nameEnd = line.indexOf(' -->', nameStart);
-    if (nameEnd === -1) {
-      continue;
-    }
-    const name = line.slice(nameStart, nameEnd);
-    // Selected unless explicitly empty; a fixed substring check, not a backtracking regex.
-    if (line.slice(0, markerStart).includes('[ ]')) {
-      deselected.push(name);
-    }
-  }
-  return { deselected };
-}
-
-function markerHits(region: string, marker: string): Array<{ name: string; ticked: boolean; unticked: boolean }> {
-  const open = `<!-- ${marker}:`;
-  const hits: Array<{ name: string; ticked: boolean; unticked: boolean }> = [];
-  for (const line of region.split('\n')) {
-    const markerStart = line.indexOf(open);
-    if (markerStart === -1) {
-      continue;
-    }
-    const nameStart = markerStart + open.length;
-    const nameEnd = line.indexOf(' -->', nameStart);
-    if (nameEnd === -1) {
-      continue;
-    }
-    const before = line.slice(0, markerStart);
-    hits.push({
-      name: line.slice(nameStart, nameEnd),
-      ticked: before.includes('[x]'),
-      unticked: before.includes('[ ]'),
-    });
-  }
-  return hits;
+  return {
+    deselected: markerHits(region, 'rk-sel')
+      .filter((h) => !h.ticked)
+      .map((h) => h.name),
+  };
 }
 
 export interface ChannelSelection {
@@ -589,7 +590,7 @@ export function extractChannelSelection(body: string): ChannelSelection {
     return { prereleased: [], graduated: [], graduationRows: [] };
   }
   const rows = markerHits(region, 'rk-sel');
-  const heldBack = new Set(rows.filter((h) => h.unticked).map((h) => h.name));
+  const heldBack = new Set(rows.filter((h) => !h.ticked).map((h) => h.name));
   const hasRow = new Set(rows.map((h) => h.name));
   const pick = (marker: string): string[] =>
     markerHits(region, marker)
