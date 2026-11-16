@@ -1,7 +1,9 @@
 import { createGitCli, type Git } from '@releasekit/git';
 import semver from 'semver';
+import { escapeRegExp } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
+import { versionFromTag } from '../utils/versionAction.js';
 
 const RELEASE_COMMIT_PREFIX = 'chore: release ';
 
@@ -19,18 +21,18 @@ export async function findStrandedRelease(
   git: Git = createGitCli(),
 ): Promise<StrandedRelease | undefined> {
   const manifest = getVersionFromManifests(pkgDir);
-  const tagVersion = semver.valid(latestTag.match(/\d{1,16}\.\d{1,16}\.\d{1,16}(?:-[0-9A-Za-z.-]{1,256})?$/)?.[0]);
+  const tagVersion = versionFromTag(latestTag);
   if (!manifest.version || !tagVersion || !semver.valid(manifest.version) || !semver.gt(manifest.version, tagVersion)) {
     return undefined;
   }
 
   let output: string;
   try {
-    // `-S`: the newest commit that added or removed the version string, so the one that set it.
+    // The newest commit that added or removed a line holding exactly this version (not `1.3.0-beta.1` for `1.3.0`).
     output = await git.log({
       range: `${latestTag}..HEAD`,
       format: '%H%x1f%s',
-      extraArgs: ['-1', `-S${manifest.version}`],
+      extraArgs: ['-1', `-G(^|[^0-9.])${escapeRegExp(manifest.version)}($|[^-+.0-9A-Za-z])`],
       paths: [manifest.manifestPath],
       cwd: pkgDir,
     });

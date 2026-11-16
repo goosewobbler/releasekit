@@ -12,6 +12,7 @@ import type { Config, VersionOptions } from '../types.js';
 import { buildTagStripPatternFromTemplate, deriveBaselineTagPrefix, escapeRegExp } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
+import { versionFromTag } from '../utils/versionAction.js';
 import {
   bumpVersion,
   getBestVersionSource,
@@ -123,7 +124,23 @@ function guardFirstReleaseBump(config: Config, name: string | undefined, current
 
 export async function calculateVersion(config: Config, options: VersionOptions): Promise<string> {
   const scoped = applyOverrideScope(config, options);
-  return calculateVersionInner(scoped.config, scoped.options);
+  const scopedConfig = options.stranded
+    ? withStrandedChannel(scoped.config, options.stranded.version, options.latestTag)
+    : scoped.config;
+  return calculateVersionInner(scopedConfig, scoped.options);
+}
+
+/** The channel label that moved a stranded release onto or off a prerelease line isn't on the next standing PR. */
+function withStrandedChannel(config: Config, strandedVersion: string, latestTag: string): Config {
+  const strandedId = prereleaseIdOf(strandedVersion);
+  const tagIsPrerelease = semver.prerelease(versionFromTag(latestTag) ?? '') !== null;
+  if (strandedId && !tagIsPrerelease) {
+    return { ...config, isPrerelease: true, prereleaseIdentifier: strandedId };
+  }
+  if (!strandedId && tagIsPrerelease) {
+    return { ...config, stableOnly: true };
+  }
+  return config;
 }
 
 async function calculateVersionInner(config: Config, options: VersionOptions): Promise<string> {
@@ -387,6 +404,9 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       }
 
       log(`Checking if conventional commits indicate bump`, 'debug');
+      if (!releaseTypeFromCommits && options.stranded) {
+        return options.stranded.version;
+      }
       if (!releaseTypeFromCommits) {
         log(`No release type from commits`, 'debug');
         if (latestTag && latestTag.trim() !== '') {

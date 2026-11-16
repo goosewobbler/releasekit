@@ -15,10 +15,10 @@ import { createWorkspaceRepo } from '../utils/workspace.js';
 
 let tempDir: string;
 
-function createRepo(config: Record<string, unknown>, tags: string[], packages = ['pkg-a']) {
+function createRepo(config: Record<string, unknown>, tags: string[], packages = ['pkg-a'], version = '1.2.0') {
   tempDir = createWorkspaceRepo('rk-stranded-', {
     packages: Object.fromEntries(packages.map((pkg) => [pkg, pkg])),
-    version: '1.2.0',
+    version,
     config: { preset: 'conventionalcommits', versionPrefix: 'v', ...config },
     tags,
   });
@@ -104,6 +104,35 @@ describe('stranded release', () => {
 
       expect(output.updates.map((u) => u.newVersion)).toEqual(['2.0.0']);
       expect(changelogOf(output, 'pkg-a')?.entries.map((e) => e.description)).toEqual(['drop the old API']);
+    });
+
+    it('should propose a stranded version again when the release commit is its only change', () => {
+      createRepo(perPackage, ['pkg-a@v1.2.0', 'pkg-b@v1.2.0'], ['pkg-a', 'pkg-b']);
+      commitTo('packages/pkg-a', 'feat', 'add a widget');
+      strand({ 'packages/pkg-a': '1.3.0', 'packages/pkg-b': '1.2.1' });
+
+      const output = runVersionJson(tempDir);
+
+      expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([
+        ['pkg-a', '1.3.0'],
+        ['pkg-b', '1.2.1'],
+      ]);
+    });
+
+    it('should keep a stranded graduation stable', () => {
+      createRepo(perPackage, ['pkg-a@v1.3.0-beta.1'], ['pkg-a'], '1.3.0-beta.1');
+      commitTo('packages/pkg-a', 'fix', 'mend the widget');
+      strand({ 'packages/pkg-a': '1.3.0' });
+
+      expect(runVersionJson(tempDir).updates.map((u) => u.newVersion)).toEqual(['1.3.0']);
+    });
+
+    it('should keep a stranded first prerelease on its prerelease line', () => {
+      createRepo(perPackage, ['pkg-a@v1.2.0']);
+      commitTo('packages/pkg-a', 'feat', 'add a widget');
+      strand({ 'packages/pkg-a': '1.3.0-next.0' });
+
+      expect(runVersionJson(tempDir).updates.map((u) => u.newVersion)).toEqual(['1.3.0-next.0']);
     });
 
     it('should bump on top of a version ahead of its tag that no release commit set', () => {

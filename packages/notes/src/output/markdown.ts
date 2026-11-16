@@ -249,14 +249,11 @@ export interface FormatVersionOptions {
   refs?: ChangelogRefsMode;
 }
 
-function formatVersionLabel(packageName: string, version: string, options?: FormatVersionOptions): string {
-  return options?.includePackageName && packageName ? `${packageName}@${version}` : version;
-}
-
 export function formatVersion(context: TemplateContext, options?: FormatVersionOptions): string {
   const refOpts: EntryRefOptions = { refs: options?.refs ?? 'link', repoUrl: context.repoUrl };
 
-  const versionLabel = formatVersionLabel(context.packageName, context.version, options);
+  const versionLabel =
+    options?.includePackageName && context.packageName ? `${context.packageName}@${context.version}` : context.version;
   const versionHeader = context.previousVersion ? `## [${versionLabel}]` : `## ${versionLabel}`;
 
   const blocks = [`${versionHeader} - ${context.date}`];
@@ -321,17 +318,23 @@ export function renderMarkdown(contexts: TemplateContext[], options?: FormatVers
   return sections.join('\n');
 }
 
-/** Finds the section by the heading {@link formatVersion} writes, so one a custom template wrote is left in place. */
-function removeVersionSection(content: string, label: string, filePath: string): string {
-  const headings = [`## [${label}]`, `## ${label}`];
+/**
+ * Finds the section by the heading {@link formatVersion} writes, so one a custom template wrote is left in place. The
+ * release that wrote it may have prefixed the package name when this one doesn't, so that heading is tried first.
+ */
+function removeVersionSection(content: string, packageName: string, version: string, filePath: string): string {
+  const labels = [...new Set([`${packageName}@${version}`, version])];
   const lines = content.split('\n');
-  const start = lines.findIndex((line) => headings.some((h) => line === h || line.startsWith(`${h} `)));
-  if (start === -1) {
-    warn(`${filePath} has no section for unpublished ${label} to replace; remove it by hand if it has one`);
-    return content;
+  for (const label of labels) {
+    const headings = [`## [${label}]`, `## ${label}`];
+    const start = lines.findIndex((line) => headings.some((h) => line === h || line.startsWith(`${h} `)));
+    if (start !== -1) {
+      const next = lines.findIndex((line, i) => i > start && line.startsWith('## '));
+      return [...lines.slice(0, start), ...(next === -1 ? [] : lines.slice(next))].join('\n');
+    }
   }
-  const next = lines.findIndex((line, i) => i > start && line.startsWith('## '));
-  return [...lines.slice(0, start), ...(next === -1 ? [] : lines.slice(next))].join('\n');
+  warn(`${filePath} has no section for unpublished ${version} to replace; remove it by hand if it has one`);
+  return content;
 }
 
 export function prependVersions(
@@ -342,11 +345,7 @@ export function prependVersions(
   let existing = fs.existsSync(existingPath) ? fs.readFileSync(existingPath, 'utf-8') : '';
   for (const context of contexts) {
     if (context.supersedes && existing.trim() !== '') {
-      existing = removeVersionSection(
-        existing,
-        formatVersionLabel(context.packageName, context.supersedes, options),
-        existingPath,
-      );
+      existing = removeVersionSection(existing, context.packageName, context.supersedes, existingPath);
     }
   }
   if (existing.trim() === '') {

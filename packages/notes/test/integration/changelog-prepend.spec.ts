@@ -193,6 +193,16 @@ describe('Pipeline: a release that supersedes an unpublished version', () => {
     expect(out).toContain(OLD_RELEASE);
   });
 
+  it('should replace a section the earlier release headed with the package name', async () => {
+    const prefixed = STRANDED.replace('## [1.3.0]', '## [my-lib@1.3.0]');
+
+    const { out, warnings } = await supersede('1.3.0', ['add a widget'], `${HEADER}\n${prefixed}\n${OLD_RELEASE}`);
+
+    expect(out).not.toContain('## [my-lib@1.3.0]');
+    expect(out.match(/- add a widget/g)).toHaveLength(1);
+    expect(warnings).toEqual([]);
+  });
+
   it('should leave a file without that heading as it is, and warn', async () => {
     const custom = `${HEADER}\n## v1.3.0 (2026-01-20)\n\n- add a widget\n\n${OLD_RELEASE}`;
 
