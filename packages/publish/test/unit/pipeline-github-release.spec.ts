@@ -149,6 +149,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
   afterEach(() => {
     process.chdir(originalCwd);
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     fs.rmSync(workspace, { recursive: true, force: true });
   });
 
@@ -339,6 +340,21 @@ describe('GitHub release bodies in the publish pipeline', () => {
     };
     return recordChangelogTags(input);
   }
+
+  it('should link refs to the workflow repository when the changelog has no repo URL', async () => {
+    vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
+    const input = syncInput('v1.2.3');
+    input.changelogs = [
+      {
+        ...changelog('monorepo', ''),
+        entries: [{ type: 'fixed', description: 'Fix it', prNumber: '42', issueIds: ['#42'] }],
+      },
+    ];
+
+    await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
+
+    expect(releaseBodies()).toEqual({ 'v1.2.3': '- Fix it (PR [#42](https://github.com/owner/repo/pull/42))' });
+  });
 
   it.each([
     ['a lockstep carry', true],

@@ -206,6 +206,12 @@ function withoutPlaceholders(changelogs: VersionPackageChangelog[]): VersionPack
   }));
 }
 
+/** Without a repo URL, refs render as escaped plain text instead of links. */
+function repoUrlFallback(input: VersionOutput): string | null {
+  const repository = process.env.GITHUB_REPOSITORY;
+  return input.changelogs.find((c) => c.repoUrl)?.repoUrl ?? (repository ? `https://github.com/${repository}` : null);
+}
+
 function formatChangelogForTag(
   release: ReleaseTag,
   changelogs: VersionPackageChangelog[] = release.input.changelogs,
@@ -220,8 +226,9 @@ function formatChangelogForTag(
     return undefined;
   }
 
+  const repoUrl = target.repoUrl ?? repoUrlFallback(release.input);
   return breakingFirst(target.entries)
-    .map((entry) => renderChangelogEntryLine(entry, 'link', target.repoUrl))
+    .map((entry) => renderChangelogEntryLine(entry, 'link', repoUrl))
     .join('\n');
 }
 
