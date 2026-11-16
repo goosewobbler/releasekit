@@ -1,19 +1,24 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { info, success } from '@releasekit/core';
-import type { TemplateContext } from '../core/types.js';
+import { detectMonorepo } from '../monorepo/aggregator.js';
+
+/** `packageCount` is the release's, not the run's: see `writeVersionedNotes`. */
+export function nestsReleaseNotes(packageCount: number): boolean {
+  return detectMonorepo(process.cwd()).isMonorepo || packageCount > 1;
+}
 
 /**
  * `nested` MUST reflect whether the *repo* has more than one package - not how many packages are in
  * this run. An independently-versioned monorepo releases one package per pipeline invocation, so a
  * flat path would silently overwrite another package that shares a version number.
  */
-export function writeVersionedNotes(
-  contexts: TemplateContext[],
+export function writeVersionedNotes<T extends { packageName: string; version: string }>(
+  contexts: T[],
   directory: string,
   dryRun: boolean,
   nested: boolean,
-  renderContent: (ctx: TemplateContext) => string,
+  renderContent: (ctx: T) => string,
 ): string[] {
   const written: string[] = [];
 

@@ -26,6 +26,8 @@ export interface ReleaseOptions {
   skipReleaseNotes?: boolean;
   /** CHANGELOG.md only; release notes are still generated. */
   skipChangelogs?: boolean;
+  /** Generate release notes only for these packages, and no changelogs. */
+  releaseNotesFor?: string[];
   skipPublish: boolean;
   skipGit: boolean;
   skipGitCommit?: boolean;

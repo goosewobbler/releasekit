@@ -34,7 +34,15 @@ import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
 import { changelogRenderOptions, makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
 import { graduationOvershoot, lockstepGroupOf } from './graduation.js';
-import { extractNotesRegions, mergeNotesRegions, notesRegionKeys, renderNotesRegion } from './notes-region.js';
+import { extractNotesRegions, notesRegionKeys, renderNotesRegion } from './notes-region.js';
+import {
+  type NotesRegionStates,
+  notesRegionState,
+  planNotesRegions,
+  publishableNotesRegions,
+  releaseNotesInputHashes,
+  writeRegionNotesFiles,
+} from './notes-state.js';
 import {
   type ChannelSelection,
   type ChannelToggleConfig,
@@ -108,6 +116,12 @@ const ManifestSchema = z
     graduationRows: z.array(z.string()).optional(),
     graduationHolds: z.array(z.string()).optional(),
     prereleased: z.array(z.string()).optional(),
+    notesRegions: z
+      .record(
+        z.string(),
+        z.object({ inputHash: z.string(), renderedHash: z.string(), truncated: z.boolean().optional() }),
+      )
+      .optional(),
   })
   .passthrough();
 
@@ -176,6 +190,8 @@ export interface StandingPRManifest {
    * only - `versionOutput` already holds the prerelease versions.
    */
   prereleased?: string[];
+  /** Per notes key, what the update last wrote into its region. A key without state is treated as edited. */
+  notesRegions?: NotesRegionStates;
 }
 
 async function getHeadSha(cwd: string): Promise<string> {
@@ -1369,21 +1385,40 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return closeEmptyQueue(existingStandingPr, forge);
   }
 
-  const notesKeys = notesRegionKeys(versionOutput);
-  let editedNotes: Record<string, string> = {};
-  if (previewNotesEnabled && liveBody) {
-    editedNotes = extractNotesRegions(liveBody, versionOutput);
-  }
-
-  // Notes are seeded once when the label is applied, then preserved, so skip the LLM when every notes key has a region.
-  info('Generating changelog...');
-  const allNotesKeysHaveRegions = notesKeys.length > 0 && notesKeys.every((key) => Object.hasOwn(editedNotes, key));
-  const generateReleaseNotes = previewNotesEnabled && !allNotesKeysHaveRegions;
-  const notesOptions = { ...writeOptions, skipNotes: false, skipReleaseNotes: !generateReleaseNotes };
   const countableUpdates = publishableUpdates(versionOutput);
   const count = countableUpdates.length;
+
+  const notesInputHashes = releaseNotesInputHashes(versionOutput, releaseKitConfig.notes);
+  const notesPlan = planNotesRegions(
+    previewNotesEnabled ? notesRegionKeys(versionOutput) : [],
+    previewNotesEnabled && liveBody ? extractNotesRegions(liveBody, versionOutput) : {},
+    existingManifest?.notesRegions,
+    notesInputHashes,
+  );
+
+  info('Generating changelog...');
   const notesResult: NotesStepResult =
-    count > 0 ? await runNotesStep(versionOutput, notesOptions) : { packageNotes: {}, files: [] };
+    count > 0
+      ? await runNotesStep(versionOutput, { ...writeOptions, skipNotes: false, skipReleaseNotes: true })
+      : { packageNotes: {}, files: [] };
+  const notesFiles = [...notesResult.files];
+  const generatedNotes: Record<string, string> = {};
+  if (count > 0 && notesPlan.generate.length > 0) {
+    info(`Generating release notes for ${notesPlan.generate.length} package(s)...`);
+    const generated = await runNotesStep(versionOutput, {
+      ...writeOptions,
+      skipNotes: false,
+      skipReleaseNotes: false,
+      releaseNotesFor: notesPlan.generate,
+    });
+    notesFiles.push(...generated.files);
+    for (const key of notesPlan.generate) {
+      const notes = generated.releaseNotes?.[key];
+      if (notes) {
+        generatedNotes[key] = notes;
+      }
+    }
+  }
 
   const firstUpdate = countableUpdates[0];
   const isSync = versionOutput.strategy === 'sync';
@@ -1442,10 +1477,14 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // Accepted race: a human edit landing between the body read above and the update below is overwritten; updates
   // are infrequent enough not to warrant optimistic concurrency.
   let notesRegion: string | undefined;
+  const notesRegionStates: NotesRegionStates = { ...notesPlan.keptStates };
   if (previewNotesEnabled) {
-    const merged = mergeNotesRegions(notesResult.releaseNotes ?? {}, editedNotes);
-    if (Object.keys(merged).length > 0) {
-      notesRegion = renderNotesRegion(merged);
+    for (const [key, notes] of Object.entries(generatedNotes)) {
+      notesRegionStates[key] = notesRegionState(key, notes, notesInputHashes[key] ?? '');
+    }
+    const regions = { ...generatedNotes, ...notesPlan.kept };
+    if (Object.keys(regions).length > 0) {
+      notesRegion = renderNotesRegion(regions);
     }
   }
 
@@ -1590,9 +1629,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const manifest: StandingPRManifest = {
     schemaVersion: 2,
     versionOutput,
-    // Publish regenerates notes against the merged commit set; caching them here would only risk drift.
+    // Publish reads the notes from the body; `notesRegions` holds only hashes, as the comment has a size limit.
     releaseNotes: {},
-    notesFiles: notesResult.files,
+    notesFiles,
     createdAt: new Date().toISOString(),
     baseSha,
     headSha: releaseBranchSha,
@@ -1603,6 +1642,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     graduationRows: rowGraduated.length > 0 ? rowGraduated : undefined,
     graduationHolds: graduationHolds.length > 0 ? graduationHolds : undefined,
     prereleased: writePrereleaseScope.length > 0 ? [...writePrereleaseScope].sort() : undefined,
+    notesRegions: Object.keys(notesRegionStates).length > 0 ? notesRegionStates : undefined,
   };
 
   await forge.upsertMarkerComment(prNumber, MANIFEST_MARKER, serializeManifest(manifest));
@@ -2009,27 +2049,31 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   };
 
   // From the body, not the manifest: the manifest holds machine state only.
-  let editedNotes: Record<string, string> = {};
-  if (livePr) {
-    editedNotes = extractNotesRegions(livePr.body ?? '', manifest.versionOutput);
-  }
+  const regionNotes = livePr
+    ? publishableNotesRegions(extractNotesRegions(livePr.body ?? '', manifest.versionOutput), manifest.notesRegions)
+    : {};
+  const notesToGenerate = notesRegionKeys(manifest.versionOutput).filter((key) => !Object.hasOwn(regionNotes, key));
 
   let releaseNotes: Record<string, string> = {};
-  let notesFiles: string[] = [...manifest.notesFiles];
-  // Changelogs are already on main from the merge; only new per-version notes files need committing.
-  let newFiles: string[] = [];
-  try {
-    info('Generating release notes (with LLM enhancement)...');
-    const notesResult = await runNotesStep(manifest.versionOutput, notesGenerationOptions);
-    releaseNotes = notesResult.releaseNotes ?? {};
-    newFiles = notesResult.files.filter((f) => !manifest.notesFiles.includes(f));
-    notesFiles = [...notesFiles, ...newFiles];
-  } catch (err) {
-    warn(`Release notes generation failed: ${err instanceof Error ? err.message : String(err)}`);
-    warn('Publish will proceed without release notes; GitHub release bodies use the githubRelease.body fallback.');
+  const newFiles: string[] = [];
+  if (notesToGenerate.length > 0) {
+    try {
+      info('Generating release notes (with LLM enhancement)...');
+      const notesResult = await runNotesStep(manifest.versionOutput, {
+        ...notesGenerationOptions,
+        releaseNotesFor: notesToGenerate,
+      });
+      releaseNotes = notesResult.releaseNotes ?? {};
+      newFiles.push(...notesResult.files);
+    } catch (err) {
+      warn(`Release notes generation failed: ${err instanceof Error ? err.message : String(err)}`);
+      warn('Publish will proceed without release notes; GitHub release bodies use the githubRelease.body fallback.');
+    }
   }
+  newFiles.push(...(await writeRegionNotesFiles(regionNotes, manifest.versionOutput, releaseKitConfig.notes)));
+  const notesFiles = [...new Set([...manifest.notesFiles, ...newFiles])];
 
-  // So main matches the GitHub release body.
+  // So main matches the GitHub release body. The update may have written some of these files with other text.
   if (newFiles.length > 0) {
     const formatCommand = releaseKitConfig.publish?.git?.formatCommand ?? releaseKitConfig.git?.formatCommand;
     if (formatCommand) {
@@ -2038,10 +2082,9 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     await commitNotesFiles(newFiles, manifest.versionOutput, cwd);
   }
 
-  // Outside the try so edited notes survive a regeneration failure.
-  if (Object.keys(editedNotes).length > 0) {
-    releaseNotes = { ...releaseNotes, ...editedNotes };
-    info(`Using human-edited release notes for ${Object.keys(editedNotes).length} package(s) from the PR body.`);
+  if (Object.keys(regionNotes).length > 0) {
+    releaseNotes = { ...releaseNotes, ...regionNotes };
+    info(`Using the reviewed release notes for ${Object.keys(regionNotes).length} package(s) from the PR body.`);
   }
 
   await createReleaseTags([...manifest.versionOutput.tags, ...(manifest.versionOutput.baselineTags ?? [])], cwd);

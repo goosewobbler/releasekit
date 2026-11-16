@@ -80,12 +80,10 @@ function branchDeletePushes() {
 
 const MERGED_HEAD = 'a'.repeat(40);
 
-vi.mock('node:fs', () => ({
-  default: {
-    readFileSync: vi.fn(),
-  },
-  readFileSync: vi.fn(),
-}));
+vi.mock('node:fs', () => {
+  const fs = { readFileSync: vi.fn(), existsSync: vi.fn(), mkdirSync: vi.fn(), writeFileSync: vi.fn() };
+  return { default: fs, ...fs };
+});
 
 vi.mock('@releasekit/config', () => ({
   DEFAULT_DEMOTE_SCOPES: ['deps', 'deps-dev'],
@@ -196,7 +194,7 @@ function openStandingPR(number: number, labels: string[] = []) {
 
 const baseManifest: StandingPRManifest = {
   schemaVersion: 1,
-  versionOutput: createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+  versionOutput: withPackageChangelogs(createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }])),
   releaseNotes: { '@scope/core': '- added new feature' },
   notesFiles: ['packages/core/CHANGELOG.md'],
   createdAt: '2024-01-01T00:00:00.000Z',
@@ -3349,10 +3347,17 @@ describe('runStandingPRUpdate', () => {
   });
 
   describe('preview-notes editable region', () => {
-    async function setupPreviewPR(opts: { labels: string[]; liveBody?: string; freshNotes?: Record<string, string> }) {
+    async function setupPreviewPR(opts: {
+      labels: string[];
+      liveBody?: string;
+      freshNotes?: Record<string, string>;
+      packages?: string[];
+    }) {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
       const versionOutput = withPackageChangelogs(
-        createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+        createMockVersionOutput(
+          (opts.packages ?? ['@scope/core']).map((packageName) => ({ packageName, newVersion: '1.2.3' })),
+        ),
       );
       vi.mocked(runVersionStep)
         .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
@@ -3520,7 +3525,11 @@ describe('runStandingPRUpdate', () => {
       // An over-limit body would 422 and wedge every future update.
       const bigNote = Array.from({ length: 300 }, (_, i) => `- inflated note line ${i}`).join('\n');
       const freshNotes = Object.fromEntries(Array.from({ length: 14 }, (_, i) => [`@scope/pkg${i}`, bigNote]));
-      const { forge } = await setupPreviewPR({ labels: ['release', 'release:preview-notes'], freshNotes });
+      const { forge } = await setupPreviewPR({
+        labels: ['release', 'release:preview-notes'],
+        freshNotes,
+        packages: Object.keys(freshNotes),
+      });
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
@@ -3534,6 +3543,272 @@ describe('runStandingPRUpdate', () => {
       for (const b of bodies) {
         expect(b.length).toBeLessThanOrEqual(STANDING_PR_BODY_CAP);
       }
+    });
+  });
+
+  describe('preview-notes refresh', () => {
+    const notesLabels = ['release', 'release:preview-notes'];
+    /** The keys of each release-notes generation, the stand-in for an LLM call. */
+    let generatedFor: string[][];
+
+    function output(entriesByPackage: Record<string, string[]>) {
+      return {
+        ...createMockVersionOutput(
+          Object.keys(entriesByPackage).map((packageName) => ({ packageName, newVersion: '1.1.0' })),
+        ),
+        changelogs: Object.entries(entriesByPackage).map(([packageName, descriptions]) => ({
+          packageName,
+          version: '1.1.0',
+          previousVersion: '1.0.0',
+          revisionRange: 'HEAD',
+          repoUrl: null,
+          entries: descriptions.map((description) => ({ type: 'fix', description })),
+        })),
+      };
+    }
+
+    type Output = ReturnType<typeof output>;
+    type Changelog = Output['changelogs'][number];
+
+    const describeEntries = (cl: Changelog) =>
+      `Notes for ${cl.packageName}: ${cl.entries.map((e) => e.description).join(', ')}`;
+
+    async function stubSteps(versionOutput: Output, notesFor: (cl: Changelog) => string = describeEntries) {
+      const { runVersionStep, runNotesStep, runPublishStep } = await import('../../src/steps.js');
+      vi.mocked(runVersionStep).mockResolvedValue(
+        versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runPublishStep).mockResolvedValue({
+        git: { committed: true, tags: [], pushed: true },
+      } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
+      generatedFor = [];
+      vi.mocked(runNotesStep).mockImplementation(async (vo, opts) => {
+        const changelogs = (vo.changelogs as Changelog[]).filter(
+          (cl) => !opts.releaseNotesFor || opts.releaseNotesFor.includes(cl.packageName),
+        );
+        if (opts.skipReleaseNotes) {
+          return { packageNotes: {}, files: [] };
+        }
+        generatedFor.push(changelogs.map((cl) => cl.packageName));
+        return {
+          packageNotes: {},
+          releaseNotes: Object.fromEntries(changelogs.map((cl) => [cl.packageName, notesFor(cl)])),
+          files: [],
+        };
+      });
+    }
+
+    interface PrState {
+      body: string;
+      manifest: string;
+    }
+
+    /** Runs an update against the body and manifest a previous update left, as the next real run would see them. */
+    async function update(versionOutput: Output, prior?: PrState, notesFor?: (cl: Changelog) => string) {
+      await stubSteps(versionOutput, notesFor);
+      const forge = await mockForge({
+        standingPR: openStandingPR(99, notesLabels),
+        pullRequests: { 99: { body: prior?.body ?? '', labels: notesLabels } },
+        comments: prior ? [{ id: 1, body: prior.manifest }] : [],
+      });
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
+      const manifest = forge.upsertedComments.findLast((c) => c.marker === MANIFEST_MARKER)?.body as string;
+      return { body, manifest, regions: extractNotesRegions(body, versionOutput) };
+    }
+
+    async function publish(versionOutput: Output, pr: PrState, notesFor?: (cl: Changelog) => string) {
+      await stubSteps(versionOutput, notesFor);
+      mergedVersions = Object.fromEntries(versionOutput.updates.map((u) => [u.packageName, u.newVersion]));
+      await mockForge({
+        comments: [{ id: 1, body: pr.manifest }],
+        pullRequests: { 99: { body: pr.body, labels: [] } },
+      });
+      await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
+      const { runPublishStep } = await import('../../src/steps.js');
+      return vi.mocked(runPublishStep).mock.calls.at(-1)?.[2];
+    }
+
+    function notesSection(body: string): string {
+      return body.slice(body.indexOf('## Release Notes'), body.lastIndexOf('<!-- releasekit-notes-end:'));
+    }
+
+    function editRegion(body: string, from: string, to: string): string {
+      expect(body).toContain(from);
+      return body.replace(from, to);
+    }
+
+    function withoutNotesState(manifest: string): string {
+      const { notesRegions: _, ...rest } = parseManifest(manifest);
+      return serializeManifest(rest);
+    }
+
+    const initial = { 'pkg-a': ['fix a'], 'pkg-b': ['fix b'] };
+    const newCommitForB = { 'pkg-a': ['fix a'], 'pkg-b': ['fix b', 'fix b again'] };
+    const newCommits = { 'pkg-a': ['fix a', 'fix a again'], 'pkg-b': ['fix b', 'fix b again'] };
+
+    it('should record state for each key it seeds', async () => {
+      const seeded = await update(output(initial));
+
+      expect(generatedFor).toEqual([['pkg-a', 'pkg-b']]);
+      const state = parseManifest(seeded.manifest).notesRegions;
+      expect(Object.keys(state ?? {})).toEqual(['pkg-a', 'pkg-b']);
+      expect(state?.['pkg-a']).toEqual({ inputHash: expect.any(String), renderedHash: expect.any(String) });
+    });
+
+    it("should regenerate only the changed package's unedited region", async () => {
+      const seeded = await update(output(initial));
+
+      const next = await update(output(newCommitForB), seeded);
+
+      expect(generatedFor).toEqual([['pkg-b']]);
+      expect(next.regions).toEqual({
+        'pkg-a': 'Notes for pkg-a: fix a',
+        'pkg-b': 'Notes for pkg-b: fix b, fix b again',
+      });
+    });
+
+    it('should make no LLM call and leave the regions byte-identical when nothing changed', async () => {
+      const seeded = await update(output(initial));
+
+      const next = await update(output(initial), seeded);
+
+      expect(generatedFor).toEqual([]);
+      expect(notesSection(next.body)).toBe(notesSection(seeded.body));
+      expect(parseManifest(next.manifest).notesRegions).toEqual(parseManifest(seeded.manifest).notesRegions);
+    });
+
+    it('should keep an edited region when its inputs change', async () => {
+      const seeded = await update(output(initial));
+      const body = editRegion(seeded.body, 'Notes for pkg-a: fix a', 'HAND-WRITTEN A');
+
+      const next = await update(output(newCommits), { ...seeded, body });
+
+      expect(generatedFor).toEqual([['pkg-b']]);
+      expect(next.regions).toEqual({ 'pkg-a': 'HAND-WRITTEN A', 'pkg-b': 'Notes for pkg-b: fix b, fix b again' });
+      expect(Object.keys(parseManifest(next.manifest).notesRegions ?? {})).toEqual(['pkg-b']);
+    });
+
+    it('should treat a region the web editor saved with CRLF line endings as unedited', async () => {
+      const seeded = await update(output(initial), undefined, (cl) => `Notes for ${cl.packageName}\n\n- line`);
+      const body = seeded.body.replace(/\n/g, '\r\n');
+
+      await update(output(newCommits), { ...seeded, body });
+
+      expect(generatedFor).toEqual([['pkg-a', 'pkg-b']]);
+    });
+
+    it('should re-seed a cleared region', async () => {
+      const seeded = await update(output(initial));
+      const body = editRegion(seeded.body, 'Notes for pkg-a: fix a', '');
+
+      const next = await update(output(initial), { ...seeded, body });
+
+      expect(generatedFor).toEqual([['pkg-a']]);
+      expect(next.regions).toEqual(seeded.regions);
+    });
+
+    it('should leave every region as it is under a manifest without notes state', async () => {
+      const seeded = await update(output(initial));
+
+      const next = await update(output(newCommits), { ...seeded, manifest: withoutNotesState(seeded.manifest) });
+
+      expect(generatedFor).toEqual([]);
+      expect(next.regions).toEqual(seeded.regions);
+    });
+
+    it('should regenerate unedited regions when the release-notes config changes', async () => {
+      const seeded = await update(output(initial));
+      const { loadConfig } = await import('@releasekit/config');
+      const config = loadConfig({ cwd: '/test' });
+      vi.mocked(loadConfig).mockReturnValue({
+        ...config,
+        notes: { releaseNotes: { llm: { provider: 'openai', model: 'other-model', tasks: { releaseNotes: true } } } },
+      } as ReturnType<typeof loadConfig>);
+
+      await update(output(initial), seeded);
+
+      expect(generatedFor).toEqual([['pkg-a', 'pkg-b']]);
+    });
+
+    describe('at publish', () => {
+      it('should ship an unedited region as written, with no LLM call for its key', async () => {
+        const seeded = await update(output(initial));
+
+        const notes = await publish(output(initial), seeded, () => 'REGENERATED');
+
+        expect(generatedFor).toEqual([]);
+        expect(notes).toEqual(seeded.regions);
+      });
+
+      it('should regenerate an unedited region that was truncated', async () => {
+        const long = (cl: Changelog) =>
+          cl.packageName === 'pkg-a' ? `- ${'long line\n- '.repeat(1000)}end` : describeEntries(cl);
+        const seeded = await update(output(initial), undefined, long);
+        expect(seeded.regions['pkg-a']).toContain('…(truncated)');
+
+        const notes = await publish(output(initial), seeded, long);
+
+        expect(generatedFor).toEqual([['pkg-a']]);
+        expect(notes?.['pkg-a']).toMatch(/end$/);
+        expect(notes?.['pkg-b']).toBe('Notes for pkg-b: fix b');
+      });
+
+      it('should ship an edited region as written', async () => {
+        const seeded = await update(output(initial));
+        const body = editRegion(seeded.body, 'Notes for pkg-a: fix a', 'HAND-WRITTEN A');
+
+        const notes = await publish(output(initial), { ...seeded, body }, () => 'REGENERATED');
+
+        expect(generatedFor).toEqual([]);
+        expect(notes).toEqual({ 'pkg-a': 'HAND-WRITTEN A', 'pkg-b': 'Notes for pkg-b: fix b' });
+      });
+
+      it('should ship every region as written under a manifest without notes state', async () => {
+        const long = (cl: Changelog) => `- ${'long line\n- '.repeat(1000)}${cl.packageName}`;
+        const seeded = await update(output(initial), undefined, long);
+
+        const notes = await publish(output(initial), { ...seeded, manifest: withoutNotesState(seeded.manifest) }, long);
+
+        expect(generatedFor).toEqual([]);
+        expect(notes).toEqual(seeded.regions);
+      });
+
+      it('should write each shipped region, edited or not, to its per-version notes file', async () => {
+        const { loadConfig } = await import('@releasekit/config');
+        const config = loadConfig({ cwd: '/test' });
+        vi.mocked(loadConfig).mockReturnValue({
+          ...config,
+          notes: { releaseNotes: { file: { dir: 'release-notes' } } },
+        } as ReturnType<typeof loadConfig>);
+        const seeded = await update(output(initial));
+        const body = editRegion(seeded.body, 'Notes for pkg-a: fix a', 'HAND-WRITTEN A');
+        setupGit({ status: '?? release-notes/' });
+        const { writeFileSync } = await import('node:fs');
+
+        const notes = await publish(output(initial), { ...seeded, body });
+
+        const written = Object.fromEntries(vi.mocked(writeFileSync).mock.calls.map(([file, text]) => [file, text]));
+        expect(written).toEqual({
+          'release-notes/pkg-a/1.1.0.md': notes?.['pkg-a'],
+          'release-notes/pkg-b/1.1.0.md': notes?.['pkg-b'],
+        });
+        expect(notes).toEqual({ 'pkg-a': 'HAND-WRITTEN A', 'pkg-b': 'Notes for pkg-b: fix b' });
+        expect(fakeGit.committed.at(-1)?.paths).toEqual([
+          'release-notes/pkg-a/1.1.0.md',
+          'release-notes/pkg-b/1.1.0.md',
+        ]);
+      });
+
+      it('should generate notes for a key without a region', async () => {
+        const seeded = await update(output(initial));
+        const body = seeded.body.slice(0, seeded.body.indexOf('### `pkg-b`'));
+
+        const notes = await publish(output(initial), { ...seeded, body }, () => 'REGENERATED');
+
+        expect(generatedFor).toEqual([['pkg-b']]);
+        expect(notes).toEqual({ 'pkg-a': 'Notes for pkg-a: fix a', 'pkg-b': 'REGENERATED' });
+      });
     });
   });
 

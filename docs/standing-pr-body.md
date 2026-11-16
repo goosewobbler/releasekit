@@ -31,21 +31,19 @@ A tick or untick takes effect only when the next `standing-pr update` run rebuil
 
 ### Editable release notes
 
-Only present when the standing PR carries the preview-notes label (`release:preview-notes` by default — see [`ci.labels`](./configuration.md#cilabels)). With the label on, releasekit generates notes into the region once; edits made there survive the branch being regenerated and force-pushed, and are what lands in the GitHub Release (with the default `publish.githubRelease.body: "auto"`).
+Only present when the standing PR carries the preview-notes label (`release:preview-notes` by default — see [`ci.labels`](./configuration.md#cilabels)). With the label on, releasekit generates notes into the region, and the region is what lands in the GitHub Release (with the default `publish.githubRelease.body: "auto"`) and in any per-version file `notes.releaseNotes.file` writes. A package's untouched notes refresh when its changelog entries, its version or the `notes.releaseNotes` config change. Edited notes are kept as written, and clearing a region regenerates it.
 
-Write inside the markers. Content outside them is regenerated. Each package's notes, edits included, are capped at 8,000 characters in the region; anything longer is cut, and the cut text is what publishes.
+Write inside the markers. Content outside them is regenerated. Each package's notes, edits included, are capped at 8,000 characters in the region. Untouched notes that were cut are regenerated in full at publish; an edited region publishes as cut.
 
 Edits can still be lost or bypassed:
 
-- An emptied region falls back to generated notes.
 - Deleting a region's end marker discards its edits, with a warning, and the region is regenerated.
 - Removing the label removes the region.
 - An edit saved while an update is rewriting the body can be overwritten.
-- Only the GitHub Release gets your edits; a file written by `notes.releaseNotes.file` gets generated notes.
 
 ### The manifest
 
-The manifest comment carries the machine state for the merge: the computed versions, the base SHA the plan was built against, the release-branch commit it describes, the labels in force, and the selection and channel choices. At publish it's checked against the merged source, so it can't publish anything that isn't in the merged code (see **Manifest integrity** under [Label semantics in standing-pr mode](../packages/release/docs/ci-setup.md#label-semantics-in-standing-pr-mode)). It isn't tamper-proof, though, so treat edits to it as unsupported.
+The manifest comment carries the machine state for the merge: the computed versions, the base SHA the plan was built against, the release-branch commit it describes, the labels in force, the selection and channel choices, and hashes that tell untouched notes from edited ones. At publish it's checked against the merged source, so it can't publish anything that isn't in the merged code (see **Manifest integrity** under [Label semantics in standing-pr mode](../packages/release/docs/ci-setup.md#label-semantics-in-standing-pr-mode)). It isn't tamper-proof, though, so treat edits to it as unsupported.
 
 Don't edit it. To regenerate it, re-run the Standing Release PR workflow, or wait for the next push or scheduled run. Don't run `standing-pr update` from a local checkout to do it: the command discards uncommitted changes, commits any untracked files along with the version bumps, and force-pushes the release branch with your credentials — and outside the workflow it can leave the branch and the manifest out of step.
 

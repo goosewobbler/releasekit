@@ -282,6 +282,26 @@ describe('Pipeline: skipReleaseNotes / skipChangelogs flags', () => {
     expect(result.files).toContain('release-notes/test-pkg/1.0.0.md');
   });
 
+  it('should write release notes only for releaseNotesFor, laid out for the whole release', async () => {
+    const { detectMonorepo } = await import('../../src/monorepo/aggregator.js');
+    vi.mocked(detectMonorepo).mockReturnValueOnce({ isMonorepo: false, packagesPath: 'packages' });
+
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+    const config: Config = {
+      changelog: { mode: 'root', file: 'CHANGELOG.md' },
+      releaseNotes: { file: { dir: 'release-notes' } },
+    };
+    const packages = sampleInput.packages;
+    const input: ChangelogInput = {
+      ...sampleInput,
+      packages: [...packages, ...packages.map((pkg) => ({ ...pkg, packageName: 'other-pkg' }))],
+    };
+    const result = await runPipeline(input, config, false, { releaseNotesFor: ['other-pkg'] });
+
+    expect(result.files).toEqual(['release-notes/other-pkg/1.0.0.md']);
+    expect(Object.keys(result.releaseNotes ?? {})).toEqual(['other-pkg']);
+  });
+
   it('should preserve existing behaviour with both flags omitted (changelog + release notes both written)', async () => {
     const { runPipeline } = await import('../../src/core/pipeline.js');
     const config: Config = {
