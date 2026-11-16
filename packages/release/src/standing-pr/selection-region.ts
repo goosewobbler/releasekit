@@ -235,14 +235,14 @@ export function validatePrimaryPackages(
   for (const pattern of primaryPackages) {
     const matches = allPackageNames.filter((n) => matchesPackageTarget(n, pattern));
     if (matches.length === 0) {
-      warnings.push(`primaryPackages entry \`${pattern}\` matches no known package — it has no effect.`);
+      warnings.push(`version.primaryPackages entry \`${pattern}\` matches no known package — it has no effect.`);
       continue;
     }
     const skipped = matches.filter((n) => shouldMatchPackageTargets(n, skip));
     if (skipped.length > 0) {
       const list = skipped.map((n) => `\`${n}\``).join(', ');
       warnings.push(
-        `primaryPackages entry \`${pattern}\` matches ${list}, which version.skip excludes — a skipped package never releases, so it cannot anchor a unit.`,
+        `version.primaryPackages entry \`${pattern}\` matches ${list}, which version.skip excludes — a skipped package never releases, so it cannot anchor a unit.`,
       );
     }
   }

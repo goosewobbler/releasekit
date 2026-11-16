@@ -230,6 +230,15 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).not.toThrow();
   });
 
+  it('should read version.primaryPackages, defaulting to none', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: { primaryPackages: ['@scope/app'] } }));
+    expect(loadConfig().version?.primaryPackages).toEqual(['@scope/app']);
+
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: {} }));
+    expect(loadConfig().version?.primaryPackages).toEqual([]);
+  });
+
   it('should parse JSONC with comments', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(`{

@@ -148,7 +148,7 @@ const VersionConfigBaseSchema = z.strictObject({
     .array(z.string())
     .default([])
     .describe(
-      'Packages users install, as exact names or globs. Each anchors a release unit with its group-mates and the internal dependencies it releases with.',
+      'Packages users install, as exact names or globs. Each anchors a release unit with its group-mates and the internal dependencies it releases with. The standing-PR selection list groups packages into these units. No effect with version.sync: true.',
     ),
   sharedChangelogFloor: z
     .enum(['union', 'sinceLastRelease'])
