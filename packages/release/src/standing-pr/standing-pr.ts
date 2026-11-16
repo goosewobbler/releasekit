@@ -37,6 +37,7 @@ import { graduationOvershoot, lockstepGroupOf } from './graduation.js';
 import { extractNotesRegions, notesRegionKeys, renderNotesRegion } from './notes-region.js';
 import {
   type NotesRegionStates,
+  normalizeRegionText,
   notesRegionState,
   planNotesRegions,
   publishableNotesRegions,
@@ -1388,10 +1389,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const countableUpdates = publishableUpdates(versionOutput);
   const count = countableUpdates.length;
 
+  const liveNotes = previewNotesEnabled && liveBody ? extractNotesRegions(liveBody, versionOutput) : {};
   const notesInputHashes = releaseNotesInputHashes(versionOutput, releaseKitConfig.notes);
   const notesPlan = planNotesRegions(
     previewNotesEnabled ? notesRegionKeys(versionOutput) : [],
-    previewNotesEnabled && liveBody ? extractNotesRegions(liveBody, versionOutput) : {},
+    liveNotes,
     existingManifest?.notesRegions,
     notesInputHashes,
   );
@@ -1405,18 +1407,24 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const generatedNotes: Record<string, string> = {};
   if (count > 0 && notesPlan.generate.length > 0) {
     info(`Generating release notes for ${notesPlan.generate.length} package(s)...`);
-    const generated = await runNotesStep(versionOutput, {
-      ...writeOptions,
-      skipNotes: false,
-      skipReleaseNotes: false,
-      releaseNotesFor: notesPlan.generate,
-    });
-    notesFiles.push(...generated.files);
-    for (const key of notesPlan.generate) {
-      const notes = generated.releaseNotes?.[key];
-      if (notes) {
-        generatedNotes[key] = notes;
+    try {
+      const generated = await runNotesStep(versionOutput, {
+        ...writeOptions,
+        skipNotes: false,
+        skipReleaseNotes: false,
+        releaseNotesFor: notesPlan.generate,
+      });
+      notesFiles.push(...generated.files);
+      for (const key of notesPlan.generate) {
+        const notes = generated.releaseNotes?.[key];
+        if (notes) {
+          generatedNotes[key] = notes;
+        }
       }
+    } catch (err) {
+      warn(
+        `Release notes generation failed, so the current notes stay: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -1477,12 +1485,13 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // Accepted race: a human edit landing between the body read above and the update below is overwritten; updates
   // are infrequent enough not to warrant optimistic concurrency.
   let notesRegion: string | undefined;
-  const notesRegionStates: NotesRegionStates = { ...notesPlan.keptStates };
+  const notesRegionStates: NotesRegionStates = { ...notesPlan.owned };
   if (previewNotesEnabled) {
     for (const [key, notes] of Object.entries(generatedNotes)) {
       notesRegionStates[key] = notesRegionState(key, notes, notesInputHashes[key] ?? '');
     }
-    const regions = { ...generatedNotes, ...notesPlan.kept };
+    // A region that wasn't regenerated, as when the LLM call failed, stays with its old state.
+    const regions = { ...liveNotes, ...generatedNotes };
     if (Object.keys(regions).length > 0) {
       notesRegion = renderNotesRegion(regions);
     }
@@ -2049,10 +2058,9 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   };
 
   // From the body, not the manifest: the manifest holds machine state only.
-  const regionNotes = livePr
-    ? publishableNotesRegions(extractNotesRegions(livePr.body ?? '', manifest.versionOutput), manifest.notesRegions)
-    : {};
-  const notesToGenerate = notesRegionKeys(manifest.versionOutput).filter((key) => !Object.hasOwn(regionNotes, key));
+  const bodyNotes = livePr ? extractNotesRegions(livePr.body ?? '', manifest.versionOutput) : {};
+  const usableNotes = publishableNotesRegions(bodyNotes, manifest.notesRegions);
+  const notesToGenerate = notesRegionKeys(manifest.versionOutput).filter((key) => !Object.hasOwn(usableNotes, key));
 
   let releaseNotes: Record<string, string> = {};
   const newFiles: string[] = [];
@@ -2063,14 +2071,26 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
         ...notesGenerationOptions,
         releaseNotesFor: notesToGenerate,
       });
-      releaseNotes = notesResult.releaseNotes ?? {};
+      releaseNotes = Object.fromEntries(
+        Object.entries(notesResult.releaseNotes ?? {}).filter(([key]) => notesToGenerate.includes(key)),
+      );
       newFiles.push(...notesResult.files);
     } catch (err) {
       warn(`Release notes generation failed: ${err instanceof Error ? err.message : String(err)}`);
       warn('Publish will proceed without release notes; GitHub release bodies use the githubRelease.body fallback.');
     }
   }
-  newFiles.push(...(await writeRegionNotesFiles(regionNotes, manifest.versionOutput, releaseKitConfig.notes)));
+  // A truncated region still ships if its regeneration failed.
+  const regionNotes = Object.fromEntries(
+    Object.entries(bodyNotes)
+      .filter(([key]) => !Object.hasOwn(releaseNotes, key))
+      .map(([key, text]) => [key, normalizeRegionText(text)]),
+  );
+  try {
+    newFiles.push(...(await writeRegionNotesFiles(regionNotes, manifest.versionOutput, releaseKitConfig.notes)));
+  } catch (err) {
+    warn(`Failed to write release notes: ${err instanceof Error ? err.message : String(err)}`);
+  }
   const notesFiles = [...new Set([...manifest.notesFiles, ...newFiles])];
 
   // So main matches the GitHub release body. The update may have written some of these files with other text.

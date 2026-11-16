@@ -57,9 +57,13 @@ export async function writeRegionNotesFiles(
   return writeVersionedNotes(shipped, dir, false, nested, (cl) => regions[cl.packageName] ?? '');
 }
 
+/** GitHub's web editor saves the whole body with CRLF line endings. */
+export function normalizeRegionText(text: string): string {
+  return text.replace(/\r\n/g, '\n');
+}
+
 export function regionTextHash(text: string): string {
-  // GitHub's web editor saves the whole body with CRLF line endings.
-  return shortHash(text.replace(/\r\n/g, '\n'));
+  return shortHash(normalizeRegionText(text));
 }
 
 export function notesRegionState(key: string, notes: string, inputHash: string): NotesRegionState {
@@ -76,31 +80,29 @@ function isUnedited(text: string, state: NotesRegionState | undefined): state is
 }
 
 export interface NotesRegionPlan {
-  /** Region text to render again as it is. */
-  kept: Record<string, string>;
-  /** State for the kept regions the bot still owns; an edited region has none. */
-  keptStates: NotesRegionStates;
+  /** Keys with no region, or with an unedited one whose inputs changed. */
   generate: string[];
+  /** State of the unedited regions. An edited region, or one without state, has none and is kept as written. */
+  owned: NotesRegionStates;
 }
 
-/** An edited region, or one without state, is kept; an unedited one is regenerated once its inputs change. */
 export function planNotesRegions(
   keys: string[],
   regions: Record<string, string>,
   states: NotesRegionStates | undefined,
   inputHashes: Record<string, string>,
 ): NotesRegionPlan {
-  const plan: NotesRegionPlan = { kept: {}, keptStates: {}, generate: [] };
+  const plan: NotesRegionPlan = { generate: [], owned: {} };
   for (const key of keys) {
     const text = regions[key];
     const state = states?.[key];
-    if (text === undefined || (isUnedited(text, state) && state.inputHash !== inputHashes[key])) {
+    if (text === undefined) {
       plan.generate.push(key);
-      continue;
-    }
-    plan.kept[key] = text;
-    if (isUnedited(text, state)) {
-      plan.keptStates[key] = state;
+    } else if (isUnedited(text, state)) {
+      plan.owned[key] = state;
+      if (state.inputHash !== inputHashes[key]) {
+        plan.generate.push(key);
+      }
     }
   }
   return plan;

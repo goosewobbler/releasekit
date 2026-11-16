@@ -3643,6 +3643,10 @@ describe('runStandingPRUpdate', () => {
       return serializeManifest(rest);
     }
 
+    const failingLlm = (): string => {
+      throw new Error('llm.model is not set');
+    };
+
     const initial = { 'pkg-a': ['fix a'], 'pkg-b': ['fix b'] };
     const newCommitForB = { 'pkg-a': ['fix a'], 'pkg-b': ['fix b', 'fix b again'] };
     const newCommits = { 'pkg-a': ['fix a', 'fix a again'], 'pkg-b': ['fix b', 'fix b again'] };
@@ -3706,6 +3710,15 @@ describe('runStandingPRUpdate', () => {
 
       expect(generatedFor).toEqual([['pkg-a']]);
       expect(next.regions).toEqual(seeded.regions);
+    });
+
+    it('should keep the current regions and their state when regeneration fails', async () => {
+      const seeded = await update(output(initial));
+
+      const next = await update(output(newCommits), seeded, failingLlm);
+
+      expect(notesSection(next.body)).toBe(notesSection(seeded.body));
+      expect(parseManifest(next.manifest).notesRegions).toEqual(parseManifest(seeded.manifest).notesRegions);
     });
 
     it('should leave every region as it is under a manifest without notes state', async () => {
@@ -3774,6 +3787,15 @@ describe('runStandingPRUpdate', () => {
         expect(notes).toEqual(seeded.regions);
       });
 
+      it('should ship a truncated region when its regeneration fails', async () => {
+        const long = (cl: Changelog) => `- ${'long line\n- '.repeat(1000)}${cl.packageName}`;
+        const seeded = await update(output(initial), undefined, long);
+
+        const notes = await publish(output(initial), seeded, failingLlm);
+
+        expect(notes).toEqual(seeded.regions);
+      });
+
       it('should write each shipped region, edited or not, to its per-version notes file', async () => {
         const { loadConfig } = await import('@releasekit/config');
         const config = loadConfig({ cwd: '/test' });
@@ -3798,6 +3820,26 @@ describe('runStandingPRUpdate', () => {
           'release-notes/pkg-a/1.1.0.md',
           'release-notes/pkg-b/1.1.0.md',
         ]);
+      });
+
+      it('should ship and write a region the web editor saved with CRLF line endings with LF ones', async () => {
+        const { loadConfig } = await import('@releasekit/config');
+        const config = loadConfig({ cwd: '/test' });
+        vi.mocked(loadConfig).mockReturnValue({
+          ...config,
+          notes: { releaseNotes: { file: { dir: 'release-notes' } } },
+        } as ReturnType<typeof loadConfig>);
+        const seeded = await update(output(initial), undefined, (cl) => `Notes for ${cl.packageName}\n\n- line`);
+        const { writeFileSync } = await import('node:fs');
+
+        const notes = await publish(output(initial), { ...seeded, body: seeded.body.replace(/\n/g, '\r\n') });
+
+        expect(notes?.['pkg-a']).toBe('Notes for pkg-a\n\n- line');
+        expect(vi.mocked(writeFileSync)).toHaveBeenCalledWith(
+          'release-notes/pkg-a/1.1.0.md',
+          notes?.['pkg-a'],
+          'utf-8',
+        );
       });
 
       it('should generate notes for a key without a region', async () => {
