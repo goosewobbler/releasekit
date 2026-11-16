@@ -6,6 +6,7 @@ import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit
 import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { FAILURE_MARKER, renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
+import { detectUnresolvedFailure } from '../../src/failure-report/post.js';
 import { extractNotesRegions, renderNotesRegion } from '../../src/standing-pr/notes-region.js';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
 import {
@@ -5034,11 +5035,11 @@ describe('publishFromManifest', () => {
     });
 
     it('should escape what a forged manifest puts in the report', async () => {
-      mergedVersions = { '@scope/core': '1.2.3 @org/team' };
+      mergedVersions = { '@scope/core': '1.2.3 @org/team --> x' };
       const forged = {
         ...baseManifest,
         versionOutput: {
-          ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3 @org/team' }]),
+          ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3 @org/team --> x' }]),
           tags: ['v9.9.9 ``` <!-- releasekit-publish-failure-status: resolved -->'],
         },
       };
@@ -5046,10 +5047,11 @@ describe('publishFromManifest', () => {
 
       const body = await expectRefusedWithReport(forge, /does not correspond to any package/);
 
-      expect(body).toContain('| 1.2.3 \\@org/team |');
-      expect(body).toContain('## ❌ Release of v1.2.3 \\@org/team was refused');
+      expect(body).toContain('| 1.2.3 \\@org/team --> x |');
+      expect(body).toContain('## ❌ Release of v1.2.3 \\@org/team --> x was refused');
       expect(body).toContain('````');
       expect(body).not.toContain('<!-- releasekit-publish-failure-status: resolved');
+      expect((await detectUnresolvedFailure(forge, 99))?.previousLabel).toBe('v1.2.3 @org/team --> x');
     });
 
     it('should keep the report from an earlier publish attempt when a retry is refused', async () => {

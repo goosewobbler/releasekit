@@ -30,7 +30,8 @@ const STATUS_FIELD = markerData<FailureReportStatus>({
 
 const DATA_FIELD = markerData<FailureReportData>({
   open: DATA_PREFIX,
-  serialize: (data) => JSON.stringify(data),
+  // `>` only occurs inside JSON strings, and escaping it keeps a forged label's `-->` from closing the marker.
+  serialize: (data) => JSON.stringify(data).replaceAll('>', '\\u003e'),
   deserialize: (payload) => {
     try {
       const parsed = JSON.parse(payload) as Partial<FailureReportData>;
@@ -337,6 +338,10 @@ export interface RefusalReportInput {
   retryLabelAvailable?: boolean;
 }
 
+function untrusted(text: string): string {
+  return escapeChangelogMentions(escapeCommentOpeners(text));
+}
+
 export function renderRefusalReport(input: RefusalReportInput): string {
   const { prNumber, versionOutput, reason, retryable } = input;
   const ledger = versionOutput ? buildLedger(versionOutput, undefined) : [];
@@ -345,10 +350,9 @@ export function renderRefusalReport(input: RefusalReportInput): string {
   if (retryable) {
     data.retryable = true;
   }
-  // The manifest was refused, so its names and versions may be forged.
-  const untrusted = (text: string) => escapeChangelogMentions(escapeCommentOpeners(text));
 
   const lines: string[] = [FAILURE_MARKER, STATUS_FIELD.encode('unresolved'), DATA_FIELD.encode(data), ''];
+  // The manifest was refused, so its names and versions may be forged.
   if (versionOutput) {
     lines.push(
       `## ❌ Release of ${untrusted(label)} was refused`,
@@ -443,9 +447,7 @@ export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
   const { previousLabel, published, total, refused, retryable, standingPrNumber, retryLabelAvailable } = input;
   const prRef = standingPrNumber ? `the merged standing PR (#${standingPrNumber})` : 'the merged standing PR';
   if (refused && !retryable) {
-    const release = previousLabel
-      ? `release ${escapeChangelogMentions(escapeCommentOpeners(previousLabel))}`
-      : 'the previous release';
+    const release = previousLabel ? `release ${untrusted(previousLabel)}` : 'the previous release';
     return [
       `> ⚠️ **The publish of ${release} from ${prRef} was refused**, so nothing was tagged or published. Retrying won't help: merging this PR supersedes it, and the next release publishes those changes at the new version. Don't revert its release commit.`,
       '',
@@ -458,7 +460,7 @@ export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
     ? 'was refused at publish** (nothing on the registry)'
     : `is partially published** (${published}/${total} packages on the registry)`;
   return [
-    `> ⚠️ **Previous release ${escapeChangelogMentions(escapeCommentOpeners(previousLabel))} ${state}.`,
+    `> ⚠️ **Previous release ${untrusted(previousLabel)} ${state}.`,
     `> ${retryHint}, **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.`,
     '',
   ];
