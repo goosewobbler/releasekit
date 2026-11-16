@@ -1,9 +1,4 @@
-import type {
-  VersionChangelogEntry,
-  VersionOutput,
-  VersionPackageChangelog,
-  VersionPackageUpdate,
-} from '@releasekit/core';
+import type { VersionOutput, VersionPackageChangelog, VersionPackageUpdate } from '@releasekit/core';
 import {
   assertNotOption,
   breakingFirst,
@@ -34,6 +29,7 @@ function resolveNotes(
   bodySource: BodySource,
   release: ReleaseTag,
   releaseNotesEnabled: boolean,
+  changelogFallback: boolean,
   pipelineNotes?: Record<string, string>,
 ): { body?: string; useGithubNotes: boolean } {
   if (bodySource === 'none') {
@@ -76,7 +72,9 @@ function resolveNotes(
     }
   }
 
-  const changelogBody = formatChangelogForTag(release, { skipSynthetic: true });
+  const changelogBody = changelogFallback
+    ? formatChangelogForTag(release, withoutPlaceholders(release.input.changelogs))
+    : undefined;
   if (changelogBody) {
     if (releaseNotesEnabled) {
       warn(`No release notes found for tag ${release.tag}, falling back to its changelog`);
@@ -200,26 +198,29 @@ function findNotesForTag(release: ReleaseTag, notes: Record<string, string>): st
   return key === undefined || !notes[key]?.trim() ? undefined : notes[key];
 }
 
-/**
- * `skipSynthetic` drops lockstep-carry placeholders (`Update version to X`), so `auto` gives a carried package's tag
- * generated notes instead.
- */
-function formatChangelogForTag(release: ReleaseTag, { skipSynthetic = false } = {}): string | undefined {
-  const { changelogs } = release.input;
-  const entriesOf = (c: VersionPackageChangelog): VersionChangelogEntry[] =>
-    skipSynthetic ? c.entries.filter((e) => !e.synthetic) : c.entries;
+/** Drops the `Update version to X` entry the version step writes for a package with no changes of its own. */
+function withoutPlaceholders(changelogs: VersionPackageChangelog[]): VersionPackageChangelog[] {
+  return changelogs.map((c) => ({
+    ...c,
+    entries: c.entries.filter((e) => !e.synthetic && e.description !== `Update version to ${c.version}`),
+  }));
+}
+
+function formatChangelogForTag(
+  release: ReleaseTag,
+  changelogs: VersionPackageChangelog[] = release.input.changelogs,
+): string | undefined {
   const key = resolveTagKey(
     release,
     changelogs.map((c) => c.packageName),
-    changelogs.filter((c) => entriesOf(c).length > 0).map((c) => c.packageName),
+    changelogs.filter((c) => c.entries.length > 0).map((c) => c.packageName),
   );
   const target = changelogs.find((c) => c.packageName === key);
-  const entries = target ? entriesOf(target) : [];
-  if (!target || entries.length === 0) {
+  if (!target || target.entries.length === 0) {
     return undefined;
   }
 
-  return breakingFirst(entries)
+  return breakingFirst(target.entries)
     .map((entry) => renderChangelogEntryLine(entry, 'link', target.repoUrl))
     .join('\n');
 }
@@ -250,6 +251,8 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     return;
   }
   const tagsToRelease = config.githubRelease.perPackage ? tags : [firstTag];
+  // One release for several tags would carry only the first tag's changelog.
+  const changelogFallback = tagsToRelease.length === tags.length;
 
   const skipPackages = config.githubRelease.skipPackages ?? [];
   const syncTag = ctx.input.updates.length > 0 && ctx.input.updates.every((u) => !u.tag);
@@ -324,6 +327,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       config.githubRelease.body,
       { tag, owner, shared: owners.length > 1 || (owners.length === 0 && syncTag), input: ctx.input },
       releaseNotesEnabled,
+      changelogFallback,
       ctx.releaseNotes,
     );
     if (body) {

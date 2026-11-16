@@ -21,5 +21,5 @@ The check fails loud and names the field, and the variable when the value came f
 ## Consequences
 
 - Runs that don't call the LLM work without a model, so the placeholder can go.
-- A missing model surfaces at the notes step instead of at load. A direct release still fails before changing anything on disk. Where notes failures are already non-fatal (standing-PR publish), it's a warning, and the release goes out with its changelog, or GitHub's generated notes when there is none.
+- A missing model surfaces at the notes step instead of at load. A direct release still fails before changing anything on disk. Where notes failures are already non-fatal (standing-PR publish), it's a warning, and the release goes out with GitHub's generated notes.
 - 0005's no-defaults decision and its reasoning stand.

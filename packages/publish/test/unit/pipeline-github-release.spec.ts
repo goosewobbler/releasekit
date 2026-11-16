@@ -331,21 +331,41 @@ describe('GitHub release bodies in the publish pipeline', () => {
     expect(releaseBodies()).toEqual({ 'v1.2.3': "- Handle \\@octocat's case" });
   });
 
-  it.each([
-    ['auto', GENERATED],
-    ['changelog', '- Update version to 1.2.3'],
-  ] as const)('should give a lockstep-carried tag, when body is %s, the body %s', async (body, expected) => {
-    const config = getDefaultConfig();
-    config.githubRelease.body = body;
+  function placeholderInput(synthetic: boolean): VersionOutput {
     const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
     input.changelogs[1] = {
       ...changelog('pkg-b', 'Update version to 1.2.3'),
-      entries: [{ type: 'changed', description: 'Update version to 1.2.3', synthetic: true }],
+      entries: [{ type: 'changed', description: 'Update version to 1.2.3', ...(synthetic ? { synthetic } : {}) }],
     };
+    return recordChangelogTags(input);
+  }
 
-    await runPipeline(recordChangelogTags(input), config, options);
+  it.each([
+    ['a lockstep carry', true],
+    ['a package with no changes of its own', false],
+  ])('should give %s generated notes when body is auto', async (_, synthetic) => {
+    await runPipeline(placeholderInput(synthetic), getDefaultConfig(), options);
 
-    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': expected });
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
+  });
+
+  it('should give a lockstep carry its placeholder when body is changelog', async () => {
+    const config = getDefaultConfig();
+    config.githubRelease.body = 'changelog';
+
+    await runPipeline(placeholderInput(true), config, options);
+
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': '- Update version to 1.2.3' });
+  });
+
+  it('should give one release for several tags generated notes when body is auto', async () => {
+    const config = getDefaultConfig();
+    config.githubRelease.perPackage = false;
+    const input = recordChangelogTags(perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' }));
+
+    await runPipeline(input, config, options);
+
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': GENERATED });
   });
 
   it.each(['release-1.2.3', 'app-v1.2.3'])(
