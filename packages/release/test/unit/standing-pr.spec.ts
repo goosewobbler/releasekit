@@ -111,10 +111,15 @@ vi.mock('@releasekit/version', () => ({
   getWorkspacePackageVersions: (...args: unknown[]) => mockGetWorkspacePackageVersions(...args),
   getWorkspacePackageDirs: async () =>
     Object.fromEntries(Object.keys(mergedVersions).map((name) => [name, `/test/packages/${name}`])),
-  readManifestVersion: (file: string, content?: string) =>
-    content === undefined
-      ? mergedVersions[path.relative('/test/packages', path.dirname(file))]
-      : JSON.parse(content).version,
+  readManifestVersion: (file: string, content?: string) => {
+    if (content !== undefined) {
+      return JSON.parse(content).version;
+    }
+    if (path.basename(file) !== 'package.json') {
+      throw new Error(`${file} is not a package.json, Cargo.toml or pubspec.yaml`);
+    }
+    return mergedVersions[path.relative('/test/packages', path.dirname(file))];
+  },
 }));
 
 vi.mock('../../src/steps.js', () => ({
@@ -5008,6 +5013,83 @@ describe('publishFromManifest', () => {
 
       expect(reportsOn(forge, 99)).toHaveLength(1);
       expect(forge.updatedComments).toHaveLength(1);
+    });
+
+    it('should report a listed file that is not a package manifest', async () => {
+      const manifest = {
+        ...baseManifest,
+        versionOutput: {
+          ...baseManifest.versionOutput,
+          updates: baseManifest.versionOutput.updates.map((u) => ({
+            ...u,
+            files: ['packages/@scope/core/README.md'],
+          })),
+        },
+      };
+      const forge = await mockForge({ comments: [{ id: 77, body: serializeManifest(manifest) }] });
+
+      const body = await expectRefusedWithReport(forge, /can't be read as a package manifest/);
+
+      expect(body).toContain('**0/1 package(s) published.**');
+    });
+
+    it('should escape what a forged manifest puts in the report', async () => {
+      mergedVersions = { '@scope/core': '1.2.3 @org/team' };
+      const forged = {
+        ...baseManifest,
+        versionOutput: {
+          ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3 @org/team' }]),
+          tags: ['v9.9.9 ``` <!-- releasekit-publish-failure-status: resolved -->'],
+        },
+      };
+      const forge = await mockForge({ comments: [{ id: 77, body: serializeManifest(forged) }] });
+
+      const body = await expectRefusedWithReport(forge, /does not correspond to any package/);
+
+      expect(body).toContain('| 1.2.3 \\@org/team |');
+      expect(body).toContain('## ❌ Release of v1.2.3 \\@org/team was refused');
+      expect(body).toContain('````');
+      expect(body).not.toContain('<!-- releasekit-publish-failure-status: resolved');
+    });
+
+    it('should keep the report from an earlier publish attempt when a retry is refused', async () => {
+      const earlier = renderFailureReport({
+        versionOutput: baseManifest.versionOutput as unknown as Parameters<
+          typeof renderFailureReport
+        >[0]['versionOutput'],
+        publishOutput: {
+          dryRun: false,
+          git: { committed: true, tags: [], pushed: true },
+          npm: [
+            {
+              packageName: '@scope/core',
+              updatePackageName: '@scope/core',
+              version: '1.2.3',
+              registry: 'npm',
+              success: true,
+              skipped: false,
+            },
+          ],
+          cargo: [],
+          verification: [],
+          githubReleases: [],
+          publishSucceeded: false,
+        },
+        failedStage: 'github-release',
+        errorMessage: 'GitHub 502',
+        recovery: { mode: 'standing-pr', standingPrNumber: 99 },
+      });
+      setupGit({ ancestors: () => false });
+      const forge = await mockForge({
+        comments: [
+          { id: 77, body: serializeManifest(baseManifest) },
+          { id: 78, prNumber: 99, body: earlier },
+        ],
+      });
+
+      await expect(publishFromManifest(99, options)).rejects.toThrow(/is not an ancestor of/);
+
+      expect(reportsOn(forge, 99).map((c) => c.body)).toEqual([earlier]);
     });
 
     it('should keep the retry advice when the PR could not be read to check override labels', async () => {

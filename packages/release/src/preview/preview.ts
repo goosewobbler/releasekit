@@ -98,6 +98,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
             published: unresolved.published,
             total: unresolved.total,
             refused: unresolved.refused,
+            retryable: unresolved.retryable,
             standingPrNumber: unresolved.prNumber,
             retryLabelAvailable: true,
           });

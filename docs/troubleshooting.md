@@ -269,7 +269,7 @@ This gives you an honest choice between the two recovery paths. The warning is k
 
 Before it creates a tag or publishes anything, `standing-pr publish` checks the merged standing PR's manifest: the release bot wrote it, it parses, its override labels still match the PR, the merger has the required permission (`ci.standingPr.authorization`), and it matches the merged source. If a check fails, the publish refuses. The version bumps and changelogs are on `main` from the merge, but nothing is tagged or published.
 
-The refusal posts the failure report on the PR, with 0 packages published and the reason. Retrying won't help, because a retry reads the same manifest and merged commit. The exception is a PR whose labels couldn't be read from the GitHub API; retry that once the API is reachable.
+The refusal posts the failure report on the PR, with 0 packages published and the reason, unless the PR already has a report from an earlier publish attempt. Retrying won't help, because a retry reads the same manifest and merged commit. The exception is a PR whose labels couldn't be read from the GitHub API; retry that once the API is reachable.
 
 To recover, merge the next standing PR. It supersedes the refused release and publishes those changes at its own version. Don't delete tags or revert the release commit.
 

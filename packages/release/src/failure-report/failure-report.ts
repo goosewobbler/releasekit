@@ -16,8 +16,10 @@ export interface FailureReportData {
   label: string;
   published: number;
   total: number;
-  /** The publish refused the manifest, so a retry is refused again. */
+  /** The publish refused the manifest before any tag or registry write. */
   refused?: boolean;
+  /** A refusal whose cause can clear on its own, so a retry can succeed. */
+  retryable?: boolean;
 }
 
 const STATUS_FIELD = markerData<FailureReportStatus>({
@@ -42,6 +44,9 @@ const DATA_FIELD = markerData<FailureReportData>({
       const data: FailureReportData = { label: parsed.label, published: parsed.published, total: parsed.total };
       if (parsed.refused === true) {
         data.refused = true;
+      }
+      if (parsed.retryable === true) {
+        data.retryable = true;
       }
       return data;
     } catch {
@@ -336,19 +341,21 @@ export function renderRefusalReport(input: RefusalReportInput): string {
   const { prNumber, versionOutput, reason, retryable } = input;
   const ledger = versionOutput ? buildLedger(versionOutput, undefined) : [];
   const label = versionOutput ? releaseLabel(versionOutput) : '';
-  const data: FailureReportData = { label, published: 0, total: ledger.length };
-  if (!retryable) {
-    data.refused = true;
+  const data: FailureReportData = { label, published: 0, total: ledger.length, refused: true };
+  if (retryable) {
+    data.retryable = true;
   }
+  // The manifest was refused, so its names and versions may be forged.
+  const untrusted = (text: string) => escapeChangelogMentions(escapeCommentOpeners(text));
 
   const lines: string[] = [FAILURE_MARKER, STATUS_FIELD.encode('unresolved'), DATA_FIELD.encode(data), ''];
   if (versionOutput) {
     lines.push(
-      `## ❌ Release of ${label} was refused`,
+      `## ❌ Release of ${untrusted(label)} was refused`,
       '',
       `**0/${ledger.length} package(s) published.** The publish refused the release manifest before creating any tag or publishing anything. The merge put the version bumps on \`main\`.`,
       '',
-      ...renderLedger(ledger),
+      ...renderLedger(ledger).map(untrusted),
     );
   } else {
     lines.push(
@@ -357,7 +364,19 @@ export function renderRefusalReport(input: RefusalReportInput): string {
       `**Nothing was published.** The release manifest on #${prNumber} could not be read or trusted, so the publish stopped before creating any tag or publishing anything.`,
     );
   }
-  lines.push('', '### Why it was refused', '', '```', reason, '```', '', '### How to recover', '');
+  // A fence longer than any backtick run in the reason, which quotes the manifest's tags and names.
+  const fence = '`'.repeat(Math.max(2, ...(reason.match(/`+/g) ?? []).map((run) => run.length)) + 1);
+  lines.push(
+    '',
+    '### Why it was refused',
+    '',
+    fence,
+    escapeCommentOpeners(reason),
+    fence,
+    '',
+    '### How to recover',
+    '',
+  );
   if (retryable) {
     lines.push(
       ...standingPrRetry({
@@ -415,14 +434,15 @@ export interface SupersedeWarningInput {
   published: number;
   total: number;
   refused?: boolean;
+  retryable?: boolean;
   standingPrNumber?: number;
   retryLabelAvailable?: boolean;
 }
 
 export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
-  const { previousLabel, published, total, refused, standingPrNumber, retryLabelAvailable } = input;
+  const { previousLabel, published, total, refused, retryable, standingPrNumber, retryLabelAvailable } = input;
   const prRef = standingPrNumber ? `the merged standing PR (#${standingPrNumber})` : 'the merged standing PR';
-  if (refused) {
+  if (refused && !retryable) {
     const release = previousLabel
       ? `release ${escapeChangelogMentions(escapeCommentOpeners(previousLabel))}`
       : 'the previous release';
@@ -434,8 +454,11 @@ export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
   const retryHint = retryLabelAvailable
     ? `Retry it via \`release:retry\` on ${prRef}`
     : `Retry it by dispatching the release workflow against ${prRef}`;
+  const state = refused
+    ? 'was refused at publish** (nothing on the registry)'
+    : `is partially published** (${published}/${total} packages on the registry)`;
   return [
-    `> ⚠️ **Previous release ${escapeChangelogMentions(escapeCommentOpeners(previousLabel))} is partially published** (${published}/${total} packages on the registry).`,
+    `> ⚠️ **Previous release ${escapeChangelogMentions(escapeCommentOpeners(previousLabel))} ${state}.`,
     `> ${retryHint}, **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.`,
     '',
   ];

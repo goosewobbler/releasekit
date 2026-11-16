@@ -459,6 +459,21 @@ describe('renderSupersedeWarning', () => {
     expect(text).toContain('supersedes it');
   });
 
+  it('should offer a retry, not a partial-publish fraction, after a refusal that can clear', () => {
+    const text = renderSupersedeWarning({
+      previousLabel: 'v0.24.0',
+      published: 0,
+      total: 2,
+      refused: true,
+      retryable: true,
+      standingPrNumber: 42,
+      retryLabelAvailable: true,
+    }).join('\n');
+    expect(text).toContain('v0.24.0 was refused at publish** (nothing on the registry)');
+    expect(text).not.toContain('partially published');
+    expect(text).toContain('release:retry');
+  });
+
   it('should fall back to the dispatch instruction when the label is not available', () => {
     const text = renderSupersedeWarning({
       previousLabel: 'v0.24.0',

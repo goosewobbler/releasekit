@@ -1428,6 +1428,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
           published: unresolved.published,
           total: unresolved.total,
           refused: unresolved.refused,
+          retryable: unresolved.retryable,
           standingPrNumber: unresolved.prNumber,
           retryLabelAvailable: true,
         });
@@ -1678,7 +1679,17 @@ async function assertManifestMatchesSource(
             `it may have been edited.`,
         );
       }
-      const actual = readManifestVersion(manifestPath);
+      let actual: string | undefined;
+      try {
+        actual = readManifestVersion(manifestPath);
+      } catch (err) {
+        throw new ManifestRefusal(
+          `Refusing to publish PR #${prNumber}: the release manifest lists '${path.relative(cwd, manifestPath)}' for ` +
+            `'${update.packageName}', which can't be read as a package manifest at the merged commit ` +
+            `(${err instanceof Error ? err.message : String(err)}). The manifest does not match the source — it may ` +
+            `have been edited.`,
+        );
+      }
       if (actual !== update.newVersion) {
         throw new ManifestRefusal(
           `Refusing to publish PR #${prNumber}: the release manifest claims '${update.packageName}@${update.newVersion}', ` +
@@ -1797,13 +1808,9 @@ async function readTrustedManifest(
   prNumber: number,
   action: 'merge' | 'publish',
 ): Promise<StandingPRManifest> {
-  // Once merged, the PR can't be updated, so the failure report gives the recovery instead.
-  const beforeMerge = action === 'merge';
   const manifestComment = await findManifestComment(forge, prNumber);
   if (!manifestComment) {
-    throw new ManifestRefusal(
-      `Release manifest not found on PR #${prNumber}.${beforeMerge ? " Re-run 'standing-pr update' to regenerate." : ''}`,
-    );
+    throw new ManifestRefusal(`Release manifest not found on PR #${prNumber}.`);
   }
 
   // `findComment` prefers a bot-authored match but falls back to a human comment carrying the marker; refuse that.
@@ -1811,7 +1818,7 @@ async function readTrustedManifest(
     throw new ManifestRefusal(
       `Refusing to ${action} PR #${prNumber}: the release manifest comment was authored by ` +
         `'${manifestComment.user?.login ?? 'an unknown user'}', not the release bot. A manifest that did not come ` +
-        `from 'standing-pr update' cannot be trusted.${beforeMerge ? " Re-run 'standing-pr update' to regenerate it." : ''}`,
+        `from 'standing-pr update' cannot be trusted.`,
     );
   }
 
@@ -1819,7 +1826,7 @@ async function readTrustedManifest(
     return parseManifest(manifestComment.body);
   } catch (err) {
     throw new ManifestRefusal(
-      `Release manifest on PR #${prNumber} is invalid or incompatible.${beforeMerge ? " Re-run 'standing-pr update'." : ''} Details: ${err instanceof Error ? err.message : String(err)}`,
+      `Release manifest on PR #${prNumber} is invalid or incompatible. Details: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 }
@@ -1928,18 +1935,13 @@ async function verifyManifestForPublish(
     return manifest;
   } catch (err) {
     if (err instanceof ManifestRefusal) {
-      // A reporting failure must never mask the refusal.
-      try {
-        await postRefusalReport(forge, {
-          prNumber,
-          versionOutput: manifest?.versionOutput,
-          reason: err.message,
-          retryable: err.retryable,
-          retryLabelAvailable: true,
-        });
-      } catch (reportErr) {
-        warn(`Failed to surface refusal report: ${reportErr instanceof Error ? reportErr.message : String(reportErr)}`);
-      }
+      await postRefusalReport(forge, {
+        prNumber,
+        versionOutput: manifest?.versionOutput,
+        reason: err.message,
+        retryable: err.retryable,
+        retryLabelAvailable: true,
+      });
     }
     throw err;
   }
@@ -2209,7 +2211,16 @@ export async function runStandingPRMerge(options: StandingPROptions): Promise<St
   }
 
   const livePr = await forge.getPullRequest(pr.number);
-  const manifest = await readTrustedManifest(forge, pr.number, 'merge');
+  let manifest: StandingPRManifest;
+  try {
+    manifest = await readTrustedManifest(forge, pr.number, 'merge');
+  } catch (err) {
+    // Still open, so the PR can be regenerated; after the merge the failure report gives the recovery instead.
+    if (err instanceof ManifestRefusal) {
+      throw new ManifestRefusal(`${err.message} Re-run 'standing-pr update' to regenerate it.`);
+    }
+    throw err;
+  }
   assertOverrideLabelsCurrent(manifest, pr.number, livePr, releaseKitConfig.ci, 'merge');
   // Older manifests lack `headSha`, so this only stops a push that lands between the read and the merge.
   const sha = manifest.headSha ?? livePr.headSha;
