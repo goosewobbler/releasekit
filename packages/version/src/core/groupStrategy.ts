@@ -86,6 +86,7 @@ async function planMember(
   formattedPrefix: string,
   globalTag: string,
   globalPrefix: string | undefined,
+  excluded = false,
 ): Promise<MemberPlan> {
   const name = pkg.packageJson.name;
 
@@ -101,7 +102,7 @@ async function planMember(
   if (!latestTag) {
     latestTag = globalTag;
   }
-  if (!latestTag && !config.baseRef) {
+  if (!latestTag && !config.baseRef && !excluded) {
     await checkUnreachableTags(
       [
         ...(config.baselineTagTemplate
@@ -496,7 +497,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
             droppedNames = excludedMembers.map((m) => m.packageJson.name);
           } else {
             const excludedPlans = await Promise.all(
-              excludedMembers.map((m) => planMember(config, m, formattedPrefix, globalTag, globalPrefix)),
+              excludedMembers.map((m) => planMember(config, m, formattedPrefix, globalTag, globalPrefix, true)),
             );
             droppedNames = excludedPlans.filter((p) => p.changed).map((p) => p.pkg.packageJson.name);
           }

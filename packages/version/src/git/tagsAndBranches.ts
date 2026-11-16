@@ -104,7 +104,7 @@ export type TagSeries =
 
 /**
  * Called once no tag in `series` is reachable from HEAD. A tag that exists anyway (typically a shallow clone) fails
- * the run under `strict`, and is otherwise warned about before versioning from the manifest.
+ * the run under `strict`, and is otherwise warned about and ignored.
  */
 export async function checkUnreachableTags(
   series: TagSeries[],
@@ -114,20 +114,19 @@ export async function checkUnreachableTags(
   for (const entry of series) {
     const [tag] =
       'globalPrefix' in entry
-        ? await listSemverTags(entry.globalPrefix, git)
+        ? await listSemverTags(entry.globalPrefix, git).catch(() => [])
         : await listPackageTags(entry.packageName, entry.versionPrefix, entry.options, git);
     if (!tag) {
       continue;
     }
     const subject = 'globalPrefix' in entry ? 'No release tag' : `No release tag for ${entry.packageName}`;
-    const found = `${subject} is reachable from the current commit, but '${tag}' exists.`;
-    const fetchHint = 'If the checkout is shallow, fetch the full history (fetch-depth: 0).';
+    const found =
+      `${subject} is reachable from the current commit, but '${tag}' exists: the checkout is shallow (fetch the ` +
+      `full history with fetch-depth: 0), or the tag is on a branch HEAD doesn't contain.`;
     if (strict) {
-      throw new StrictReachableError(
-        `${found} ${fetchHint} To version from the manifest instead, set strictReachable to false.`,
-      );
+      throw new StrictReachableError(`${found} To ignore it instead, set strictReachable to false.`);
     }
-    log(`${found} Versioning from the manifest. ${fetchHint}`, 'warning');
+    log(`${found} Ignoring it.`, 'warning');
     return;
   }
 }

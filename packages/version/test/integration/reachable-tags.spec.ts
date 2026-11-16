@@ -107,7 +107,7 @@ describe('baseline tag reachability', () => {
   });
 
   describe('with package-specific tags', () => {
-    function writeConfig(strictReachable: boolean, packages = ['packages/core']): void {
+    function writeConfig(strictReachable: boolean, packages = ['packages/core'], extra = {}): void {
       writeVersionConfig(tempDir, {
         preset: 'angular',
         packages,
@@ -115,6 +115,7 @@ describe('baseline tag reachability', () => {
         packageSpecificTags: true,
         versionPrefix: 'v',
         strictReachable,
+        ...extra,
       });
       git('add releasekit.config.json');
       git('commit -q -m "chore: package tags"');
@@ -170,7 +171,7 @@ describe('baseline tag reachability', () => {
       },
     );
 
-    it('should warn and version from the manifest without strictReachable when the only package tag is unreachable', () => {
+    it('should warn and ignore the tag without strictReachable when the only package tag is unreachable', () => {
       git('tag -d v1.0.0');
       writeConfig(false);
       tagOnSideBranch('test-core@v1.0.0');
@@ -181,9 +182,44 @@ describe('baseline tag reachability', () => {
 
       expect(result.status).toBe(0);
       expect(readVersionOutput(result.stdout).tags).toEqual(['test-core@v1.0.1']);
+      expect(result.stderr).toContain('Ignoring it.');
       expect(result.stderr).toContain(
-        "No release tag for @test/core is reachable from the current commit, but 'test-core@v1.0.0' exists. Versioning from the manifest.",
+        "No release tag for @test/core is reachable from the current commit, but 'test-core@v1.0.0' exists",
       );
+    });
+
+    describe('in an independent group', () => {
+      const groups = { all: { packages: ['@test/core', '@test/utils'], sync: 'independent' } };
+
+      beforeEach(() => {
+        git('tag -d v1.0.0');
+        mkdirSync(join(tempDir, 'packages/utils'), { recursive: true });
+        createPackageJson(join(tempDir, 'packages/utils'), '@test/utils', '1.0.0');
+        writeConfig(true, ['packages/core', 'packages/utils'], { groups });
+      });
+
+      it("should fail when strictReachable is set and a member's only tag is on an unmerged branch", () => {
+        tagOnSideBranch('test-core@v1.0.0');
+
+        const result = executeCliCommand('--json', tempDir);
+
+        expect(result.status).not.toBe(0);
+        expect(`${result.stdout}${result.stderr}`).toContain(
+          "No release tag for @test/core is reachable from the current commit, but 'test-core@v1.0.0' exists",
+        );
+      });
+
+      it("should not fail on a skipped member's unreachable tag", () => {
+        writeConfig(true, ['packages/core', 'packages/utils'], { groups, skip: ['@test/utils'] });
+        git('tag test-core@v1.0.0');
+        tagOnSideBranch('test-utils@v1.0.0');
+        writeFileSync(join(tempDir, 'packages/core/index.js'), '// changed\n');
+        createConventionalCommit(tempDir, 'fix', 'patch core', 'core', false, ['packages/core']);
+
+        const output = runVersionJson(tempDir);
+
+        expect(output.tags).toEqual(['test-core@v1.0.1']);
+      });
     });
 
     it("should release a package's first version from its manifest when strictReachable is set", () => {
