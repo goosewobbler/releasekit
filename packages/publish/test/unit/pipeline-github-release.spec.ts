@@ -313,7 +313,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
   });
 
   it("should give a tag without release notes its changelog's entries, warning naming it, when body is auto", async () => {
-    const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
+    const input = recordChangelogTags(perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' }));
 
     await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { 'pkg-a': 'A' } });
 
@@ -326,27 +326,32 @@ describe('GitHub release bodies in the publish pipeline', () => {
     const input = syncInput('v1.2.3');
     input.changelogs = [changelog('monorepo', "Handle @octocat's case")];
 
-    await runPipeline(input, getDefaultConfig(), options);
+    await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
 
     expect(releaseBodies()).toEqual({ 'v1.2.3': "- Handle \\@octocat's case" });
   });
 
-  it('should not give a tag a changelog of only lockstep version-bump placeholders', async () => {
+  it.each([
+    ['auto', GENERATED],
+    ['changelog', '- Update version to 1.2.3'],
+  ] as const)('should give a lockstep-carried tag, when body is %s, the body %s', async (body, expected) => {
+    const config = getDefaultConfig();
+    config.githubRelease.body = body;
     const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
     input.changelogs[1] = {
       ...changelog('pkg-b', 'Update version to 1.2.3'),
       entries: [{ type: 'changed', description: 'Update version to 1.2.3', synthetic: true }],
     };
 
-    await runPipeline(input, getDefaultConfig(), options);
+    await runPipeline(recordChangelogTags(input), config, options);
 
-    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': expected });
   });
 
   it.each(['release-1.2.3', 'app-v1.2.3'])(
     'should give a sync release tagged %s the sole changelog when body is auto and release notes are disabled',
     async (tag) => {
-      await runPipeline(syncInput(tag), getDefaultConfig(), options);
+      await runPipeline(recordChangelogTags(syncInput(tag)), getDefaultConfig(), options);
 
       expect(releaseBodies()).toEqual({ [tag]: '- Fix the sync release' });
       expect(warnMock).not.toHaveBeenCalled();
@@ -357,7 +362,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
     const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
     input.changelogs = input.changelogs.filter((c) => c.packageName === 'pkg-a');
 
-    await runPipeline(input, getDefaultConfig(), options);
+    await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
 
     expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
     expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);

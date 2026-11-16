@@ -76,7 +76,7 @@ function resolveNotes(
     }
   }
 
-  const changelogBody = formatChangelogForTag(release);
+  const changelogBody = formatChangelogForTag(release, { skipSynthetic: true });
   if (changelogBody) {
     if (releaseNotesEnabled) {
       warn(`No release notes found for tag ${release.tag}, falling back to its changelog`);
@@ -200,20 +200,21 @@ function findNotesForTag(release: ReleaseTag, notes: Record<string, string>): st
   return key === undefined || !notes[key]?.trim() ? undefined : notes[key];
 }
 
-/** Synthetic lockstep-carry placeholders (`Update version to X`) aren't changes. */
-function realEntries(changelog: VersionPackageChangelog): VersionChangelogEntry[] {
-  return changelog.entries.filter((e) => !e.synthetic);
-}
-
-function formatChangelogForTag(release: ReleaseTag): string | undefined {
+/**
+ * `skipSynthetic` drops lockstep-carry placeholders (`Update version to X`), so `auto` gives a carried package's tag
+ * generated notes instead.
+ */
+function formatChangelogForTag(release: ReleaseTag, { skipSynthetic = false } = {}): string | undefined {
   const { changelogs } = release.input;
+  const entriesOf = (c: VersionPackageChangelog): VersionChangelogEntry[] =>
+    skipSynthetic ? c.entries.filter((e) => !e.synthetic) : c.entries;
   const key = resolveTagKey(
     release,
     changelogs.map((c) => c.packageName),
-    changelogs.filter((c) => realEntries(c).length > 0).map((c) => c.packageName),
+    changelogs.filter((c) => entriesOf(c).length > 0).map((c) => c.packageName),
   );
   const target = changelogs.find((c) => c.packageName === key);
-  const entries = target ? realEntries(target) : [];
+  const entries = target ? entriesOf(target) : [];
   if (!target || entries.length === 0) {
     return undefined;
   }
