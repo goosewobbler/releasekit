@@ -9,7 +9,9 @@ import {
   type FailureReportMode,
   parseFailureReportData,
   parseFailureReportStatus,
+  type RefusalReportInput,
   renderFailureReport,
+  renderRefusalReport,
   renderResolvedReport,
 } from './failure-report.js';
 
@@ -43,10 +45,17 @@ export async function postFailureReport(
     writeStepSummary(body);
     return;
   }
+  await postReport(ctx.forge, ctx.prNumber, body);
+}
 
+export async function postRefusalReport(forge: Forge, input: RefusalReportInput): Promise<void> {
+  await postReport(forge, input.prNumber, renderRefusalReport(input));
+}
+
+async function postReport(forge: Forge, prNumber: number, body: string): Promise<void> {
   try {
-    await postOrUpdateComment(ctx.forge, ctx.prNumber, body, FAILURE_MARKER);
-    info(`Posted publish-failure report on PR #${ctx.prNumber}`);
+    await postOrUpdateComment(forge, prNumber, body, FAILURE_MARKER);
+    info(`Posted publish-failure report on PR #${prNumber}`);
   } catch (err) {
     warn(`Failed to post publish-failure report: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -87,6 +96,7 @@ export interface UnresolvedFailure {
   previousLabel: string;
   published: number;
   total: number;
+  refused?: boolean;
   prNumber: number;
 }
 
@@ -119,6 +129,7 @@ function parseReportLedgerSummary(body: string, prNumber: number): UnresolvedFai
     previousLabel: data.label,
     published: data.published,
     total: data.total,
+    refused: data.refused,
     prNumber,
   };
 }

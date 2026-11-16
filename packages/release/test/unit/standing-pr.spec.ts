@@ -5,7 +5,7 @@ import { matchesPackageTarget } from '@releasekit/core';
 import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
 import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
+import { FAILURE_MARKER, renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
 import { extractNotesRegions, renderNotesRegion } from '../../src/standing-pr/notes-region.js';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
 import {
@@ -123,7 +123,8 @@ vi.mock('../../src/steps.js', () => ({
   runPublishStep: vi.fn(),
 }));
 
-vi.mock('../../src/github.js', () => ({
+vi.mock('../../src/github.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/github.js')>()),
   forgeFor: vi.fn(),
 }));
 
@@ -2027,6 +2028,36 @@ describe('runStandingPRUpdate', () => {
       expect(body).toContain('partially published');
       expect(body).toContain('1/2 packages');
       expect(body).toContain('#7');
+    });
+
+    it('should warn that merging supersedes a release whose publish was refused', async () => {
+      mergedVersions = { '@scope/core': '0.24.0' };
+      const forged = {
+        ...baseManifest,
+        versionOutput: createMockVersionOutput([{ packageName: '@scope/core', newVersion: '9.9.9' }]),
+      };
+      const forge = await mockForge({
+        standingPR: null,
+        recentlyClosedPRs: [{ number: 7, mergedAt: '2026-01-01T00:00:00Z' }],
+        comments: [{ id: 1, prNumber: 7, body: serializeManifest(forged) }],
+      });
+      await expect(
+        publishFromManifest(7, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+      ).rejects.toThrow(/does not match what was merged/);
+
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      vi.mocked(runVersionStep).mockResolvedValue(
+        createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.25.0' }]) as unknown as Awaited<
+          ReturnType<typeof runVersionStep>
+        >,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const body = forge.createdPullRequests[0]?.body;
+      expect(body).toContain('The publish of release v9.9.9 from the merged standing PR (#7) was refused');
+      expect(body).toContain('merging this PR supersedes it');
+      expect(body).not.toContain('release:retry');
     });
 
     it('should omit the warning when the latest merged standing PR failure is resolved', async () => {
@@ -4862,6 +4893,135 @@ describe('publishFromManifest', () => {
       publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
     ).rejects.toThrow(/schema version undefined is incompatible/);
     expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  describe('refusal report', () => {
+    const options = { projectDir: '/test', verbose: false, quiet: false, json: false };
+
+    function reportsOn(forge: FakeForge, prNumber: number) {
+      return forge.comments.filter((c) => c.prNumber === prNumber && c.body.startsWith(FAILURE_MARKER));
+    }
+
+    async function expectRefusedWithReport(forge: FakeForge, reason: RegExp) {
+      const { runPublishStep } = await import('../../src/steps.js');
+      const refusal = publishFromManifest(99, options);
+      await expect(refusal).rejects.toThrow(reason);
+      await expect(refusal).rejects.not.toThrow(/merge again|Re-run 'standing-pr update'/);
+      expect(runPublishStep).not.toHaveBeenCalled();
+      expect(fakeGit.tagged).toEqual([]);
+      const reports = reportsOn(forge, 99);
+      expect(reports).toHaveLength(1);
+      const body = reports[0]?.body ?? '';
+      expect(body).toMatch(reason);
+      expect(body).toContain("Retrying won't help");
+      expect(body).toContain('Merge the next standing PR');
+      expect(body).not.toContain('merge again');
+      return body;
+    }
+
+    it('should report a manifest that does not match the merged source', async () => {
+      const forged = {
+        ...baseManifest,
+        versionOutput: createMockVersionOutput([{ packageName: '@scope/core', newVersion: '9.9.9' }]),
+      };
+      const forge = await mockForge({ comments: [{ id: 77, body: serializeManifest(forged) }] });
+
+      const body = await expectRefusedWithReport(forge, /does not match what was merged/);
+
+      expect(body).toContain('**0/1 package(s) published.**');
+      expect(body).toContain('| `@scope/core` | 9.9.9 | ⏸ not attempted |');
+    });
+
+    it('should report a baseSha that is not an ancestor of HEAD', async () => {
+      setupGit({ ancestors: () => false });
+      const forge = await mockForge({ comments: [{ id: 77, body: serializeManifest(baseManifest) }] });
+
+      const body = await expectRefusedWithReport(forge, /is not an ancestor of/);
+
+      expect(body).toContain('**0/1 package(s) published.**');
+    });
+
+    it('should report override labels that changed after the last update', async () => {
+      const manifest = { ...baseManifest, schemaVersion: 2 as const, overrideLabels: ['bump:major'] };
+      const forge = await mockForge({
+        comments: [{ id: 77, body: serializeManifest(manifest) }],
+        pullRequests: { 99: { body: '', labels: ['bump:minor'] } },
+      });
+
+      const body = await expectRefusedWithReport(forge, /labels changed after the last update/);
+
+      expect(body).toContain('**0/1 package(s) published.**');
+    });
+
+    it('should report a merger without the required permission', async () => {
+      const { loadConfig } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ci: {
+          standingPr: {
+            branch: 'release/next',
+            authorization: { requiredPermission: 'admin', enforceMergeAuthor: true },
+          },
+        },
+        git: { branch: 'main' },
+      } as unknown as ReturnType<typeof loadConfig>);
+      process.env.GITHUB_EVENT_PATH = '/tmp/test-event.json';
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({ pull_request: { number: 99, merged: true, merged_by: { login: 'rando' } } }),
+      );
+      const forge = await mockForge({
+        comments: [{ id: 77, body: serializeManifest(baseManifest) }],
+        actorPermissions: { rando: 'write' },
+      });
+
+      const body = await expectRefusedWithReport(forge, /merged by 'rando'/);
+
+      expect(body).toContain('**0/1 package(s) published.**');
+    });
+
+    it('should name the PR when the manifest is missing', async () => {
+      const forge = await mockForge({});
+
+      const body = await expectRefusedWithReport(forge, /manifest not found on PR #99/);
+
+      expect(body).toContain('## ❌ Release from #99 was refused');
+      expect(body).not.toContain('Package ledger');
+    });
+
+    it('should name the PR when the manifest was not written by the bot', async () => {
+      const forge = await mockForge({
+        comments: [{ id: 77, body: serializeManifest(baseManifest), user: { login: 'attacker', type: 'User' } }],
+      });
+
+      const body = await expectRefusedWithReport(forge, /not the release bot/);
+
+      expect(body).toContain('## ❌ Release from #99 was refused');
+      expect(body).not.toContain('@scope/core');
+    });
+
+    it('should update the same report when the publish is refused again', async () => {
+      setupGit({ ancestors: () => false });
+      const forge = await mockForge({ comments: [{ id: 77, body: serializeManifest(baseManifest) }] });
+
+      await expect(publishFromManifest(99, options)).rejects.toThrow(/is not an ancestor of/);
+      await expect(publishFromManifest(99, options)).rejects.toThrow(/is not an ancestor of/);
+
+      expect(reportsOn(forge, 99)).toHaveLength(1);
+      expect(forge.updatedComments).toHaveLength(1);
+    });
+
+    it('should keep the retry advice when the PR could not be read to check override labels', async () => {
+      const manifest = { ...baseManifest, schemaVersion: 2 as const, overrideLabels: ['bump:major'] };
+      const forge = await mockForge({ comments: [{ id: 77, body: serializeManifest(manifest) }] });
+      vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('API unavailable'));
+
+      await expect(publishFromManifest(99, options)).rejects.toThrow(/could not be read/);
+
+      const body = reportsOn(forge, 99)[0]?.body ?? '';
+      expect(body).toContain('release:retry');
+      expect(body).toContain('Retrying is safe');
+      expect(body).not.toContain("Retrying won't help");
+    });
   });
 });
 

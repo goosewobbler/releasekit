@@ -97,6 +97,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
             previousLabel: unresolved.previousLabel,
             published: unresolved.published,
             total: unresolved.total,
+            refused: unresolved.refused,
             standingPrNumber: unresolved.prNumber,
             retryLabelAvailable: true,
           });

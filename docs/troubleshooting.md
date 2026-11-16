@@ -227,11 +227,11 @@ What was pushed depends on the mode. The order is in [Publish order and partial 
 - **Batch mode** (one shared tag): nothing is pushed. In a direct release the version commit is still local. Re-run; packages already on the registry are skipped, then the branch, tags, and GitHub Releases are pushed.
 - **Per-package mode** (each update has its own tag): the release commit and the tags of packages that published are already on the remote. No GitHub Release was created. Roll forward with the next release. Do not delete those tags.
 - **A tag push failed after the branch push** (direct release, either mode): the release commit is on the remote, but its tags are not. A re-run fails every time, because its new release commit can't be pushed over this one. Roll forward with the next release; this version gets no GitHub Release. Before that release, restore the tags with the commands from the failure report. Without them it counts from the previous tag, so its changelog repeats this release's entries and its bump counts this release's commits again. Under `mismatchStrategy: 'error'` it can also throw a version mismatch if this release moved onto or off a prerelease.
-- **Standing-PR mode:** the merge already put the version commit on `main`. Add `release:retry` to the merged standing PR (below). Do not delete a tag whose version was published.
+- **Standing-PR mode:** the merge already put the version commit on `main`. Add `release:retry` to the merged standing PR (below). Do not delete a tag whose version was published. A publish that refused the manifest is different; see [A refused publish](#a-refused-publish).
 
 ### The failure report
 
-On a partial-publish failure, ReleaseKit posts a **failure report** so the state is visible outside the workflow logs. Where it lands depends on the release mode:
+On a partial-publish failure or a [refused publish](#a-refused-publish), ReleaseKit posts a **failure report** so the state is visible outside the workflow logs. Where it lands depends on the release mode:
 
 - **Standing-pr mode** — a comment on the merged standing PR whose manifest drove the publish.
 - **Direct / label mode** — a comment on the merged feature PR that triggered the release.
@@ -263,7 +263,15 @@ So a failed publish does not silently fade away, ReleaseKit warns while a partia
 
 > ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry). Retry it via `release:retry` on the merged standing PR (#42), **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.
 
-This gives you an honest choice between the two recovery paths. The warning is keyed off the failure report on the most recently merged standing PR and its resolved status, so it clears automatically once the failed release is retried successfully or superseded by the next release.
+This gives you an honest choice between the two recovery paths. The warning is keyed off the failure report on the most recently merged standing PR and its resolved status, so it clears automatically once the failed release is retried successfully or superseded by the next release. After a refused publish, the warning offers only the supersede path.
+
+### A refused publish
+
+Before it creates a tag or publishes anything, `standing-pr publish` checks the merged standing PR's manifest: the release bot wrote it, it parses, its override labels still match the PR, the merger has the required permission (`ci.standingPr.authorization`), and it matches the merged source. If a check fails, the publish refuses. The version bumps and changelogs are on `main` from the merge, but nothing is tagged or published.
+
+The refusal posts the failure report on the PR, with 0 packages published and the reason. Retrying won't help, because a retry reads the same manifest and merged commit. The exception is a PR whose labels couldn't be read from the GitHub API; retry that once the API is reachable.
+
+To recover, merge the next standing PR. It supersedes the refused release and publishes those changes at its own version. Don't delete tags or revert the release commit.
 
 ---
 

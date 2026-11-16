@@ -16,7 +16,12 @@ import { z } from 'zod';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
-import { detectUnresolvedFailure, postFailureReport, resolveFailureReportIfPresent } from '../failure-report/post.js';
+import {
+  detectUnresolvedFailure,
+  postFailureReport,
+  postRefusalReport,
+  resolveFailureReportIfPresent,
+} from '../failure-report/post.js';
 import { getHeadCommitMessage, matchesSkipPattern, requireGitHubContext } from '../git.js';
 import { forgeFor } from '../github.js';
 import { readGitHubEvent } from '../github-event.js';
@@ -1422,6 +1427,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
           previousLabel: unresolved.previousLabel,
           published: unresolved.published,
           total: unresolved.total,
+          refused: unresolved.refused,
           standingPrNumber: unresolved.prNumber,
           retryLabelAvailable: true,
         });
@@ -1655,10 +1661,10 @@ async function assertManifestMatchesSource(
   for (const update of publishable) {
     const dir = packageDirs[update.packageName];
     if (dir === undefined) {
-      throw new Error(
+      throw new ManifestRefusal(
         `Refusing to publish PR #${prNumber}: the release manifest lists package '${update.packageName}', which is ` +
           `not in the workspace at the merged commit. The manifest does not match the source — it may have been ` +
-          `edited. Re-run 'standing-pr update' to regenerate it.`,
+          `edited.`,
       );
     }
     // filePath too: the registries publish from its directory, and an edited `files` could leave it out.
@@ -1666,19 +1672,18 @@ async function assertManifestMatchesSource(
       const manifestPath = path.resolve(cwd, file);
       // Another package's manifest would vouch for a version this package doesn't have.
       if (path.dirname(manifestPath) !== path.resolve(dir)) {
-        throw new Error(
+        throw new ManifestRefusal(
           `Refusing to publish PR #${prNumber}: the release manifest lists '${path.relative(cwd, manifestPath)}' for '${update.packageName}', ` +
             `which is not in that package's directory at the merged commit. The manifest does not match the source — ` +
-            `it may have been edited. Re-run 'standing-pr update' to regenerate it.`,
+            `it may have been edited.`,
         );
       }
       const actual = readManifestVersion(manifestPath);
       if (actual !== update.newVersion) {
-        throw new Error(
+        throw new ManifestRefusal(
           `Refusing to publish PR #${prNumber}: the release manifest claims '${update.packageName}@${update.newVersion}', ` +
             `but the merged source has '${update.packageName}@${actual}' in ${path.relative(cwd, manifestPath)}. The ` +
-            `manifest does not match what was merged — it may have been edited. Re-run 'standing-pr update' to ` +
-            `regenerate it.`,
+            `manifest does not match what was merged — it may have been edited.`,
         );
       }
     }
@@ -1695,22 +1700,30 @@ async function assertManifestMatchesSource(
       return new RegExp(`(?<![\\d.])${escaped}(?![\\d.+-])`).test(tag);
     });
     if (!carriesValidatedVersion) {
-      throw new Error(
+      throw new ManifestRefusal(
         `Refusing to publish PR #${prNumber}: the release manifest lists tag '${tag}', which does not correspond to ` +
-          `any package/version being published. The manifest does not match the source — it may have been edited. ` +
-          `Re-run 'standing-pr update' to regenerate it.`,
+          `any package/version being published. The manifest does not match the source — it may have been edited.`,
       );
     }
     // A forged `@scope/evil@v1.2.3` at a real published version passes the version check, so a scoped tag must also
     // name a published package. Bare and unscoped tags have no reliably delimitable name.
     const scopedPackage = /@[^\s@/]+\/[^\s@]+?(?=@)/.exec(tag)?.[0];
     if (scopedPackage && !publishable.some((u) => u.packageName === scopedPackage)) {
-      throw new Error(
+      throw new ManifestRefusal(
         `Refusing to publish PR #${prNumber}: the release manifest lists tag '${tag}', whose package ` +
           `'${scopedPackage}' is not among the packages being published. The manifest does not match the source — ` +
-          `it may have been edited. Re-run 'standing-pr update' to regenerate it.`,
+          `it may have been edited.`,
       );
     }
+  }
+}
+
+class ManifestRefusal extends Error {
+  constructor(
+    message: string,
+    readonly retryable = false,
+  ) {
+    super(message);
   }
 }
 
@@ -1761,7 +1774,7 @@ async function assertManifestCoversMerge(
   }
   const heads = `PR #${prNumber} merged head ${headSha}, but its release manifest describes ${manifest.headSha}`;
   if (!mergeCommitSha) {
-    throw new Error(
+    throw new ManifestRefusal(
       `Refusing to publish: ${heads}, and the merge commit is unknown, so the packages it bumps can't be checked ` +
         `against the manifest.`,
     );
@@ -1770,7 +1783,7 @@ async function assertManifestCoversMerge(
   const listed = new Set(manifest.versionOutput.updates.map((u) => u.packageName));
   const missing = (await packagesBumpedBy(mergeCommitSha, packageDirs, cwd)).filter((name) => !listed.has(name));
   if (missing.length > 0) {
-    throw new Error(
+    throw new ManifestRefusal(
       `Refusing to publish: ${heads}. The merge bumps ${missing.map((name) => `'${name}'`).join(', ')}, which the ` +
         `manifest doesn't list, so publishing would leave them versioned but never tagged or published. Requiring ` +
         `the 'releasekit/standing-pr' status check stops a merge landing before its manifest is written.`,
@@ -1779,62 +1792,157 @@ async function assertManifestCoversMerge(
   warn(`${heads}. Publishing anyway: the manifest lists every package the merge bumps.`);
 }
 
-/** `livePr` is undefined when the PR couldn't be read. */
-async function readVerifiedManifest(
+async function readTrustedManifest(
   forge: Forge,
   prNumber: number,
-  livePr: PullRequestDetails | undefined,
-  ciConfig: CIConfig | undefined,
   action: 'merge' | 'publish',
 ): Promise<StandingPRManifest> {
+  // Once merged, the PR can't be updated, so the failure report gives the recovery instead.
+  const beforeMerge = action === 'merge';
   const manifestComment = await findManifestComment(forge, prNumber);
   if (!manifestComment) {
-    throw new Error(`Release manifest not found on PR #${prNumber}. Re-run 'standing-pr update' to regenerate.`);
+    throw new ManifestRefusal(
+      `Release manifest not found on PR #${prNumber}.${beforeMerge ? " Re-run 'standing-pr update' to regenerate." : ''}`,
+    );
   }
 
   // `findComment` prefers a bot-authored match but falls back to a human comment carrying the marker; refuse that.
   if (!isBotComment(manifestComment)) {
-    throw new Error(
+    throw new ManifestRefusal(
       `Refusing to ${action} PR #${prNumber}: the release manifest comment was authored by ` +
         `'${manifestComment.user?.login ?? 'an unknown user'}', not the release bot. A manifest that did not come ` +
-        `from 'standing-pr update' cannot be trusted. Re-run 'standing-pr update' to regenerate it.`,
+        `from 'standing-pr update' cannot be trusted.${beforeMerge ? " Re-run 'standing-pr update' to regenerate it." : ''}`,
     );
   }
 
-  let manifest: StandingPRManifest;
   try {
-    manifest = parseManifest(manifestComment.body);
+    return parseManifest(manifestComment.body);
   } catch (err) {
-    throw new Error(
-      `Release manifest on PR #${prNumber} is invalid or incompatible. Re-run 'standing-pr update'. Details: ${err instanceof Error ? err.message : String(err)}`,
+    throw new ManifestRefusal(
+      `Release manifest on PR #${prNumber} is invalid or incompatible.${beforeMerge ? " Re-run 'standing-pr update'." : ''} Details: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
+}
 
+/** `livePr` is undefined when the PR couldn't be read. */
+function assertOverrideLabelsCurrent(
+  manifest: StandingPRManifest,
+  prNumber: number,
+  livePr: PullRequestDetails | undefined,
+  ciConfig: CIConfig | undefined,
+  action: 'merge' | 'publish',
+): void {
   // Fails closed when the PR is unreadable, except for an empty override set: the only possible change is an added
   // label, not worth failing the common no-override publish on an API blip.
   if (!livePr && manifest.overrideLabels !== undefined && manifest.overrideLabels.length > 0) {
-    throw new Error(
+    throw new ManifestRefusal(
       `Cannot verify standing PR #${prNumber} override labels against the manifest — the PR could not be read ` +
         `from GitHub. Refusing to publish a manifest that carried override labels without confirming they still ` +
         `match. Re-run once the GitHub API is reachable (or apply the retry label).`,
+      true,
     );
   }
   if (livePr && manifest.overrideLabels !== undefined) {
     const prLabels = extractOverrideLabels((livePr.labels ?? []).filter(Boolean), ciConfig);
     const manifestLabels = [...manifest.overrideLabels].sort();
     if (prLabels.join('\n') !== manifestLabels.join('\n')) {
-      throw new Error(
+      throw new ManifestRefusal(
         `Standing PR #${prNumber} override labels changed after the last update — the release manifest is stale.\n` +
           `  manifest was computed for: [${manifestLabels.join(', ') || '(none)'}]\n` +
           `  PR now has:                [${prLabels.join(', ') || '(none)'}]\n` +
-          `Re-run 'releasekit standing-pr update' so the manifest matches, then ` +
-          `${action === 'merge' ? 'merge again' : 'merge (or apply the retry label after updating)'}. ` +
+          `${action === 'merge' ? "Re-run 'releasekit standing-pr update' so the manifest matches, then merge again. " : ''}` +
           `Refusing to ${action} a release the labels no longer describe.`,
       );
     }
   }
+}
 
-  return manifest;
+/** Defense in depth behind the branch-protection ruleset, catching a missing or misconfigured one. */
+async function assertMergeAuthorized(
+  forge: Forge,
+  prNumber: number,
+  authz: StandingPrAuthorization | undefined,
+): Promise<void> {
+  if (!authz?.enforceMergeAuthor) {
+    return;
+  }
+  const actor = getEventActor();
+  if (!actor.mergedBy) {
+    // e.g. a dispatch publish or an inferred PR.
+    warn(
+      `enforceMergeAuthor is set but the merging actor is unknown (no merged_by in the event) — skipping the publish-author check for PR #${prNumber}.`,
+    );
+    return;
+  }
+  // Fails open on an unverifiable check since the ruleset already gated the merge.
+  let authorized = true;
+  try {
+    authorized = await isAuthorizedActor(forge, actor.mergedBy, actor.mergedByType, authz);
+  } catch (err) {
+    warn(
+      `Could not verify merger '${actor.mergedBy}' permission — proceeding, since branch protection is the primary gate: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (!authorized) {
+    throw new ManifestRefusal(
+      `Refusing to publish PR #${prNumber}: it was merged by '${actor.mergedBy}', who lacks the required '${authz.requiredPermission}' permission (ci.standingPr.authorization). Restrict who can merge the release branch with a branch-protection ruleset, or set ci.standingPr.authorization.enforceMergeAuthor: false.`,
+    );
+  }
+}
+
+/**
+ * Every check that can refuse the merged release, before any tag or registry write. A refusal posts the failure
+ * report, since the merge already put the version bumps on `main`.
+ */
+async function verifyManifestForPublish(
+  forge: Forge,
+  prNumber: number,
+  livePr: PullRequestDetails | undefined,
+  merged: { headSha?: string; mergeCommitSha?: string },
+  releaseKitConfig: ReturnType<typeof loadReleaseKitConfig>,
+  options: StandingPROptions,
+): Promise<StandingPRManifest> {
+  const cwd = options.projectDir;
+  let manifest: StandingPRManifest | undefined;
+  try {
+    manifest = await readTrustedManifest(forge, prNumber, 'publish');
+    assertOverrideLabelsCurrent(manifest, prNumber, livePr, releaseKitConfig.ci, 'publish');
+    await assertMergeAuthorized(forge, prNumber, releaseKitConfig.ci?.standingPr?.authorization);
+
+    // A `baseSha` that isn't an ancestor of HEAD means the manifest describes work not on this branch (rewritten
+    // history, wrong branch or a forged baseSha).
+    const currentSha = await getHeadSha(cwd);
+    if (!(await createGitCli().isAncestor(manifest.baseSha, currentSha, cwd))) {
+      throw new ManifestRefusal(
+        `Refusing to publish PR #${prNumber}: the manifest's baseSha (${manifest.baseSha}) is not an ancestor of ` +
+          `HEAD (${currentSha}). The manifest was computed against a commit that is not in this branch's history ` +
+          `(the history may have been rewritten).`,
+      );
+    }
+
+    const { getWorkspacePackageDirs } = await import('@releasekit/version');
+    const packageDirs = await getWorkspacePackageDirs({ cwd, configPath: options.config });
+    await assertManifestMatchesSource(manifest, packageDirs, cwd, prNumber);
+
+    await assertManifestCoversMerge(manifest, merged, packageDirs, cwd, prNumber);
+    return manifest;
+  } catch (err) {
+    if (err instanceof ManifestRefusal) {
+      // A reporting failure must never mask the refusal.
+      try {
+        await postRefusalReport(forge, {
+          prNumber,
+          versionOutput: manifest?.versionOutput,
+          reason: err.message,
+          retryable: err.retryable,
+          retryLabelAvailable: true,
+        });
+      } catch (reportErr) {
+        warn(`Failed to surface refusal report: ${reportErr instanceof Error ? reportErr.message : String(reportErr)}`);
+      }
+    }
+    throw err;
+  }
 }
 
 /**
@@ -1858,61 +1966,16 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     warn(`Could not read PR #${prNumber}: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const manifest = await readVerifiedManifest(forge, prNumber, livePr, releaseKitConfig.ci, 'publish');
-
-  // Defense in depth behind the branch-protection ruleset, catching a missing or misconfigured one. Fails open on an
-  // unverifiable check since the ruleset already gated the merge.
-  const authz = standingPrConfig?.authorization;
-  if (authz?.enforceMergeAuthor) {
-    const actor = getEventActor();
-    if (!actor.mergedBy) {
-      // e.g. a dispatch publish or an inferred PR.
-      warn(
-        `enforceMergeAuthor is set but the merging actor is unknown (no merged_by in the event) — skipping the publish-author check for PR #${prNumber}.`,
-      );
-    } else {
-      let authorized = true;
-      try {
-        authorized = await isAuthorizedActor(forge, actor.mergedBy, actor.mergedByType, authz);
-      } catch (err) {
-        warn(
-          `Could not verify merger '${actor.mergedBy}' permission — proceeding, since branch protection is the primary gate: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-      if (!authorized) {
-        throw new Error(
-          `Refusing to publish PR #${prNumber}: it was merged by '${actor.mergedBy}', who lacks the required '${authz.requiredPermission}' permission (ci.standingPr.authorization). Restrict who can merge the release branch with a branch-protection ruleset, or set ci.standingPr.authorization.enforceMergeAuthor: false.`,
-        );
-      }
-    }
-  }
-
-  // A `baseSha` that isn't an ancestor of HEAD means the manifest describes work not on this branch (rewritten
-  // history, wrong branch or a forged baseSha).
-  const currentSha = await getHeadSha(cwd);
-  if (!(await createGitCli().isAncestor(manifest.baseSha, currentSha, cwd))) {
-    throw new Error(
-      `Refusing to publish PR #${prNumber}: the manifest's baseSha (${manifest.baseSha}) is not an ancestor of ` +
-        `HEAD (${currentSha}). The manifest was computed against a commit that is not in this branch's history ` +
-        `(the history may have been rewritten). Re-run 'standing-pr update' to regenerate it, then merge again.`,
-    );
-  }
-
-  const { getWorkspacePackageDirs } = await import('@releasekit/version');
-  const packageDirs = await getWorkspacePackageDirs({ cwd, configPath: options.config });
-  await assertManifestMatchesSource(manifest, packageDirs, cwd, prNumber);
-
   const eventPr = eventPullRequest(prNumber);
   const mergedHead = livePr?.headSha ?? eventPr?.head?.sha;
-  await assertManifestCoversMerge(
-    manifest,
-    {
-      headSha: mergedHead,
-      mergeCommitSha: livePr?.mergeCommitSha ?? eventPr?.merge_commit_sha ?? undefined,
-    },
-    packageDirs,
-    cwd,
+  const mergeCommitSha = livePr?.mergeCommitSha ?? eventPr?.merge_commit_sha ?? undefined;
+  const manifest = await verifyManifestForPublish(
+    forge,
     prNumber,
+    livePr,
+    { headSha: mergedHead, mergeCommitSha },
+    releaseKitConfig,
+    options,
   );
 
   info(`Publishing from manifest: ${publishableUpdates(manifest.versionOutput).length} package(s)`);
@@ -2146,7 +2209,8 @@ export async function runStandingPRMerge(options: StandingPROptions): Promise<St
   }
 
   const livePr = await forge.getPullRequest(pr.number);
-  const manifest = await readVerifiedManifest(forge, pr.number, livePr, releaseKitConfig.ci, 'merge');
+  const manifest = await readTrustedManifest(forge, pr.number, 'merge');
+  assertOverrideLabelsCurrent(manifest, pr.number, livePr, releaseKitConfig.ci, 'merge');
   // Older manifests lack `headSha`, so this only stops a push that lands between the read and the merge.
   const sha = manifest.headSha ?? livePr.headSha;
 
