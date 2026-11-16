@@ -9,7 +9,7 @@ import {
 /** Edits are read back by marker slicing, never by parsing prose, so they survive the body being regenerated. */
 const REGION_HEADING = '## Release Notes';
 const REGION_HINT =
-  '> Edit the release notes for each package below before merging. Keep the `<!-- releasekit-notes... -->` marker comments — they delimit the editable region.';
+  '> Edit the release notes for each package below before merging. Keep each `<!-- releasekit-notes... -->` marker comment on a line of its own; the markers delimit the editable region.';
 
 /**
  * Notes are otherwise unbounded (LLM output, raw commit bodies), so one inflated note could push the standing-PR body
