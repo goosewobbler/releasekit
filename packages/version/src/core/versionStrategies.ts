@@ -71,7 +71,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
       const repoRoot = packages.root ?? process.cwd();
 
-      // mainPkgPath/Name drive changelog extraction and naming; versionSourcePath/Name only supply the
+      // mainPkgPath/Name drive the baseline and changelog naming; versionSourcePath/Name only supply the
       // base version and the package-specific tag lookup.
       let mainPkgPath = packages.root;
       let mainPkgName: string | undefined;
@@ -241,7 +241,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        changelogEntries = await extractChangelogEntriesFromCommits(mainPkgPath, revisionRange);
+        changelogEntries = await extractChangelogEntriesFromCommits(repoRoot, revisionRange);
 
         if (changelogEntries.length === 0) {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];

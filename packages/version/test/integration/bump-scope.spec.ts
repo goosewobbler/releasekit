@@ -85,6 +85,25 @@ describe('bump scope', () => {
     expect(versions['pkg-b']).toBe('2.0.0');
   });
 
+  it.each([{ packageSpecificTags: false }, { packageSpecificTags: true, tagTemplate: '${packageName}@v${version}' }])(
+    'should list every commit in the repo in a synced release with a mainPackage (%o)',
+    (tagConfig) => {
+      createRepo({ sync: true, packages: ['core', 'cli'], version: { mainPackage: 'core', ...tagConfig } });
+      commitTo('packages/cli', 'feat', 'drop the old CLI flags', true);
+      commitTo('packages/core', 'fix', 'correct a typo');
+
+      const output = runVersionJson(tempDir);
+
+      expect(output.changelogs.length).toBe(tagConfig.packageSpecificTags ? 2 : 1);
+      for (const changelog of output.changelogs) {
+        expect(changelog.entries).toEqual([
+          expect.objectContaining({ type: 'fixed', description: 'correct a typo' }),
+          expect.objectContaining({ type: 'added', description: 'drop the old CLI flags', breaking: true }),
+        ]);
+      }
+    },
+  );
+
   it('should bump a package from commits to a crate it versions through cargo.paths', () => {
     createRepo({ packages: ['app'], version: { cargo: { paths: ['../../crates/app'] } } });
     mkdirSync(join(tempDir, 'crates', 'app'), { recursive: true });

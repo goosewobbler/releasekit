@@ -150,7 +150,12 @@ const VersionConfigBaseSchema = z.strictObject({
     .describe(
       'How the "Project-wide changes" block is bounded in package-specific-tag mode. "union" (default): repo-level commits accrue from the union of the releasing packages\' ranges, floored by the OLDEST unreleased baseline — so a genuinely-global commit recurs in every release until the oldest-baselined package is released past it. "sinceLastRelease": floor the block by the single nearest tag reachable across the repo, so global commits already shown by the most recent release don\'t recur (recommended for per-package-tag monorepos). No effect in sync mode, where one shared tag already consumes repo-level commits on each release.',
     ),
-  mainPackage: z.string().optional().describe('Package to use for version determination'),
+  mainPackage: z
+    .string()
+    .optional()
+    .describe(
+      "Sync mode: the package whose version and tag the release bumps from, and whose name a release without packageSpecificTags carries. It doesn't scope the changelog, which lists every commit in the release.",
+    ),
   skip: z
     .array(z.string())
     .optional()
