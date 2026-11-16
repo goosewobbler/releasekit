@@ -57,7 +57,7 @@ export function createBackfillCommand(): Command {
     .option('--no-llm', 'Disable LLM (use deterministic, zero-cost backfill)')
     .option('--apply', 'Apply changes (default: dry-run preview)', false)
     .option('-c, --config <path>', 'Config file path')
-    .action(async (options) => {
+    .action(async (options, command: Command) => {
       // reconstructChangelogs feeds these to semver.lt/gt, which throw a bare TypeError on non-semver input.
       for (const [flag, value] of [
         ['--from', options.from],
@@ -116,7 +116,8 @@ export function createBackfillCommand(): Command {
       // A synced release's notes read the package's whole directory, nested packages included, so only --all needs
       // discovery then.
       const workspace = options.all || !versionConfig.sync ? await discoverWorkspace(versionConfig) : undefined;
-      const targets = resolveTargets(options, cwd, workspace?.packages ?? []);
+      const pathGiven = command.getOptionValueSource('path') !== 'default';
+      const targets = resolveTargets(options, pathGiven, cwd, workspace?.packages ?? []);
       // Discovery applies the private filter and version.packages, so these are the packages that release on their own.
       const releasableDirs = workspace?.packages.map((p) => p.dir) ?? [];
       const commitScopeFor = (target: BackfillTarget): string[] | undefined => {
@@ -346,6 +347,7 @@ async function discoverWorkspace(versionConfig: VersionConfig): Promise<Workspac
 /** `--all` targets the packages a live release would version, as discovered by the version stage. */
 function resolveTargets(
   options: { all?: boolean; package?: string; path: string },
+  pathGiven: boolean,
   cwd: string,
   packages: Workspace['packages'],
 ): BackfillTarget[] {
@@ -364,7 +366,9 @@ function resolveTargets(
     return targets;
   }
 
-  const pkgPath = path.resolve(cwd, options.path);
+  const named =
+    pathGiven || !options.package ? undefined : packages.find((p) => p.packageJson.name === options.package);
+  const pkgPath = named?.dir ?? path.resolve(cwd, options.path);
   const pkgJson = readPackageJson(pkgPath);
   const packageName = options.package ?? pkgJson.name;
   if (!packageName) {

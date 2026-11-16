@@ -35,9 +35,11 @@ function commit(dir: string, file: string, message: string): void {
 
 describe('backfill commit scope', () => {
   let dir: string;
+  let originalCwd: string;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    originalCwd = process.cwd();
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     dir = realpathSync(mkdtempSync(join(tmpdir(), 'rk-backfill-scope-')));
     git(dir, 'init', '-q', '-b', 'main');
@@ -52,6 +54,8 @@ describe('backfill commit scope', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // Windows can't remove the process's current directory.
+    process.chdir(originalCwd);
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -71,8 +75,8 @@ describe('backfill commit scope', () => {
     git(dir, 'commit', '-q', '-m', 'chore: init');
   }
 
-  async function backfilledEntries(pkgPath: string): Promise<string[]> {
-    await createBackfillCommand().parseAsync(['--path', pkgPath], { from: 'user' });
+  async function backfilledEntries(...args: string[]): Promise<string[]> {
+    await createBackfillCommand().parseAsync(args, { from: 'user' });
     return vi
       .mocked(runPipeline)
       .mock.calls.filter(([input]) => input.packages[0]?.version === '1.1.0')
@@ -91,7 +95,7 @@ describe('backfill commit scope', () => {
     commit(dir, 'docs/readme.md', 'docs: describe the app');
     git(dir, 'tag', 'app@v1.1.0');
 
-    expect(await backfilledEntries('packages/app')).toEqual(['correct a typo', 'add a crate API']);
+    expect(await backfilledEntries('--path', 'packages/app')).toEqual(['correct a typo', 'add a crate API']);
   });
 
   it('should ignore cargo.paths in group mode, as version does', async () => {
@@ -111,7 +115,7 @@ describe('backfill commit scope', () => {
     commit(dir, 'packages/app/index.js', 'fix: correct a typo');
     git(dir, 'tag', 'app@v1.1.0');
 
-    expect(await backfilledEntries('packages/app')).toEqual(['correct a typo']);
+    expect(await backfilledEntries('--path', 'packages/app')).toEqual(['correct a typo']);
   });
 
   it("should leave out a nested package's commits when it releases on its own", async () => {
@@ -121,7 +125,17 @@ describe('backfill commit scope', () => {
     commit(dir, 'packages/host/index.js', 'fix: correct a typo');
     git(dir, 'tag', 'host@v1.1.0');
 
-    expect(await backfilledEntries('packages/host')).toEqual(['correct a typo']);
+    expect(await backfilledEntries('--path', 'packages/host')).toEqual(['correct a typo']);
+  });
+
+  it('should read the directory of the package --package names when --path is left out', async () => {
+    createRepo({ app: 'app', lib: 'lib' });
+    git(dir, 'tag', 'app@v1.0.0');
+    commit(dir, 'packages/lib/index.js', 'feat: add a lib API');
+    commit(dir, 'packages/app/index.js', 'fix: correct a typo');
+    git(dir, 'tag', 'app@v1.1.0');
+
+    expect(await backfilledEntries('--package', 'app')).toEqual(['correct a typo']);
   });
 
   it("should keep every workspace package's commits in a synced release's notes", async () => {
@@ -131,6 +145,6 @@ describe('backfill commit scope', () => {
     commit(dir, 'packages/app/index.js', 'fix: correct a typo');
     git(dir, 'tag', 'v1.1.0');
 
-    expect(await backfilledEntries('.')).toEqual(['correct a typo', 'add a lib API']);
+    expect(await backfilledEntries('--path', '.')).toEqual(['correct a typo', 'add a lib API']);
   });
 });
