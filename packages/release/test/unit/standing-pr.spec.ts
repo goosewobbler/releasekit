@@ -94,6 +94,7 @@ vi.mock('@releasekit/config', () => ({
     release: { ci: { skipPatterns: ['chore: release '] } },
   }),
   runFormatCommand: vi.fn(),
+  loadRawConfig: vi.fn(),
 }));
 
 // Resolves declared primaries against the workspace; empty (no primaries → flat render) unless a test opts in.
@@ -3732,12 +3733,8 @@ describe('runStandingPRUpdate', () => {
 
     it('should regenerate unedited regions when the release-notes config changes', async () => {
       const seeded = await update(output(initial));
-      const { loadConfig } = await import('@releasekit/config');
-      const config = loadConfig({ cwd: '/test' });
-      vi.mocked(loadConfig).mockReturnValue({
-        ...config,
-        notes: { releaseNotes: { llm: { provider: 'openai', model: 'other-model', tasks: { releaseNotes: true } } } },
-      } as ReturnType<typeof loadConfig>);
+      const { loadRawConfig } = await import('@releasekit/config');
+      vi.mocked(loadRawConfig).mockReturnValue({ notes: { releaseNotes: { llm: { model: 'other-model' } } } });
 
       await update(output(initial), seeded);
 
@@ -3798,6 +3795,25 @@ describe('runStandingPRUpdate', () => {
           'pkg-a': 'Notes for pkg-a: fix a, fix a again',
           'pkg-b': 'Notes for pkg-b: fix b, fix b again',
         });
+      });
+
+      it('should ship an unedited region when an env-set model resolves differently at publish', async () => {
+        const { loadConfig, loadRawConfig } = await import('@releasekit/config');
+        const config = loadConfig({ cwd: '/test' });
+        vi.mocked(loadRawConfig).mockReturnValue({ notes: { releaseNotes: { llm: { model: '{env:LLM_MODEL}' } } } });
+        const withModel = (model: string) =>
+          vi.mocked(loadConfig).mockReturnValue({
+            ...config,
+            notes: { releaseNotes: { llm: { provider: 'openai', model } } },
+          } as ReturnType<typeof loadConfig>);
+        withModel('update-job-model');
+        const seeded = await update(output(initial));
+        withModel('publish-job-model');
+
+        const notes = await publish(output(initial), seeded, () => 'REGENERATED');
+
+        expect(generatedFor).toEqual([]);
+        expect(notes).toEqual(seeded.regions);
       });
 
       it('should ship a truncated region when its regeneration fails', async () => {

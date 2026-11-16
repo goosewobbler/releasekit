@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { type CIConfig, loadConfig as loadReleaseKitConfig, runFormatCommand } from '@releasekit/config';
+import { type CIConfig, loadRawConfig, loadConfig as loadReleaseKitConfig, runFormatCommand } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
 import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
 import { VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
@@ -1390,7 +1390,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const count = countableUpdates.length;
 
   const liveNotes = previewNotesEnabled && liveBody ? extractNotesRegions(liveBody, versionOutput) : {};
-  const notesInputHashes = releaseNotesInputHashes(versionOutput, releaseKitConfig.notes);
+  const notesInputHashes = releaseNotesInputHashes(versionOutput, loadRawConfig({ cwd, configPath: options.config }));
   const notesPlan = planNotesRegions(
     previewNotesEnabled ? notesRegionKeys(versionOutput) : [],
     liveNotes,
@@ -2062,7 +2062,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   const usableNotes = publishableNotesRegions(
     bodyNotes,
     manifest.notesRegions,
-    releaseNotesInputHashes(manifest.versionOutput, releaseKitConfig.notes),
+    releaseNotesInputHashes(manifest.versionOutput, loadRawConfig({ cwd, configPath: options.config })),
   );
   const notesToGenerate = notesRegionKeys(manifest.versionOutput).filter((key) => !Object.hasOwn(usableNotes, key));
 
@@ -2081,7 +2081,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
       newFiles.push(...notesResult.files);
     } catch (err) {
       warn(`Release notes generation failed: ${err instanceof Error ? err.message : String(err)}`);
-      warn('Publish will proceed without release notes; GitHub release bodies use the githubRelease.body fallback.');
+      warn('Publishing anyway; a package without notes in the PR body gets the githubRelease.body fallback.');
     }
   }
   // A region still ships if its regeneration failed.

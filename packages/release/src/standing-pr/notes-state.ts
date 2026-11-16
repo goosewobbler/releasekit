@@ -29,15 +29,12 @@ export function changelogInputHash(changelog: VersionPackageChangelog, config: u
 }
 
 /** Keyed like the notes regions. */
-export function releaseNotesInputHashes(
-  versionOutput: VersionOutput,
-  notesConfig: NotesConfig | undefined,
-): Record<string, string> {
-  const releaseNotes = notesConfig?.releaseNotes;
-  // The hash lands in a public comment, and the key shapes no text.
-  const config = releaseNotes
-    ? { ...releaseNotes, llm: releaseNotes.llm && { ...releaseNotes.llm, apiKey: undefined } }
-    : releaseNotes;
+/**
+ * From `loadRawConfig`: an `{env:}` value such as the model can resolve differently in the update and publish jobs,
+ * and would make every region look stale at publish.
+ */
+export function releaseNotesInputHashes(versionOutput: VersionOutput, rawConfig: unknown): Record<string, string> {
+  const config = (rawConfig as { notes?: { releaseNotes?: unknown } } | undefined)?.notes?.releaseNotes;
   return Object.fromEntries(versionOutput.changelogs.map((cl) => [cl.packageName, changelogInputHash(cl, config)]));
 }
 

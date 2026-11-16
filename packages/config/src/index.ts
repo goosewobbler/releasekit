@@ -9,6 +9,7 @@ export {
   loadMonorepoConfig,
   loadNotesConfig,
   loadPublishConfig,
+  loadRawConfig,
   loadReleaseConfig,
   loadVersionConfig,
 } from './load.js';
