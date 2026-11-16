@@ -209,7 +209,8 @@ function withoutPlaceholders(changelogs: VersionPackageChangelog[]): VersionPack
 /** Without a repo URL, refs render as escaped plain text instead of links. */
 function repoUrlFallback(input: VersionOutput): string | null {
   const repository = process.env.GITHUB_REPOSITORY;
-  return input.changelogs.find((c) => c.repoUrl)?.repoUrl ?? (repository ? `https://github.com/${repository}` : null);
+  const server = process.env.GITHUB_SERVER_URL ?? 'https://github.com';
+  return input.changelogs.find((c) => c.repoUrl)?.repoUrl ?? (repository ? `${server}/${repository}` : null);
 }
 
 function formatChangelogForTag(

@@ -356,6 +356,22 @@ describe('GitHub release bodies in the publish pipeline', () => {
     expect(releaseBodies()).toEqual({ 'v1.2.3': '- Fix it (PR [#42](https://github.com/owner/repo/pull/42))' });
   });
 
+  it('should not link refs to github.com for a workflow on another GitHub server', async () => {
+    vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
+    vi.stubEnv('GITHUB_SERVER_URL', 'https://github.example.com');
+    const input = syncInput('v1.2.3');
+    input.changelogs = [
+      {
+        ...changelog('monorepo', ''),
+        entries: [{ type: 'fixed', description: 'Fix it', prNumber: '42', issueIds: ['#42'] }],
+      },
+    ];
+
+    await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
+
+    expect(releaseBodies()).toEqual({ 'v1.2.3': '- Fix it (\\#42)' });
+  });
+
   it.each([
     ['a lockstep carry', true],
     ['a package with no changes of its own', false],
