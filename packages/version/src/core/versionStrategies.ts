@@ -121,7 +121,9 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       }
 
       const stranded =
-        latestTag && versionSourcePath ? await findStrandedRelease(versionSourcePath, latestTag) : undefined;
+        latestTag && versionSourcePath
+          ? findStrandedRelease(config, undefined, versionSourcePath, latestTag)
+          : undefined;
 
       const nextVersion = await calculateVersion(config, {
         latestTag,
@@ -247,7 +249,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         previousVersion = baseline.previousVersion;
 
         changelogEntries = await extractChangelogEntriesFromCommits(mainPkgPath, revisionRange, ['.'], {
-          excludeCommit: stranded?.commit,
+          excludeReleaseCommits: !!stranded,
         });
 
         if (changelogEntries.length === 0) {
@@ -455,7 +457,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       const { scope: commitScope, pathsError } = resolveCommitScope(pkgPath, config, { repoRoot });
 
-      const stranded = latestTag ? await findStrandedRelease(pkgPath, latestTag) : undefined;
+      const stranded = latestTag ? findStrandedRelease(config, packageName, pkgPath, latestTag) : undefined;
 
       let nextVersion: string | undefined;
 
@@ -510,7 +512,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         previousVersion = baseline.previousVersion;
 
         changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange, commitScope, {
-          excludeCommit: stranded?.commit,
+          excludeReleaseCommits: !!stranded,
         });
 
         if (changelogEntries.length === 0) {

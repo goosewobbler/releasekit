@@ -56,6 +56,11 @@ export interface VersionRunOptions {
    * package leaves no orphan bump. Exact names, not patterns.
    */
   exclude?: string[];
+  /**
+   * Packages whose last release merged but never published, by exact name, or `'all'`. One whose version is ahead of
+   * its tag is versioned from the tag, leaving out release commits, so its unpublished version is proposed again.
+   */
+  unpublished?: string[] | 'all';
 }
 
 export interface VersionConfigBase {
@@ -106,6 +111,8 @@ export interface Config extends VersionConfigBase {
   prereleaseScope?: string[];
   /** Engine-populated: every discovered package, before release-set filtering. Not user config. */
   allWorkspacePackages?: Array<{ name: string; dir: string }>;
+  /** Runtime override - see VersionRunOptions.unpublished. */
+  unpublished?: string[] | 'all';
   /** Engine-populated: includes packages this run doesn't target. Not user config. */
   releasablePackageDirs?: string[];
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
@@ -156,6 +163,6 @@ export function toVersionConfig(config: VersionConfig = VersionConfigSchema.pars
 export interface VersionOptions extends VersionConfigBase {
   latestTag: string;
   hasRealTag?: boolean;
-  /** Versions from `latestTag` over every commit except the stranded release commit. */
+  /** Versions from `latestTag`, leaving out release commits. */
   stranded?: StrandedRelease;
 }

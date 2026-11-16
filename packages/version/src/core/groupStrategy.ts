@@ -104,7 +104,7 @@ async function planMember(
   }
 
   const commitScope = resolveCommitScope(pkg.dir, config, { ignorePaths: true }).scope;
-  const stranded = latestTag ? await findStrandedRelease(pkg.dir, latestTag) : undefined;
+  const stranded = latestTag ? findStrandedRelease(config, name, pkg.dir, latestTag) : undefined;
   const ownNext = await calculateVersion(config, {
     latestTag,
     versionPrefix: formattedPrefix,
@@ -277,7 +277,7 @@ async function extractEntries(
   input: {
     pkgDir: string;
     commitScope: string[];
-    excludeCommit: string | undefined;
+    excludeReleaseCommits: boolean;
     latestTag: string;
     hasRealTag: boolean;
     usedPackageSpecificTag: boolean;
@@ -306,7 +306,7 @@ async function extractEntries(
     revisionRange = baseline.revisionRange;
     previousVersion = baseline.previousVersion;
     entries = await extractChangelogEntriesFromCommits(input.pkgDir, revisionRange, input.commitScope, {
-      excludeCommit: input.excludeCommit,
+      excludeReleaseCommits: input.excludeReleaseCommits,
     });
   } catch (error) {
     if (error instanceof StrictReachableError) {
@@ -391,7 +391,7 @@ async function releaseGroup(
     const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
       pkgDir: pkg.dir,
       commitScope: plan.commitScope,
-      excludeCommit: plan.stranded?.commit,
+      excludeReleaseCommits: !!plan.stranded,
       latestTag: plan.latestTag,
       hasRealTag: plan.latestTag !== '',
       usedPackageSpecificTag: plan.usedPackageSpecificTag,
@@ -547,7 +547,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
           pkgDir: pkg.dir,
           commitScope: plan.commitScope,
-          excludeCommit: plan.stranded?.commit,
+          excludeReleaseCommits: !!plan.stranded,
           latestTag: plan.latestTag,
           hasRealTag: plan.latestTag !== '',
           usedPackageSpecificTag: plan.usedPackageSpecificTag,

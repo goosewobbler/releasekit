@@ -29,6 +29,7 @@ export async function runVersionStep(options: ReleaseOptions): Promise<VersionOu
     baseRef: options.baseRef,
     includePrerequisites: options.includePrerequisites,
     exclude: options.exclude,
+    unpublished: options.unpublished,
   };
 
   const engine = new VersionEngine(config, runOptions);

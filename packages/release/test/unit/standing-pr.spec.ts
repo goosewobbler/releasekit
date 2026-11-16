@@ -2040,6 +2040,48 @@ describe('runStandingPRUpdate', () => {
       ].join('\n');
     }
 
+    async function unpublishedPassedToVersion(comments: Array<{ id: number; body: string }>) {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.25.0' }]);
+      vi.mocked(runVersionStep).mockResolvedValue(
+        versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      await mockForge({
+        standingPR: null,
+        recentlyClosedPRs: comments.length ? [{ number: 7, mergedAt: '2026-01-01T00:00:00Z' }] : [],
+        comments,
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      return vi.mocked(runVersionStep).mock.calls.map(([options]) => options.unpublished);
+    }
+
+    it('should version the packages an unresolved failure report lists as unpublished from their tags', async () => {
+      const passed = await unpublishedPassedToVersion([{ id: 1, body: failureReportBody() }]);
+
+      expect(passed.length).toBeGreaterThan(0);
+      expect(passed.every((unpublished) => JSON.stringify(unpublished) === '["@scope/utils"]')).toBe(true);
+    });
+
+    it('should treat every package as unpublished after a refused publish', async () => {
+      const refused = failureReport('"v0.24.0"').replace('"total":2}', '"total":2,"refused":true}');
+
+      const passed = await unpublishedPassedToVersion([{ id: 1, body: refused }]);
+
+      expect(passed.every((unpublished) => unpublished === 'all')).toBe(true);
+    });
+
+    it.each([
+      ['no failure report', []],
+      ['a failure report that predates the unpublished list', [{ id: 1, body: failureReport('"v0.24.0"') }]],
+    ])('should version as usual with %s', async (_label, comments) => {
+      const passed = await unpublishedPassedToVersion(comments);
+
+      expect(passed.every((unpublished) => unpublished === undefined)).toBe(true);
+    });
+
     it('should ignore a failure report a human wrote', async () => {
       const { body } = await updateWithFailureReport({
         body: failureReport('"v9.9.9"'),

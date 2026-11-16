@@ -579,7 +579,7 @@ describe('Version Strategies', () => {
           '/test/workspace',
           'v1.0.0..HEAD',
           ['.'],
-          { excludeCommit: undefined },
+          { excludeReleaseCommits: false },
         );
 
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith({
@@ -623,7 +623,7 @@ describe('Version Strategies', () => {
         await syncStrategy(mockPackages);
 
         expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD', ['.'], {
-          excludeCommit: undefined,
+          excludeReleaseCommits: false,
         });
         expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('could not be verified from HEAD'), 'warning');
         // previousVersion omitted so the changelog doesn't claim a baseline it never diffed against.
@@ -663,7 +663,7 @@ describe('Version Strategies', () => {
         await syncStrategy(mockPackages);
 
         expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD', ['.'], {
-          excludeCommit: undefined,
+          excludeReleaseCommits: false,
         });
 
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
@@ -688,7 +688,7 @@ describe('Version Strategies', () => {
           '/test/workspace',
           'deadbeef1234..HEAD',
           ['.'],
-          { excludeCommit: undefined },
+          { excludeReleaseCommits: false },
         );
       });
 
@@ -709,7 +709,7 @@ describe('Version Strategies', () => {
         await syncStrategy(mockPackages);
 
         expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD', ['.'], {
-          excludeCommit: undefined,
+          excludeReleaseCommits: false,
         });
       });
 

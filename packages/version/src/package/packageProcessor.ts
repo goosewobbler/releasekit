@@ -176,7 +176,9 @@ export class PackageProcessor {
       const latestTag = latestTagResult;
       const { scope: commitScope, pathsError } = resolveCommitScope(pkgPath, this.fullConfig, { repoRoot });
       // A global-tag fallback belongs to another release line, so it can't be the stranded version's base.
-      const stranded = usedPackageSpecificTag ? await findStrandedRelease(pkgPath, latestTag) : undefined;
+      const stranded = usedPackageSpecificTag
+        ? findStrandedRelease(this.fullConfig, name, pkgPath, latestTag)
+        : undefined;
 
       const nextVersion = await calculateVersion(this.fullConfig, {
         latestTag,
@@ -241,7 +243,7 @@ export class PackageProcessor {
         }
 
         changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange, commitScope, {
-          excludeCommit: stranded?.commit,
+          excludeReleaseCommits: !!stranded,
         });
 
         const sharedPackagePatterns = this.fullConfig.sharedPackages ?? [];

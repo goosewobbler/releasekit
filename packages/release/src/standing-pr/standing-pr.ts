@@ -1,7 +1,15 @@
 import * as path from 'node:path';
 import { type CIConfig, loadConfig as loadReleaseKitConfig, runFormatCommand } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
-import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
+import {
+  deriveReleaseChannel,
+  info,
+  markerData,
+  RELEASE_COMMIT_PREFIX,
+  shouldMatchPackageTargets,
+  success,
+  warn,
+} from '@releasekit/core';
 import { VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
 import {
   type Forge,
@@ -16,7 +24,12 @@ import { z } from 'zod';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
-import { detectUnresolvedFailure, postFailureReport, resolveFailureReportIfPresent } from '../failure-report/post.js';
+import {
+  detectUnresolvedFailure,
+  postFailureReport,
+  resolveFailureReportIfPresent,
+  type UnresolvedFailure,
+} from '../failure-report/post.js';
 import { getHeadCommitMessage, matchesSkipPattern, requireGitHubContext } from '../git.js';
 import { forgeFor } from '../github.js';
 import { readGitHubEvent } from '../github-event.js';
@@ -830,6 +843,7 @@ interface BuildOptionsExtras {
   prereleaseScope?: string[];
   /** Deselected packages to hold back, matched by exact name. */
   exclude?: string[];
+  unpublished?: string[] | 'all';
 }
 
 function buildBaseReleaseOptions(
@@ -849,6 +863,7 @@ function buildBaseReleaseOptions(
     graduate: extras?.graduate,
     prereleaseScope: extras?.prereleaseScope,
     prerelease: extras?.prerelease ? true : undefined,
+    unpublished: extras?.unpublished,
     skipNotes: true,
     skipPublish: true,
     skipGit: true,
@@ -908,7 +923,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const branch = standingPrConfig?.branch ?? 'release/next';
   const base = releaseKitConfig.git?.branch ?? 'main';
   const { refs: changelogRefsMode, demoteScopes } = changelogRenderOptions(releaseKitConfig);
-  const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
+  const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? [RELEASE_COMMIT_PREFIX];
 
   const bypassSkipGuard = options.reconcile || isStandingPrEventRun();
 
@@ -1056,9 +1071,10 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const includePrerequisites = options.includePrerequisites || overrides.withPrerequisites;
   // A sync release moves as one unit, so only the whole-batch graduate applies.
   const graduate = sync ? undefined : overrides.graduate;
+  const unresolved = await findUnresolvedFailure(forge, branch);
   // Conflicting labels drop the overrides (commit-driven); the conflicts still surface in the final status check.
   const buildExtras: BuildOptionsExtras = overrides.conflicts.length
-    ? { sync, target: cliTarget, includePrerequisites }
+    ? { sync, target: cliTarget, includePrerequisites, unpublished: unresolved?.unpublished }
     : {
         sync,
         bump: overrides.bump,
@@ -1067,6 +1083,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         prerelease: overrides.prerelease,
         graduate,
         includePrerequisites,
+        unpublished: unresolved?.unpublished,
       };
 
   const { getWorkspacePackageVersions } = await import('@releasekit/version');
@@ -1406,24 +1423,15 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const existing = existingStandingPr;
 
-  let supersedeWarning: string[] | undefined;
-  try {
-    const latestMerged = await findLatestMergedStandingPR(forge, branch);
-    if (latestMerged !== null) {
-      const unresolved = await detectUnresolvedFailure(forge, latestMerged);
-      if (unresolved) {
-        supersedeWarning = renderSupersedeWarning({
-          previousLabel: unresolved.previousLabel,
-          published: unresolved.published,
-          total: unresolved.total,
-          standingPrNumber: unresolved.prNumber,
-          retryLabelAvailable: true,
-        });
-      }
-    }
-  } catch (err) {
-    warn(`Could not check for unresolved publish failures: ${err instanceof Error ? err.message : String(err)}`);
-  }
+  const supersedeWarning = unresolved
+    ? renderSupersedeWarning({
+        previousLabel: unresolved.previousLabel,
+        published: unresolved.published,
+        total: unresolved.total,
+        standingPrNumber: unresolved.prNumber,
+        retryLabelAvailable: true,
+      })
+    : undefined;
 
   // Accepted race: a human edit landing between the body read above and the update below is overwritten; updates
   // are infrequent enough not to warrant optimistic concurrency.
@@ -1966,6 +1974,16 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     releaseNotes,
     publishOutput,
   };
+}
+
+async function findUnresolvedFailure(forge: Forge, branch: string): Promise<UnresolvedFailure | null> {
+  try {
+    const latestMerged = await findLatestMergedStandingPR(forge, branch);
+    return latestMerged === null ? null : await detectUnresolvedFailure(forge, latestMerged);
+  } catch (err) {
+    warn(`Could not check for unresolved publish failures: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
 }
 
 /**

@@ -16,6 +16,10 @@ export interface FailureReportData {
   label: string;
   published: number;
   total: number;
+  /** Packages that failed or weren't attempted, so the next standing PR proposes their versions again. */
+  unpublished?: string[];
+  /** The publish refused the manifest, so nothing in the release was published. */
+  refused?: boolean;
 }
 
 const STATUS_FIELD = markerData<FailureReportStatus>({
@@ -37,7 +41,14 @@ const DATA_FIELD = markerData<FailureReportData>({
       ) {
         return null;
       }
-      return { label: parsed.label, published: parsed.published, total: parsed.total };
+      const data: FailureReportData = { label: parsed.label, published: parsed.published, total: parsed.total };
+      if (Array.isArray(parsed.unpublished) && parsed.unpublished.every((name) => typeof name === 'string')) {
+        data.unpublished = parsed.unpublished;
+      }
+      if (parsed.refused === true) {
+        data.refused = true;
+      }
+      return data;
     } catch {
       return null;
     }
@@ -274,7 +285,14 @@ export function renderFailureReport(input: FailureReportInput): string {
   const lines: string[] = [
     FAILURE_MARKER,
     STATUS_FIELD.encode('unresolved'),
-    DATA_FIELD.encode({ label, published, total }),
+    DATA_FIELD.encode({
+      label,
+      published,
+      total,
+      unpublished: ledger
+        .filter((e) => e.status === 'failed' || e.status === 'not-attempted')
+        .map((e) => e.packageName),
+    }),
     '',
     `## ❌ Release of ${label} did not complete`,
     '',

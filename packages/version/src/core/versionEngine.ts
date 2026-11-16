@@ -100,6 +100,9 @@ export class VersionEngine {
       if (runOptions.overrideScope) {
         effective.overrideScope = runOptions.overrideScope;
       }
+      if (runOptions.unpublished) {
+        effective.unpublished = runOptions.unpublished;
+      }
       if (runOptions.includePrerequisites) {
         this.includePrerequisites = true;
       }

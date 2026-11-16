@@ -40,6 +40,8 @@ export interface ReleaseOptions {
   baseRef?: string;
   /** Wins per package over generated notes. Set by the draft dispatch; not a CLI flag. */
   editedNotes?: Record<string, string>;
+  /** Packages the last release left unpublished, or `'all'`. Set by the standing-PR update; not a CLI flag. */
+  unpublished?: string[] | 'all';
   /** Ignore the gate's decision on the merged PR's labels. Set by preview and draft; not a CLI flag. */
   skipGate?: boolean;
 }

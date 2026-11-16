@@ -71,7 +71,7 @@ This allows you to maintain consistent versioning across JavaScript and Rust com
    
 3. Finally, it compares the versions:
    - If both Git tag and manifest versions exist, it uses the newer version
-   - If the manifest is newer because a release commit (subject starting `chore: release `) set it, that release never shipped. It uses the Git tag and leaves the release commit out of the bump and the changelog, so the unpublished version is proposed again unless later changes raise it
+   - In standing-PR mode, if the last merged standing PR's failure report lists the package as unpublished and its manifest is newer, that release never shipped. It uses the Git tag and leaves commits whose subject starts with `chore: release ` out of the bump and the changelog, so the unpublished version is proposed again unless later changes raise it
    - If the versions are equal, it prefers the Git tag for better history tracking
    - If only one source has a version, it uses that
    - If no version is found, it uses the default initial version (0.1.0)

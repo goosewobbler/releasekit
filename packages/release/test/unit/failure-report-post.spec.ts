@@ -180,7 +180,13 @@ describe('detectUnresolvedFailure', () => {
     });
     const forge = fakeForgeWith([{ id: 9, body: report }]);
     const result = await detectUnresolvedFailure(forge, 42);
-    expect(result).toEqual({ previousLabel: 'v0.24.0', published: 1, total: 2, prNumber: 42 });
+    expect(result).toEqual({
+      previousLabel: 'v0.24.0',
+      published: 1,
+      total: 2,
+      prNumber: 42,
+      unpublished: ['@scope/b'],
+    });
   });
 
   it('should return null once the report is resolved', async () => {

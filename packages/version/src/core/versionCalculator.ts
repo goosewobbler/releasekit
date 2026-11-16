@@ -1,6 +1,6 @@
 import { inspect } from 'node:util';
 import type { Preset } from '@releasekit/config';
-import { sanitizePackageName, shouldMatchPackageTargets } from '@releasekit/core';
+import { RELEASE_COMMIT_PREFIX, sanitizePackageName, shouldMatchPackageTargets } from '@releasekit/core';
 import createAngularPreset from 'conventional-changelog-angular';
 import createConventionalCommitsPreset from 'conventional-changelog-conventionalcommits';
 import { Bumper, type Preset as BumperPreset } from 'conventional-recommended-bump';
@@ -366,10 +366,9 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         ...(bumpFrom ? { from: bumpFrom } : {}),
         ...(commitScope.length > 0 ? { path: commitScope } : {}),
       });
-      const strandedCommit = options.stranded?.commit;
-      const whatBump: BumperPreset['whatBump'] = strandedCommit
+      const whatBump: BumperPreset['whatBump'] = options.stranded
         ? (commits) => {
-            const kept = commits.filter((commit) => commit.hash !== strandedCommit);
+            const kept = commits.filter((commit) => !commit.header?.startsWith(RELEASE_COMMIT_PREFIX));
             return kept.length > 0 ? presetConfig.whatBump(kept) : null;
           }
         : presetConfig.whatBump;

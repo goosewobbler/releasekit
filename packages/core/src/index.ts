@@ -100,4 +100,4 @@ export {
   type VersionPackageChangelog,
   type VersionPackageUpdate,
 } from './types.js';
-export { assertNotOption, matchesPackageName, sanitizePackageName } from './utils.js';
+export { assertNotOption, matchesPackageName, RELEASE_COMMIT_PREFIX, sanitizePackageName } from './utils.js';

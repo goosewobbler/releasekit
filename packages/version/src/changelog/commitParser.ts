@@ -1,4 +1,4 @@
-import type { VersionChangelogEntry } from '@releasekit/core';
+import { RELEASE_COMMIT_PREFIX, type VersionChangelogEntry } from '@releasekit/core';
 import { createGitCli, type Git } from '@releasekit/git';
 import { log } from '../utils/logging.js';
 
@@ -116,8 +116,8 @@ export async function extractRepoLevelChangelogEntries(
 }
 
 export interface ExtractChangelogOptions {
-  /** A commit in the range to leave out. */
-  excludeCommit?: string;
+  /** Leave out commits whose subject starts with {@link RELEASE_COMMIT_PREFIX}. */
+  excludeReleaseCommits?: boolean;
   git?: Git;
 }
 
@@ -126,24 +126,21 @@ export async function extractChangelogEntriesFromCommits(
   projectDir: string,
   revisionRange: string,
   paths: string[] = ['.'],
-  { excludeCommit, git = createGitCli() }: ExtractChangelogOptions = {},
+  { excludeReleaseCommits = false, git = createGitCli() }: ExtractChangelogOptions = {},
 ): Promise<ChangelogEntry[]> {
   try {
     const output = await git.log({
       range: revisionRange,
-      format: excludeCommit ? '%H|||%B---COMMIT_DELIMITER---' : '%B---COMMIT_DELIMITER---',
+      format: '%B---COMMIT_DELIMITER---',
       extraArgs: ['--no-merges'],
       paths,
       cwd: projectDir,
     });
 
-    let commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
-    if (excludeCommit) {
-      commits = commits
-        .map((commit) => commit.trim().split('|||'))
-        .filter(([hash]) => hash !== excludeCommit)
-        .map((parts) => parts.slice(1).join('|||'));
-    }
+    const commits = output
+      .split('---COMMIT_DELIMITER---')
+      .filter((commit) => commit.trim() !== '')
+      .filter((commit) => !excludeReleaseCommits || !commit.trim().startsWith(RELEASE_COMMIT_PREFIX));
 
     return commits
       .map((commit) => parseCommitMessage(commit))

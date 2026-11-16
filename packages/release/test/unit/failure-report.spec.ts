@@ -165,9 +165,10 @@ describe('renderFailureReport', () => {
       errorMessage: 'Failed to publish to npm: npm 403',
       recovery: { mode: 'standing-pr', standingPrNumber: 42 },
     });
-    expect(parseFailureReportData(body)).toEqual({ label: 'v0.24.0', published: 1, total: 2 });
+    const data = { label: 'v0.24.0', published: 1, total: 2, unpublished: ['@scope/b'] };
+    expect(parseFailureReportData(body)).toEqual(data);
     const copyEdited = body.replace('did not complete', 'failed partway through');
-    expect(parseFailureReportData(copyEdited)).toEqual({ label: 'v0.24.0', published: 1, total: 2 });
+    expect(parseFailureReportData(copyEdited)).toEqual(data);
   });
 
   it('should return null headline data for non-report bodies and malformed data comments', () => {

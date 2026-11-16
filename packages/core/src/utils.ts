@@ -1,3 +1,6 @@
+/** Release commit subjects start with this by default, and the default `release.ci.skipPatterns` matches it. */
+export const RELEASE_COMMIT_PREFIX = 'chore: release ';
+
 export function sanitizePackageName(name: string): string {
   return name.startsWith('@') ? name.slice(1).replace(/\//g, '-') : name;
 }

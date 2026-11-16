@@ -88,6 +88,8 @@ export interface UnresolvedFailure {
   published: number;
   total: number;
   prNumber: number;
+  /** Absent when an older report doesn't say which packages are unpublished. */
+  unpublished?: string[] | 'all';
 }
 
 export async function detectUnresolvedFailure(forge: Forge, prNumber: number): Promise<UnresolvedFailure | null> {
@@ -120,5 +122,6 @@ function parseReportLedgerSummary(body: string, prNumber: number): UnresolvedFai
     published: data.published,
     total: data.total,
     prNumber,
+    unpublished: data.refused ? 'all' : data.unpublished,
   };
 }

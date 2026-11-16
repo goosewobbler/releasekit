@@ -1,6 +1,6 @@
 /**
- * A merged release whose publish failed leaves its version bump on the branch without a tag.
- * Requires `pnpm build` in @releasekit/version first.
+ * A merged release whose publish failed leaves its version bump on the branch without a tag. The standing-PR update
+ * names the unpublished packages from the failure report. Requires `pnpm build` in @releasekit/version first.
  */
 
 import { execSync } from 'node:child_process';
@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { VersionOutput } from '@releasekit/core';
 import { afterEach, describe, expect, it } from 'vitest';
-import { runVersionJson } from '../utils/cli.js';
+import { runVersionEngine } from '../utils/cli.js';
 import { createConventionalCommit } from '../utils/git.js';
 import { cleanupTempDir } from '../utils/tempFixture.js';
 import { createWorkspaceRepo } from '../utils/workspace.js';
@@ -41,8 +41,13 @@ function commitVersions(versions: Record<string, string>, subject: string) {
   execSync(`git commit -m "${subject}"`, { cwd: tempDir });
 }
 
-function strand(versions: Record<string, string>) {
-  commitVersions(versions, 'chore: release 1 package(s) (#12)');
+function strand(versions: Record<string, string>, subject = 'chore: release 1 package(s) (#12)') {
+  commitVersions(versions, subject);
+}
+
+/** The next standing-PR update's version run, after a failed publish left `unpublished` without their versions. */
+function nextRelease(unpublished: string[] | 'all' = ['pkg-a']): VersionOutput {
+  return runVersionEngine(tempDir, { unpublished });
 }
 
 function changelogOf(output: VersionOutput, packageName: string) {
@@ -60,7 +65,7 @@ describe('stranded release', () => {
       commitTo('packages/pkg-a', 'feat', 'add a widget');
       strand({ 'packages/pkg-a': '1.3.0' });
 
-      const output = runVersionJson(tempDir);
+      const output = nextRelease();
 
       expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['pkg-a', '1.3.0']]);
       const changelog = changelogOf(output, 'pkg-a');
@@ -74,7 +79,7 @@ describe('stranded release', () => {
       strand({ 'packages/pkg-a': '1.3.0' });
       commitTo('packages/pkg-a', 'fix', 'mend the widget');
 
-      const output = runVersionJson(tempDir);
+      const output = nextRelease();
 
       expect(output.updates.map((u) => u.newVersion)).toEqual(['1.3.0']);
       expect(changelogOf(output, 'pkg-a')?.entries.map((e) => e.description)).toEqual([
@@ -89,7 +94,7 @@ describe('stranded release', () => {
       strand({ 'packages/pkg-a': '1.3.0' });
       commitTo('packages/pkg-a', 'feat', 'drop the old widget', true);
 
-      const output = runVersionJson(tempDir);
+      const output = nextRelease();
 
       expect(output.updates.map((u) => u.newVersion)).toEqual(['2.0.0']);
       expect(changelogOf(output, 'pkg-a')?.supersedes).toBe('1.3.0');
@@ -100,7 +105,7 @@ describe('stranded release', () => {
       commitTo('packages/pkg-a', 'feat', 'drop the old API', true);
       strand({ 'packages/pkg-a': '2.0.0' });
 
-      const output = runVersionJson(tempDir);
+      const output = nextRelease();
 
       expect(output.updates.map((u) => u.newVersion)).toEqual(['2.0.0']);
       expect(changelogOf(output, 'pkg-a')?.entries.map((e) => e.description)).toEqual(['drop the old API']);
@@ -111,7 +116,7 @@ describe('stranded release', () => {
       commitTo('packages/pkg-a', 'feat', 'add a widget');
       strand({ 'packages/pkg-a': '1.3.0', 'packages/pkg-b': '1.2.1' });
 
-      const output = runVersionJson(tempDir);
+      const output = nextRelease(['pkg-a', 'pkg-b']);
 
       expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([
         ['pkg-a', '1.3.0'],
@@ -124,7 +129,7 @@ describe('stranded release', () => {
       commitTo('packages/pkg-a', 'fix', 'mend the widget');
       strand({ 'packages/pkg-a': '1.3.0' });
 
-      expect(runVersionJson(tempDir).updates.map((u) => u.newVersion)).toEqual(['1.3.0']);
+      expect(nextRelease().updates.map((u) => u.newVersion)).toEqual(['1.3.0']);
     });
 
     it('should keep a stranded first prerelease on its prerelease line', () => {
@@ -132,18 +137,49 @@ describe('stranded release', () => {
       commitTo('packages/pkg-a', 'feat', 'add a widget');
       strand({ 'packages/pkg-a': '1.3.0-next.0' });
 
-      expect(runVersionJson(tempDir).updates.map((u) => u.newVersion)).toEqual(['1.3.0-next.0']);
+      expect(nextRelease().updates.map((u) => u.newVersion)).toEqual(['1.3.0-next.0']);
     });
 
-    it('should bump on top of a version ahead of its tag that no release commit set', () => {
+    it('should leave out every release commit after a re-proposal that also failed', () => {
       createRepo(perPackage, ['pkg-a@v1.2.0']);
       commitTo('packages/pkg-a', 'feat', 'add a widget');
-      commitVersions({ 'packages/pkg-a': '1.3.0' }, 'chore: set the version by hand');
+      strand({ 'packages/pkg-a': '1.3.0' });
+      writeFileSync(join(tempDir, 'packages/pkg-a/CHANGELOG.md'), '## [1.3.0]\n');
+      execSync('git add packages/pkg-a', { cwd: tempDir });
+      execSync('git commit -m "chore: release 1 package(s) (#14)"', { cwd: tempDir });
 
-      const output = runVersionJson(tempDir);
+      const output = nextRelease();
+
+      expect(output.updates.map((u) => u.newVersion)).toEqual(['1.3.0']);
+      expect(changelogOf(output, 'pkg-a')?.entries.map((e) => e.description)).toEqual(['add a widget']);
+    });
+
+    it('should bump on top of a release that may still be publishing', () => {
+      createRepo(perPackage, ['pkg-a@v1.2.0']);
+      commitTo('packages/pkg-a', 'feat', 'add a widget');
+      strand({ 'packages/pkg-a': '1.3.0' });
+      commitTo('packages/pkg-a', 'feat', 'add a gadget');
+
+      const output = runVersionEngine(tempDir, {});
 
       expect(output.updates.map((u) => u.newVersion)).toEqual(['1.4.0']);
       expect(changelogOf(output, 'pkg-a')?.supersedes).toBeUndefined();
+    });
+
+    it('should not re-propose a package that published', () => {
+      createRepo(perPackage, ['pkg-a@v1.2.0', 'pkg-b@v1.2.0'], ['pkg-a', 'pkg-b']);
+      commitTo('packages/pkg-a', 'feat', 'add a widget');
+      commitTo('packages/pkg-b', 'fix', 'mend a gadget');
+      strand({ 'packages/pkg-a': '1.3.0', 'packages/pkg-b': '1.2.1' });
+      commitTo('packages/pkg-a', 'fix', 'mend the widget');
+
+      const output = nextRelease(['pkg-b']);
+
+      expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([
+        ['pkg-a', '1.4.0'],
+        ['pkg-b', '1.2.1'],
+      ]);
+      expect(output.changelogs.map((c) => c.supersedes)).toEqual([undefined, '1.2.1']);
     });
   });
 
@@ -156,7 +192,7 @@ describe('stranded release', () => {
     commitTo('packages/pkg-a', 'fix', 'correct a typo');
     strand({ '.': '1.2.1', 'packages/pkg-a': '1.2.1', 'packages/pkg-b': '1.2.1' });
 
-    const output = runVersionJson(tempDir);
+    const output = nextRelease(['pkg-b']);
 
     expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([
       ['monorepo', '1.2.1'],
@@ -167,7 +203,7 @@ describe('stranded release', () => {
     expect(output.changelogs[0]?.entries.map((e) => e.description)).toEqual(['correct a typo']);
   });
 
-  it('should version a stranded fixed group from its tags', () => {
+  it('should version a refused fixed group from its tags', () => {
     createRepo(
       { ...perPackage, groups: { core: { packages: ['pkg-a', 'pkg-b'], sync: 'fixed' } } },
       ['pkg-a@v1.2.0', 'pkg-b@v1.2.0'],
@@ -176,7 +212,7 @@ describe('stranded release', () => {
     commitTo('packages/pkg-a', 'feat', 'add a widget');
     strand({ 'packages/pkg-a': '1.3.0', 'packages/pkg-b': '1.3.0' });
 
-    const output = runVersionJson(tempDir);
+    const output = nextRelease('all');
 
     expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([
       ['pkg-a', '1.3.0'],
