@@ -281,21 +281,3 @@ describe('Per-package changelogs with a custom template', () => {
     expect(fs.readFileSync(pkgFile, 'utf-8')).toBe(expected);
   });
 });
-
-describe('Pipeline: a template with no version section', () => {
-  it('should leave an existing changelog untouched and not report it', async () => {
-    const file = path.join(dir, 'CHANGELOG.md');
-    fs.writeFileSync(file, EXISTING);
-    const template = path.join(dir, 'no-sections.liquid');
-    fs.writeFileSync(template, '# {{ versions[0].version }}\n');
-
-    const result = await runPipeline(
-      single('1.1.0'),
-      { changelog: { mode: 'root', file, templates: { path: template } } },
-      false,
-    );
-
-    expect(fs.readFileSync(file, 'utf-8')).toBe(EXISTING);
-    expect(result.files).not.toContain(file);
-  });
-});

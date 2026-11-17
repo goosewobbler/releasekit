@@ -54,7 +54,8 @@ export function writeMonorepoChangelogs(
       if (dryRun) {
         info(`Would write changelog for ${packageName} to ${changelogPath}`);
         debug(content);
-      } else if (writeChangelog(changelogPath, content, false)) {
+      } else {
+        writeChangelog(changelogPath, content, false);
         files.push(changelogPath);
       }
     } else {
