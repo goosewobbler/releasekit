@@ -456,7 +456,9 @@ releasekit-release backfill --package @scope/pkg --update-releases --only-missin
 
 `--all` discovers every package a release would version — npm/JS workspaces, pure-Cargo crates, and pubspec-only Dart/Flutter packages, scoped by `version.packages` — using the version stage's own discovery, and backfills each; packages with no matching tags are skipped. It is mutually exclusive with `--package`. Tags are resolved per package (package-specific) or from the shared global series (sync/single).
 
-With `sync: true`, each package's notes come from every commit in its directory. Otherwise they come from commits to its directory and to any crate or Dart package it versions through `cargo.paths` or `pub.paths` (ignored with `version.groups`), and a nested package's commits count only if it never releases on its own (it's private or outside `version.packages`).
+With shared tags and `sync: true`, `--all` backfills what a live sync release writes: one set of notes per tag for the whole repository, named after `version.mainPackage` (or `monorepo` without one). With shared tags, `sync: false` and more than one package, it exits with an error, since those packages' releases collide on the same tags.
+
+With `sync: true`, a single package's notes come from every commit in its directory. Otherwise they come from commits to its directory and to any crate or Dart package it versions through `cargo.paths` or `pub.paths` (ignored with `version.groups`), and a nested package's commits count only if it never releases on its own (it's private or outside `version.packages`).
 
 `--update-releases` edits existing releases only (it never creates them) and skips any tag without a release. Backfilled bodies carry a `<!-- releasekit-notes -->` marker. By default a run updates bodies that are empty or carry the marker, and skips any other body as hand-edited unless `--force` is passed. `--only-missing` instead updates only bodies without the marker, so re-runs fill only new gaps.
 

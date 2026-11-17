@@ -117,7 +117,7 @@ export function createBackfillCommand(): Command {
       // discovery then.
       const workspace = options.all || !versionConfig.sync ? await discoverWorkspace(versionConfig) : undefined;
       const pathGiven = command.getOptionValueSource('path') !== 'default';
-      const targets = resolveTargets(options, pathGiven, cwd, workspace?.packages ?? []);
+      const targets = resolveTargets(options, pathGiven, cwd, versionConfig, workspace);
       // Discovery applies the private filter and version.packages, so these are the packages that release on their own.
       const releasableDirs = workspace?.packages.map((p) => p.dir) ?? [];
       const commitScopeFor = (target: BackfillTarget): string[] | undefined => {
@@ -350,21 +350,33 @@ function resolveTargets(
   options: { all?: boolean; package?: string; path: string },
   pathGiven: boolean,
   cwd: string,
-  packages: Workspace['packages'],
+  versionConfig: VersionConfig,
+  workspace: Workspace | undefined,
 ): BackfillTarget[] {
+  const packages = workspace?.packages ?? [];
   if (options.all) {
-    const targets = packages
-      .filter((p) => Boolean(p.packageJson.name))
-      .map((p) => ({
-        packageName: p.packageJson.name,
-        pkgPath: p.dir,
-        repoUrl: normalizeRepoUrl((p.packageJson as { repository?: unknown }).repository) ?? null,
-      }));
-    if (targets.length === 0) {
+    const namedPackages = packages.filter((p) => Boolean(p.packageJson.name));
+    if (namedPackages.length === 0) {
       error('No workspace packages with a name were found to backfill.');
       process.exit(EXIT_CODES.GENERAL_ERROR);
     }
-    return targets;
+    if (!versionConfig.packageSpecificTags && workspace) {
+      if (versionConfig.sync) {
+        return [syncTarget(versionConfig, workspace)];
+      }
+      if (namedPackages.length > 1) {
+        error(
+          `--all can't backfill ${namedPackages.map((p) => p.packageJson.name).join(', ')} separately: they share one tag ` +
+            'series, so their releases collide. Set version.packageSpecificTags or version.sync.',
+        );
+        process.exit(EXIT_CODES.GENERAL_ERROR);
+      }
+    }
+    return namedPackages.map((p) => ({
+      packageName: p.packageJson.name,
+      pkgPath: p.dir,
+      repoUrl: normalizeRepoUrl(p.packageJson.repository) ?? null,
+    }));
   }
 
   const named =
@@ -379,4 +391,16 @@ function resolveTargets(
     process.exit(EXIT_CODES.GENERAL_ERROR);
   }
   return [{ packageName, pkgPath, repoUrl: pkgJson.repoUrl ?? null }];
+}
+
+/** Mirrors how the sync strategy names its single changelog and finds its repo URL. */
+function syncTarget(versionConfig: VersionConfig, workspace: Workspace): BackfillTarget {
+  const mainPkg = versionConfig.mainPackage
+    ? workspace.packages.find((p) => p.packageJson.name === versionConfig.mainPackage)
+    : undefined;
+  const repoUrlDirs = mainPkg
+    ? [mainPkg.dir]
+    : [workspace.root, versionConfig.mainPackage ? undefined : workspace.packages[0]?.dir];
+  const repoUrl = repoUrlDirs.map((dir) => dir && readPackageJson(dir).repoUrl).find(Boolean) ?? null;
+  return { packageName: mainPkg?.packageJson.name ?? 'monorepo', pkgPath: workspace.root, repoUrl };
 }
