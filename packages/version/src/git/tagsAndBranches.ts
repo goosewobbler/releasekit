@@ -102,10 +102,7 @@ export type TagSeries =
   | { packageName: string; versionPrefix?: string; options: TagSearchOptions }
   | { globalPrefix: string | undefined };
 
-/**
- * Called once no tag in `series` is reachable from HEAD. A tag that exists anyway (typically a shallow clone) fails
- * the run under `strict`, and is otherwise warned about and ignored.
- */
+/** Called once no tag in `series` is reachable from HEAD. */
 export async function checkUnreachableTags(
   series: TagSeries[],
   strict: boolean,

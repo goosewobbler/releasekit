@@ -149,7 +149,7 @@ function parseLog(output: string, preset: Preset): CommitWithHash[] {
       return [];
     }
     const commit = parserFor(preset).parse(message);
-    // Header and hash, as the bump's filter matches, so both drop the same commits.
+    // Header and hash, as the bump's filter matches.
     return [{ hash: hash.trim(), header: commit.header, message, commit, revert: commit.revert }];
   });
 
@@ -181,7 +181,7 @@ function toChangelogEntry(trimmedMessage: string, commit: Commit): ChangelogEntr
     // issueIds (from footers like "Fixes #123") also includes the PR, so a consumer that ignores
     // prNumber still shows every ref.
     const bodyIssueIds = extractIssueIds(body);
-    const issueIds = [...new Set(prNumber ? [prNumber, ...bodyIssueIds] : bodyIssueIds)];
+    const issueIds = prNumber ? [prNumber, ...bodyIssueIds] : bodyIssueIds;
 
     return {
       type: changelogType,
@@ -237,7 +237,7 @@ function mapCommitTypeToChangelogType(type: string): ChangelogEntry['type'] {
 
 function extractIssueIds(body: string): string[] {
   // GitHub's closing keywords. Not the parser's references: its action covers every ref after the keyword on the line.
-  const issueRegex = /(?<![\w-])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?[^\S\r\n]+#(\d+)/gi;
+  const issueRegex = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+#(\d+)/gi;
   const issueIds: string[] = [];
 
   let match: RegExpExecArray | null = issueRegex.exec(body);
