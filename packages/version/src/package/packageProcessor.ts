@@ -243,12 +243,22 @@ export class PackageProcessor {
           );
         }
 
-        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange, commitScope);
+        changelogEntries = await extractChangelogEntriesFromCommits(
+          pkgPath,
+          revisionRange,
+          this.fullConfig.preset,
+          commitScope,
+        );
 
         // Bounded so one untagged package can't flood "Project-wide changes" with the entire history.
         const sharedRevisionRange = await baselineResolver.sharedFloor(revisionRange);
 
-        const repoLevelEntries = await extractRepoLevelChangelogEntries(pkgPath, sharedRevisionRange, packageOwnedDirs);
+        const repoLevelEntries = await extractRepoLevelChangelogEntries(
+          pkgPath,
+          sharedRevisionRange,
+          this.fullConfig.preset,
+          packageOwnedDirs,
+        );
 
         // Emitted once on VersionOutput rather than duplicated into every package changelog.
         if (repoLevelEntries.length > 0) {

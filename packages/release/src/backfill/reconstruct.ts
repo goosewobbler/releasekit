@@ -1,3 +1,4 @@
+import type { Preset } from '@releasekit/config';
 import type { VersionPackageChangelog } from '@releasekit/core';
 import { createGitCli } from '@releasekit/git';
 import {
@@ -30,6 +31,7 @@ async function tagDate(tag: string, cwd: string): Promise<string | undefined> {
 export interface ReconstructOptions {
   packageName: string;
   pkgPath: string;
+  preset: Preset;
   /** Git pathspecs for the package's commits; defaults to `pkgPath`. */
   commitScope?: string[];
   repoUrl?: string | null;
@@ -88,7 +90,7 @@ export async function reconstructChangelogs(opts: ReconstructOptions): Promise<R
         previousVersion: prev?.version ?? null,
         revisionRange,
         repoUrl: opts.repoUrl ?? null,
-        entries: await extractChangelogEntriesFromCommits(opts.pkgPath, revisionRange, opts.commitScope),
+        entries: await extractChangelogEntriesFromCommits(opts.pkgPath, revisionRange, opts.preset, opts.commitScope),
       },
     });
   }

@@ -146,6 +146,7 @@ export function createBackfillCommand(): Command {
         const reconstructed = await reconstructChangelogs({
           packageName: target.packageName,
           pkgPath: target.pkgPath,
+          preset: versionConfig.preset,
           commitScope: commitScopeFor(target),
           repoUrl: target.repoUrl,
           versionPrefix: versionConfig.versionPrefix,

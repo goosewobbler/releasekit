@@ -10,6 +10,7 @@ vi.mock('../../../src/utils/logging.js', () => ({
 }));
 
 const RANGE = 'v1.0.0..v1.1.0';
+const PRESET = 'conventionalcommits';
 
 const gitWithLog = (output: string): Git => createFakeGit({ commits: { '*': output } });
 
@@ -33,7 +34,7 @@ describe('Commit Parser', () => {
       'revert: revert previous commit',
     ].join('---COMMIT_DELIMITER---');
 
-    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, ['.'], gitWithLog(mockGitOutput));
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, PRESET, ['.'], gitWithLog(mockGitOutput));
 
     expect(entries).toHaveLength(11);
 
@@ -61,7 +62,7 @@ describe('Commit Parser', () => {
       'fix(api): another fix\n\nBREAKING CHANGE: This breaks the API',
     ].join('---COMMIT_DELIMITER---');
 
-    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, ['.'], gitWithLog(mockGitOutput));
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, PRESET, ['.'], gitWithLog(mockGitOutput));
 
     expect(entries).toHaveLength(2);
     expect(entries[0]).toMatchObject({ description: 'breaking change', breaking: true });
@@ -74,7 +75,7 @@ describe('Commit Parser', () => {
       'feat(ui): add feature\n\nCloses #456\nResolves #789',
     ].join('---COMMIT_DELIMITER---');
 
-    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, ['.'], gitWithLog(mockGitOutput));
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, PRESET, ['.'], gitWithLog(mockGitOutput));
 
     expect(entries).toHaveLength(2);
     expect(entries.find((e) => e.description === 'fix bug')?.issueIds).toContain('#123');
@@ -87,7 +88,7 @@ describe('Commit Parser', () => {
   it('should treat a trailing (#N) on the subject as the PR and strip it from the description', async () => {
     const mockGitOutput = ['feat(release): hierarchical selection (#471)'].join('---COMMIT_DELIMITER---');
 
-    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, ['.'], gitWithLog(mockGitOutput));
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, PRESET, ['.'], gitWithLog(mockGitOutput));
 
     expect(entries).toHaveLength(1);
     expect(entries[0].description).toBe('hierarchical selection');
@@ -100,7 +101,7 @@ describe('Commit Parser', () => {
       '---COMMIT_DELIMITER---',
     );
 
-    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, ['.'], gitWithLog(mockGitOutput));
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, PRESET, ['.'], gitWithLog(mockGitOutput));
 
     expect(entries).toHaveLength(1);
     expect(entries[0].description).toBe('patch serializer');
@@ -112,7 +113,7 @@ describe('Commit Parser', () => {
   it('should leave prNumber undefined when the subject has no trailing (#N)', async () => {
     const mockGitOutput = ['fix(api): fix bug\n\nFixes #123'].join('---COMMIT_DELIMITER---');
 
-    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, ['.'], gitWithLog(mockGitOutput));
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, PRESET, ['.'], gitWithLog(mockGitOutput));
 
     expect(entries).toHaveLength(1);
     expect(entries[0].prNumber).toBeUndefined();
@@ -124,7 +125,7 @@ describe('Commit Parser', () => {
       '---COMMIT_DELIMITER---',
     );
 
-    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, ['.'], gitWithLog(mockGitOutput));
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, PRESET, ['.'], gitWithLog(mockGitOutput));
 
     expect(entries).toHaveLength(2);
     expect(entries[0].type).toBe('changed');
@@ -142,7 +143,7 @@ describe('Commit Parser', () => {
       'update version handling in the parser',
     ].join('---COMMIT_DELIMITER---');
 
-    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, ['.'], gitWithLog(mockGitOutput));
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, PRESET, ['.'], gitWithLog(mockGitOutput));
 
     // The three version-sync subjects never become entries; the real change and the false-positive
     // guard ("update version handling …") both survive.
@@ -155,7 +156,7 @@ describe('Commit Parser', () => {
       throw new Error('Git command failed');
     };
 
-    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, ['.'], git);
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, PRESET, ['.'], git);
 
     expect(entries).toEqual([]);
   });
@@ -167,7 +168,7 @@ describe('Commit Parser', () => {
         'def456|||chore(deps): bump actions/upload-artifact from 4 to 7',
       ].join('---COMMIT_DELIMITER---');
 
-      const entries = await extractAllChangelogEntriesWithHash('/test', RANGE, gitWithLog(mockGitOutput));
+      const entries = await extractAllChangelogEntriesWithHash('/test', RANGE, PRESET, gitWithLog(mockGitOutput));
 
       expect(entries).toHaveLength(2);
       expect(entries[0].hash).toBe('abc123');
@@ -179,7 +180,7 @@ describe('Commit Parser', () => {
       const git = createFakeGit({ commits: { '*': 'abc123|||feat(core): add new feature' } });
       const logSpy = vi.spyOn(git, 'log');
 
-      await extractAllChangelogEntriesWithHash('/test', RANGE, git);
+      await extractAllChangelogEntriesWithHash('/test', RANGE, PRESET, git);
 
       const opts = logSpy.mock.calls[0]?.[0];
       expect(opts?.paths).toBeUndefined();

@@ -34,7 +34,12 @@ describe('reconstructChangelogs', () => {
     fakeGit = new FakeGit({ commits: { '*': '2023-09-30\n' } });
     vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.0.0']);
 
-    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', packageSpecificTags: true });
+    const result = await reconstructChangelogs({
+      packageName: 'pkg',
+      pkgPath: '/p',
+      preset: 'conventionalcommits',
+      packageSpecificTags: true,
+    });
 
     expect(result[0]?.date).toBe('2023-09-30');
   });
@@ -43,7 +48,12 @@ describe('reconstructChangelogs', () => {
     vi.spyOn(fakeGit, 'log').mockRejectedValue(new Error('fatal: ambiguous argument'));
     vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.0.0']);
 
-    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', packageSpecificTags: true });
+    const result = await reconstructChangelogs({
+      packageName: 'pkg',
+      pkgPath: '/p',
+      preset: 'conventionalcommits',
+      packageSpecificTags: true,
+    });
 
     expect(result[0]?.date).toBeUndefined();
   });
@@ -51,7 +61,12 @@ describe('reconstructChangelogs', () => {
   it('should reconstruct one changelog per tag, paired with its predecessor and sorted by version', async () => {
     vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.2.0', 'pkg@v1.0.0', 'pkg@v1.1.0']);
 
-    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', packageSpecificTags: true });
+    const result = await reconstructChangelogs({
+      packageName: 'pkg',
+      pkgPath: '/p',
+      preset: 'conventionalcommits',
+      packageSpecificTags: true,
+    });
 
     expect(result.map((r) => r.changelog.version)).toEqual(['1.0.0', '1.1.0', '1.2.0']);
     expect(result.map((r) => r.tag)).toEqual(['pkg@v1.0.0', 'pkg@v1.1.0', 'pkg@v1.2.0']);
@@ -67,6 +82,7 @@ describe('reconstructChangelogs', () => {
     const result = await reconstructChangelogs({
       packageName: 'pkg',
       pkgPath: '/p',
+      preset: 'conventionalcommits',
       packageSpecificTags: true,
       from: '1.1.0',
       to: '1.1.0',
@@ -80,7 +96,12 @@ describe('reconstructChangelogs', () => {
   it('should skip tags without a valid semver', async () => {
     vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.0.0', 'pkg@latest', 'nightly']);
 
-    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', packageSpecificTags: true });
+    const result = await reconstructChangelogs({
+      packageName: 'pkg',
+      pkgPath: '/p',
+      preset: 'conventionalcommits',
+      packageSpecificTags: true,
+    });
 
     expect(result.map((r) => r.changelog.version)).toEqual(['1.0.0']);
   });
@@ -89,7 +110,12 @@ describe('reconstructChangelogs', () => {
     // Sync/single repos share one `v*` series with no package name in the tags.
     vi.mocked(version.listGlobalTags).mockResolvedValue(['v1.1.0', 'v1.0.0']);
 
-    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', versionPrefix: 'v' });
+    const result = await reconstructChangelogs({
+      packageName: 'pkg',
+      pkgPath: '/p',
+      preset: 'conventionalcommits',
+      versionPrefix: 'v',
+    });
 
     expect(version.listGlobalTags).toHaveBeenCalledWith('v');
     expect(version.listPackageTags).not.toHaveBeenCalled();
@@ -104,6 +130,7 @@ describe('reconstructChangelogs', () => {
     const result = await reconstructChangelogs({
       packageName: 'pkg',
       pkgPath: '/p',
+      preset: 'conventionalcommits',
       versionPrefix: 'v',
       tagTemplate: 'release-${' + 'version}',
     });
@@ -115,7 +142,7 @@ describe('reconstructChangelogs', () => {
   it('should return an empty list when there are no matching tags', async () => {
     vi.mocked(version.listGlobalTags).mockResolvedValue([]);
 
-    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p' });
+    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', preset: 'conventionalcommits' });
 
     expect(result).toEqual([]);
   });

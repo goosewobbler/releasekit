@@ -1,13 +1,9 @@
 import { inspect } from 'node:util';
-import type { Preset } from '@releasekit/config';
 import { sanitizePackageName, shouldMatchPackageTargets } from '@releasekit/core';
 import { createGitCli, isTagAfter } from '@releasekit/git';
-import createAngularPreset from 'conventional-changelog-angular';
-import createConventionalCommitsPreset from 'conventional-changelog-conventionalcommits';
-import { Bumper, type Preset as BumperPreset } from 'conventional-recommended-bump';
+import { Bumper } from 'conventional-recommended-bump';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
-import { BREAKING_HEADER_PATTERN, HEADER_PATTERN } from '../changelog/commitParser.js';
 import { getCommitsLength, refExists } from '../git/tagsAndBranches.js';
 import type { Config, VersionOptions } from '../types.js';
 import { buildTagStripPatternFromTemplate, deriveBaselineTagPrefix, escapeRegExp } from '../utils/formatting.js';
@@ -20,21 +16,7 @@ import {
   STANDARD_BUMP_TYPES,
   type VersionSourceResult,
 } from '../utils/versionUtils.js';
-
-/** Angular's parser doesn't recognise a `type!:` header, so the bump uses the changelog's header rules. */
-function createAngularPresetReadingBreakingHeaders(): BumperPreset {
-  const preset = (createAngularPreset as () => BumperPreset)();
-  return {
-    ...preset,
-    parser: { ...preset.parser, headerPattern: HEADER_PATTERN, breakingHeaderPattern: BREAKING_HEADER_PATTERN },
-  };
-}
-
-// Imported statically so they resolve from releasekit's own dependencies in any install layout, bundled dist included.
-const PRESETS: Record<Preset, () => BumperPreset> = {
-  angular: createAngularPresetReadingBreakingHeaders,
-  conventionalcommits: createConventionalCommitsPreset as () => BumperPreset,
-};
+import { createPreset } from './presets.js';
 
 /**
  * Prerelease form of an explicit `bump:*` magnitude: patch advances the counter (1.0.0-next.1 →
@@ -344,7 +326,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
     log(`Falling back to conventional commits`, 'debug');
     try {
       log(`Creating bumper with preset: ${preset}`, 'debug');
-      const presetConfig = PRESETS[preset]();
+      const presetConfig = createPreset(preset);
       const bumper = new Bumper();
       bumper.config(presetConfig);
       // Bound the commit scan to the changelog's baseline: conventional-recommended-bump's own tag detection

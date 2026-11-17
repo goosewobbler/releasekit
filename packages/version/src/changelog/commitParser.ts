@@ -1,14 +1,12 @@
+import type { Preset } from '@releasekit/config';
 import type { VersionChangelogEntry } from '@releasekit/core';
 import { createGitCli, type Git } from '@releasekit/git';
+import { CommitParser } from 'conventional-commits-parser';
+import { createPreset } from '../core/presets.js';
 import { log } from '../utils/logging.js';
 
 type ChangelogEntry = VersionChangelogEntry;
 
-const CONVENTIONAL_COMMIT_REGEX = /^(\w+)(?:\(([^)]+)\))?(!)?: (.+)(?:\n\n([\s\S]*))?/;
-/** `CONVENTIONAL_COMMIT_REGEX`'s header rules for the angular bump, so it agrees with the changelog on breaking. */
-export const HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!?: (.+)$/;
-export const BREAKING_HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!: (.+)$/;
-const BREAKING_CHANGE_REGEX = /BREAKING CHANGE: ([\s\S]+?)(?:\n\n|$)/;
 // Non-conventional version-bump bookkeeping subjects (e.g. `Update version to 1.2.3`). Narrow by
 // construction so a real change like "update version handling in the parser" is never swallowed.
 const VERSION_BUMP_SUBJECT_REGEX = /^update (?:version to v?\d|package versions)\b/i;
@@ -23,6 +21,7 @@ export interface CommitWithHash {
 export async function extractAllChangelogEntriesWithHash(
   projectDir: string,
   revisionRange: string,
+  preset: Preset,
   git: Git = createGitCli(),
 ): Promise<CommitWithHash[]> {
   try {
@@ -40,7 +39,7 @@ export async function extractAllChangelogEntriesWithHash(
       .map((commit) => {
         const [hash, ...messageParts] = commit.split('|||');
         const message = messageParts.join('|||').trim();
-        const entry = parseCommitMessage(message);
+        const entry = parseCommitMessage(message, preset);
         if (entry && hash) {
           return { hash: hash.trim(), entry };
         }
@@ -58,11 +57,12 @@ export async function extractAllChangelogEntriesWithHash(
 export async function extractRepoLevelChangelogEntries(
   projectDir: string,
   revisionRange: string,
+  preset: Preset,
   packageDirs: string[],
   git: Git = createGitCli(),
 ): Promise<ChangelogEntry[]> {
   try {
-    const allCommits = await extractAllChangelogEntriesWithHash(projectDir, revisionRange, git);
+    const allCommits = await extractAllChangelogEntriesWithHash(projectDir, revisionRange, preset, git);
     if (packageDirs.length === 0) {
       return allCommits.map((c) => c.entry);
     }
@@ -90,19 +90,11 @@ export async function extractRepoLevelChangelogEntries(
 }
 
 /** `paths` are pathspecs, relative to `projectDir` or absolute. */
-export function extractChangelogEntriesFromCommits(
+export async function extractChangelogEntriesFromCommits(
   projectDir: string,
   revisionRange: string,
+  preset: Preset,
   paths: string[] = ['.'],
-  git: Git = createGitCli(),
-): Promise<ChangelogEntry[]> {
-  return extractCommitsFromGitLog(projectDir, revisionRange, paths, git);
-}
-
-async function extractCommitsFromGitLog(
-  projectDir: string,
-  revisionRange: string,
-  paths: string[] | undefined,
   git: Git = createGitCli(),
 ): Promise<ChangelogEntry[]> {
   try {
@@ -117,7 +109,7 @@ async function extractCommitsFromGitLog(
     const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
 
     return commits
-      .map((commit) => parseCommitMessage(commit))
+      .map((commit) => parseCommitMessage(commit, preset))
       .filter((entry): entry is ChangelogEntry => entry !== null);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -144,21 +136,28 @@ async function extractCommitsFromGitLog(
   }
 }
 
-function parseCommitMessage(message: string): ChangelogEntry | null {
+const parsers = new Map<Preset, CommitParser>();
+
+function parserFor(preset: Preset): CommitParser {
+  let parser = parsers.get(preset);
+  if (!parser) {
+    parser = new CommitParser(createPreset(preset).parser);
+    parsers.set(preset, parser);
+  }
+  return parser;
+}
+
+function parseCommitMessage(message: string, preset: Preset): ChangelogEntry | null {
   const trimmedMessage = message.trim();
-  if (trimmedMessage.startsWith(RELEASE_COMMIT_PREFIX)) {
+  if (!trimmedMessage || trimmedMessage.startsWith(RELEASE_COMMIT_PREFIX)) {
     return null;
   }
 
-  const match = trimmedMessage.match(CONVENTIONAL_COMMIT_REGEX);
+  const commit = parserFor(preset).parse(trimmedMessage);
+  const { type, scope, subject } = commit;
 
-  if (match) {
-    const [, type, scope, breakingMark, subject, body = ''] = match;
-
-    const breakingFromMark = breakingMark === '!';
-    const breakingChangeMatch = body.match(BREAKING_CHANGE_REGEX);
-    const hasBreakingChange = breakingFromMark || breakingChangeMatch !== null;
-
+  if (type) {
+    const body = trimmedMessage.split('\n').slice(1).join('\n');
     const changelogType = mapCommitTypeToChangelogType(type);
 
     // GitHub appends `(#N)` to squash-merge subjects. Pull it off so it renders as a labelled PR ref rather
@@ -180,7 +179,8 @@ function parseCommitMessage(message: string): ChangelogEntry | null {
       scope: scope || undefined,
       issueIds: issueIds.length > 0 ? issueIds : undefined,
       prNumber,
-      ...(hasBreakingChange && { breaking: true }),
+      // Every note keyword is a breaking one, and the parser adds a note for a `!` header.
+      ...(commit.notes.length > 0 && { breaking: true }),
       originalType: type,
     };
   }

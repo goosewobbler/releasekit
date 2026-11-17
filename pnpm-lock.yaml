@@ -622,6 +622,9 @@ importers:
       conventional-commits-filter:
         specifier: ^6.0.1
         version: 6.0.1
+      conventional-commits-parser:
+        specifier: ^7.1.4
+        version: 7.1.4
       conventional-recommended-bump:
         specifier: ^12.1.1
         version: 12.1.1
