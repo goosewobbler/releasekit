@@ -55,6 +55,11 @@ export interface VersionRunOptions {
    * package leaves no orphan bump. Exact names, not patterns.
    */
   exclude?: string[];
+  /**
+   * The commit this run releases. A package whose latest tag is reachable from HEAD and comes after it is skipped,
+   * so a re-run checked out past that commit's release doesn't release the package again.
+   */
+  skipTaggedAfter?: string;
 }
 
 export interface VersionConfigBase {
@@ -97,6 +102,8 @@ export interface Config extends VersionConfigBase {
   baseRef?: string;
   /** Runtime override - see VersionRunOptions.overrideScope. */
   overrideScope?: string[];
+  /** Runtime override - see VersionRunOptions.skipTaggedAfter. */
+  skipTaggedAfter?: string;
   /** Runtime override (see VersionRunOptions.graduate), always set together with `stableOnly`. Empty
    *  with `stableOnly` set graduates every prerelease. */
   graduateScope?: string[];

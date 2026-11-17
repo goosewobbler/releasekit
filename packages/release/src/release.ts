@@ -164,6 +164,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   }
   if (verdict) {
     applyVerdict(options, verdict);
+    options.skipTaggedAfter = getGitHubContext()?.sha ?? undefined;
   }
 
   if (releaseConfig?.ci?.skipPatterns?.length) {

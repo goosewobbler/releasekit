@@ -1,6 +1,7 @@
 import { inspect } from 'node:util';
 import type { Preset } from '@releasekit/config';
 import { sanitizePackageName, shouldMatchPackageTargets } from '@releasekit/core';
+import { createGitCli, isTagAfter } from '@releasekit/git';
 import createAngularPreset from 'conventional-changelog-angular';
 import createConventionalCommitsPreset from 'conventional-changelog-conventionalcommits';
 import { Bumper, type Preset as BumperPreset } from 'conventional-recommended-bump';
@@ -122,6 +123,16 @@ function guardFirstReleaseBump(config: Config, name: string | undefined, current
 }
 
 export async function calculateVersion(config: Config, options: VersionOptions): Promise<string> {
+  const { latestTag } = options;
+  if (
+    config.skipTaggedAfter &&
+    options.hasRealTag !== false &&
+    latestTag &&
+    (await isTagAfter(createGitCli(), latestTag, config.skipTaggedAfter, options.path))
+  ) {
+    log(`Skipping ${options.name || 'project'}: ${latestTag} already released ${config.skipTaggedAfter}`, 'info');
+    return '';
+  }
   const scoped = applyOverrideScope(config, options);
   return calculateVersionInner(scoped.config, scoped.options);
 }

@@ -100,6 +100,9 @@ export class VersionEngine {
       if (runOptions.overrideScope) {
         effective.overrideScope = runOptions.overrideScope;
       }
+      if (runOptions.skipTaggedAfter) {
+        effective.skipTaggedAfter = runOptions.skipTaggedAfter;
+      }
       if (runOptions.includePrerequisites) {
         this.includePrerequisites = true;
       }
