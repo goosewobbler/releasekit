@@ -107,7 +107,7 @@ LLM configuration lives under `notes.releaseNotes.llm`:
 
 | Task | What it does |
 |------|-------------|
-| `enhance` | Rewrites each changelog entry description to be clearer |
+| `enhance` | Rewrites each entry description in the release notes to be clearer |
 | `summarize` | Generates a one-paragraph summary of the release |
 | `categorize` | Groups entries into semantic categories (default set: Breaking, New, Changed, Fixed, Developer) |
 | `releaseNotes` | Generates full prose release notes (use as GitHub release body) |

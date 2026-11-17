@@ -88,13 +88,13 @@ All four packages share a single version (sync versioning) — see the version b
 |---------|-----------|-------------|
 | [@releasekit/release](./packages/release) | [![downloads](https://img.shields.io/npm/dw/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release) | **Unified CLI** — run version, notes, and publish in a single command |
 | [@releasekit/version](./packages/version) | [![downloads](https://img.shields.io/npm/dw/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version) | Semantic versioning based on Git history and conventional commits |
-| [@releasekit/notes](./packages/notes) | [![downloads](https://img.shields.io/npm/dw/@releasekit/notes.svg)](https://www.npmjs.com/package/@releasekit/notes) | Changelog generation with LLM-powered enhancement and flexible templating |
+| [@releasekit/notes](./packages/notes) | [![downloads](https://img.shields.io/npm/dw/@releasekit/notes.svg)](https://www.npmjs.com/package/@releasekit/notes) | Changelog and release notes generation with LLM-enhanced release notes and flexible templating |
 | [@releasekit/publish](./packages/publish) | [![downloads](https://img.shields.io/npm/dw/@releasekit/publish.svg)](https://www.npmjs.com/package/@releasekit/publish) | Publish packages to npm, crates.io, and pub.dev with git tagging and GitHub releases |
 
 ## Features
 
 - 🔖 **Versioning** — derives semver bumps from Conventional Commits; supports JavaScript/TypeScript (`package.json`), Rust (`Cargo.toml`), Dart/Flutter (`pubspec.yaml`), and monorepos with per-package tags
-- 📝 **Release notes** — generates changelogs from commit history, with optional LLM enhancement (Anthropic, OpenAI, or local models)
+- 📝 **Release notes** — generates changelogs from commit history, with optional LLM-enhanced release notes (Anthropic, OpenAI, or local models)
 - 📦 **Publishing** — pushes to npm (OIDC or token), crates.io, and pub.dev, tags the release, and creates a GitHub Release
 - ⚙️ **CI/CD first** — JSON output for scripting, PR preview comments, and config-driven triggers (commit vs label)
 - 🧩 **Composable** — use each tool independently or pipe them together

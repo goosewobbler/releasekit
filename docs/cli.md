@@ -321,7 +321,7 @@ releasekit version --json --dry-run
 
 ## `releasekit notes`
 
-Generate changelogs with optional LLM-powered enhancement and flexible templating. Also available as the standalone `releasekit-notes` binary. Subcommands: `generate` (default), `auth`, `providers`. See the [LLM providers guide](../packages/notes/docs/llm-providers.md) for provider setup.
+Generate changelogs and release notes, with optional LLM-enhanced release notes and flexible templating. Also available as the standalone `releasekit-notes` binary. Subcommands: `generate` (default), `auth`, `providers`. See the [LLM providers guide](../packages/notes/docs/llm-providers.md) for provider setup.
 
 ### `releasekit notes generate`
 

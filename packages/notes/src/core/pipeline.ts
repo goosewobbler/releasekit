@@ -222,7 +222,7 @@ async function processWithLLM(
     info(`Running LLM tasks: ${activeTasks.join(', ')}`);
   } catch (error) {
     warn(`LLM setup failed: ${error instanceof Error ? error.message : String(error)}`);
-    warn('Falling back to non-LLM changelog rendering. Check your LLM config or set RELEASEKIT_DEBUG=1 for details.');
+    warn('Falling back to non-LLM release notes. Check your LLM config or set RELEASEKIT_DEBUG=1 for details.');
     return context;
   }
 
@@ -372,8 +372,6 @@ export interface PipelineOptions {
   skipReleaseNotes?: boolean;
   /** Use during publish from manifest to regenerate only the release notes against an already-bumped tree. */
   skipChangelogs?: boolean;
-  /** Render the changelog from the unprocessed entries; the LLM pass still shapes the release notes. */
-  plainChangelog?: boolean;
 }
 
 export async function runPipeline(
@@ -384,8 +382,9 @@ export async function runPipeline(
 ): Promise<PipelineResult> {
   debug(`Processing ${input.packages.length} package(s)`);
 
-  let contexts = input.packages.map(createTemplateContext);
-  const plainContexts = contexts;
+  // The changelog renders from these; LLM output goes only to release surfaces.
+  const changelogContexts = input.packages.map(createTemplateContext);
+  let contexts = changelogContexts;
 
   const changelogConfig = config.changelog === false ? false : { mode: 'root' as const, ...(config.changelog ?? {}) };
   const releaseNotesConfig =
@@ -470,7 +469,6 @@ export async function runPipeline(
   };
 
   if (!pipelineOptions?.skipChangelogs && changelogConfig !== false && changelogConfig.mode) {
-    const changelogContexts = pipelineOptions?.plainChangelog ? plainContexts : contexts;
     const fileName = changelogConfig.file ?? 'CHANGELOG.md';
     const mode = changelogConfig.mode;
 

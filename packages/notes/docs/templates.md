@@ -114,7 +114,7 @@ Each entry in `entries` has:
 
 ### Enhanced data (`enhanced`)
 
-Present when any LLM task ran successfully:
+Present in release-notes templates when any LLM task ran successfully. Changelog templates never get it:
 
 | Field | Type | Description |
 |-------|------|-------------|

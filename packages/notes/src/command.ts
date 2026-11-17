@@ -9,7 +9,7 @@ import { parseVersionOutput } from './input/version-output.js';
 
 export function createNotesCommand(): Command {
   const cmd = new Command('notes').description(
-    'Generate changelogs with LLM-powered enhancement and flexible templating',
+    'Generate changelogs and release notes, with LLM-enhanced release notes and flexible templating',
   );
 
   cmd

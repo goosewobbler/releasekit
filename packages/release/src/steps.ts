@@ -68,7 +68,6 @@ export async function runNotesStep(versionOutput: VersionOutput, options: Releas
   const result = await runPipeline(input, config, options.dryRun, {
     skipReleaseNotes: options.skipReleaseNotes,
     skipChangelogs: options.skipChangelogs,
-    plainChangelog: options.plainChangelog,
   });
 
   return { packageNotes: result.packageNotes, releaseNotes: result.releaseNotes, files: result.files };

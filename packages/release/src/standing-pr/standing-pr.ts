@@ -1379,12 +1379,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   info('Generating changelog...');
   const allNotesKeysHaveRegions = notesKeys.length > 0 && notesKeys.every((key) => Object.hasOwn(editedNotes, key));
   const generateReleaseNotes = previewNotesEnabled && !allNotesKeysHaveRegions;
-  const notesOptions = {
-    ...writeOptions,
-    skipNotes: false,
-    skipReleaseNotes: !generateReleaseNotes,
-    plainChangelog: true,
-  };
+  const notesOptions = { ...writeOptions, skipNotes: false, skipReleaseNotes: !generateReleaseNotes };
   const countableUpdates = publishableUpdates(versionOutput);
   const count = countableUpdates.length;
   const notesResult: NotesStepResult =

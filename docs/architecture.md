@@ -22,7 +22,7 @@ A conceptual overview for contributors and users evaluating ReleaseKit.
 
 **version** reads git history since the last tag, applies conventional commit rules, and computes the next semver for each package. It writes updated `package.json`/`Cargo.toml` files and emits a `VersionOutput` JSON object.
 
-**notes** consumes `VersionOutput` and renders the `CHANGELOG.md` plus per-release notes (the GitHub release body, or optional per-version files) via Liquid/Handlebars/EJS templates. LLM enhancement is an optional pass inside this stage.
+**notes** consumes `VersionOutput` and renders the `CHANGELOG.md` plus per-release notes (the GitHub release body, or optional per-version files) via Liquid/Handlebars/EJS templates. An optional LLM pass inside this stage shapes the release notes; the changelog never goes through it.
 
 **publish** consumes the same `VersionOutput`. It prepares files, creates the commit and tags locally, publishes to npm, crates.io, and pub.dev, then pushes and creates GitHub Releases. The order depends on the mode — see [Publish order and partial failure](#publish-order-and-partial-failure).
 
@@ -187,7 +187,7 @@ Given the git tags, the commits since the last tag, and `releasekit.config.json`
 
 1. Computes the next semver for each package from conventional commits (or a forced `--bump`).
 2. Writes updated manifest files and emits `VersionOutput`.
-3. Renders changelogs and optional release notes from `VersionOutput`, optionally passing them through an LLM.
+3. Renders changelogs and optional release notes from `VersionOutput`, optionally passing the release notes through an LLM.
 4. Publishes, then pushes and creates GitHub Releases, in the order in [Publish order and partial failure](#publish-order-and-partial-failure). Tags are created locally before publishing and pushed only after a clean publish (once, at the end, in batch mode; after each package in per-package mode).
 
 If the head commit message matches a skip pattern (default: `chore: release `), ReleaseKit exits early so that its own release commits do not trigger an infinite loop. If there are no releasable commits since the last tag, it exits with code 0 and skips all remaining steps.
