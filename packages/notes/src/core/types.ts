@@ -124,13 +124,10 @@ export interface ScopeConfig {
   rules?: ScopeRules;
 }
 
-export type UpdateStrategy = 'prepend' | 'regenerate';
-
 export interface Config {
   changelog?: false | ChangelogConfig;
   releaseNotes?: false | ReleaseNotesConfig;
   monorepo?: MonorepoConfig;
-  updateStrategy?: UpdateStrategy;
 }
 
 export type JSONSchema = Record<string, unknown>;

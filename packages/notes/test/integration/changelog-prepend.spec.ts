@@ -1,10 +1,13 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createNotesCommand } from '../../src/command.js';
 import { runPipeline } from '../../src/core/pipeline.js';
 import type { ChangelogInput, Config, PackageChangelog, TemplateContext } from '../../src/core/types.js';
 import { writeMonorepoChangelogs } from '../../src/monorepo/aggregator.js';
+import { renderMarkdown } from '../../src/output/markdown.js';
 
 const HEADER = `# Changelog
 
@@ -37,10 +40,10 @@ const NEW_RELEASE = `## [1.1.0] - 2026-02-01
 - feature
 `;
 
-function pkg(packageName: string, entries: PackageChangelog['entries']): PackageChangelog {
+function pkg(packageName: string, entries: PackageChangelog['entries'], version = '1.1.0'): PackageChangelog {
   return {
     packageName,
-    version: '1.1.0',
+    version,
     previousVersion: '1.0.0',
     revisionRange: 'v1.0.0..HEAD',
     repoUrl: 'https://github.com/acme/repo',
@@ -152,12 +155,129 @@ describe('writeMonorepoChangelogs: per-package changelogs keep their history', (
       entries: [{ type: 'added', description: 'feature A' }],
     };
 
-    writeMonorepoChangelogs([context], { rootPath: dir, packagesPath: 'packages', mode: 'packages' }, {}, false);
+    writeMonorepoChangelogs([context], { rootPath: dir, packagesPath: 'packages' }, renderMarkdown, false);
 
     const out = fs.readFileSync(file, 'utf-8');
     const added = out.indexOf('## [1.1.0]');
     expect(added).toBeGreaterThan(-1);
     expect(added).toBeLessThan(out.indexOf('## [1.0.0]'));
     expect(out).toContain('- Ancient history that must survive');
+  });
+});
+
+const CUSTOM_TEMPLATE = `# Custom header
+
+{% for v in versions %}## {{ v.packageName }} {{ v.version }} (custom)
+
+{% for e in v.entries %}- {{ e.description }}
+{% endfor %}
+{% endfor %}`;
+
+function writeTemplate(): string {
+  const file = path.join(dir, 'changelog.liquid');
+  fs.writeFileSync(file, CUSTOM_TEMPLATE);
+  return file;
+}
+
+function single(version: string): ChangelogInput {
+  return {
+    source: 'version',
+    packages: [pkg('my-lib', [{ type: 'added', description: `feature ${version}` }], version)],
+  };
+}
+
+describe('Pipeline: custom changelog templates prepend', () => {
+  it('should add each run under the existing header and keep every prior section', async () => {
+    const file = path.join(dir, 'CHANGELOG.md');
+    fs.writeFileSync(file, EXISTING);
+    const config: Config = { changelog: { mode: 'root', file, templates: { path: writeTemplate() } } };
+
+    await runPipeline(single('1.1.0'), config, false);
+    await runPipeline(single('1.2.0'), config, false);
+
+    const out = fs.readFileSync(file, 'utf-8');
+    expect(out).toBe(
+      `${HEADER}\n## my-lib 1.2.0 (custom)\n\n- feature 1.2.0\n\n## my-lib 1.1.0 (custom)\n\n- feature 1.1.0\n\n${OLD_RELEASE}`,
+    );
+  });
+
+  it('should write the whole rendered template to a new file', async () => {
+    const out = await writeChangelog(single('1.1.0'), {
+      changelog: { mode: 'root', templates: { path: writeTemplate() } },
+    });
+
+    expect(out.startsWith('# Custom header\n\n## my-lib 1.1.0 (custom)')).toBe(true);
+  });
+
+  it.each(['keep-a-changelog', 'angular'])('should prepend with the bundled %s template', async (name) => {
+    const templatePath = fileURLToPath(new URL(`../../templates/${name}`, import.meta.url));
+    const config: Config = { changelog: { mode: 'root', templates: { path: templatePath } } };
+
+    const out = await writeChangelog(single('1.1.0'), config, EXISTING);
+
+    expect(out.match(/^# Changelog$/gm)).toHaveLength(1);
+    expect(out.startsWith(HEADER.trimEnd())).toBe(true);
+    const added = out.indexOf('## [1.1.0] - 2026-02-01');
+    expect(added).toBeGreaterThan(-1);
+    expect(out.indexOf('- feature 1.1.0')).toBeGreaterThan(added);
+    expect(out.indexOf('## [1.0.0]')).toBeGreaterThan(out.indexOf('- feature 1.1.0'));
+    expect(out).toContain('- Ancient history that must survive');
+  });
+});
+
+describe('Per-package changelogs with a custom template', () => {
+  const originalCwd = process.cwd();
+  let pkgFile: string;
+
+  const monorepoInput: ChangelogInput = {
+    source: 'version',
+    packages: [pkg('@x/a', [{ type: 'added', description: 'feature A' }])],
+  };
+
+  beforeEach(() => {
+    fs.writeFileSync(path.join(dir, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n");
+    const pkgDir = path.join(dir, 'packages', 'a');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@x/a' }));
+    pkgFile = path.join(pkgDir, 'CHANGELOG.md');
+    fs.writeFileSync(pkgFile, EXISTING);
+    process.chdir(dir);
+  });
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+  });
+
+  const expected = `${HEADER}\n## @x/a 1.1.0 (custom)\n\n- feature A\n\n${OLD_RELEASE}`;
+
+  it.each([
+    ['packages', false],
+    ['both', true],
+  ] as const)('should render and prepend each package file in %s mode', async (mode, writesRoot) => {
+    await runPipeline(monorepoInput, { changelog: { mode, templates: { path: writeTemplate() } } }, false);
+
+    expect(fs.readFileSync(pkgFile, 'utf-8')).toBe(expected);
+    expect(fs.existsSync(path.join(dir, 'CHANGELOG.md'))).toBe(writesRoot);
+  });
+
+  it('should honour --template in packages mode', async () => {
+    const inputFile = path.join(dir, 'version-output.json');
+    const changelogs = monorepoInput.packages.map(({ date: _, ...changelog }) => changelog);
+    fs.writeFileSync(inputFile, JSON.stringify({ changelogs }));
+
+    await createNotesCommand().parseAsync([
+      'node',
+      'test',
+      'generate',
+      '-i',
+      inputFile,
+      '--changelog-mode',
+      'packages',
+      '--template',
+      writeTemplate(),
+      '--no-llm',
+    ]);
+
+    expect(fs.readFileSync(pkgFile, 'utf-8')).toBe(expected);
   });
 });

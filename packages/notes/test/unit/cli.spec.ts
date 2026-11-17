@@ -276,18 +276,6 @@ describe('createNotesCommand', () => {
       );
     });
 
-    it('should set updateStrategy to regenerate with --regenerate', async () => {
-      vi.mocked(loadConfig).mockReturnValue(undefined as never);
-
-      await createNotesCommand().parse(['node', 'test', 'generate', '-i', 'input.json', '--regenerate']);
-
-      expect(runPipeline).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ updateStrategy: 'regenerate' }),
-        false,
-      );
-    });
-
     it('should wire --monorepo mode through to changelog mode', async () => {
       vi.mocked(loadConfig).mockReturnValue(undefined as never);
 

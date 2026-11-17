@@ -12,4 +12,4 @@ export {
 } from './input/version-output.js';
 export { aggregateToRoot, detectMonorepo, writeMonorepoChangelogs } from './monorepo/aggregator.js';
 export { renderJson, writeJson } from './output/json.js';
-export { formatVersion, renderMarkdown, writeMarkdown } from './output/markdown.js';
+export { formatVersion, renderMarkdown, writeChangelog } from './output/markdown.js';

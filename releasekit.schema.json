@@ -1056,14 +1056,6 @@
             }
           ],
           "description": "Release notes for the GitHub Release body and optional per-version files. Off unless set. {} turns them on using each version's changelog section; set llm or templates to change the content."
-        },
-        "updateStrategy": {
-          "type": "string",
-          "enum": [
-            "prepend",
-            "regenerate"
-          ],
-          "description": "How to update existing changelog files. 'prepend' (the default) adds the new entries at the top; 'regenerate' overwrites the file with this run's output."
         }
       },
       "description": "Changelog and release notes configuration"

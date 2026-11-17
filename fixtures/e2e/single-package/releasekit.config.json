@@ -6,9 +6,6 @@
   "version": {
     "preset": "conventionalcommits"
   },
-  "notes": {
-    "updateStrategy": "prepend"
-  },
   "publish": {
     "npm": {
       "enabled": true,

@@ -85,8 +85,7 @@ All options live under the `notes` key in `releasekit.config.json`:
           "summarize": true
         }
       }
-    },
-    "updateStrategy": "prepend"
+    }
   }
 }
 ```

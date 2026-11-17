@@ -180,6 +180,7 @@ describe('loadConfig', () => {
     ['version.skipHooks', { version: { skipHooks: true } }, /moved to git\.skipHooks/],
     ['monorepo.mainPackage', { monorepo: { mainPackage: 'core' } }, /moved to version\.mainPackage/],
     ['monorepo.mode', { monorepo: { mode: 'packages' } }, /notes\.changelog\.mode/],
+    ['notes.updateStrategy', { notes: { updateStrategy: 'prepend' } }, /changelogs always prepend/],
   ])('should name the replacement for the removed %s', (key, config, guidance) => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify(config));

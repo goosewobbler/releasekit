@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Config, TemplateContext } from '../../../src/core/types.js';
+import type { TemplateContext } from '../../../src/core/types.js';
 
 vi.mock('@releasekit/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/core')>();
@@ -18,9 +18,7 @@ function makeContext(overrides: Partial<TemplateContext> = {}): TemplateContext 
   };
 }
 
-const minimalConfig: Config = {};
-
-describe('writeMarkdown: dry run', () => {
+describe('writeChangelog: dry run', () => {
   let info: ReturnType<typeof vi.fn>;
   let debug: ReturnType<typeof vi.fn>;
 
@@ -32,9 +30,9 @@ describe('writeMarkdown: dry run', () => {
   });
 
   it('should log content via info() during dry run', async () => {
-    const { writeMarkdown } = await import('../../../src/output/markdown.js');
+    const { renderMarkdown, writeChangelog } = await import('../../../src/output/markdown.js');
 
-    writeMarkdown('/tmp/CHANGELOG.md', [makeContext()], minimalConfig, true);
+    writeChangelog('/tmp/CHANGELOG.md', renderMarkdown([makeContext()]), true);
 
     expect(info).toHaveBeenCalled();
     const calls = info.mock.calls.map((c) => c[0] as string);
@@ -43,31 +41,21 @@ describe('writeMarkdown: dry run', () => {
   });
 
   it('should not call debug() for content during dry run', async () => {
-    const { writeMarkdown } = await import('../../../src/output/markdown.js');
+    const { renderMarkdown, writeChangelog } = await import('../../../src/output/markdown.js');
 
-    writeMarkdown('/tmp/CHANGELOG.md', [makeContext()], minimalConfig, true);
+    writeChangelog('/tmp/CHANGELOG.md', renderMarkdown([makeContext()]), true);
 
     expect(debug).not.toHaveBeenCalled();
   });
 
-  it('should label the preview using the output filename', async () => {
-    const { writeMarkdown } = await import('../../../src/output/markdown.js');
+  it('should name the output file in the preview', async () => {
+    const { renderMarkdown, writeChangelog } = await import('../../../src/output/markdown.js');
 
-    writeMarkdown('/tmp/CHANGELOG.md', [makeContext()], minimalConfig, true);
+    writeChangelog('/tmp/CHANGELOG.md', renderMarkdown([makeContext()]), true);
 
     const calls = info.mock.calls.map((c) => c[0] as string);
     const header = calls.find((msg) => msg.includes('DRY RUN'));
     expect(header).toMatch(/CHANGELOG\.md/);
-  });
-
-  it('should use "Release notes" label for non-changelog output files', async () => {
-    const { writeMarkdown } = await import('../../../src/output/markdown.js');
-
-    writeMarkdown('/tmp/RELEASE_NOTES.md', [makeContext()], minimalConfig, true);
-
-    const calls = info.mock.calls.map((c) => c[0] as string);
-    const header = calls.find((msg) => msg.includes('DRY RUN'));
-    expect(header).toMatch(/Release notes/i);
   });
 });
 

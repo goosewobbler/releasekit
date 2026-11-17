@@ -713,12 +713,6 @@ export const NotesConfigSchema = z.strictObject({
     .describe(
       "Release notes for the GitHub Release body and optional per-version files. Off unless set. {} turns them on using each version's changelog section; set llm or templates to change the content.",
     ),
-  updateStrategy: z
-    .enum(['prepend', 'regenerate'])
-    .optional()
-    .describe(
-      "How to update existing changelog files. 'prepend' (the default) adds the new entries at the top; 'regenerate' overwrites the file with this run's output.",
-    ),
 });
 
 export const CILabelsConfigSchema = z.strictObject({
