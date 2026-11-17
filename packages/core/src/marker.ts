@@ -18,6 +18,23 @@ export function extractMarkerRegion(body: string, open: string, close: string): 
   return { content: body.slice(from, end).trim(), closed: true };
 }
 
+/**
+ * Like {@link extractMarkerRegion}, but the opener and closer count only as a whole line, so a marker copied into the
+ * content can't end the region early. Line endings and the whitespace around each marker line are ignored, as GitHub's
+ * editor may change them.
+ */
+export function extractLineMarkerRegion(body: string, open: string, close: string): MarkerRegion | undefined {
+  const lines = body.replaceAll('\r', '').split('\n');
+  const start = lines.findIndex((line) => line.trim() === open);
+  if (start === -1) {
+    return undefined;
+  }
+  const end = lines.findIndex((line, i) => i > start && line.trim() === close);
+  const closed = end !== -1;
+  const content = lines.slice(start + 1, closed ? end : undefined).join('\n');
+  return { content: content.trim(), closed };
+}
+
 export interface MarkerData<T> {
   encode(value: T): string;
   /** Null when the marker is absent or malformed. */

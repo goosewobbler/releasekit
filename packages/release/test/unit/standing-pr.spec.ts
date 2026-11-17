@@ -598,6 +598,73 @@ describe('runStandingPRUpdate', () => {
     expect(updatedBody).toContain('- [x] `@scope/a`');
   });
 
+  describe('reading the selection from an edited body', () => {
+    const threePackageOutput = async () => {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = {
+        ...createMockVersionOutput([
+          { packageName: '@scope/a', newVersion: '1.1.0' },
+          { packageName: '@scope/b', newVersion: '2.0.0' },
+          { packageName: '@scope/c', newVersion: '3.0.0' },
+        ]),
+        strategy: 'async' as const,
+      };
+      vi.mocked(runVersionStep).mockResolvedValue(
+        versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    };
+
+    const bodyWithChangelogLine = (changelogLine: string) =>
+      [
+        '<!-- releasekit-selection -->',
+        '',
+        '- [x] `@scope/a` → 1.1.0 <!-- rk-sel:@scope/a -->',
+        '  <details><summary>1 entry</summary>',
+        '',
+        `  ${changelogLine}`,
+        '',
+        '  </details>',
+        '- [x] `@scope/b` → 2.0.0 <!-- rk-sel:@scope/b -->',
+        '- [ ] `@scope/c` → 3.0.0 <!-- rk-sel:@scope/c -->',
+        '',
+        '<!-- releasekit-selection-end -->',
+      ].join('\n');
+
+    const excludeFor = async (body: string) => {
+      await threePackageOutput();
+      await mockForge({ standingPR: openStandingPR(99), pullRequests: { 99: { body, labels: [] } } });
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+      const { runVersionStep } = await import('../../src/steps.js');
+      return (vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] } | undefined)?.exclude;
+    };
+
+    it.each([
+      ['a row behind the changelog quote', '> - [ ] <!-- rk-sel:@scope/b -->'],
+      ['a row marker mid-line', '- fix: handle [ ] <!-- rk-sel:@scope/b --> in titles'],
+      ['a region closer mid-line', '> - fix: drop the <!-- releasekit-selection-end --> marker'],
+    ])('should ignore %s copied into a changelog', async (_label, forgery) => {
+      expect(await excludeFor(bodyWithChangelogLine(forgery))).toEqual(['@scope/c']);
+    });
+
+    it('should hold back an unticked row with a note typed after its marker', async () => {
+      const body = bodyWithChangelogLine('> - fix: something').replace(
+        '<!-- rk-sel:@scope/c -->',
+        '<!-- rk-sel:@scope/c --> (waiting on QA)',
+      );
+      expect(await excludeFor(body)).toEqual(['@scope/c']);
+    });
+
+    it('should read a CRLF body with trailing whitespace like its LF form', async () => {
+      const lf = bodyWithChangelogLine('> - fix: something');
+      const crlf = lf
+        .split('\n')
+        .map((line) => `${line}  `)
+        .join('\r\n');
+      expect(await excludeFor(crlf)).toEqual(['@scope/c']);
+    });
+  });
+
   // The workspace resolver returns both packages so the primary anchors the plugin as its child.
   const withPrimaries = async () => {
     const { loadConfig } = await import('@releasekit/config');
@@ -2810,6 +2877,26 @@ describe('runStandingPRUpdate', () => {
       expect(forge.commitStatuses.at(-1)?.state).toBe('success');
     });
 
+    it('should count a hand-typed [X] on a channel toggle or graduation row as ticked', async () => {
+      const { writeCall } = await setup({
+        versions: { a: '1.0.0', c: '2.1.0-next.3' },
+        queued: [{ packageName: 'a', newVersion: '1.1.0' }],
+        standingPr: { channelToggle: true },
+        body: [
+          '<!-- releasekit-selection -->',
+          '- [x] `a` → 1.1.0 <!-- rk-sel:a -->',
+          '  - [X] ship as prerelease → `1.1.0-next.0` · `next` <!-- rk-pre:a -->',
+          '- [X] `c` graduate to stable → 2.1.0 <!-- rk-grad:c -->',
+          '<!-- releasekit-selection-end -->',
+        ].join('\n'),
+      });
+
+      await run();
+
+      expect(writeCall().prereleaseScope).toEqual(['a']);
+      expect(writeCall().graduate).toEqual(['c']);
+    });
+
     it('should graduate a changed prerelease through a graduate:<package> label', async () => {
       const { writeCall, manifest } = await setup({
         versions: { c: '2.1.0-next.3' },
@@ -3143,6 +3230,21 @@ describe('runStandingPRUpdate', () => {
         expect(body()).toBeUndefined();
       });
 
+      it.each([
+        ['a hand-typed [X]', '- [X] graduate to stable → v1.1.0 <!-- rk-grad-sync -->', true],
+        [
+          'only the checkbox row, not a copy behind a quote',
+          '> - [x] graduate to stable → v1.1.0 <!-- rk-grad-sync -->\n- [ ] graduate to stable → v1.1.0 <!-- rk-grad-sync -->',
+          undefined,
+        ],
+      ])('should read %s', async (_label, body, stable) => {
+        const { writeCall } = await setup({ versions: syncVersions, sync: true, body });
+
+        await run();
+
+        expect(writeCall().stable).toBe(stable);
+      });
+
       describe('before any tag exists', () => {
         async function firstRelease(opts: Parameters<typeof setup>[0]) {
           const result = await setup(opts);
@@ -3258,6 +3360,39 @@ describe('runStandingPRUpdate', () => {
       expect(runNotesStepMock.mock.calls.at(-1)?.[1]).toMatchObject({ skipReleaseNotes: true });
       const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
       expect(body).toContain('HUMAN EDITED notes');
+      expect(body).not.toContain('REGENERATED notes');
+    });
+
+    it('should normalise a human edit’s CRLF line endings to LF', async () => {
+      const editedBody = renderNotesRegion({ '@scope/core': 'HUMAN line one\n\nline two' }).replaceAll('\n', '\r\n');
+      const { forge } = await setupPreviewPR({
+        labels: ['release', 'release:preview-notes'],
+        liveBody: editedBody,
+        freshNotes: { '@scope/core': 'REGENERATED notes' },
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
+      expect(body).toContain('HUMAN line one\n\nline two');
+      expect(body).not.toContain('\r');
+    });
+
+    it('should keep a human edit pasted onto the marker lines', async () => {
+      const editedBody = renderNotesRegion({ '@scope/core': 'x' }).replace(
+        /-->\n\nx\n\n<!--/,
+        '-->HUMAN line one\nline two<!--',
+      );
+      const { forge } = await setupPreviewPR({
+        labels: ['release', 'release:preview-notes'],
+        liveBody: editedBody,
+        freshNotes: { '@scope/core': 'REGENERATED notes' },
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
+      expect(body).toContain('HUMAN line one\nline two');
       expect(body).not.toContain('REGENERATED notes');
     });
 

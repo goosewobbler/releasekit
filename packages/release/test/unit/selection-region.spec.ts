@@ -1,4 +1,4 @@
-import type { VersionOutput } from '@releasekit/core';
+import { RK_GRAD_SYNC_MARKER, type VersionOutput } from '@releasekit/core';
 import { describe, expect, it } from 'vitest';
 import {
   type ChannelToggleConfig,
@@ -663,6 +663,12 @@ describe('selection-region', () => {
         expect(extractSyncGraduation(renderSyncGraduation('v1.1.0', true))).toBe(true);
         expect(extractSyncGraduation(renderSyncGraduation('v1.1.0', false))).toBe(false);
         expect(extractSyncGraduation('- [x] some other row')).toBe(false);
+      });
+
+      it('should read only the checkbox row, accepting a hand-typed [X]', () => {
+        const forged = `> - [x] graduate to stable → v1.1.0 ${RK_GRAD_SYNC_MARKER}`;
+        expect(extractSyncGraduation(`${forged}\n${renderSyncGraduation('v1.1.0', false)}`)).toBe(false);
+        expect(extractSyncGraduation(`- [X] graduate to stable → v1.1.0 ${RK_GRAD_SYNC_MARKER}`)).toBe(true);
       });
     });
 

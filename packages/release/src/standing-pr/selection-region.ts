@@ -23,10 +23,10 @@ type Update = VersionOutput['updates'][number];
 const REGION_HEADING = '### Packages to release';
 const REGION_HINT =
   '> Untick a package to hold it back from the next release, then save — the bot re-runs and updates this PR. ' +
-  'Keep the `<!-- rk-sel... -->` marker comments; they identify each row.';
+  'Keep the `<!-- rk-sel... -->` marker comment on each row; it identifies the row.';
 const GRADUATION_HINT =
   '> Tick a package to graduate it to stable on the next release, then save — the bot re-runs and updates this PR. ' +
-  'Keep the `<!-- rk-grad... -->` marker comments; they identify each row.';
+  'Keep the `<!-- rk-grad... -->` marker comment on each row; it identifies the row.';
 const GRADUATION_HEADING = '#### Graduate to stable';
 
 const CHANNEL_ORDER: readonly ReleaseChannel[] = ['stable', 'prerelease'] as const;
@@ -519,9 +519,48 @@ export function renderSyncGraduation(version: string, ticked: boolean): string {
   return `- ${checkbox(ticked)} graduate to stable → ${version} ${RK_GRAD_SYNC_MARKER}`;
 }
 
+/** GitHub renders `[X]` as ticked too. */
+function* checklistRows(text: string): Generator<{ line: string; ticked: boolean }> {
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (line.startsWith('- [ ]')) {
+      yield { line, ticked: false };
+    } else if (line.startsWith('- [x]') || line.startsWith('- [X]')) {
+      yield { line, ticked: true };
+    }
+  }
+}
+
 export function extractSyncGraduation(body: string): boolean {
-  const line = body.split('\n').find((l) => l.includes(RK_GRAD_SYNC_MARKER));
-  return !!line && line.slice(0, line.indexOf(RK_GRAD_SYNC_MARKER)).includes('[x]');
+  for (const { line, ticked } of checklistRows(body)) {
+    if (line.includes(RK_GRAD_SYNC_MARKER)) {
+      return ticked;
+    }
+  }
+  return false;
+}
+
+const MARKER_CLOSE = ' -->';
+
+/**
+ * A marker counts only on a task-list row, so one copied into a row's changelog (always behind a `>`) can't forge a
+ * row. The row's own marker is rendered last, so the last one wins, and text typed after it is ignored.
+ */
+function markerHits(region: string, marker: string): Array<{ name: string; ticked: boolean }> {
+  const open = `<!-- ${marker}:`;
+  const hits: Array<{ name: string; ticked: boolean }> = [];
+  for (const { line, ticked } of checklistRows(region)) {
+    const markerStart = line.lastIndexOf(open);
+    if (markerStart === -1) {
+      continue;
+    }
+    const nameStart = markerStart + open.length;
+    const nameEnd = line.indexOf(MARKER_CLOSE, nameStart);
+    if (nameEnd !== -1) {
+      hits.push({ name: line.slice(nameStart, nameEnd), ticked });
+    }
+  }
+  return hits;
 }
 
 /** `undefined` when the body has no selection region (a sync release, or a body predating the feature). */
@@ -530,48 +569,11 @@ export function extractSelection(body: string): { deselected: string[] } | undef
   if (region === undefined) {
     return undefined;
   }
-
-  const deselected: string[] = [];
-  for (const line of region.split('\n')) {
-    const markerStart = line.indexOf('<!-- rk-sel:');
-    if (markerStart === -1) {
-      continue;
-    }
-    const nameStart = markerStart + '<!-- rk-sel:'.length;
-    const nameEnd = line.indexOf(' -->', nameStart);
-    if (nameEnd === -1) {
-      continue;
-    }
-    const name = line.slice(nameStart, nameEnd);
-    // Selected unless explicitly empty; a fixed substring check, not a backtracking regex.
-    if (line.slice(0, markerStart).includes('[ ]')) {
-      deselected.push(name);
-    }
-  }
-  return { deselected };
-}
-
-function markerHits(region: string, marker: string): Array<{ name: string; ticked: boolean; unticked: boolean }> {
-  const open = `<!-- ${marker}:`;
-  const hits: Array<{ name: string; ticked: boolean; unticked: boolean }> = [];
-  for (const line of region.split('\n')) {
-    const markerStart = line.indexOf(open);
-    if (markerStart === -1) {
-      continue;
-    }
-    const nameStart = markerStart + open.length;
-    const nameEnd = line.indexOf(' -->', nameStart);
-    if (nameEnd === -1) {
-      continue;
-    }
-    const before = line.slice(0, markerStart);
-    hits.push({
-      name: line.slice(nameStart, nameEnd),
-      ticked: before.includes('[x]'),
-      unticked: before.includes('[ ]'),
-    });
-  }
-  return hits;
+  return {
+    deselected: markerHits(region, 'rk-sel')
+      .filter((h) => !h.ticked)
+      .map((h) => h.name),
+  };
 }
 
 export interface ChannelSelection {
@@ -589,7 +591,7 @@ export function extractChannelSelection(body: string): ChannelSelection {
     return { prereleased: [], graduated: [], graduationRows: [] };
   }
   const rows = markerHits(region, 'rk-sel');
-  const heldBack = new Set(rows.filter((h) => h.unticked).map((h) => h.name));
+  const heldBack = new Set(rows.filter((h) => !h.ticked).map((h) => h.name));
   const hasRow = new Set(rows.map((h) => h.name));
   const pick = (marker: string): string[] =>
     markerHits(region, marker)
