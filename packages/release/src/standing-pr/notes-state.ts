@@ -19,10 +19,7 @@ function shortHash(text: string): string {
   return createHash('sha256').update(text).digest('hex').slice(0, 16);
 }
 
-/**
- * Changes when anything that shapes the text generated from a changelog key does: its versions, its entries, or the
- * generating `config`.
- */
+/** Changes when anything that shapes the text generated from a changelog key does. */
 export function changelogInputHash(changelog: VersionPackageChangelog, config: unknown): string {
   const { version, previousVersion, entries } = changelog;
   return shortHash(JSON.stringify({ version, previousVersion, entries, config }));

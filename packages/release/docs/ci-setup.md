@@ -465,7 +465,7 @@ By default the standing PR generates only changelogs — LLM release notes are p
 3. Edit the prose between the markers directly in the PR description. **Keep the marker comments** — they delimit the region that's read back.
 4. Merge as usual. Each package's notes in the region become its GitHub release body, except untouched notes cut at the 8,000-character cap, which are regenerated in full.
 
-Untouched notes **refresh when their changes do**: a later update regenerates a package's block only if its changelog entries, its version or the `notes.releaseNotes` config changed, and leaves it alone otherwise. A block you edited is **kept** as written, so a push to `main` while you're mid-edit won't clobber your text. To regenerate an edited block, clear it; the next update fills it again. Requires `notes.releaseNotes.llm` configured and the provider secret available to the `update` job (same as publish-time generation).
+Untouched notes **refresh when their changes do**: a later update regenerates a package's block only if its changelog entries, its version or the `notes.releaseNotes` config changed. A block you edited is **kept** as written, so a push to `main` while you're mid-edit won't clobber your text. To regenerate an edited block, clear it; the next update fills it again. Requires `notes.releaseNotes.llm` configured and the provider secret available to the `update` job (same as publish-time generation).
 
 This is a standing-pr-only feature — it needs a durable pre-publish artifact (the PR body) to edit. In `direct`/`manual` mode, edit the GitHub Release after it's published instead. (A manual-mode draft-then-dispatch flow is tracked in [#319](https://github.com/goosewobbler/releasekit/issues/319).)
 

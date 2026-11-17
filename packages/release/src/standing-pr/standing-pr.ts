@@ -191,7 +191,7 @@ export interface StandingPRManifest {
    * only - `versionOutput` already holds the prerelease versions.
    */
   prereleased?: string[];
-  /** Per notes key, what the update last wrote into its region. A key without state is treated as edited. */
+  /** A key without state is treated as edited. */
   notesRegions?: NotesRegionStates;
 }
 
@@ -1638,7 +1638,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const manifest: StandingPRManifest = {
     schemaVersion: 2,
     versionOutput,
-    // Publish reads the notes from the body; `notesRegions` holds only hashes, as the comment has a size limit.
+    // Publish reads the notes from the body.
     releaseNotes: {},
     notesFiles,
     createdAt: new Date().toISOString(),
