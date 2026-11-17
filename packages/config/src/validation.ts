@@ -44,6 +44,7 @@ const REMOVED_KEYS = new Map<string, string>([
     "renamed to markStaleAfterRelease, which marks open PRs' previews stale after a release instead of recomputing them",
   ],
   ['ci.labels.stable', 'renamed to ci.labels.graduate'],
+  ['ci.standingPr.primaryPackages', 'moved to version.primaryPackages'],
   ['monorepo.mainPackage', 'moved to version.mainPackage'],
   ['monorepo.mode', 'removed - changelog aggregation is set by notes.changelog.mode'],
   ['notes.updateStrategy', 'removed - changelogs always prepend the new versions'],

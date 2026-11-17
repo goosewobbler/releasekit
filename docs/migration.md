@@ -300,6 +300,11 @@ with a `version` block); it used to fail.
 - `@releasekit/notes` API: `writeMarkdown` is replaced by `writeChangelog(path, content, dryRun)`, which prepends
   rendered content, and `writeMonorepoChangelogs` takes a render function instead of `config` and `refs`.
 
+### `primaryPackages` moved to `version`
+
+`ci.standingPr.primaryPackages` is now `version.primaryPackages`; config loading fails on the old key.
+`ci.standingPr.selection` stays where it is.
+
 ---
 
 ## Further reading

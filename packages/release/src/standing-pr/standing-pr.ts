@@ -1191,7 +1191,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     ? []
     : publishableUpdates(versionOutputRows).filter((u) => !candidateSet.has(u.packageName));
   const changedNames = new Set(dryUpdates.map((u) => u.packageName));
-  const primaryPackages = standingPrConfig?.primaryPackages ?? [];
+  const primaryPackages = releaseKitConfig.version?.primaryPackages ?? [];
   const selectionMode = standingPrConfig?.selection ?? 'streamlined';
   let primaryConfig: PrimaryConfig | undefined;
   // Resolving primaries, including ones not bumping this run, needs the full workspace package list, so load it

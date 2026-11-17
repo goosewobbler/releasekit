@@ -144,6 +144,12 @@ const VersionConfigBaseSchema = z.strictObject({
     .describe(
       'Foundational packages whose changes belong in every package’s changelog. A commit touching only a shared package (exact name or glob) is classified as repo-level and surfaced under "Project-wide changes" rather than attributed to that one package. Default: none — no package is treated as shared unless declared.',
     ),
+  primaryPackages: z
+    .array(z.string())
+    .default([])
+    .describe(
+      'Packages users install, as exact names or globs. Each anchors a release unit with its group-mates and the internal dependencies it releases with. Used by the standing-PR selection list.',
+    ),
   sharedChangelogFloor: z
     .enum(['union', 'sinceLastRelease'])
     .default('union')
@@ -839,17 +845,11 @@ export const StandingPrConfigSchema = z.strictObject({
     .describe(
       'Restrict who can steer the standing PR — its selection checkboxes, per-row channel toggles, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action.',
     ),
-  primaryPackages: z
-    .array(z.string())
-    .default([])
-    .describe(
-      'Packages that drive releases — rendered as parent rows in the standing-PR selection list, with their coupled group-mates and changed prerequisites nested beneath, so one parent toggle holds back the whole release unit. Glob patterns or exact names. Empty (default) → flat per-package list (current behavior).',
-    ),
   selection: z
     .enum(['streamlined', 'granular'])
     .default('streamlined')
     .describe(
-      'How the selection list renders when primaryPackages is set. streamlined: one checkbox per primary, coupled members shown read-only in a collapsed pane, and a held-back primary cascades to its unit. granular: every package keeps its own checkbox, nested under its primary, with no cascade. No effect when primaryPackages is empty.',
+      'How the selection list renders when version.primaryPackages is set. streamlined: one checkbox per primary, coupled members shown read-only in a collapsed pane, and a held-back primary cascades to its unit. granular: every package keeps its own checkbox, nested under its primary, with no cascade. No effect when version.primaryPackages is empty.',
     ),
   combinedChangelogFooter: z
     .boolean()

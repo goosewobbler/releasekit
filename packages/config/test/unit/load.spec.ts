@@ -169,6 +169,11 @@ describe('loadConfig', () => {
     ],
     ['ci.labels.stable', { ci: { labels: { stable: 'release:stable' } } }, /renamed to ci\.labels\.graduate/],
     ['ci.skipPatterns', { ci: { skipPatterns: ['chore: release '] } }, /moved to release\.ci\.skipPatterns/],
+    [
+      'ci.standingPr.primaryPackages',
+      { ci: { standingPr: { primaryPackages: ['@scope/app'] } } },
+      /moved to version\.primaryPackages/,
+    ],
     ['notes.releaseNotes.mode', { notes: { releaseNotes: { mode: 'versioned' } } }, /notes\.changelog\.mode/],
     [
       'notes.releaseNotes.llm.prompts.templates',
@@ -223,6 +228,15 @@ describe('loadConfig', () => {
     );
 
     expect(() => loadConfig()).not.toThrow();
+  });
+
+  it('should read version.primaryPackages, defaulting to none', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: { primaryPackages: ['@scope/app'] } }));
+    expect(loadConfig().version?.primaryPackages).toEqual(['@scope/app']);
+
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: {} }));
+    expect(loadConfig().version?.primaryPackages).toEqual([]);
   });
 
   it('should parse JSONC with comments', () => {
