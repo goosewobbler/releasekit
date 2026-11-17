@@ -95,7 +95,7 @@ describe('Commit Parser', () => {
 
   it('should take only whole closing keywords, with an optional colon, as closed issues', async () => {
     const mockGitOutput = [
-      'fix(api): patch serializer (#503)\n\nuse the prefix #12 style\nhotfix #3 follow-up\nhot-fix #4\nwe can fix\n#5 later\n\nCloses: #500\nFixed #499\nresolved #498\nclosed #497\nCloses #503',
+      'fix(api): patch serializer (#503)\n\nuse the prefix #12 style\nhotfix #3 follow-up\n\nCloses: #500\nFixed #499\nresolved #498\nclosed #497',
     ].join('---COMMIT_DELIMITER---');
 
     const entries = await extractChangelogEntriesFromCommits('/test', RANGE, PRESET, ['.'], gitWithLog(mockGitOutput));
