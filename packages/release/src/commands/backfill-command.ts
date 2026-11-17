@@ -117,7 +117,7 @@ export function createBackfillCommand(): Command {
       // discovery then.
       const workspace = options.all || !versionConfig.sync ? await discoverWorkspace(versionConfig) : undefined;
       const pathGiven = command.getOptionValueSource('path') !== 'default';
-      const targets = resolveTargets(options, pathGiven, cwd, versionConfig, workspace, isGroupMode(versionConfig));
+      const targets = resolveTargets(options, pathGiven, cwd, versionConfig, workspace);
       // Discovery applies the private filter and version.packages, so these are the packages that release on their own.
       const releasableDirs = workspace?.packages.map((p) => p.dir) ?? [];
       const commitScopeFor = (target: BackfillTarget): string[] | undefined => {
@@ -352,7 +352,6 @@ function resolveTargets(
   cwd: string,
   versionConfig: VersionConfig,
   workspace: Workspace | undefined,
-  groupMode: boolean,
 ): BackfillTarget[] {
   const packages = workspace?.packages ?? [];
   if (options.all) {
@@ -365,11 +364,10 @@ function resolveTargets(
       if (versionConfig.sync) {
         return [syncTarget(versionConfig, workspace)];
       }
-      // Group members are always tagged per package.
-      if (namedPackages.length > 1 && !groupMode) {
+      if (namedPackages.length > 1) {
         error(
           `--all can't backfill ${namedPackages.map((p) => p.packageJson.name).join(', ')} separately: they share one tag ` +
-            'series, so their releases collide. Set version.packageSpecificTags or version.sync.',
+            'series, so their releases collide. Backfill one package with --package or --path.',
         );
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
