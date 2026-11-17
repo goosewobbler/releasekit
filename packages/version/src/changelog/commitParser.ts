@@ -134,7 +134,6 @@ function parserFor(preset: Preset): CommitParser {
 
 interface LoggedCommit {
   hash: string;
-  header: string | null;
   message: string;
   commit: Commit;
   revert: Commit['revert'];
@@ -149,8 +148,7 @@ function parseLog(output: string, preset: Preset): CommitWithHash[] {
       return [];
     }
     const commit = parserFor(preset).parse(message);
-    // Header and hash, as the bump's filter matches, so both drop the same commits.
-    return [{ hash: hash.trim(), header: commit.header, message, commit, revert: commit.revert }];
+    return [{ hash: hash.trim(), message, commit, revert: commit.revert }];
   });
 
   return [...filterRevertedCommitsSync(commits)].flatMap(({ hash, message, commit }) => {

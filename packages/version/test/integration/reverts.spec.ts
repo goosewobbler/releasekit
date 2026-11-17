@@ -44,7 +44,7 @@ describe('reverted commits', () => {
     expect(entries.map((e) => e.description)).toEqual(['handle empty input']);
   });
 
-  it('should keep a squash-merged revert, as the bump does', () => {
+  it('should leave out a commit reverted by a squash-merged revert PR, as the bump does', () => {
     tempDir = createWorkspaceRepo('rk-reverts-', {
       packages: { core: '@test/core' },
       version: '1.4.2',
@@ -57,11 +57,12 @@ describe('reverted commits', () => {
     execFileSync('git', ['add', 'packages/core'], { cwd: tempDir });
     const message = `Revert "feat!: drop Node 18 (#12)" (#13)\n\nThis reverts commit ${reverted}.`;
     execFileSync('git', ['commit', '-q', '-m', message], { cwd: tempDir });
+    commitChange('fix', 'handle empty input');
 
     const output = runVersionJson(tempDir);
-    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('2.0.0');
+    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('1.4.3');
     const entries = output.changelogs.flatMap((c) => c.entries);
-    expect(entries.find((e) => e.description === 'drop Node 18')?.breaking).toBe(true);
+    expect(entries.map((e) => e.description)).toEqual(['handle empty input']);
   });
 
   it('should keep a revert of a commit from an earlier release', () => {

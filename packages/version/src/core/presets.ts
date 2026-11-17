@@ -33,6 +33,10 @@ export function createPreset(name: Preset): BumperPreset {
       // The bump's git log appends only a `-hash-` field. The parser's default pattern would read any `-word-`
       // body line as a field marker, swallowing the lines after it or throwing on `-notes-`.
       fieldPattern: /^-(hash)-$/,
+      // A revert pairs with its commit by hash alone: a squash-merged revert PR's header carries its own `(#N)`, so
+      // the presets' header-and-hash match never pairs them. Correspondence follows the pattern's capture groups.
+      revertPattern: /^(?:Revert|revert:)\s[\s\S]*?This reverts commit (\w+)\b/i,
+      revertCorrespondence: ['hash'],
     },
     // conventionalcommits' whatBump re-reads `!` from the raw header with its own greedy scope pattern. The
     // parser has already turned a `!` header into a note, so hiding the header leaves the parse to decide.
