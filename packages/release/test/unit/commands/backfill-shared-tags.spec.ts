@@ -145,4 +145,15 @@ describe('backfill --all with shared tags', () => {
     expect(vi.mocked(error).mock.calls[0]?.[0]).toMatch(/app, lib/);
     expect(getReleaseInfo).not.toHaveBeenCalled();
   });
+
+  it('should not refuse unsynced packages in version groups, which tag each member', async () => {
+    createRepo({ sync: false, groups: { core: { packages: ['app', 'lib'], sync: 'fixed' } } });
+    const exit = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('exit');
+    });
+
+    await backfill();
+
+    expect(exit).not.toHaveBeenCalled();
+  });
 });
