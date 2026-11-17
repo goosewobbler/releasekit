@@ -147,7 +147,7 @@ try {
         assert(body.includes(s), `${exp.file} should mention "${s}"`);
       }
       for (const s of exp.hasNot) {
-        assert(!body.includes(s), `${exp.file} should NOT mention "${s}" (path scoping)`);
+        assert(!body.includes(s), `${exp.file} should NOT mention "${s}" (scoping)`);
       }
       console.log(`✓ ${exp.file}: dated ${exp.date}, scoped correctly`);
     }
