@@ -7,7 +7,7 @@ export default mergeConfig(
     test: {
       include: ['test/**/*.spec.ts'],
       coverage: {
-        exclude: ['**/*.spec.ts', '**/*.test.ts', 'src/index.ts', 'src/types.ts'],
+        thresholds: { lines: 88, functions: 89, branches: 82, statements: 89 },
       },
     },
   }),

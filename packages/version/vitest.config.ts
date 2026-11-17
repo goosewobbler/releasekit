@@ -6,7 +6,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       coverage: {
-        exclude: ['**/*.spec.ts', '**/*.test.ts', '**/types.ts', 'src/index.ts'],
+        thresholds: { lines: 87, functions: 90, branches: 80, statements: 87 },
       },
       setupFiles: [],
     },
