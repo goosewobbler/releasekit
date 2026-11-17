@@ -1,6 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { VersionOutput } from '@releasekit/core';
 import { runPipeline, versionOutputToChangelogInput } from '@releasekit/notes';
 import { describe, expect, it } from 'vitest';
 import { parseManifest } from '../../src/standing-pr/standing-pr.js';
@@ -23,13 +22,14 @@ function manifestComment(manifest: unknown): string {
 const fixtures = readdirSync(FIXTURES).filter((file) => file.endsWith('.json'));
 
 describe.each(fixtures)('the manifest persisted in %s', (file) => {
-  const persisted = JSON.parse(readFileSync(join(FIXTURES, file), 'utf-8')) as { versionOutput: VersionOutput };
+  const persisted = JSON.parse(readFileSync(join(FIXTURES, file), 'utf-8'));
 
   it('should parse', () => {
     expect(() => parseManifest(manifestComment(persisted))).not.toThrow();
   });
 
-  // The notes step a merged standing PR's publish runs, with no changelog write or LLM.
+  // The notes pipeline publish runs on a merged standing PR's manifest, here without repo config, a changelog write
+  // or an LLM.
   it('should render release notes for every package', async () => {
     const { versionOutput } = parseManifest(manifestComment(persisted));
 
@@ -39,7 +39,11 @@ describe.each(fixtures)('the manifest persisted in %s', (file) => {
       true,
     );
 
-    const names = [...new Set(versionOutput.changelogs.map((c) => c.packageName))].sort();
-    expect(Object.keys(result.releaseNotes ?? {}).sort()).toEqual(names);
+    for (const changelog of versionOutput.changelogs) {
+      const notes = result.releaseNotes?.[changelog.packageName] ?? '';
+      expect(notes).toContain(changelog.version);
+      expect(notes).not.toContain('undefined');
+      expect(/^- /m.test(notes)).toBe(changelog.entries.length > 0);
+    }
   });
 });
