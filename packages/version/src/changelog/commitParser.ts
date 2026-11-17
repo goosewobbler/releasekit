@@ -1,7 +1,8 @@
 import type { Preset } from '@releasekit/config';
 import type { VersionChangelogEntry } from '@releasekit/core';
 import { createGitCli, type Git } from '@releasekit/git';
-import { CommitParser } from 'conventional-commits-parser';
+import { filterRevertedCommitsSync } from 'conventional-commits-filter';
+import { type Commit, CommitParser } from 'conventional-commits-parser';
 import { createPreset } from '../core/presets.js';
 import { log } from '../utils/logging.js';
 
@@ -33,19 +34,7 @@ export async function extractAllChangelogEntriesWithHash(
       cwd: projectDir,
     });
 
-    const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
-
-    return commits
-      .map((commit) => {
-        const [hash, ...messageParts] = commit.split('|||');
-        const message = messageParts.join('|||').trim();
-        const entry = parseCommitMessage(message, preset);
-        if (entry && hash) {
-          return { hash: hash.trim(), entry };
-        }
-        return null;
-      })
-      .filter((item): item is CommitWithHash => item !== null);
+    return parseLog(output, preset);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(`Error extracting all commits with hash: ${errorMessage}`, 'error');
@@ -100,17 +89,13 @@ export async function extractChangelogEntriesFromCommits(
   try {
     const output = await git.log({
       range: revisionRange,
-      format: '%B---COMMIT_DELIMITER---',
+      format: '%H|||%B---COMMIT_DELIMITER---',
       extraArgs: ['--no-merges'],
       paths,
       cwd: projectDir,
     });
 
-    const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
-
-    return commits
-      .map((commit) => parseCommitMessage(commit, preset))
-      .filter((entry): entry is ChangelogEntry => entry !== null);
+    return parseLog(output, preset).map((c) => c.entry);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -147,13 +132,38 @@ function parserFor(preset: Preset): CommitParser {
   return parser;
 }
 
-function parseCommitMessage(message: string, preset: Preset): ChangelogEntry | null {
-  const trimmedMessage = message.trim();
-  if (!trimmedMessage || trimmedMessage.startsWith(RELEASE_COMMIT_PREFIX)) {
+interface LoggedCommit {
+  hash: string;
+  message: string;
+  commit: Commit;
+  revert: { hash: string } | null;
+}
+
+/** Parses `%H|||%B` log output, newest first, dropping each commit reverted in the range along with its revert. */
+function parseLog(output: string, preset: Preset): CommitWithHash[] {
+  const commits = output.split('---COMMIT_DELIMITER---').flatMap((raw): LoggedCommit[] => {
+    const [hash, ...messageParts] = raw.split('|||');
+    const message = messageParts.join('|||').trim();
+    if (!message) {
+      return [];
+    }
+    const commit = parserFor(preset).parse(message);
+    // Matched on the hash alone: the parsed header of a squash-merged revert PR carries the PR's own `(#N)`.
+    const revertedHash = commit.revert?.hash;
+    return [{ hash: hash.trim(), message, commit, revert: revertedHash ? { hash: revertedHash } : null }];
+  });
+
+  return [...filterRevertedCommitsSync(commits)].flatMap(({ hash, message, commit }) => {
+    const entry = toChangelogEntry(message, commit);
+    return entry ? [{ hash, entry }] : [];
+  });
+}
+
+function toChangelogEntry(trimmedMessage: string, commit: Commit): ChangelogEntry | null {
+  if (trimmedMessage.startsWith(RELEASE_COMMIT_PREFIX)) {
     return null;
   }
 
-  const commit = parserFor(preset).parse(trimmedMessage);
   const { type, scope, subject } = commit;
 
   if (type) {
