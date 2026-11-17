@@ -63,7 +63,7 @@ describe('runStandingPRUpdate: CHANGELOG.md', { timeout: 15_000 }, () => {
     async (_url: string | URL | Request) =>
       new Response(`${JSON.stringify({ message: { content: CATEGORIZED }, done: true })}\n`),
   );
-  const llmCalls = () => fetchStub.mock.calls.filter(([url]) => String(url).startsWith(LLM_URL));
+  const llmCalls = () => fetchStub.mock.calls.filter(([url]) => String(url).startsWith(`${LLM_URL}/`));
 
   beforeEach(async () => {
     vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
