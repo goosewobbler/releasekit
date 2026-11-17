@@ -114,7 +114,7 @@ export async function checkUnreachableTags(
   for (const entry of series) {
     const [tag] =
       'globalPrefix' in entry
-        ? await listSemverTags(entry.globalPrefix, git).catch(() => [])
+        ? await listSemverTags(entry.globalPrefix, git)
         : await listPackageTags(entry.packageName, entry.versionPrefix, entry.options, git);
     if (!tag) {
       continue;
