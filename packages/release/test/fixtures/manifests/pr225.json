@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 2,
+  "versionOutput": {
+    "dryRun": false,
+    "updates": [
+      {
+        "packageName": "releasekit-monorepo",
+        "newVersion": "0.23.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/package.json"
+      },
+      {
+        "packageName": "@releasekit/version",
+        "newVersion": "0.23.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json"
+      },
+      {
+        "packageName": "@releasekit/notes",
+        "newVersion": "0.23.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
+      },
+      {
+        "packageName": "@releasekit/publish",
+        "newVersion": "0.23.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
+      },
+      {
+        "packageName": "@releasekit/release",
+        "newVersion": "0.23.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json"
+      }
+    ],
+    "changelogs": [
+      {
+        "packageName": "monorepo",
+        "version": "0.23.0",
+        "previousVersion": "v0.22.0",
+        "revisionRange": "release/v0.22.0..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "changed",
+            "description": "extract deriveBaselineTagPrefix and displayTag utilities (#227)",
+            "scope": "version",
+            "originalType": "refactor"
+          },
+          {
+            "type": "changed",
+            "description": "bump the development-dependencies group across 1 directory with 3 updates (#226)",
+            "scope": "deps-dev",
+            "originalType": "chore"
+          },
+          {
+            "type": "changed",
+            "description": "bump the production-dependencies group with 5 updates (#223)",
+            "scope": "deps",
+            "originalType": "chore"
+          },
+          {
+            "type": "changed",
+            "description": "bump anthropics/claude-code-action from 1.0.111 to 1.0.119 (#222)",
+            "scope": "deps",
+            "originalType": "chore"
+          },
+          {
+            "type": "fixed",
+            "description": "exclude baseline tags from GitHub Releases (#221)",
+            "scope": "version,publish",
+            "originalType": "fix"
+          }
+        ]
+      }
+    ],
+    "tags": [
+      "v0.23.0"
+    ],
+    "baselineTags": [
+      "release/v0.23.0"
+    ],
+    "commitMessage": "chore: release v0.23.0 [skip ci]"
+  },
+  "releaseNotes": {},
+  "notesFiles": [],
+  "createdAt": "2026-05-12T21:22:39.767Z",
+  "baseSha": "fc9724d70a61db277090ed6380d6a45d0d3c45e1",
+  "firstUpdatedAt": "2026-05-11T17:23:23.892Z"
+}

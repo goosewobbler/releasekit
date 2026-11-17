@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 2,
+  "versionOutput": {
+    "dryRun": false,
+    "strategy": "sync",
+    "updates": [
+      {
+        "packageName": "releasekit-monorepo",
+        "newVersion": "0.24.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/package.json",
+        "isRoot": true
+      },
+      {
+        "packageName": "@releasekit/version",
+        "newVersion": "0.24.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json"
+      },
+      {
+        "packageName": "@releasekit/notes",
+        "newVersion": "0.24.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
+      },
+      {
+        "packageName": "@releasekit/publish",
+        "newVersion": "0.24.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
+      },
+      {
+        "packageName": "@releasekit/release",
+        "newVersion": "0.24.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json"
+      }
+    ],
+    "changelogs": [
+      {
+        "packageName": "monorepo",
+        "version": "0.24.0",
+        "previousVersion": "v0.23.0",
+        "revisionRange": "release/v0.23.0..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "added",
+            "description": "sync-aware preview and standing PR rendering (#242)",
+            "scope": "release",
+            "originalType": "feat"
+          },
+          {
+            "type": "changed",
+            "description": "bump anthropics/claude-code-action from 1.0.119 to 1.0.135 (#232)",
+            "scope": "deps",
+            "originalType": "chore"
+          },
+          {
+            "type": "changed",
+            "description": "bump the development-dependencies group across 1 directory with 4 updates (#233)",
+            "scope": "deps-dev",
+            "originalType": "chore"
+          },
+          {
+            "type": "changed",
+            "description": "point biome $schema at local configuration_schema.json (#241)",
+            "originalType": "chore"
+          },
+          {
+            "type": "changed",
+            "description": "bump turbo from 2.9.12 to 2.9.14 (#236)",
+            "scope": "deps-dev",
+            "originalType": "chore"
+          },
+          {
+            "type": "added",
+            "description": "layered PR resolution for standing-pr publish (#238)",
+            "scope": "release",
+            "originalType": "feat"
+          },
+          {
+            "type": "added",
+            "description": "gate as immediate-release evaluator under standing-pr (#239)",
+            "scope": "release",
+            "originalType": "feat"
+          },
+          {
+            "type": "changed",
+            "description": "bump the production-dependencies group across 1 directory with 9 updates (#237)",
+            "scope": "deps",
+            "originalType": "chore"
+          }
+        ]
+      }
+    ],
+    "tags": [
+      "v0.24.0"
+    ],
+    "baselineTags": [
+      "release/v0.24.0"
+    ],
+    "commitMessage": "chore: release v0.24.0 [skip ci]"
+  },
+  "releaseNotes": {},
+  "notesFiles": [],
+  "createdAt": "2026-06-04T11:45:43.208Z",
+  "baseSha": "c346399e0327f10b178712183dea80fe9baf4820",
+  "firstUpdatedAt": "2026-06-04T10:27:18.898Z"
+}

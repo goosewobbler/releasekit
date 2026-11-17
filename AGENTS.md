@@ -6,7 +6,7 @@ Releases run in standing-PR mode with sync versioning; the standing release PR l
 
 Violating these breaks releases.
 
-- **Three-stage pipeline** version → notes → publish. `VersionOutput` (`packages/core/src/types.ts`) is the JSON contract between stages **and** is persisted in standing-PR manifests — new fields must be optional; consumers must tolerate their absence (old manifests live in open PRs).
+- **Three-stage pipeline** version → notes → publish. `VersionOutput` (`packages/core/src/types.ts`) is the JSON contract between stages **and** is persisted in standing-PR manifests — new fields must be optional; consumers must tolerate their absence (old manifests live in open PRs). A PR that adds a manifest field adds a manifest with it to `packages/release/test/fixtures/manifests/`.
 - **Roll-forward** in standing-PR mode the version bump is on `main` before publishing. In direct batch mode it is not pushed until every publish succeeds. Tags are created locally before publishing and pushed after a clean publish (once at the end in batch mode, after each package in per-package mode). A failed publish is never recovered by reverting commits or by deleting a tag whose version was published. Already-published versions are skipped on retry. See `docs/architecture.md`.
 - **Release-commit prefix** subjects starting with `chore: release ` match `release.ci.skipPatterns` and suppress standing-PR update runs. Keep the prefix on release commits; nothing else may use it.
 - **`[skip ci]` asymmetry** the direct-release commit on `main` (`version.commitMessage`) includes it to stop CI loops — leave it. The standing-PR branch's prep commit must NOT: a squash merge inherits its message, and `[skip ci]` on `main` would suppress the publish workflow.

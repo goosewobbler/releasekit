@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 2,
+  "versionOutput": {
+    "dryRun": false,
+    "strategy": "sync",
+    "updates": [
+      {
+        "packageName": "releasekit-monorepo",
+        "newVersion": "0.40.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/package.json",
+        "channel": "stable",
+        "isRoot": true,
+        "action": "bumped",
+        "actionReason": "Bumped to 0.40.0.",
+        "previousVersion": "v0.39.0"
+      },
+      {
+        "packageName": "@releasekit/version",
+        "newVersion": "0.40.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json",
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.40.0.",
+        "previousVersion": "v0.39.0"
+      },
+      {
+        "packageName": "@releasekit/notes",
+        "newVersion": "0.40.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json",
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.40.0.",
+        "previousVersion": "v0.39.0"
+      },
+      {
+        "packageName": "@releasekit/publish",
+        "newVersion": "0.40.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json",
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.40.0.",
+        "previousVersion": "v0.39.0"
+      },
+      {
+        "packageName": "@releasekit/release",
+        "newVersion": "0.40.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json",
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.40.0.",
+        "previousVersion": "v0.39.0"
+      }
+    ],
+    "changelogs": [
+      {
+        "packageName": "monorepo",
+        "version": "0.40.0",
+        "previousVersion": "v0.39.0",
+        "revisionRange": "release/v0.39.0..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "fixed",
+            "description": "register gate, refresh-after-release, backfill in dispatcher (#519)",
+            "scope": "release",
+            "issueIds": [
+              "#538",
+              "#519"
+            ],
+            "prNumber": "#538",
+            "originalType": "fix"
+          },
+          {
+            "type": "changed",
+            "description": "remove the redundant Claude code-review workflow",
+            "scope": "ci",
+            "issueIds": [
+              "#537"
+            ],
+            "prNumber": "#537",
+            "originalType": "chore"
+          },
+          {
+            "type": "fixed",
+            "description": "show days in standing-PR \"open \u2026\" age",
+            "scope": "release",
+            "issueIds": [
+              "#536",
+              "#535"
+            ],
+            "prNumber": "#536",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "reconcile channel toggles against the manifest for unauthorized actors (#526)",
+            "scope": "standing-pr",
+            "issueIds": [
+              "#534"
+            ],
+            "prNumber": "#534",
+            "originalType": "fix"
+          },
+          {
+            "type": "changed",
+            "description": "bump anthropics/claude-code-action from 1.0.159 to 1.0.171",
+            "scope": "deps",
+            "issueIds": [
+              "#531"
+            ],
+            "prNumber": "#531",
+            "originalType": "chore"
+          },
+          {
+            "type": "changed",
+            "description": "bump the production-dependencies group across 1 directory with 9 updates",
+            "scope": "deps",
+            "issueIds": [
+              "#533"
+            ],
+            "prNumber": "#533",
+            "originalType": "chore"
+          },
+          {
+            "type": "changed",
+            "description": "bump the development-dependencies group across 1 directory with 4 updates",
+            "scope": "deps-dev",
+            "issueIds": [
+              "#532"
+            ],
+            "prNumber": "#532",
+            "originalType": "chore"
+          },
+          {
+            "type": "added",
+            "description": "standing-PR release summary line + version-summary table (#520)",
+            "scope": "release",
+            "issueIds": [
+              "#524",
+              "#520"
+            ],
+            "prNumber": "#524",
+            "originalType": "feat"
+          },
+          {
+            "type": "added",
+            "description": "per-package channel selection in the standing PR (#521)",
+            "scope": "release",
+            "issueIds": [
+              "#525",
+              "#521"
+            ],
+            "prNumber": "#525",
+            "originalType": "feat"
+          },
+          {
+            "type": "added",
+            "description": "demote dependency & version-bump churn in changelogs",
+            "scope": "notes",
+            "issueIds": [
+              "#523",
+              "#522"
+            ],
+            "prNumber": "#523",
+            "originalType": "feat"
+          }
+        ]
+      }
+    ],
+    "tags": [
+      "v0.40.0"
+    ],
+    "baselineTags": [
+      "release/v0.40.0"
+    ],
+    "commitMessage": "chore: release v0.40.0 [skip ci]"
+  },
+  "releaseNotes": {},
+  "notesFiles": [],
+  "createdAt": "2026-07-18T14:12:11.176Z",
+  "baseSha": "905acd160255aa7220ae00324b2a7e8187f2450d",
+  "firstUpdatedAt": "2026-07-04T16:23:19.679Z",
+  "overrideLabels": []
+}
