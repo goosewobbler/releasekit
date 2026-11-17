@@ -7,7 +7,6 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       include: ['src/**/*.ts'],
       exclude: ['**/*.spec.ts', '**/*.test.ts', '**/types.ts', 'src/index.ts'],
-      all: true,
     },
   },
 });
