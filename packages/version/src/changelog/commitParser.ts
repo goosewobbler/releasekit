@@ -171,7 +171,7 @@ function parseCommitMessage(message: string, preset: Preset): ChangelogEntry | n
     // issueIds (from footers like "Fixes #123") also includes the PR, so a consumer that ignores
     // prNumber still shows every ref.
     const bodyIssueIds = extractIssueIds(body);
-    const issueIds = prNumber ? [prNumber, ...bodyIssueIds] : bodyIssueIds;
+    const issueIds = [...new Set(prNumber ? [prNumber, ...bodyIssueIds] : bodyIssueIds)];
 
     return {
       type: changelogType,
@@ -226,7 +226,8 @@ function mapCommitTypeToChangelogType(type: string): ChangelogEntry['type'] {
 }
 
 function extractIssueIds(body: string): string[] {
-  const issueRegex = /(?:fix|fixes|close|closes|resolve|resolves)\s+#(\d+)/gi;
+  // GitHub's closing keywords. Not the parser's references: its action covers every ref after the keyword on the line.
+  const issueRegex = /(?<![\w-])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?[^\S\r\n]+#(\d+)/gi;
   const issueIds: string[] = [];
 
   let match: RegExpExecArray | null = issueRegex.exec(body);

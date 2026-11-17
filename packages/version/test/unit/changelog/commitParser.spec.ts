@@ -85,6 +85,16 @@ describe('Commit Parser', () => {
     expect(featureEntry?.issueIds).toContain('#789');
   });
 
+  it('should take only whole closing keywords, with an optional colon, as closed issues', async () => {
+    const mockGitOutput = [
+      'fix(api): patch serializer (#503)\n\nuse the prefix #12 style\nhotfix #3 follow-up\nhot-fix #4\nwe can fix\n#5 later\n\nCloses: #500\nFixed #499\nresolved #498\nclosed #497\nCloses #503',
+    ].join('---COMMIT_DELIMITER---');
+
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, PRESET, ['.'], gitWithLog(mockGitOutput));
+
+    expect(entries[0].issueIds).toEqual(['#503', '#500', '#499', '#498', '#497']);
+  });
+
   it('should treat a trailing (#N) on the subject as the PR and strip it from the description', async () => {
     const mockGitOutput = ['feat(release): hierarchical selection (#471)'].join('---COMMIT_DELIMITER---');
 
