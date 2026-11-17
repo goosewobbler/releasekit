@@ -199,6 +199,7 @@ interface EventPullRequest {
   number?: number;
   head?: { sha?: string };
   base?: { ref?: string };
+  merge_commit_sha?: string | null;
 }
 
 /** This run's event payload PR, when the event is about PR `prNumber`. */
@@ -1643,12 +1644,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
  */
 async function assertManifestMatchesSource(
   manifest: StandingPRManifest,
+  packageDirs: Record<string, string>,
   cwd: string,
-  configPath: string | undefined,
   prNumber: number,
 ): Promise<void> {
-  const { getWorkspacePackageDirs, readManifestVersion } = await import('@releasekit/version');
-  const packageDirs = await getWorkspacePackageDirs({ cwd, configPath });
+  const { readManifestVersion } = await import('@releasekit/version');
   const publishable = publishableUpdates(manifest.versionOutput);
 
   const validatedVersions: string[] = [];
@@ -1712,6 +1712,71 @@ async function assertManifestMatchesSource(
       );
     }
   }
+}
+
+const VERSION_MANIFESTS = ['package.json', 'Cargo.toml', 'pubspec.yaml'];
+
+/**
+ * Workspace packages whose version `mergeSha` changes against its first parent. Like discovery, a package's version
+ * is its first manifest that has one, so a sibling such as a virtual-workspace Cargo.toml is never parsed.
+ */
+async function packagesBumpedBy(mergeSha: string, packageDirs: Record<string, string>, cwd: string): Promise<string[]> {
+  const { readManifestVersion } = await import('@releasekit/version');
+  const git = createGitCli();
+  const bumped: string[] = [];
+  for (const [name, dir] of Object.entries(packageDirs)) {
+    for (const file of VERSION_MANIFESTS) {
+      // Git reads `<rev>:<path>` with forward slashes only.
+      const relative = path.relative(cwd, path.join(dir, file)).split(path.sep).join('/');
+      const after = await git.readFileAt(mergeSha, relative, cwd);
+      const version = after === null ? undefined : readManifestVersion(relative, after);
+      if (version === undefined) {
+        continue;
+      }
+      const before = await git.readFileAt(`${mergeSha}^1`, relative, cwd);
+      if (before === null || readManifestVersion(relative, before) !== version) {
+        bumped.push(name);
+      }
+      break;
+    }
+  }
+  return bumped;
+}
+
+/**
+ * The branch can move after the last update, so the PR may merge a head the manifest doesn't describe. Its versions
+ * are already checked against the merged tree; what it can still miss is a package the merge bumps, which would stay
+ * on the base branch untagged and unpublished.
+ */
+async function assertManifestCoversMerge(
+  manifest: StandingPRManifest,
+  merged: { headSha?: string; mergeCommitSha?: string },
+  packageDirs: Record<string, string>,
+  cwd: string,
+  prNumber: number,
+): Promise<void> {
+  const { headSha, mergeCommitSha } = merged;
+  if (!manifest.headSha || !headSha || headSha === manifest.headSha) {
+    return;
+  }
+  const heads = `PR #${prNumber} merged head ${headSha}, but its release manifest describes ${manifest.headSha}`;
+  if (!mergeCommitSha) {
+    throw new Error(
+      `Refusing to publish: ${heads}, and the merge commit is unknown, so the packages it bumps can't be checked ` +
+        `against the manifest.`,
+    );
+  }
+  // Every update, not just the publishable ones: a sync root bump is listed and lands as planned.
+  const listed = new Set(manifest.versionOutput.updates.map((u) => u.packageName));
+  const missing = (await packagesBumpedBy(mergeCommitSha, packageDirs, cwd)).filter((name) => !listed.has(name));
+  if (missing.length > 0) {
+    throw new Error(
+      `Refusing to publish: ${heads}. The merge bumps ${missing.map((name) => `'${name}'`).join(', ')}, which the ` +
+        `manifest doesn't list, so publishing would leave them versioned but never tagged or published. Requiring ` +
+        `the 'releasekit/standing-pr' status check stops a merge landing before its manifest is written.`,
+    );
+  }
+  warn(`${heads}. Publishing anyway: the manifest lists every package the merge bumps.`);
 }
 
 /** `livePr` is undefined when the PR couldn't be read. */
@@ -1833,7 +1898,22 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     );
   }
 
-  await assertManifestMatchesSource(manifest, cwd, options.config, prNumber);
+  const { getWorkspacePackageDirs } = await import('@releasekit/version');
+  const packageDirs = await getWorkspacePackageDirs({ cwd, configPath: options.config });
+  await assertManifestMatchesSource(manifest, packageDirs, cwd, prNumber);
+
+  const eventPr = eventPullRequest(prNumber);
+  const mergedHead = livePr?.headSha ?? eventPr?.head?.sha;
+  await assertManifestCoversMerge(
+    manifest,
+    {
+      headSha: mergedHead,
+      mergeCommitSha: livePr?.mergeCommitSha ?? eventPr?.merge_commit_sha ?? undefined,
+    },
+    packageDirs,
+    cwd,
+    prNumber,
+  );
 
   info(`Publishing from manifest: ${publishableUpdates(manifest.versionOutput).length} package(s)`);
 
@@ -1943,9 +2023,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // Also clears the supersede warning the next standing PR would otherwise show.
   await resolveFailureReportIfPresent(forge, prNumber, manifest.versionOutput);
 
-  const eventPr = eventPullRequest(prNumber);
   if (deleteBranchOnMerge) {
-    const mergedHead = livePr?.headSha ?? eventPr?.head?.sha;
     if (mergedHead && isCommitSha(mergedHead)) {
       await deleteReleaseBranch(releaseBranch, cwd, mergedHead);
     } else {

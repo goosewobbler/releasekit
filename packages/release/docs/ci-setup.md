@@ -346,7 +346,7 @@ Use `release:graduate` and `channel:prerelease` labels on **the standing PR itse
   ```
 
   Each main-branch SHA gets its own group (so nothing is cancelled), while PR runs still cancel on new pushes.
-- **Status check `releasekit/standing-pr`:** posted on the release branch HEAD after each update. States: `success` (ready to merge), `pending` (one or more gates not yet satisfied — typically `minAge`). Configure as a required check in branch protection on the standing PR's base branch if you want gates enforced at merge time.
+- **Status check `releasekit/standing-pr`:** posted on the release branch HEAD after each update. States: `success` (ready to merge), `pending` (one or more gates not yet satisfied — typically `minAge`). Configure as a required check in branch protection on the standing PR's base branch if you want gates enforced at merge time. Requiring it also stops a merge landing before its manifest is written.
 
 ### Keeping CI off the standing PR
 

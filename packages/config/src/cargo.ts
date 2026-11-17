@@ -9,9 +9,8 @@ export interface CargoManifest {
   [key: string]: unknown;
 }
 
-export function parseCargoToml(cargoPath: string): CargoManifest {
-  const content = fs.readFileSync(cargoPath, 'utf-8');
-  return TOML.parse(content) as CargoManifest;
+export function parseCargoToml(cargoPath: string, content?: string): CargoManifest {
+  return TOML.parse(content ?? fs.readFileSync(cargoPath, 'utf-8')) as CargoManifest;
 }
 
 export function isCratePublishable(manifest: CargoManifest): boolean {

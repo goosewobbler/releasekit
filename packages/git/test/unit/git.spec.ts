@@ -181,6 +181,15 @@ describe('GitCli queries', () => {
     expect(calls[0].args).toEqual(['log']);
   });
 
+  it('should read a file at a ref relative to cwd, or null when it is missing there', async () => {
+    const { run, calls } = makeRunner({ stdout: '{"version":"1.0.0"}\n' });
+    expect(await new GitCli(run).readFileAt('sha1^1', 'packages/a/package.json', '/r')).toBe('{"version":"1.0.0"}\n');
+    expect(calls[0].args).toEqual(['cat-file', 'blob', 'sha1^1:./packages/a/package.json']);
+
+    const missing = makeRunner({ reject: exitError(128, 'path does not exist') });
+    expect(await new GitCli(missing.run).readFileAt('sha1', 'nope.json')).toBeNull();
+  });
+
   it('should list tracked files NUL-separated, passing pathspecs after --', async () => {
     const { run, calls } = makeRunner({ stdout: '../Cargo.lock\0app/Cargo.lock\0' });
     expect(await new GitCli(run).lsFiles({ paths: [':(top,glob)**/Cargo.lock'], cwd: '/r/crates' })).toEqual([

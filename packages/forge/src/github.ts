@@ -132,6 +132,7 @@ export class GitHubForge implements Forge {
       headSha: data.head?.sha,
       headRef: data.head?.ref,
       baseRef: data.base?.ref,
+      mergeCommitSha: data.merge_commit_sha ?? undefined,
     };
   }
 

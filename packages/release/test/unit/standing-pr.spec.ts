@@ -57,12 +57,14 @@ function setupGit(
     remoteBranches?: Record<string, string[]>;
     ancestors?: FakeGitSeed['ancestors'];
     status?: string;
+    files?: FakeGitSeed['files'];
   } = {},
 ) {
   fakeGit = new ControllableGit({
     headSha: seed.headSha ?? 'abc123',
     remoteBranches: seed.remoteBranches,
     status: seed.status,
+    files: seed.files,
     // Default to "is an ancestor" so the manifest baseSha ancestry guard passes on the common publish path.
     ancestors: seed.ancestors ?? (() => true),
   });
@@ -109,7 +111,10 @@ vi.mock('@releasekit/version', () => ({
   getWorkspacePackageVersions: (...args: unknown[]) => mockGetWorkspacePackageVersions(...args),
   getWorkspacePackageDirs: async () =>
     Object.fromEntries(Object.keys(mergedVersions).map((name) => [name, `/test/packages/${name}`])),
-  readManifestVersion: (file: string) => mergedVersions[path.relative('/test/packages', path.dirname(file))],
+  readManifestVersion: (file: string, content?: string) =>
+    content === undefined
+      ? mergedVersions[path.relative('/test/packages', path.dirname(file))]
+      : JSON.parse(content).version,
 }));
 
 vi.mock('../../src/steps.js', () => ({
@@ -4713,6 +4718,139 @@ describe('publishFromManifest', () => {
       publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
     ).rejects.toThrow(/is not an ancestor of/);
     expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  describe('when the merged head differs from the manifest headSha', () => {
+    const MANIFEST_HEAD = 'b'.repeat(40);
+    const MERGE_COMMIT = 'c'.repeat(40);
+
+    function packageJsonAt(ref: string, name: string, version: string) {
+      return { [`${ref}:packages/${name}/package.json`]: JSON.stringify({ name, version }) };
+    }
+
+    /** The merge bumps `@scope/core` to 1.2.3 and `@scope/extra` to 2.0.0. */
+    function mergeBumpingCoreAndExtra() {
+      setupGit({
+        files: {
+          ...packageJsonAt(MERGE_COMMIT, '@scope/core', '1.2.3'),
+          ...packageJsonAt(`${MERGE_COMMIT}^1`, '@scope/core', '1.2.2'),
+          ...packageJsonAt(MERGE_COMMIT, '@scope/extra', '2.0.0'),
+          ...packageJsonAt(`${MERGE_COMMIT}^1`, '@scope/extra', '1.0.0'),
+        },
+      });
+      mergedVersions = { '@scope/core': '1.2.3', '@scope/extra': '2.0.0' };
+    }
+
+    async function publishMerged(manifest: StandingPRManifest, mergedHead: string) {
+      await mockForge({
+        comments: [{ id: 77, body: serializeManifest(manifest) }],
+        pullRequests: { 99: { body: '', labels: [], headSha: mergedHead, mergeCommitSha: MERGE_COMMIT } },
+      });
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      onTestFinished(() => logged.mockRestore());
+      const run = publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
+      return { run, warnings: () => logged.mock.calls.map(([line]) => String(line)) };
+    }
+
+    it('should publish without a warning when the merged head matches', async () => {
+      const { runPublishStep } = await import('../../src/steps.js');
+      mergeBumpingCoreAndExtra();
+
+      const { run, warnings } = await publishMerged({ ...baseManifest, headSha: MERGED_HEAD }, MERGED_HEAD);
+      await run;
+
+      expect(vi.mocked(runPublishStep)).toHaveBeenCalledOnce();
+      expect(warnings()).not.toContainEqual(expect.stringContaining('release manifest describes'));
+    });
+
+    it('should publish and warn when the manifest still lists every package the merge bumps', async () => {
+      const { runPublishStep } = await import('../../src/steps.js');
+      mergeBumpingCoreAndExtra();
+      const manifest = {
+        ...baseManifest,
+        headSha: MANIFEST_HEAD,
+        versionOutput: createMockVersionOutput([
+          { packageName: '@scope/core', newVersion: '1.2.3' },
+          { packageName: '@scope/extra', newVersion: '2.0.0' },
+        ]),
+      };
+
+      const { run, warnings } = await publishMerged(manifest, MERGED_HEAD);
+      await run;
+
+      expect(vi.mocked(runPublishStep)).toHaveBeenCalledOnce();
+      expect(warnings()).toContainEqual(
+        expect.stringContaining(`merged head ${MERGED_HEAD}, but its release manifest describes ${MANIFEST_HEAD}`),
+      );
+    });
+
+    it('should refuse before tagging or publishing when the merge bumps a package the manifest omits', async () => {
+      const { runPublishStep } = await import('../../src/steps.js');
+      mergeBumpingCoreAndExtra();
+
+      const { run } = await publishMerged({ ...baseManifest, headSha: MANIFEST_HEAD }, MERGED_HEAD);
+
+      await expect(run).rejects.toThrow(
+        `Refusing to publish: PR #99 merged head ${MERGED_HEAD}, but its release manifest describes ` +
+          `${MANIFEST_HEAD}. The merge bumps '@scope/extra', which the manifest doesn't list`,
+      );
+      expect(fakeGit.tagged).toHaveLength(0);
+      expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+    });
+
+    it('should count a sync root bump the manifest lists as covered', async () => {
+      const { runPublishStep } = await import('../../src/steps.js');
+      mergeBumpingCoreAndExtra();
+      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+      const manifest = {
+        ...baseManifest,
+        headSha: MANIFEST_HEAD,
+        versionOutput: {
+          ...versionOutput,
+          updates: [
+            ...versionOutput.updates,
+            { packageName: '@scope/extra', newVersion: '2.0.0', filePath: 'package.json', isRoot: true },
+          ],
+        },
+      };
+
+      const { run } = await publishMerged(manifest, MERGED_HEAD);
+      await run;
+
+      expect(vi.mocked(runPublishStep)).toHaveBeenCalledOnce();
+    });
+
+    it("should not parse a package's other manifests once one carries its version", async () => {
+      const { runPublishStep } = await import('../../src/steps.js');
+      const virtualWorkspace = '[workspace]\nmembers = ["crates/*"]\n';
+      setupGit({
+        files: {
+          ...packageJsonAt(MERGE_COMMIT, '@scope/core', '1.2.3'),
+          ...packageJsonAt(`${MERGE_COMMIT}^1`, '@scope/core', '1.2.2'),
+          ...packageJsonAt(MERGE_COMMIT, '@scope/napi', '1.0.0'),
+          ...packageJsonAt(`${MERGE_COMMIT}^1`, '@scope/napi', '1.0.0'),
+          [`${MERGE_COMMIT}:packages/@scope/napi/Cargo.toml`]: virtualWorkspace,
+          [`${MERGE_COMMIT}^1:packages/@scope/napi/Cargo.toml`]: virtualWorkspace,
+        },
+      });
+      mergedVersions = { '@scope/core': '1.2.3', '@scope/napi': '1.0.0' };
+
+      const { run } = await publishMerged({ ...baseManifest, headSha: MANIFEST_HEAD }, MERGED_HEAD);
+      await run;
+
+      expect(vi.mocked(runPublishStep)).toHaveBeenCalledOnce();
+    });
+
+    it('should publish as before when the manifest has no headSha', async () => {
+      const { runPublishStep } = await import('../../src/steps.js');
+      mergeBumpingCoreAndExtra();
+
+      const { run, warnings } = await publishMerged(baseManifest, MERGED_HEAD);
+      await run;
+
+      expect(vi.mocked(runPublishStep)).toHaveBeenCalledOnce();
+      expect(warnings()).not.toContainEqual(expect.stringContaining('release manifest describes'));
+    });
   });
 
   it('should refuse to publish a manifest whose schemaVersion is absent', async () => {

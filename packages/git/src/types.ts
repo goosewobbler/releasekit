@@ -103,6 +103,8 @@ export interface Git {
   mergeBase(a: string, b: string, cwd?: string): Promise<string | null>;
   countCommits(range: string, opts?: GitCountCommitsOptions): Promise<number>;
   log(opts: GitLogOptions): Promise<string>;
+  /** `file` (relative to `cwd`) as committed at `ref`; null when it doesn't exist there. */
+  readFileAt(ref: string, file: string, cwd?: string): Promise<string | null>;
   /** Relative to `cwd`, as git prints them. */
   lsFiles(opts?: GitLsFilesOptions): Promise<string[]>;
   /** False for a tracked file, and on failure (e.g. outside a repository). */

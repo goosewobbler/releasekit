@@ -68,7 +68,7 @@ describe('Cargo Handler', () => {
       const cargoInfo = getCargoInfo(mockCargoPath);
 
       expect(fs.existsSync).toHaveBeenCalledWith(mockCargoPath);
-      expect(parseCargoToml).toHaveBeenCalledWith(mockCargoPath);
+      expect(parseCargoToml).toHaveBeenCalledWith(mockCargoPath, undefined);
 
       expect(cargoInfo).toEqual({
         name: 'test-package',

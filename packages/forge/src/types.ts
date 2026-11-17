@@ -55,6 +55,8 @@ export interface PullRequestDetails {
   headSha?: string;
   headRef?: string;
   baseRef?: string;
+  /** For a merged PR, the commit the merge put on the base branch. */
+  mergeCommitSha?: string;
 }
 
 export interface CommentAuthor {

@@ -84,6 +84,12 @@ describe('FakeGit queries', () => {
     expect(await createFakeGit().log({ range: 'v1..HEAD' })).toBe('');
   });
 
+  it('should return seeded file contents per ref', async () => {
+    const git = createFakeGit({ files: { 'sha1:a.json': '{}' } });
+    expect(await git.readFileAt('sha1', 'a.json')).toBe('{}');
+    expect(await git.readFileAt('sha2', 'a.json')).toBeNull();
+  });
+
   it('should return seeded for-each-ref lines', async () => {
     const git = createFakeGit({ refLines: ['v1 sha1', 'v2 sha2'] });
     expect(await git.forEachRef({ format: '%(refname)' })).toEqual(['v1 sha1', 'v2 sha2']);
