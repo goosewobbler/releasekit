@@ -3,8 +3,8 @@ import { VersionEngine } from './core/versionEngine.js';
 
 /**
  * Every package discovery finds (npm, cargo & pub), whether or not it changed; `version.packages`, the private filter
- * and disabled ecosystems still apply. Standing-PR selection resolves `ci.standingPr.primaryPackages` against it: a
- * non-bumping primary never appears in `VersionOutput.updates[]` yet must still anchor its release unit.
+ * and a disabled `cargo` or `pub` still apply. Standing-PR selection resolves `ci.standingPr.primaryPackages` against
+ * it: a non-bumping primary never appears in `VersionOutput.updates[]` yet must still anchor its release unit.
  */
 export async function getWorkspacePackageNames(options: { cwd?: string; configPath?: string } = {}): Promise<string[]> {
   const config = loadConfig({ cwd: options.cwd, configPath: options.configPath });
