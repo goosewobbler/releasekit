@@ -154,7 +154,7 @@ const VersionConfigBaseSchema = z.strictObject({
     .string()
     .optional()
     .describe(
-      'The package a single-mode release versions. In sync mode, the package whose version and tag the release bumps from, and whose name a release without packageSpecificTags carries; the changelog still lists every commit in the release.',
+      "The package a single-mode release versions. In sync mode, the release bumps from this package's version and tag and, without packageSpecificTags, carries its name. The changelog still lists every commit in the release.",
     ),
   skip: z
     .array(z.string())
@@ -859,7 +859,7 @@ export const StandingPrConfigSchema = z.strictObject({
     .boolean()
     .default(true)
     .describe(
-      'Append the de-duplicated combined-changelog footer to the standing PR: every change listed once, flat across packages and grouped by change type (Added/Changed/Fixed), breaking changes first. It complements the per-row changelogs co-located with each releasable row. Set false to suppress this redundant per-package summary — the per-row changelogs remain, project-wide (shared) changes are still shown in their own block, and sync releases (which have no per-row changelogs) always show the combined changelog regardless of this setting.',
+      'Append the de-duplicated combined-changelog footer to the standing PR: every change listed once, flat across packages and grouped by change type (Added/Changed/Fixed), breaking changes first. Set false to rely on the per-row changelogs; project-wide (shared) changes still show in their own block. Sync releases, which have no per-row changelogs, always show the full footer.',
     ),
   channelToggle: z
     .boolean()

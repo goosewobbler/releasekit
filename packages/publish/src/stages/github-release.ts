@@ -359,7 +359,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       if (body) {
         notesFile = writeReleaseNotesFile(body);
         if (notesFile.truncated) {
-          warn(`Release body for ${tag} is over GitHub's 125,000-character limit, truncated it`);
+          warn(`Truncated the release body for ${tag} to GitHub's 125,000-character limit`);
         }
         ghArgs.push('--notes-file', notesFile.path);
       }

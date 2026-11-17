@@ -32,5 +32,5 @@ Design decisions are recorded in `docs/adr/` — check there before reworking a 
 ## Code conventions the linters don't check
 
 - Test new behaviour through the path a user hits, such as a CLI command or a package's exported API, not only the helper underneath.
-- A PR that adds a `VersionOutput` or standing-PR manifest field adds a manifest carrying it to `packages/release/test/fixtures/manifests/`: hand-built until a release has written a real one, then replaced by it.
+- A PR that adds a `VersionOutput` or standing-PR manifest field also adds a manifest using that field to `packages/release/test/fixtures/manifests/`. Hand-build it, then swap in the real manifest once a release has written one.
 - Default to no comment. Write one only when the *why* isn't clear from the code: a hidden constraint, a workaround, behaviour that would surprise a reader. Don't repeat the code, a JSDoc or a nearby comment, and don't narrate.

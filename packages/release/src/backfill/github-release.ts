@@ -33,7 +33,7 @@ export function editReleaseBody(tag: string, body: string): void {
   assertNotOption(tag, 'tag');
   const notesFile = writeReleaseNotesFile(body);
   if (notesFile.truncated) {
-    warn(`  ${tag}: release body is over GitHub's 125,000-character limit, truncated it`);
+    warn(`  ${tag}: truncated the release body to GitHub's 125,000-character limit`);
   }
   try {
     execFileSync('gh', ['release', 'edit', tag, '--notes-file', notesFile.path], { encoding: 'utf8' });

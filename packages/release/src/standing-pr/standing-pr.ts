@@ -1769,9 +1769,9 @@ async function packagesBumpedBy(mergeSha: string, packageDirs: Record<string, st
 }
 
 /**
- * The branch can move after the last update, so the PR may merge a head the manifest doesn't describe. Its versions
- * are already checked against the merged tree; what it can still miss is a package the merge bumps, which would stay
- * on the base branch untagged and unpublished.
+ * The branch can move after the last update, so the PR may merge a head the manifest doesn't describe. The manifest's
+ * versions are already checked against the merged tree, but it can still miss a package the merge bumps, leaving that
+ * package untagged and unpublished on the base branch.
  */
 async function assertManifestCoversMerge(
   manifest: StandingPRManifest,
@@ -1847,7 +1847,7 @@ function assertOverrideLabelsCurrent(
     throw new ManifestRefusal(
       `Cannot verify standing PR #${prNumber} override labels against the manifest — the PR could not be read ` +
         `from GitHub. Refusing to publish a manifest that carried override labels without confirming they still ` +
-        `match. Re-run once the GitHub API is reachable (or apply the retry label).`,
+        `match.${action === 'merge' ? ' Re-run once the GitHub API is reachable.' : ''}`,
       true,
     );
   }

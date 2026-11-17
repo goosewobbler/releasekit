@@ -145,7 +145,7 @@ releasekit release --dry-run
 In GitHub Actions (`GITHUB_REPOSITORY`, `GITHUB_SHA` and `GITHUB_TOKEN` set, outside `workflow_dispatch`), `release` first makes [`gate`](#releasekit-release-gate)'s decision on the merged PR the pushed commit came from. A PR calls for a release with a `bump:*` or `release:graduate` label under `ci.releaseTrigger: "label"`, without `release:skip` under `"commit"`, and with `release:immediate` in `standing-pr` strategy.
 
 - **No release**: the PR's labels don't call for one, HEAD matches `release.ci.skipPatterns`, or, with sync versioning, a newer tag already contains the pushed commit (a re-run after the checkout moved past its release). `release` exits 0, logs the reason, and `--json` reports `changed: false`. A PR with conflicting labels blocks the release the same way.
-- **Release**: the winning PR's `bump:*` and `channel:prerelease` labels set the bump (under `"commit"`, commits set it: only `bump:major` overrides it, and `channel:prerelease` makes it a prerelease), `release:graduate` the graduation and `scope:*` the target. `--bump`, `--stable` or `--prerelease` replace its bump and channel, and `--target` or `--scope` its scope. Without a scope label, every changed package releases. Without sync versioning, a package whose newer tag already contains the pushed commit doesn't.
+- **Release**: the winning PR's `bump:*` and `channel:prerelease` labels set the bump (under `"commit"`, commits set it: only `bump:major` overrides it, and `channel:prerelease` makes it a prerelease), `release:graduate` the graduation and `scope:*` the target. `--bump`, `--stable` or `--prerelease` replace its bump and channel, and `--target` or `--scope` its scope. Without a scope label, every changed package releases. Without sync versioning, a package with a newer tag that already contains the pushed commit is skipped.
 - **A direct push** (the pushed commit isn't from a merged PR): under `"commit"` in direct strategy, `release` releases from commits. Elsewhere it carries no labels, so it doesn't release.
 - **No GitHub context**: `release` releases from commits.
 
@@ -430,7 +430,7 @@ Regenerate release notes for **already-released** versions of one or more packag
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-p, --package <name>` | string | package.json name at `--path` | Package to backfill |
-| `--path <dir>` | string | `.` | Package directory. Without it and with `sync: false`, a `--package` that names a workspace package uses that package's directory |
+| `--path <dir>` | string | `.` | Package directory. With `sync: false` and no `--path`, defaults to the directory of the workspace package `--package` names |
 | `--all` | boolean | `false` | Backfill every package in the workspace (monorepo discovery) |
 | `--from <version>` | string | - | Earliest version to backfill (inclusive) |
 | `--to <version>` | string | - | Latest version to backfill (inclusive) |
@@ -455,9 +455,9 @@ releasekit-release backfill --all --apply
 releasekit-release backfill --package @scope/pkg --update-releases --only-missing --apply
 ```
 
-`--all` discovers every package a release would version — npm/JS workspaces, pure-Cargo crates, and pubspec-only Dart/Flutter packages, scoped by `version.packages` — using the version stage's own discovery, and backfills each; packages with no matching tags are skipped. It is mutually exclusive with `--package`. Tags are resolved per package (package-specific) or from the shared global series (sync/single).
+`--all` backfills every package a release would version, scoped by `version.packages`; packages with no matching tags are skipped. It is mutually exclusive with `--package`. Tags are resolved per package (package-specific) or from the shared global series (sync/single).
 
-With `sync: true`, each package's notes come from every commit in its directory. Otherwise they come from commits to its directory and to any crate or Dart package it versions through `cargo.paths` or `pub.paths` (ignored with `version.groups`), and a nested package's commits count only if it never releases on its own (it's private or outside `version.packages`).
+With `sync: true`, each package's notes come from every commit in its directory. Otherwise they come from commits to its directory and to any crate or Dart package it versions through `cargo.paths` or `pub.paths` (ignored with `version.groups`). A nested package's commits count only if it never releases on its own, because it's private or outside `version.packages`.
 
 `--update-releases` edits existing releases only (it never creates them) and skips any tag without a release. Backfilled bodies carry a `<!-- releasekit-notes -->` marker. By default a run updates bodies that are empty or carry the marker, and skips any other body as hand-edited unless `--force` is passed. `--only-missing` instead updates only bodies without the marker, so re-runs fill only new gaps.
 
