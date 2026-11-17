@@ -367,7 +367,7 @@ function resolveTargets(
       if (namedPackages.length > 1) {
         error(
           `--all can't backfill ${namedPackages.map((p) => p.packageJson.name).join(', ')} separately: they share one tag ` +
-            'series, so their releases collide. Backfill one package with --package or --path.',
+            "series, so each release holds one package's notes. Backfill the package they should show with --package or --path.",
         );
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }

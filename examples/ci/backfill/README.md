@@ -16,7 +16,9 @@ log first.
 
 GitHub UI: Actions → **Backfill Release Notes** → Run workflow. Leave
 `path` blank to backfill every workspace package, or give one package's
-directory (`packages/core`). Narrow with `from`/`to`.
+directory (`packages/core`). With shared tags, a blank `path` backfills a
+sync release as one, and fails for unsynced packages, whose releases can
+hold only one package's notes. Narrow with `from`/`to`.
 CLI: `gh workflow run backfill.yml -f from=1.0.0 -f apply=true`.
 
 ## Assumptions

@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       path:
-        description: Directory of the package to backfill (blank = every workspace package, or the whole repository for a sync release with shared tags)
+        description: Directory of the package to backfill (blank = every workspace package; with shared tags, the whole repository for a sync release, and an error for unsynced packages)
         required: false
       from:
         description: Earliest version to backfill (inclusive)
