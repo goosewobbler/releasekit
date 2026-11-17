@@ -119,8 +119,8 @@ export class PackageProcessor {
     const workspace =
       this.fullConfig.allWorkspacePackages ?? packages.map((p) => ({ name: p.packageJson.name, dir: p.dir }));
     const sharedPackagePatterns = this.fullConfig.sharedPackages ?? [];
-    // Commits to a shared package are listed as project-wide. Each nested package claims its own directory, so no scope
-    // needs to exclude them. The workspace root is left out, since owning it would claim every commit.
+    // Commits to a shared package are listed as project-wide. A nested package owns its own directory in this list, and
+    // no scope excludes it: an exclude would drop its commits from the whole log. The workspace root is left out, since owning it would claim every commit.
     const workspaceRoot = path.resolve(repoRoot);
     const packageOwnedDirs = workspace
       .filter((p) => !shouldMatchPackageTargets(p.name, sharedPackagePatterns))

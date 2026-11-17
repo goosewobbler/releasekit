@@ -250,9 +250,9 @@ A successful retry marks the failure report resolved and clears the supersede wa
 
 ### Recovery path 2 — supersede (let the next release self-heal)
 
-If you would rather move on, **merge the next standing PR**. It bumps from the versions the failed release commit set, so those versions are skipped:
+If you would rather move on, **merge the next standing PR**. It versions on top of the failed release rather than re-proposing it:
 
-- Every package, including the ones that failed before, publishes at the new version. When bumps come from commits, the failed release's commits count again: a failed 1.3.0 is followed by 1.4.0, and a failed 2.0.0 by 3.0.0.
+- Every package, including the ones that failed before, publishes at the new version. The unpublished versions are skipped, because the next release bumps from the versions the release commit set. With bumps from commits, the unpublished packages' commits count again: a failed 1.3.0 is followed by 1.4.0, and a failed 2.0.0 by 3.0.0.
 - The next changelog repeats the failed release's entries wherever its tag was never pushed: every tag in batch mode or after a refused publish, and a failed package's own tag in per-package mode. `CHANGELOG.md` keeps the section for the skipped version. In per-package mode, tags for packages that did publish are already on the remote; leave them.
 
 Nothing is lost, as every change since the last tag ships. The gap is cosmetic: no GitHub Release for the skipped version, and a version hole on the registry for the packages that didn't publish. To publish the failed versions as they are, retry instead.
