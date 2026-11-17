@@ -32,6 +32,7 @@ describe('release commits', () => {
     execSync('git add . && git commit -q -m "chore: release v0.2.0 (#42)"', { cwd: tempDir });
 
     const output = runVersionJson(tempDir);
+    expect(output.updates.find((u) => u.packageName === 'pkg-a')?.newVersion).toBe('0.3.0');
     expect(output.changelogs.flatMap((c) => c.entries.map((e) => e.description))).toEqual(['add a feature']);
   });
 });

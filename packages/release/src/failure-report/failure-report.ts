@@ -395,7 +395,7 @@ export function renderRefusalReport(input: RefusalReportInput): string {
     lines.push(
       "Retrying won't help: a retry reads the same manifest and merged commit, so it is refused again.",
       '',
-      "Merge the next standing PR instead. It supersedes this release: it skips these versions, bumps on top of them and repeats their changelog entries. Don't delete tags or revert the release commit.",
+      "Merge the next standing PR instead. It supersedes this release: it skips this release's versions, bumps on top of them and repeats their changelog entries. Don't delete tags or revert the release commit.",
     );
   }
   lines.push('', '---', ATTRIBUTION_FOOTER);
