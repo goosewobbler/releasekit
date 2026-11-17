@@ -2,7 +2,7 @@
  * Runs the built CLI against a temp git repo.
  * Requires `pnpm build` in @releasekit/version first.
  */
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -42,6 +42,26 @@ describe('reverted commits', () => {
     expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('1.4.3');
     const entries = output.changelogs.flatMap((c) => c.entries);
     expect(entries.map((e) => e.description)).toEqual(['handle empty input']);
+  });
+
+  it('should keep a squash-merged revert, as the bump does', () => {
+    tempDir = createWorkspaceRepo('rk-reverts-', {
+      packages: { core: '@test/core' },
+      version: '1.4.2',
+      config: { preset: 'conventionalcommits', sync: true, versionPrefix: 'v' },
+      tags: ['v1.4.2'],
+    });
+    commitChange('feat', 'drop Node 18 (#12)', true);
+    const reverted = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tempDir, encoding: 'utf-8' }).trim();
+    writeFileSync(join(tempDir, 'packages/core/index.js'), '// reverted\n');
+    execFileSync('git', ['add', 'packages/core'], { cwd: tempDir });
+    const message = `Revert "feat!: drop Node 18 (#12)" (#13)\n\nThis reverts commit ${reverted}.`;
+    execFileSync('git', ['commit', '-q', '-m', message], { cwd: tempDir });
+
+    const output = runVersionJson(tempDir);
+    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('2.0.0');
+    const entries = output.changelogs.flatMap((c) => c.entries);
+    expect(entries.find((e) => e.description === 'drop Node 18')?.breaking).toBe(true);
   });
 
   it('should keep a revert of a commit from an earlier release', () => {

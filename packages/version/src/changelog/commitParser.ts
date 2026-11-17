@@ -134,9 +134,10 @@ function parserFor(preset: Preset): CommitParser {
 
 interface LoggedCommit {
   hash: string;
+  header: string | null;
   message: string;
   commit: Commit;
-  revert: { hash: string } | null;
+  revert: Commit['revert'];
 }
 
 /** Parses `%H|||%B` log output, newest first, dropping each commit reverted in the range along with its revert. */
@@ -148,9 +149,8 @@ function parseLog(output: string, preset: Preset): CommitWithHash[] {
       return [];
     }
     const commit = parserFor(preset).parse(message);
-    // Matched on the hash alone: the parsed header of a squash-merged revert PR carries the PR's own `(#N)`.
-    const revertedHash = commit.revert?.hash;
-    return [{ hash: hash.trim(), message, commit, revert: revertedHash ? { hash: revertedHash } : null }];
+    // Header and hash, as the bump's filter matches, so both drop the same commits.
+    return [{ hash: hash.trim(), header: commit.header, message, commit, revert: commit.revert }];
   });
 
   return [...filterRevertedCommitsSync(commits)].flatMap(({ hash, message, commit }) => {
