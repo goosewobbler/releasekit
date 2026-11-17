@@ -26,7 +26,6 @@ describe('workspace package lookups', () => {
   beforeEach(() => {
     repo = realpathSync(createWorkspaceRepo('rk-workspace-lookups-', { packages: { web: '@test/web' }, config: {} }));
     write('packages/engine/Cargo.toml', '[package]\nname = "engine"\nversion = "2.0.0"\n');
-    write('packages/engine/src/lib.rs', '');
     write('packages/dart_core/pubspec.yaml', 'name: dart_core\nversion: 3.0.0\n');
   });
 

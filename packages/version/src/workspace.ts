@@ -2,8 +2,8 @@ import { loadConfig } from './config.js';
 import { VersionEngine } from './core/versionEngine.js';
 
 /**
- * Every package discovery finds (npm, cargo & pub), whether or not it changed; `version.packages` and the private
- * filter still apply. Standing-PR selection resolves `ci.standingPr.primaryPackages` against it: a non-bumping primary
+ * Every package discovery finds (npm, cargo & pub), whether or not it changed; `version.packages`, the private filter
+ * and disabled ecosystems still apply. Standing-PR selection resolves `ci.standingPr.primaryPackages` against it: a non-bumping primary
  * never appears in `VersionOutput.updates[]` yet must still anchor its release unit.
  */
 export async function getWorkspacePackageNames(options: { cwd?: string; configPath?: string } = {}): Promise<string[]> {
@@ -15,7 +15,7 @@ export async function getWorkspacePackageNames(options: { cwd?: string; configPa
   return packages.map((p) => p.packageJson.name).filter((name): name is string => Boolean(name));
 }
 
-/** Directory of every workspace package (npm, cargo & pub), keyed by name. */
+/** Directory of every package discovery finds, keyed by name. */
 export async function getWorkspacePackageDirs(
   options: { cwd?: string; configPath?: string } = {},
 ): Promise<Record<string, string>> {
@@ -31,7 +31,7 @@ export async function getWorkspacePackageDirs(
   return dirs;
 }
 
-/** Current version of every workspace package (npm, cargo & pub), keyed by name. */
+/** Current version of every package discovery finds, keyed by name. */
 export async function getWorkspacePackageVersions(
   options: { cwd?: string; configPath?: string } = {},
 ): Promise<Record<string, string>> {
