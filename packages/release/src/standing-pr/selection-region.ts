@@ -555,7 +555,7 @@ function markerHits(region: string, marker: string): Array<{ name: string; ticke
       continue;
     }
     const name = line.slice(markerStart + open.length, -MARKER_CLOSE.length);
-    if (line.endsWith(MARKER_CLOSE) && !name.includes(MARKER_CLOSE)) {
+    if (line.endsWith(MARKER_CLOSE)) {
       hits.push({ name, ticked });
     }
   }
