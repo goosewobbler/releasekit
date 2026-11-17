@@ -30,6 +30,8 @@ async function tagDate(tag: string, cwd: string): Promise<string | undefined> {
 export interface ReconstructOptions {
   packageName: string;
   pkgPath: string;
+  /** Git pathspecs for the package's commits; defaults to `pkgPath`. */
+  commitScope?: string[];
   repoUrl?: string | null;
   versionPrefix?: string;
   tagTemplate?: string;
@@ -86,7 +88,7 @@ export async function reconstructChangelogs(opts: ReconstructOptions): Promise<R
         previousVersion: prev?.version ?? null,
         revisionRange,
         repoUrl: opts.repoUrl ?? null,
-        entries: await extractChangelogEntriesFromCommits(opts.pkgPath, revisionRange),
+        entries: await extractChangelogEntriesFromCommits(opts.pkgPath, revisionRange, opts.commitScope),
       },
     });
   }

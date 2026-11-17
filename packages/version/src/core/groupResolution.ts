@@ -129,8 +129,13 @@ export function resolveGroups(config: Config, packages: Package[]): GroupResolut
  * single-shared-tag / `monorepo`-changelog / root-bump output is depended on by standing-PR manifests
  * and downstream consumers.
  */
-export function hasExplicitGroups(config: Config): boolean {
+export function hasExplicitGroups(config: Pick<Config, 'groups'>): boolean {
   return Object.keys(config.groups ?? {}).length > 0;
+}
+
+/** Group mode bumps only a package's own manifests, so it ignores `cargo.paths` and `pub.paths`. */
+export function isGroupMode(config: Pick<Config, 'sync' | 'groups'>): boolean {
+  return !config.sync && hasExplicitGroups(config);
 }
 
 /**

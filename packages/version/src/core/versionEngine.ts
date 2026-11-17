@@ -23,7 +23,7 @@ import { resolveCommitScope } from '../utils/commitScope.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
 import { tagPrerequisiteRoles } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
-import { hasExplicitGroups } from './groupResolution.js';
+import { isGroupMode } from './groupResolution.js';
 import { resolvePrerequisiteTargets } from './prerequisiteScope.js';
 import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
 import { buildWorkspaceGraph } from './workspaceGraph.js';
@@ -355,8 +355,7 @@ export class VersionEngine {
    */
   private async detectChangedPackages(packages: Package[], repoRoot: string): Promise<Set<string>> {
     const formattedPrefix = formatVersionPrefix(this.config.versionPrefix);
-    // Group mode bumps only a package's own manifests, so ignore `paths` here too.
-    const ignorePaths = !this.config.sync && hasExplicitGroups(this.config);
+    const ignorePaths = isGroupMode(this.config);
     const results = await Promise.all(
       packages.map(async (pkg) => {
         let tag = '';

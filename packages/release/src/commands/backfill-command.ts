@@ -15,6 +15,12 @@ interface BackfillTarget {
   repoUrl: string | null;
 }
 
+// Minimal shape we consume: the version package's built types resolve loosely through re-exports.
+interface Workspace {
+  root: string;
+  packages: Array<{ dir: string; packageJson: { name: string; repository?: unknown } }>;
+}
+
 function readPackageJson(pkgPath: string): { name?: string; repoUrl?: string } {
   const file = path.join(pkgPath, 'package.json');
   let raw: string;
@@ -51,7 +57,7 @@ export function createBackfillCommand(): Command {
     .option('--no-llm', 'Disable LLM (use deterministic, zero-cost backfill)')
     .option('--apply', 'Apply changes (default: dry-run preview)', false)
     .option('-c, --config <path>', 'Config file path')
-    .action(async (options) => {
+    .action(async (options, command: Command) => {
       // reconstructChangelogs feeds these to semver.lt/gt, which throw a bare TypeError on non-semver input.
       for (const [flag, value] of [
         ['--from', options.from],
@@ -67,7 +73,7 @@ export function createBackfillCommand(): Command {
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
 
-      const { loadConfig: loadVersionConfig } = await import('@releasekit/version');
+      const { loadConfig: loadVersionConfig, isGroupMode, resolveCommitScope } = await import('@releasekit/version');
       const {
         versionOutputToChangelogInput,
         runPipeline,
@@ -107,7 +113,27 @@ export function createBackfillCommand(): Command {
       const force = options.force === true;
       const noLlm = options.llm === false;
 
-      const targets = await resolveTargets(options, cwd, versionConfig);
+      // A synced release's notes read the package's whole directory, nested packages included, so only --all needs
+      // discovery then.
+      const workspace = options.all || !versionConfig.sync ? await discoverWorkspace(versionConfig) : undefined;
+      const pathGiven = command.getOptionValueSource('path') !== 'default';
+      const targets = resolveTargets(options, pathGiven, cwd, workspace?.packages ?? []);
+      // Discovery applies the private filter and version.packages, so these are the packages that release on their own.
+      const releasableDirs = workspace?.packages.map((p) => p.dir) ?? [];
+      const commitScopeFor = (target: BackfillTarget): string[] | undefined => {
+        if (versionConfig.sync || !workspace) {
+          return undefined;
+        }
+        const { scope, pathsError } = resolveCommitScope(target.pkgPath, versionConfig, {
+          repoRoot: workspace.root,
+          releasableDirs,
+          ignorePaths: isGroupMode(versionConfig),
+        });
+        if (pathsError) {
+          warn(`Reading ${target.packageName}'s commits without a native manifest: ${pathsError.message}`);
+        }
+        return scope;
+      };
 
       let totalReleaseCount = 0;
       const releasesByTarget: Array<{
@@ -120,10 +146,11 @@ export function createBackfillCommand(): Command {
         const reconstructed = await reconstructChangelogs({
           packageName: target.packageName,
           pkgPath: target.pkgPath,
+          commitScope: commitScopeFor(target),
           repoUrl: target.repoUrl,
-          versionPrefix: versionConfig?.versionPrefix,
-          tagTemplate: versionConfig?.tagTemplate,
-          packageSpecificTags: versionConfig?.packageSpecificTags,
+          versionPrefix: versionConfig.versionPrefix,
+          tagTemplate: versionConfig.tagTemplate,
+          packageSpecificTags: versionConfig.packageSpecificTags,
           from: options.from,
           to: options.to,
         });
@@ -307,25 +334,24 @@ function countEnabledLlmTasks(tasks?: {
   return allTaskKeys.filter((k) => tasks[k] !== false).length;
 }
 
-/**
- * `--all` reuses the version stage's discovery, so it finds the packages a live release would (npm & pure-Cargo,
- * scoped by `config.packages`). Pub-only packages aren't discovered; pass those via `--package`.
- */
-async function resolveTargets(
+async function discoverWorkspace(versionConfig: VersionConfig): Promise<Workspace> {
+  const { VersionEngine } = await import('@releasekit/version');
+  try {
+    return await new VersionEngine(versionConfig).getWorkspacePackages();
+  } catch (err) {
+    error(`Could not discover workspace packages: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(EXIT_CODES.GENERAL_ERROR);
+  }
+}
+
+/** `--all` targets the packages a live release would version, as discovered by the version stage. */
+function resolveTargets(
   options: { all?: boolean; package?: string; path: string },
+  pathGiven: boolean,
   cwd: string,
-  versionConfig: VersionConfig,
-): Promise<BackfillTarget[]> {
+  packages: Workspace['packages'],
+): BackfillTarget[] {
   if (options.all) {
-    const { VersionEngine } = await import('@releasekit/version');
-    // Minimal shape we consume: the version package's built types resolve loosely through re-exports.
-    let packages: Array<{ dir: string; packageJson: { name: string; repository?: unknown } }>;
-    try {
-      ({ packages } = await new VersionEngine(versionConfig).getWorkspacePackages());
-    } catch (err) {
-      error(`Could not discover workspace packages: ${err instanceof Error ? err.message : String(err)}`);
-      process.exit(EXIT_CODES.GENERAL_ERROR);
-    }
     const targets = packages
       .filter((p) => Boolean(p.packageJson.name))
       .map((p) => ({
@@ -340,8 +366,12 @@ async function resolveTargets(
     return targets;
   }
 
-  const pkgPath = path.resolve(cwd, options.path);
-  const pkgJson = readPackageJson(pkgPath);
+  const named =
+    pathGiven || !options.package ? undefined : packages.find((p) => p.packageJson.name === options.package);
+  const pathDir = path.resolve(cwd, options.path);
+  const pkgPath = named?.dir ?? pathDir;
+  // Read at --path, usually the root, so a package without its own `repository` keeps the repo URL.
+  const pkgJson = readPackageJson(pathDir);
   const packageName = options.package ?? pkgJson.name;
   if (!packageName) {
     error('Could not determine the package name. Pass --package, or run in a directory with a package.json.');
