@@ -15,7 +15,7 @@ export async function getWorkspacePackageNames(options: { cwd?: string; configPa
   return packages.map((p) => p.packageJson.name).filter((name): name is string => Boolean(name));
 }
 
-/** Directory of every package discovery finds, keyed by name. */
+/** Directory of each named package `getWorkspacePackageNames` returns, keyed by name. */
 export async function getWorkspacePackageDirs(
   options: { cwd?: string; configPath?: string } = {},
 ): Promise<Record<string, string>> {
@@ -31,7 +31,7 @@ export async function getWorkspacePackageDirs(
   return dirs;
 }
 
-/** Current version of every package discovery finds, keyed by name. */
+/** Version of each package `getWorkspacePackageNames` returns that has one, keyed by name. */
 export async function getWorkspacePackageVersions(
   options: { cwd?: string; configPath?: string } = {},
 ): Promise<Record<string, string>> {
