@@ -7,7 +7,6 @@ import {
   loadGitConfig,
   loadNotesConfig,
   loadPublishConfig,
-  loadRawConfig,
   loadVersionConfig,
 } from '../../src/load.js';
 import { PublishConfigSchema } from '../../src/schema.js';
@@ -18,19 +17,6 @@ vi.mock('node:fs', () => ({
 }));
 
 const mockedFs = vi.mocked(fs);
-
-describe('loadRawConfig', () => {
-  it('should return the file as written, with {env:} references unresolved', () => {
-    vi.stubEnv('LLM_MODEL', 'resolved-model');
-    mockedFs.existsSync.mockReturnValue(true);
-    mockedFs.readFileSync.mockReturnValue('{ "notes": { "releaseNotes": { "llm": { "model": "{env:LLM_MODEL}" } } } }');
-
-    const raw = loadRawConfig();
-    vi.unstubAllEnvs();
-
-    expect(raw).toEqual({ notes: { releaseNotes: { llm: { model: '{env:LLM_MODEL}' } } } });
-  });
-});
 
 describe('loadConfig', () => {
   beforeEach(() => {

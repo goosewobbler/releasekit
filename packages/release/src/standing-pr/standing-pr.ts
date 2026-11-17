@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { type CIConfig, loadRawConfig, loadConfig as loadReleaseKitConfig, runFormatCommand } from '@releasekit/config';
+import { type CIConfig, loadConfig as loadReleaseKitConfig, runFormatCommand } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
 import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
 import { VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
@@ -1390,7 +1390,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const count = countableUpdates.length;
 
   const liveNotes = previewNotesEnabled && liveBody ? extractNotesRegions(liveBody, versionOutput) : {};
-  const notesInputHashes = releaseNotesInputHashes(versionOutput, loadRawConfig({ cwd, configPath: options.config }));
+  const notesInputHashes = releaseNotesInputHashes(versionOutput, releaseKitConfig.notes);
   const notesPlan = planNotesRegions(
     previewNotesEnabled ? notesRegionKeys(versionOutput) : [],
     liveNotes,
@@ -2059,11 +2059,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   // From the body, not the manifest: the manifest holds machine state only.
   const bodyNotes = livePr ? extractNotesRegions(livePr.body ?? '', manifest.versionOutput) : {};
-  const usableNotes = publishableNotesRegions(
-    bodyNotes,
-    manifest.notesRegions,
-    releaseNotesInputHashes(manifest.versionOutput, loadRawConfig({ cwd, configPath: options.config })),
-  );
+  const usableNotes = publishableNotesRegions(bodyNotes, manifest.notesRegions);
   const notesToGenerate = notesRegionKeys(manifest.versionOutput).filter((key) => !Object.hasOwn(usableNotes, key));
 
   let releaseNotes: Record<string, string> = {};
@@ -2084,7 +2080,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
       warn('Publishing anyway; a package without notes in the PR body gets the githubRelease.body fallback.');
     }
   }
-  // A region still ships if its regeneration failed.
+  // A truncated region still ships if its regeneration failed.
   const regionNotes = Object.fromEntries(
     Object.entries(bodyNotes)
       .filter(([key]) => !Object.hasOwn(releaseNotes, key))

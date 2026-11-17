@@ -63,12 +63,6 @@ function loadConfigFile(configPath: string): ReleaseKitConfig {
   }
 }
 
-/** The config file as written: before `{env:}` and `{file:}` substitution, defaults and validation. */
-export function loadRawConfig(options?: LoadOptions): unknown {
-  const configPath = options?.configPath ?? resolveConfigPath(options?.cwd ?? process.cwd());
-  return fs.existsSync(configPath) ? parseJsonc(fs.readFileSync(configPath, 'utf-8')) : {};
-}
-
 export function loadConfig(options?: LoadOptions): ReleaseKitConfig {
   const cwd = options?.cwd ?? process.cwd();
   const configPath = options?.configPath ?? resolveConfigPath(cwd);

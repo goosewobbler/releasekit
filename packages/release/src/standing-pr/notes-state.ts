@@ -28,12 +28,15 @@ export function changelogInputHash(changelog: VersionPackageChangelog, config: u
   return shortHash(JSON.stringify({ version, previousVersion, entries, config }));
 }
 
-/**
- * From `loadRawConfig`: an `{env:}` value such as the model can resolve differently in the update and publish jobs,
- * and would make every region look stale at publish.
- */
-export function releaseNotesInputHashes(versionOutput: VersionOutput, rawConfig: unknown): Record<string, string> {
-  const config = (rawConfig as { notes?: { releaseNotes?: unknown } } | undefined)?.notes?.releaseNotes;
+export function releaseNotesInputHashes(
+  versionOutput: VersionOutput,
+  notesConfig: NotesConfig | undefined,
+): Record<string, string> {
+  const releaseNotes = notesConfig?.releaseNotes;
+  // The hash lands in a public comment, and the key shapes no text.
+  const config = releaseNotes
+    ? { ...releaseNotes, llm: releaseNotes.llm && { ...releaseNotes.llm, apiKey: undefined } }
+    : releaseNotes;
   return Object.fromEntries(versionOutput.changelogs.map((cl) => [cl.packageName, changelogInputHash(cl, config)]));
 }
 
@@ -104,19 +107,15 @@ export function planNotesRegions(
   return plan;
 }
 
-/**
- * The regions publish can ship as written: all but an unedited one that was truncated or whose inputs changed since
- * it was generated, as when its regeneration failed.
- */
+/** The regions publish can ship as written: all but an unedited one that was truncated. */
 export function publishableNotesRegions(
   regions: Record<string, string>,
   states: NotesRegionStates | undefined,
-  inputHashes: Record<string, string>,
 ): Record<string, string> {
   return Object.fromEntries(
     Object.entries(regions).filter(([key, text]) => {
       const state = states?.[key];
-      return !(isUnedited(text, state) && (state.truncated || state.inputHash !== inputHashes[key]));
+      return !(isUnedited(text, state) && state.truncated);
     }),
   );
 }
