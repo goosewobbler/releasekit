@@ -859,7 +859,7 @@ export const StandingPrConfigSchema = z.strictObject({
     .boolean()
     .default(true)
     .describe(
-      'Append the de-duplicated combined-changelog footer to the standing PR: every change listed once, flat across packages and grouped by change type (Added/Changed/Fixed), breaking changes first. Set false to rely on the per-row changelogs; project-wide (shared) changes still show in their own block. Sync releases, which have no per-row changelogs, always show the full footer.',
+      'Append the de-duplicated combined-changelog footer to the standing PR: every change listed once, flat across packages and grouped by change type (Added/Changed/Fixed), breaking changes first. Set false to rely on the per-row changelogs; project-wide (shared) changes still show in their own block. Sync releases, which have no per-row changelogs, always show the footer.',
     ),
   channelToggle: z
     .boolean()

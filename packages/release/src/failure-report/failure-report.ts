@@ -18,7 +18,7 @@ export interface FailureReportData {
   total: number;
   /** The publish refused the manifest before any tag or registry write. */
   refused?: boolean;
-  /** A refusal whose cause can clear on its own, such as an unreachable API, so a retry can succeed. */
+  /** A refusal whose cause can clear on its own, so a retry can succeed. */
   retryable?: boolean;
 }
 
@@ -333,6 +333,7 @@ export interface RefusalReportInput {
   /** Absent when the manifest couldn't be read or trusted. */
   versionOutput?: VersionOutput;
   reason: string;
+  /** The cause can clear on its own, such as an unreachable API, so a retry can succeed. */
   retryable: boolean;
   retryLabelAvailable?: boolean;
 }
