@@ -188,12 +188,16 @@ export function createBackfillTestProject() {
   return {
     projectDir,
     remotePath,
-    // Global tags → both packages share each version's date (the tagged commit's date).
+    // Shared tags in a sync repo: one target for the whole repository, as a live sync release writes, dated by
+    // each tag's commit.
     expected: [
-      { file: '@test/alpha/1.0.0.md', date: '2023-01-11', has: ['alpha one'], hasNot: ['beta one'] },
-      { file: '@test/alpha/1.1.0.md', date: '2023-03-06', has: ['alpha two'], hasNot: ['beta two'] },
-      { file: '@test/beta/1.0.0.md', date: '2023-01-11', has: ['beta one'], hasNot: ['alpha one'] },
-      { file: '@test/beta/1.1.0.md', date: '2023-03-06', has: ['beta two'], hasNot: ['alpha two'] },
+      { file: 'monorepo/1.0.0.md', date: '2023-01-11', has: ['alpha one', 'beta one'], hasNot: [] },
+      {
+        file: 'monorepo/1.1.0.md',
+        date: '2023-03-06',
+        has: ['alpha two', 'beta two'],
+        hasNot: ['alpha one', 'beta one'],
+      },
     ],
   };
 }
