@@ -563,7 +563,7 @@ export async function runPipeline(
       warn(
         `Failed to render release notes for ${ctx.packageName}: ${err instanceof Error ? err.message : String(err)}`,
       );
-      warn(`Release notes preview will not be available for ${ctx.packageName} in the workflow summary`);
+      warn(`${ctx.packageName}'s GitHub release body uses the githubRelease.body fallback instead`);
     }
   }
 
