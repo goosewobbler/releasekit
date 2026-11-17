@@ -30,6 +30,7 @@ function createRepo({
   packages = ['pkg-a', 'pkg-b'],
   version = {},
 }: RepoOptions = {}) {
+  const packageSpecificTags = version.packageSpecificTags ?? !sync;
   tempDir = createWorkspaceRepo('rk-bump-scope-', {
     packages: Object.fromEntries(packages.map((pkg) => [pkg, basename(pkg)])),
     version: '1.0.0',
@@ -37,13 +38,13 @@ function createRepo({
       preset: 'conventionalcommits',
       sync,
       versionPrefix: 'v',
-      packageSpecificTags: !sync,
-      tagTemplate: sync ? '${prefix}${version}' : '${packageName}@v${version}',
+      packageSpecificTags,
+      tagTemplate: packageSpecificTags ? '${packageName}@v${version}' : '${prefix}${version}',
       ...version,
     },
     workspaceGlobs,
     workspaceDir,
-    tags: sync ? ['v1.0.0'] : packages.map((pkg) => `${basename(pkg)}@v1.0.0`),
+    tags: packageSpecificTags ? packages.map((pkg) => `${basename(pkg)}@v1.0.0`) : ['v1.0.0'],
   });
 }
 
@@ -84,6 +85,30 @@ describe('bump scope', () => {
     expect(versions['pkg-a']).toBe('2.0.0');
     expect(versions['pkg-b']).toBe('2.0.0');
   });
+
+  it.each([false, true])(
+    'should list commits from every package in a synced release with a mainPackage (packageSpecificTags: %s)',
+    (packageSpecificTags) => {
+      createRepo({ sync: true, packages: ['core', 'cli'], version: { mainPackage: 'core', packageSpecificTags } });
+      commitTo('packages/cli', 'feat', 'drop the old CLI flags', true);
+      commitTo('packages/core', 'fix', 'correct a typo');
+
+      const output = runVersionJson(tempDir);
+
+      expect(Object.fromEntries(output.updates.map((u) => [u.packageName, u.newVersion]))).toEqual({
+        monorepo: '2.0.0',
+        core: '2.0.0',
+        cli: '2.0.0',
+      });
+      expect(output.changelogs.length).toBe(packageSpecificTags ? 2 : 1);
+      for (const changelog of output.changelogs) {
+        expect(changelog.entries).toEqual([
+          expect.objectContaining({ type: 'fixed', description: 'correct a typo' }),
+          expect.objectContaining({ type: 'added', description: 'drop the old CLI flags', breaking: true }),
+        ]);
+      }
+    },
+  );
 
   it('should bump a package from commits to a crate it versions through cargo.paths', () => {
     createRepo({ packages: ['app'], version: { cargo: { paths: ['../../crates/app'] } } });
