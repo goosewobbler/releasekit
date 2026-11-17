@@ -227,7 +227,7 @@ function mapCommitTypeToChangelogType(type: string): ChangelogEntry['type'] {
 
 function extractIssueIds(body: string): string[] {
   // GitHub's closing keywords. Not the parser's references: its action covers every ref after the keyword on the line.
-  const issueRegex = /(?<![\w-])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?[ \t]+#(\d+)/gi;
+  const issueRegex = /(?<![\w-])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?[^\S\r\n]+#(\d+)/gi;
   const issueIds: string[] = [];
 
   let match: RegExpExecArray | null = issueRegex.exec(body);
