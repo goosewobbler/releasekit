@@ -1788,6 +1788,7 @@ async function assertManifestCoversMerge(
     throw new ManifestRefusal(
       `Refusing to publish: ${heads}, and the merge commit is unknown, so the packages it bumps can't be checked ` +
         `against the manifest.`,
+      true,
     );
   }
   // Every update, not just the publishable ones: a sync root bump is listed and lands as planned.
