@@ -1,18 +1,18 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export function initGitRepo(dir: string): void {
-  execSync('git init', { cwd: dir });
+  execFileSync('git', ['init'], { cwd: dir });
   console.log('[DEBUG] Ran git init in', dir);
-  execSync('git config user.email "test@example.com"', { cwd: dir });
-  execSync('git config user.name "Test User"', { cwd: dir });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: dir });
+  execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: dir });
   console.log('[DEBUG] Files before git add:', readdirSync(dir));
-  execSync('git add .', { cwd: dir });
+  execFileSync('git', ['add', '.'], { cwd: dir });
   console.log('[DEBUG] Files before git commit:', readdirSync(dir));
 
   try {
-    const status = execSync('git status --porcelain', { cwd: dir, encoding: 'utf8' });
+    const status = execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' });
     if (status.trim() === '') {
       console.log('[DEBUG] No changes to commit in', dir);
       return;
@@ -21,10 +21,10 @@ export function initGitRepo(dir: string): void {
     console.log('[DEBUG] Error checking git status:', error);
   }
 
-  execSync('git commit -m "Initial commit"', { cwd: dir });
+  execFileSync('git', ['commit', '-m', 'Initial commit'], { cwd: dir });
 
   // Allow operations in nested git directories
-  execSync('git config --local --add safe.directory "*"', { cwd: dir });
+  execFileSync('git', ['config', '--local', '--add', 'safe.directory', '*'], { cwd: dir });
 
   writeFileSync(join(dir, '.gitignore'), 'node_modules\n');
 }
@@ -40,45 +40,19 @@ export function createConventionalCommit(
   if (files.length === 1 && files[0] === '.') {
     const changeFile = join(dir, 'change.txt');
     writeFileSync(changeFile, `Change: ${Date.now()}`);
-    execSync(`git add ${changeFile}`, { cwd: dir });
+    execFileSync('git', ['add', changeFile], { cwd: dir });
   } else {
     for (const file of files) {
-      execSync(`git add ${file}`, { cwd: dir });
+      execFileSync('git', ['add', file], { cwd: dir });
     }
   }
 
   const header = `${type}${scope ? `(${scope})` : ''}${breaking ? '!' : ''}: ${message}`;
 
   try {
-    execSync(`git commit -m "${header}"`, { cwd: dir });
+    execFileSync('git', ['commit', '-m', header], { cwd: dir });
   } catch {
     // Hooks such as lint-staged can fail the commit.
-    execSync(`git commit --no-verify -m "${header}"`, { cwd: dir });
-  }
-}
-
-export function safeGitCommit(cwd: string, message: string) {
-  try {
-    const status = execSync('git status --porcelain', { cwd }).toString();
-    if (status.trim()) {
-      execSync(`git commit -m "${message}"`, { cwd });
-    } else {
-      console.log(`[DEBUG] No changes to commit in ${cwd}`);
-    }
-  } catch (err) {
-    let errorMsg = '';
-    if (err && typeof err === 'object') {
-      if ('stderr' in err && err.stderr) {
-        errorMsg = String((err as { stderr: string }).stderr);
-      } else if ('message' in err) {
-        errorMsg = String((err as Error).message);
-      } else {
-        errorMsg = String(err);
-      }
-    } else {
-      errorMsg = String(err);
-    }
-    console.error(`[DEBUG] git commit failed in ${cwd}:`, errorMsg);
-    throw err;
+    execFileSync('git', ['commit', '--no-verify', '-m', header], { cwd: dir });
   }
 }

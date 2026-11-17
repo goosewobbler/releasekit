@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -49,7 +49,7 @@ export function createWorkspaceRepo(prefix: string, options: WorkspaceRepoOption
   symlinkNodeModules(workspace);
   initGitRepo(repo);
   for (const tag of tags) {
-    execSync(`git tag ${tag}`, { cwd: repo });
+    execFileSync('git', ['tag', tag], { cwd: repo });
   }
   return repo;
 }
