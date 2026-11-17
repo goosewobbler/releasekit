@@ -109,7 +109,7 @@ describe('Pipeline: render snapshot', () => {
     );
 
     expect(result.releaseNotes?.['@acme/app']).toMatchInlineSnapshot(`
-      "## [2.0.0] - 2026-01-15
+      "## [@acme/app@2.0.0] - 2026-01-15
 
       ### Breaking
 
