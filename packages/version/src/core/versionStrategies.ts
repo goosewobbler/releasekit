@@ -242,7 +242,12 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        changelogEntries = await extractChangelogEntriesFromCommits(repoRoot, revisionRange, commitScope);
+        changelogEntries = await extractChangelogEntriesFromCommits(
+          repoRoot,
+          revisionRange,
+          config.preset,
+          commitScope,
+        );
 
         if (changelogEntries.length === 0) {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
@@ -498,7 +503,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange, commitScope);
+        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange, config.preset, commitScope);
 
         if (changelogEntries.length === 0) {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];

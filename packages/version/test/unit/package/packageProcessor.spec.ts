@@ -259,8 +259,18 @@ describe('Package Processor', () => {
       );
       expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalledWith('package-b', expect.anything());
       // Checked before the changelog is built, so its repo-level entries don't reach sharedEntries.
-      expect(extractEntries).toHaveBeenCalledWith('/path/to/package-a', expect.anything(), expect.anything());
-      expect(extractEntries).not.toHaveBeenCalledWith('/path/to/package-b', expect.anything(), expect.anything());
+      expect(extractEntries).toHaveBeenCalledWith(
+        '/path/to/package-a',
+        expect.anything(),
+        'conventionalcommits',
+        expect.anything(),
+      );
+      expect(extractEntries).not.toHaveBeenCalledWith(
+        '/path/to/package-b',
+        expect.anything(),
+        'conventionalcommits',
+        expect.anything(),
+      );
       expect(logging.log).toHaveBeenCalledWith(
         'Not releasing package-b: it has no manifest releasekit can bump',
         'warning',
@@ -626,6 +636,7 @@ describe('Package Processor', () => {
       expect(extractSharedSpy).toHaveBeenCalledWith(
         expect.any(String),
         'wdio-dioxus-bridge@v1.0.0-next.2..HEAD',
+        'conventionalcommits',
         expect.any(Array),
       );
     });
@@ -644,7 +655,12 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), 'HEAD', expect.any(Array));
+      expect(extractSharedSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        'HEAD',
+        'conventionalcommits',
+        expect.any(Array),
+      );
     });
 
     it('should classify against the full workspace, not the release set, so a non-releasing package does not leak into shared', async () => {
@@ -665,7 +681,7 @@ describe('Package Processor', () => {
       // commit touching only package-b is attributed to it (absent here), not dumped into shared.
       await processor.processPackages([mockPackages[0]]);
 
-      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), [
+      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'conventionalcommits', [
         '/path/to/package-a',
         '/path/to/package-b',
       ]);
@@ -688,7 +704,9 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), ['/path/to/package-a']);
+      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'conventionalcommits', [
+        '/path/to/package-a',
+      ]);
     });
 
     it('should treat no package as shared when sharedPackages is unset — no hardcoded names', async () => {
@@ -707,7 +725,7 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), [
+      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'conventionalcommits', [
         '/path/to/core',
         '/path/to/package-a',
       ]);

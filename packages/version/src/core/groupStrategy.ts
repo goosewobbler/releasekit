@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import * as path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
+import type { Preset } from '@releasekit/config';
 import type { VersionChangelogEntry } from '@releasekit/core';
 import { shouldMatchPackageTargets, shouldProcessPackage as shouldProcessPackageUtil } from '@releasekit/core';
 import type { ReleaseType } from 'semver';
@@ -271,6 +272,7 @@ async function extractEntries(
   resolver: BaselineResolver,
   input: {
     pkgDir: string;
+    preset: Preset;
     commitScope: string[];
     latestTag: string;
     hasRealTag: boolean;
@@ -299,7 +301,7 @@ async function extractEntries(
     });
     revisionRange = baseline.revisionRange;
     previousVersion = baseline.previousVersion;
-    entries = await extractChangelogEntriesFromCommits(input.pkgDir, revisionRange, input.commitScope);
+    entries = await extractChangelogEntriesFromCommits(input.pkgDir, revisionRange, input.preset, input.commitScope);
   } catch (error) {
     if (error instanceof StrictReachableError) {
       throw error;
@@ -382,6 +384,7 @@ async function releaseGroup(
     const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, name);
     const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
       pkgDir: pkg.dir,
+      preset: config.preset,
       commitScope: plan.commitScope,
       latestTag: plan.latestTag,
       hasRealTag: plan.latestTag !== '',
@@ -536,6 +539,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, name);
         const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
           pkgDir: pkg.dir,
+          preset: config.preset,
           commitScope: plan.commitScope,
           latestTag: plan.latestTag,
           hasRealTag: plan.latestTag !== '',
