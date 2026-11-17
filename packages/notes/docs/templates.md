@@ -96,7 +96,7 @@ Each version block (`version`) receives:
 | `date` | `string` | Release date in `YYYY-MM-DD` format |
 | `repoUrl` | `string \| null` | Repository URL |
 | `compareUrl` | `string \| undefined` | Link to diff between previous and current version |
-| `entries` | `ChangelogEntry[]` | Raw changelog entries |
+| `entries` | `ChangelogEntry[]` | Changelog entries. Release-notes templates get the LLM-rewritten entries when `tasks.enhance` is on; changelog templates always get the commit-derived ones |
 | `enhanced` | `EnhancedData \| undefined` | LLM-processed data (see below) |
 
 ### Entry
@@ -108,7 +108,7 @@ Each entry in `entries` has:
 | `type` | `ChangelogType` | `"added"`, `"changed"`, `"deprecated"`, `"removed"`, `"fixed"`, `"security"` |
 | `description` | `string` | Entry description (rewritten by LLM if `tasks.enhance` is on) |
 | `scope` | `string \| undefined` | Conventional commit scope (may be assigned or validated by LLM) |
-| `breaking` | `boolean \| undefined` | `true` for breaking changes |
+| `breaking` | `boolean \| undefined` | `true` for breaking changes. Combined `enhanceAndCategorize` can also set it. |
 | `issueIds` | `string[] \| undefined` | Referenced issue/PR numbers |
 | `leadIn` | `string \| undefined` | Short scannable phrase for notable entries (e.g. `"Streaming API"`). Set by the LLM during `enhance` or combined `enhanceAndCategorize`. `undefined` for routine entries. |
 
@@ -118,7 +118,6 @@ Present in release-notes templates when any LLM task ran successfully. Changelog
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `enhanced.entries` | `ChangelogEntry[]` | Entries with rewritten `description` fields (`enhance` task) |
 | `enhanced.summary` | `string \| undefined` | 2–3 sentence release summary (`summarize` task) |
 | `enhanced.categories` | `Category[] \| undefined` | Grouped entries (`categorize` task) |
 | `enhanced.releaseNotes` | `string \| undefined` | Full prose release notes (`releaseNotes` task) |

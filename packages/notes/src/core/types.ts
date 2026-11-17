@@ -55,7 +55,6 @@ export interface EnhancedCategory {
 }
 
 export interface EnhancedData {
-  entries: ChangelogEntry[];
   summary?: string;
   categories?: EnhancedCategory[];
   releaseNotes?: string;
