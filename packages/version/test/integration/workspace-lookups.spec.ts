@@ -13,11 +13,11 @@ function write(relativePath: string, content: string) {
   writeFileSync(join(repo, relativePath), content);
 }
 
-async function lookups(cwd: string) {
+async function lookups(cwd: string, configPath?: string) {
   const [names, dirs, versions] = await Promise.all([
-    getWorkspacePackageNames({ cwd }),
-    getWorkspacePackageDirs({ cwd }),
-    getWorkspacePackageVersions({ cwd }),
+    getWorkspacePackageNames({ cwd, configPath }),
+    getWorkspacePackageDirs({ cwd, configPath }),
+    getWorkspacePackageVersions({ cwd, configPath }),
   ]);
   return { names: [...names].sort(), dirs, versions };
 }
@@ -56,7 +56,10 @@ describe('workspace package lookups', () => {
     expect(Object.keys(versions).sort()).toEqual(names);
   });
 
-  it('should skip a private package unless version.packages lists it exactly', async () => {
+  it.each([
+    ['directory', 'packages/internal'],
+    ['name', '@test/internal'],
+  ])('should skip a private package unless version.packages lists its %s exactly', async (_kind, entry) => {
     write(
       'packages/internal/package.json',
       JSON.stringify({ name: '@test/internal', version: '0.1.0', private: true }),
@@ -67,11 +70,21 @@ describe('workspace package lookups', () => {
     writeVersionConfig(repo, { packages: ['packages/*'] });
     expect((await lookups(repo)).names).toEqual(['@test/web', 'dart_core', 'engine']);
 
-    writeVersionConfig(repo, { packages: ['packages/*', 'packages/internal'] });
+    writeVersionConfig(repo, { packages: ['packages/*', entry] });
     const { names, dirs, versions } = await lookups(repo);
     expect(names).toEqual(['@test/internal', '@test/web', 'dart_core', 'engine']);
     expect(dirs['@test/internal']).toBe(join(repo, 'packages/internal'));
     expect(versions['@test/internal']).toBe('0.1.0');
+  });
+
+  it('should read the config at configPath', async () => {
+    write('custom.json', JSON.stringify({ version: { packages: ['engine'] } }));
+
+    const { names, dirs, versions } = await lookups(repo, join(repo, 'custom.json'));
+
+    expect(names).toEqual(['engine']);
+    expect(dirs).toEqual({ engine: join(repo, 'packages/engine') });
+    expect(versions).toEqual({ engine: '2.0.0' });
   });
 
   it('should read the workspace at cwd, not process.cwd()', async () => {

@@ -2,9 +2,9 @@ import { loadConfig } from './config.js';
 import { VersionEngine } from './core/versionEngine.js';
 
 /**
- * Every workspace package (npm, cargo & pub), releasing or not. Standing-PR selection resolves
- * `ci.standingPr.primaryPackages` against it - a non-bumping primary never appears in
- * `VersionOutput.updates[]` yet must still anchor its release unit.
+ * Every package discovery finds (npm, cargo & pub), whether or not it changed; `version.packages` and the private
+ * filter still apply. Standing-PR selection resolves `ci.standingPr.primaryPackages` against it: a non-bumping primary
+ * never appears in `VersionOutput.updates[]` yet must still anchor its release unit.
  */
 export async function getWorkspacePackageNames(options: { cwd?: string; configPath?: string } = {}): Promise<string[]> {
   const config = loadConfig({ cwd: options.cwd, configPath: options.configPath });
