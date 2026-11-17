@@ -4779,14 +4779,14 @@ describe('publishFromManifest', () => {
     }
 
     async function publishMerged(manifest: StandingPRManifest, mergedHead: string) {
-      await mockForge({
+      const forge = await mockForge({
         comments: [{ id: 77, body: serializeManifest(manifest) }],
         pullRequests: { 99: { body: '', labels: [], headSha: mergedHead, mergeCommitSha: MERGE_COMMIT } },
       });
       const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
       onTestFinished(() => logged.mockRestore());
       const run = publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
-      return { run, warnings: () => logged.mock.calls.map(([line]) => String(line)) };
+      return { run, forge, warnings: () => logged.mock.calls.map(([line]) => String(line)) };
     }
 
     it('should publish without a warning when the merged head matches', async () => {
@@ -4825,7 +4825,7 @@ describe('publishFromManifest', () => {
       const { runPublishStep } = await import('../../src/steps.js');
       mergeBumpingCoreAndExtra();
 
-      const { run } = await publishMerged({ ...baseManifest, headSha: MANIFEST_HEAD }, MERGED_HEAD);
+      const { run, forge } = await publishMerged({ ...baseManifest, headSha: MANIFEST_HEAD }, MERGED_HEAD);
 
       await expect(run).rejects.toThrow(
         `Refusing to publish: PR #99 merged head ${MERGED_HEAD}, but its release manifest describes ` +
@@ -4833,6 +4833,7 @@ describe('publishFromManifest', () => {
       );
       expect(fakeGit.tagged).toHaveLength(0);
       expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+      expect(forge.comments.filter((c) => c.prNumber === 99 && c.body.startsWith(FAILURE_MARKER))).toHaveLength(1);
     });
 
     it('should count a sync root bump the manifest lists as covered', async () => {
