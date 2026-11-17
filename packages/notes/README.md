@@ -48,8 +48,9 @@ releasekit-notes --input version-data.json
 # Preview without writing
 releasekit-notes --dry-run
 
-# With LLM enhancement
+# With LLM-enhanced release notes
 releasekit-notes --input version-data.json \
+  --release-notes-dir release-notes \
   --llm-provider openai \
   --llm-model gpt-4o-mini \
   --llm-tasks enhance,summarize

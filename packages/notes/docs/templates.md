@@ -148,6 +148,8 @@ When no custom template is configured, the built-in markdown renderer applies th
 
 ## Examples
 
+The `enhanced` branches below render only in release-notes templates (`notes.releaseNotes.templates`); changelog templates get the commit-derived entries alone.
+
 ### Liquid (single file)
 
 ```liquid

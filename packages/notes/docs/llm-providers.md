@@ -249,7 +249,7 @@ To customise the prompt for the combined call, use the `enhanceAndCategorize` ke
 }
 ```
 
-If you need fully custom output formatting, use the [templates system](./templates.md) instead — it operates on the pipeline result after all LLM tasks have run.
+If you need fully custom output formatting, use the [templates system](./templates.md) instead — release-notes templates get the result after all LLM tasks have run.
 
 ---
 
@@ -260,6 +260,7 @@ The `--llm-*` flags set LLM options without a config file. Every flag is in the 
 ```bash
 releasekit-notes \
   --input version-output.json \
+  --release-notes-dir release-notes \
   --llm-provider anthropic \
   --llm-model claude-haiku-4-5 \
   --llm-tasks enhance,release-notes
