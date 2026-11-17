@@ -9,6 +9,7 @@ import {
   sanitizePackageName,
   success,
   warn,
+  writeReleaseNotesFile,
 } from '@releasekit/core';
 import type { GitHubReleaseResult, PipelineContext } from '../types.js';
 import { execCommand, execCommandSafe } from '../utils/exec.js';
@@ -338,9 +339,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       changelogFallback,
       ctx.releaseNotes,
     );
-    if (body) {
-      ghArgs.push('--notes', body);
-    } else if (useGithubNotes) {
+    if (!body && useGithubNotes) {
       ghArgs.push('--generate-notes');
     }
 
@@ -355,7 +354,15 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       }
     }
 
+    let notesFile: ReturnType<typeof writeReleaseNotesFile> | undefined;
     try {
+      if (body) {
+        notesFile = writeReleaseNotesFile(body);
+        if (notesFile.truncated) {
+          warn(`Release body for ${tag} is over GitHub's 125,000-character limit, truncated it`);
+        }
+        ghArgs.push('--notes-file', notesFile.path);
+      }
       const execResult = await execCommand('gh', ghArgs, {
         dryRun,
         label: `gh release create ${tag}`,
@@ -372,6 +379,8 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     } catch (error) {
       result.reason = error instanceof Error ? error.message : String(error);
       warn(`Failed to create GitHub release for ${tag}: ${result.reason}`);
+    } finally {
+      notesFile?.cleanup();
     }
 
     ctx.output.githubReleases.push(result);
