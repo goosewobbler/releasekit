@@ -12,7 +12,7 @@ const BREAKING_CHANGE_REGEX = /BREAKING CHANGE: ([\s\S]+?)(?:\n\n|$)/;
 // Non-conventional version-bump bookkeeping subjects (e.g. `Update version to 1.2.3`). Narrow by
 // construction so a real change like "update version handling in the parser" is never swallowed.
 const VERSION_BUMP_SUBJECT_REGEX = /^update (?:version to v?\d|package versions)\b/i;
-/** Reserved for release commits. One is in range only when its release never got a tag, and it isn't a change. */
+/** Reserved for release commits, which record a release rather than a change. */
 const RELEASE_COMMIT_PREFIX = 'chore: release ';
 
 export interface CommitWithHash {

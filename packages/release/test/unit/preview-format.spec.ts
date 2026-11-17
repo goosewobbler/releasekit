@@ -1369,7 +1369,7 @@ describe('formatPreviewComment', () => {
   describe('partial-publish supersede warning', () => {
     const warning = [
       '> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry).',
-      '> Retry it by dispatching the release workflow against the merged standing PR (#42) to publish its versions, **or** merging this PR supersedes it: the next release skips the unpublished versions, bumps on top of them and repeats their changelog entries. Do not delete tags for versions that were published.',
+      '> Retry it by dispatching the release workflow against the merged standing PR (#42) to publish its versions, **or** merging this PR supersedes it: the next release skips the unpublished versions and bumps on top of them. Do not delete tags for versions that were published.',
       '',
     ];
 

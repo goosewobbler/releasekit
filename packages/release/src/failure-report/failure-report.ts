@@ -461,7 +461,7 @@ export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
     : `is partially published** (${published}/${total} packages on the registry)`;
   return [
     `> ⚠️ **Previous release ${untrusted(previousLabel)} ${state}.`,
-    `> ${retryHint} to publish its versions, **or** merging this PR supersedes it: the next release skips the unpublished versions, bumps on top of them and repeats their changelog entries. Do not delete tags for versions that were published.`,
+    `> ${retryHint} to publish its versions, **or** merging this PR supersedes it: the next release skips the unpublished versions and bumps on top of them. Do not delete tags for versions that were published.`,
     '',
   ];
 }
