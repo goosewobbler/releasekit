@@ -6,7 +6,7 @@ Releases run in standing-PR mode with sync versioning; the standing release PR l
 
 Violating these breaks releases.
 
-- **Three-stage pipeline** version → notes → publish. `VersionOutput` (`packages/core/src/types.ts`) is the JSON contract between stages **and** is persisted in standing-PR manifests — new fields must be optional; consumers must tolerate their absence (old manifests live in open PRs). A PR that adds a manifest field adds a manifest with it to `packages/release/test/fixtures/manifests/`.
+- **Three-stage pipeline** version → notes → publish. `VersionOutput` (`packages/core/src/types.ts`) is the JSON contract between stages **and** is persisted in standing-PR manifests — new fields must be optional; consumers must tolerate their absence (old manifests live in open PRs).
 - **Roll-forward** in standing-PR mode the version bump is on `main` before publishing. In direct batch mode it is not pushed until every publish succeeds. Tags are created locally before publishing and pushed after a clean publish (once at the end in batch mode, after each package in per-package mode). A failed publish is never recovered by reverting commits or by deleting a tag whose version was published. Already-published versions are skipped on retry. See `docs/architecture.md`.
 - **Release-commit prefix** subjects starting with `chore: release ` match `release.ci.skipPatterns` and suppress standing-PR update runs. Keep the prefix on release commits; nothing else may use it.
 - **`[skip ci]` asymmetry** the direct-release commit on `main` (`version.commitMessage`) includes it to stop CI loops — leave it. The standing-PR branch's prep commit must NOT: a squash merge inherits its message, and `[skip ci]` on `main` would suppress the publish workflow.
@@ -32,4 +32,5 @@ Design decisions are recorded in `docs/adr/` — check there before reworking a 
 ## Code conventions the linters don't check
 
 - Test new behaviour through the path a user hits, such as a CLI command or a package's exported API, not only the helper underneath.
+- A PR that adds a `VersionOutput` or standing-PR manifest field adds a manifest carrying it to `packages/release/test/fixtures/manifests/`: hand-built until a release has written a real one, then replaced by it.
 - Default to no comment. Write one only when the *why* isn't clear from the code: a hidden constraint, a workaround, behaviour that would surprise a reader. Don't repeat the code, a JSDoc or a nearby comment, and don't narrate.
