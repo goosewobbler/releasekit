@@ -16,6 +16,10 @@ export interface FailureReportData {
   label: string;
   published: number;
   total: number;
+  /** The publish refused the manifest before any tag or registry write. */
+  refused?: boolean;
+  /** A refusal whose cause can clear on its own, so a retry can succeed. */
+  retryable?: boolean;
 }
 
 const STATUS_FIELD = markerData<FailureReportStatus>({
@@ -26,7 +30,8 @@ const STATUS_FIELD = markerData<FailureReportStatus>({
 
 const DATA_FIELD = markerData<FailureReportData>({
   open: DATA_PREFIX,
-  serialize: (data) => JSON.stringify(data),
+  // `>` only occurs inside JSON strings, and escaping it keeps a forged label's `-->` from closing the marker.
+  serialize: (data) => JSON.stringify(data).replaceAll('>', '\\u003e'),
   deserialize: (payload) => {
     try {
       const parsed = JSON.parse(payload) as Partial<FailureReportData>;
@@ -37,7 +42,14 @@ const DATA_FIELD = markerData<FailureReportData>({
       ) {
         return null;
       }
-      return { label: parsed.label, published: parsed.published, total: parsed.total };
+      const data: FailureReportData = { label: parsed.label, published: parsed.published, total: parsed.total };
+      if (parsed.refused === true) {
+        data.refused = true;
+      }
+      if (parsed.retryable === true) {
+        data.retryable = true;
+      }
+      return data;
     } catch {
       return null;
     }
@@ -214,6 +226,37 @@ function renderRollForward(versionOutput: VersionOutput, publishOutput: PublishO
   return lines;
 }
 
+function standingPrRetry(ctx: RecoveryContext): string[] {
+  const prRef = ctx.standingPrNumber ? `#${ctx.standingPrNumber}` : 'the merged standing PR';
+  const dispatch = `targeting the merged standing PR (\`--pr ${ctx.standingPrNumber ?? '<number>'}\`).`;
+  const lines = [
+    `Re-run the publish for ${prRef}. Versions are already on \`main\`; retrying re-publishes only the packages that did not land.`,
+    '',
+  ];
+  if (ctx.retryLabelAvailable) {
+    lines.push(
+      `- **Add the \`release:retry\` label** to ${prRef} to retry the publish automatically. The label is removed after each retry, so re-apply it to retry again.`,
+      `- Or **dispatch the release workflow** ${dispatch}`,
+    );
+  } else {
+    lines.push(`- **Dispatch the release workflow** ${dispatch}`);
+  }
+  return lines;
+}
+
+function renderLedger(ledger: LedgerEntry[]): string[] {
+  return [
+    '### Package ledger',
+    '',
+    '| Package | Version | Status | Detail |',
+    '|---------|---------|--------|--------|',
+    ...ledger.map(
+      (e) =>
+        `| \`${e.packageName}\` | ${e.version} | ${STATUS_ICON[e.status]} ${STATUS_LABEL[e.status]} | ${e.detail ?? ''} |`,
+    ),
+  ];
+}
+
 function renderRecovery(
   ctx: RecoveryContext,
   versionOutput: VersionOutput,
@@ -223,21 +266,7 @@ function renderRecovery(
   const pushed = publishOutput?.git.pushed === true;
   const perPackage = pushesPerPackage(versionOutput) && pushed;
   if (ctx.mode === 'standing-pr') {
-    const prRef = ctx.standingPrNumber ? `#${ctx.standingPrNumber}` : 'the merged standing PR';
-    lines.push(
-      `Re-run the publish for ${prRef}. Versions are already on \`main\`; retrying re-publishes only the packages that did not land.`,
-      '',
-    );
-    if (ctx.retryLabelAvailable) {
-      lines.push(
-        `- **Add the \`release:retry\` label** to ${prRef} to retry the publish automatically. The label is removed after each retry, so re-apply it to retry again.`,
-        `- Or **dispatch the release workflow** targeting the merged standing PR (\`--pr ${ctx.standingPrNumber ?? '<number>'}\`).`,
-      );
-    } else {
-      lines.push(
-        `- **Dispatch the release workflow** targeting the merged standing PR (\`--pr ${ctx.standingPrNumber ?? '<number>'}\`).`,
-      );
-    }
+    lines.push(...standingPrRetry(ctx));
   } else if (perPackage) {
     lines.push(
       'Roll forward with the next release. The release commit and tags for packages that published are already on the remote — do not delete them.',
@@ -280,19 +309,7 @@ export function renderFailureReport(input: FailureReportInput): string {
     '',
     `**${published}/${total} package(s) published.** ${partialFailureState(recovery.mode, publishOutput, failedStage)} The release is not finished.`,
     '',
-    '### Package ledger',
-    '',
-    '| Package | Version | Status | Detail |',
-    '|---------|---------|--------|--------|',
-  ];
-
-  for (const e of ledger) {
-    const status = `${STATUS_ICON[e.status]} ${STATUS_LABEL[e.status]}`;
-    const detail = e.detail ?? '';
-    lines.push(`| \`${e.packageName}\` | ${e.version} | ${status} | ${detail} |`);
-  }
-
-  lines.push(
+    ...renderLedger(ledger),
     '',
     '### What failed',
     '',
@@ -306,7 +323,82 @@ export function renderFailureReport(input: FailureReportInput): string {
     '',
     '---',
     ATTRIBUTION_FOOTER,
+  ];
+
+  return lines.join('\n');
+}
+
+export interface RefusalReportInput {
+  prNumber: number;
+  /** Absent when the manifest couldn't be read or trusted. */
+  versionOutput?: VersionOutput;
+  reason: string;
+  /** The cause can clear on its own, such as an unreachable API, so a retry can succeed. */
+  retryable: boolean;
+  retryLabelAvailable?: boolean;
+}
+
+function untrusted(text: string): string {
+  return escapeChangelogMentions(escapeCommentOpeners(text));
+}
+
+export function renderRefusalReport(input: RefusalReportInput): string {
+  const { prNumber, versionOutput, reason, retryable } = input;
+  const ledger = versionOutput ? buildLedger(versionOutput, undefined) : [];
+  const label = versionOutput ? releaseLabel(versionOutput) : '';
+  const data: FailureReportData = { label, published: 0, total: ledger.length, refused: true };
+  if (retryable) {
+    data.retryable = true;
+  }
+
+  const lines: string[] = [FAILURE_MARKER, STATUS_FIELD.encode('unresolved'), DATA_FIELD.encode(data), ''];
+  // The manifest was refused, so its names and versions may be forged.
+  if (versionOutput) {
+    lines.push(
+      `## ❌ Release of ${untrusted(label)} was refused`,
+      '',
+      `**0/${ledger.length} package(s) published.** The publish refused the release manifest before creating any tag or publishing anything. The merge put the version bumps on \`main\`.`,
+      '',
+      ...renderLedger(ledger).map(untrusted),
+    );
+  } else {
+    lines.push(
+      `## ❌ Release from #${prNumber} was refused`,
+      '',
+      `**Nothing was published.** The release manifest on #${prNumber} could not be read or trusted, so the publish stopped before creating any tag or publishing anything.`,
+    );
+  }
+  // A fence longer than any backtick run in the reason, which quotes the manifest's tags and names.
+  const fence = '`'.repeat(Math.max(2, ...(reason.match(/`+/g) ?? []).map((run) => run.length)) + 1);
+  lines.push(
+    '',
+    '### Why it was refused',
+    '',
+    fence,
+    escapeCommentOpeners(reason),
+    fence,
+    '',
+    '### How to recover',
+    '',
   );
+  if (retryable) {
+    lines.push(
+      ...standingPrRetry({
+        mode: 'standing-pr',
+        standingPrNumber: prNumber,
+        retryLabelAvailable: input.retryLabelAvailable,
+      }),
+      '',
+      SAFE_RETRY_NOTE,
+    );
+  } else {
+    lines.push(
+      "Retrying won't help: a retry reads the same manifest and merged commit, so it is refused again.",
+      '',
+      "Merge the next standing PR instead. It supersedes this release and publishes these changes at its own version. Don't delete tags or revert the release commit.",
+    );
+  }
+  lines.push('', '---', ATTRIBUTION_FOOTER);
 
   return lines.join('\n');
 }
@@ -345,18 +437,30 @@ export interface SupersedeWarningInput {
   previousLabel: string;
   published: number;
   total: number;
+  refused?: boolean;
+  retryable?: boolean;
   standingPrNumber?: number;
   retryLabelAvailable?: boolean;
 }
 
 export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
-  const { previousLabel, published, total, standingPrNumber, retryLabelAvailable } = input;
+  const { previousLabel, published, total, refused, retryable, standingPrNumber, retryLabelAvailable } = input;
   const prRef = standingPrNumber ? `the merged standing PR (#${standingPrNumber})` : 'the merged standing PR';
+  if (refused && !retryable) {
+    const release = previousLabel ? `release ${untrusted(previousLabel)}` : 'the previous release';
+    return [
+      `> ⚠️ **The publish of ${release} from ${prRef} was refused**, so nothing was tagged or published. Retrying won't help: merging this PR supersedes it, and the next release publishes those changes at the new version. Don't revert its release commit.`,
+      '',
+    ];
+  }
   const retryHint = retryLabelAvailable
     ? `Retry it via \`release:retry\` on ${prRef}`
     : `Retry it by dispatching the release workflow against ${prRef}`;
+  const state = refused
+    ? 'was refused at publish** (nothing on the registry)'
+    : `is partially published** (${published}/${total} packages on the registry)`;
   return [
-    `> ⚠️ **Previous release ${escapeChangelogMentions(escapeCommentOpeners(previousLabel))} is partially published** (${published}/${total} packages on the registry).`,
+    `> ⚠️ **Previous release ${untrusted(previousLabel)} ${state}.`,
     `> ${retryHint}, **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.`,
     '',
   ];

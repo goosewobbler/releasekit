@@ -9,7 +9,9 @@ import {
   type FailureReportMode,
   parseFailureReportData,
   parseFailureReportStatus,
+  type RefusalReportInput,
   renderFailureReport,
+  renderRefusalReport,
   renderResolvedReport,
 } from './failure-report.js';
 
@@ -52,6 +54,21 @@ export async function postFailureReport(
   }
 }
 
+export async function postRefusalReport(forge: Forge, input: RefusalReportInput): Promise<void> {
+  try {
+    // A report from an earlier publish attempt holds the real ledger, which a refused retry must not replace.
+    const existing = await forge.findComment(input.prNumber, FAILURE_MARKER);
+    if (existing && isBotComment(existing) && !parseFailureReportData(existing.body)?.refused) {
+      warn(`Kept the publish-failure report from an earlier attempt on PR #${input.prNumber}`);
+      return;
+    }
+    await postOrUpdateComment(forge, input.prNumber, renderRefusalReport(input), FAILURE_MARKER);
+    info(`Posted publish-refusal report on PR #${input.prNumber}`);
+  } catch (err) {
+    warn(`Failed to post publish-refusal report: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export async function resolveFailureReportIfPresent(
   forge: Forge,
   prNumber: number,
@@ -87,6 +104,8 @@ export interface UnresolvedFailure {
   previousLabel: string;
   published: number;
   total: number;
+  refused?: boolean;
+  retryable?: boolean;
   prNumber: number;
 }
 
@@ -119,6 +138,8 @@ function parseReportLedgerSummary(body: string, prNumber: number): UnresolvedFai
     previousLabel: data.label,
     published: data.published,
     total: data.total,
+    refused: data.refused,
+    retryable: data.retryable,
     prNumber,
   };
 }
