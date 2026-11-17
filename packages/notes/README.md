@@ -9,12 +9,12 @@
 
 **Changelog and release notes generation from conventional commits**
 
-Generates CHANGELOG.md and release notes from `@releasekit/version` output, with optional LLM-powered enhancement and flexible templating.
+Generates CHANGELOG.md and release notes from `@releasekit/version` output, with flexible templating and optional LLM-enhanced release notes.
 
 ## Features
 
 - 📝 **Conventional changelog** — Keep a Changelog, Angular, or custom format
-- 🤖 **LLM enhancement** (optional) — enhance descriptions, summarize, categorize, or generate prose release notes
+- 🤖 **LLM-enhanced release notes** (optional) — enhance descriptions, summarize, categorize, or generate prose; `CHANGELOG.md` stays commit-derived
 - 🎨 **Flexible templating** — Liquid, Handlebars, or EJS; single-file or composable layout
 - 📦 **Monorepo support** — root aggregation, per-package changelogs, or both
 - 🔀 **Changelog + release notes** — a cumulative `CHANGELOG.md` and per-release notes (GitHub release body, or opt-in per-version files), configured independently
@@ -48,8 +48,9 @@ releasekit-notes --input version-data.json
 # Preview without writing
 releasekit-notes --dry-run
 
-# With LLM enhancement
+# With LLM-enhanced release notes
 releasekit-notes --input version-data.json \
+  --release-notes-dir release-notes \
   --llm-provider openai \
   --llm-model gpt-4o-mini \
   --llm-tasks enhance,summarize
@@ -107,7 +108,7 @@ LLM configuration lives under `notes.releaseNotes.llm`:
 
 | Task | What it does |
 |------|-------------|
-| `enhance` | Rewrites each changelog entry description to be clearer |
+| `enhance` | Rewrites each entry description in the release notes to be clearer |
 | `summarize` | Generates a one-paragraph summary of the release |
 | `categorize` | Groups entries into semantic categories (default set: Breaking, New, Changed, Fixed, Developer) |
 | `releaseNotes` | Generates full prose release notes (use as GitHub release body) |

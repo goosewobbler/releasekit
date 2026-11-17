@@ -1,6 +1,6 @@
 # LLM Providers
 
-`@releasekit/notes` can use an LLM to enhance changelog entries, generate summaries, or produce prose release notes. All LLM configuration lives under `notes.releaseNotes.llm` in `releasekit.config.json`.
+`@releasekit/notes` can use an LLM to shape release notes: rewrite and group their entries, add a summary, or write prose. `CHANGELOG.md` is always rendered from the commit-derived entries. All LLM configuration lives under `notes.releaseNotes.llm` in `releasekit.config.json`.
 
 ## Supported Providers
 
@@ -32,7 +32,7 @@ Alternatively, set the provider's environment variable (`OPENAI_API_KEY`, `ANTHR
 
 ## Provider Setup
 
-Model names change frequently — check your provider's documentation for the current model IDs. As a general guide: **mini/haiku-tier models** are fast and cheap, suitable for most changelog enhancement; **standard/sonnet-tier models** produce higher-quality output and are worth the extra cost for public-facing release notes.
+Model names change frequently — check your provider's documentation for the current model IDs. As a general guide: **mini/haiku-tier models** are fast and cheap, suitable for most release-notes enhancement; **standard/sonnet-tier models** produce higher-quality output and are worth the extra cost for public-facing release notes.
 
 ### OpenAI
 
@@ -128,7 +128,7 @@ Tasks are configured under `llm.tasks`. Multiple tasks can be enabled simultaneo
 
 ### `enhance`
 
-Rewrites each changelog entry description to be clearer and more user-facing.
+Rewrites each entry description in the release notes to be clearer and more user-facing.
 
 **Input:** `"fix: npe in auth middleware when token is null"`
 **Output:** `"Fix crash during authentication when no token is provided"`
@@ -249,7 +249,7 @@ To customise the prompt for the combined call, use the `enhanceAndCategorize` ke
 }
 ```
 
-If you need fully custom output formatting, use the [templates system](./templates.md) instead — it operates on the pipeline result after all LLM tasks have run.
+If you need fully custom output formatting, use the [templates system](./templates.md) instead — release-notes templates get the result after all LLM tasks have run.
 
 ---
 
@@ -260,6 +260,7 @@ The `--llm-*` flags set LLM options without a config file. Every flag is in the 
 ```bash
 releasekit-notes \
   --input version-output.json \
+  --release-notes-dir release-notes \
   --llm-provider anthropic \
   --llm-model claude-haiku-4-5 \
   --llm-tasks enhance,release-notes

@@ -86,7 +86,17 @@ describe('Pipeline: llm.model is checked only when LLM tasks run', () => {
     vi.spyOn(process, 'cwd').mockReturnValue(dir);
 
     await expect(
-      createNotesCommand().parseAsync(['node', 'test', 'generate', '-i', inputFile, '--llm-tasks', 'enhance']),
+      createNotesCommand().parseAsync([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        inputFile,
+        '--llm-tasks',
+        'enhance',
+        '--release-notes-dir',
+        path.join(dir, 'notes'),
+      ]),
     ).rejects.toThrow('exit');
     expect(errors.mock.calls.flat().join('\n')).toContain(
       'notes.releaseNotes.llm.model: {env:OLLAMA_MODEL} is not set',

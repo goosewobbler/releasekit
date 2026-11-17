@@ -70,6 +70,8 @@ With `enhance + categorize` enabled, the same commits produce:
 
 The LLM rewrites descriptions, groups by user intent instead of commit type, generates scannable `leadIn` phrases for notable entries, and routes breaking changes to a dedicated section.
 
+This applies to release notes only: GitHub release bodies, per-version notes files and the standing PR's notes region. `CHANGELOG.md` always keeps the commit-type form.
+
 ---
 
 ## Tasks
@@ -91,7 +93,7 @@ Four tasks are available. Any combination can be enabled simultaneously.
 
 ## Task: `enhance`
 
-Rewrites each changelog entry description to be clear, concise, and user-focused.
+Rewrites each entry description to be clear, concise, and user-focused.
 
 **Input:** `"fix: npe in auth middleware when token is null"`
 **Output:** `"Fix crash during authentication when no token is provided"`
@@ -108,7 +110,7 @@ Entries are processed in parallel. Control the batch size with `concurrency` (de
 
 ## Task: `categorize`
 
-Groups entries into user-friendly categories. The result populates `enhanced.categories` in the template context and drives the built-in markdown renderer's section layout.
+Groups entries into user-friendly categories. The result populates `enhanced.categories` in the release-notes template context and drives the section layout of the built-in release notes.
 
 ### Default categories
 

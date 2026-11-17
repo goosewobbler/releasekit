@@ -2,7 +2,11 @@ import * as fs from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('node:fs');
-vi.mock('@releasekit/config');
+vi.mock('@releasekit/config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@releasekit/config')>()),
+  loadConfig: vi.fn(),
+  saveAuth: vi.fn(),
+}));
 vi.mock('../../src/core/pipeline.js');
 vi.mock('../../src/input/version-output.js');
 vi.mock('@releasekit/core');
@@ -145,6 +149,45 @@ describe('createNotesCommand', () => {
 
       expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('--llm-*'));
       expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('--no-release-notes'));
+    });
+
+    it('should skip the LLM when the run writes no release notes', async () => {
+      await createNotesCommand().parseAsync([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--llm-provider',
+        'openai',
+        '--llm-model',
+        'm',
+        '--llm-tasks',
+        'enhance',
+      ]);
+
+      expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('--release-notes-dir'));
+      expect(vi.mocked(runPipeline).mock.calls[0]?.[1].releaseNotes).toMatchObject({ llm: undefined });
+    });
+
+    it('should keep the LLM when the run writes release notes', async () => {
+      await createNotesCommand().parseAsync([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--llm-provider',
+        'openai',
+        '--llm-model',
+        'm',
+        '--llm-tasks',
+        'enhance',
+        '--release-notes-dir',
+        'notes',
+      ]);
+
+      expect(vi.mocked(runPipeline).mock.calls[0]?.[1].releaseNotes).toMatchObject({ llm: { model: 'm' } });
     });
 
     it('should warn when --template is ignored due to --no-changelog', async () => {

@@ -114,7 +114,7 @@ Each entry in `entries` has:
 
 ### Enhanced data (`enhanced`)
 
-Present when any LLM task ran successfully:
+Present in release-notes templates when any LLM task ran successfully. Changelog templates never get it:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -148,6 +148,8 @@ When no custom template is configured, the built-in markdown renderer applies th
 
 ## Examples
 
+The `enhanced` branches below render only in release-notes templates (`notes.releaseNotes.templates`); changelog templates get the commit-derived entries alone.
+
 ### Liquid (single file)
 
 ```liquid
@@ -156,10 +158,6 @@ When no custom template is configured, the built-in markdown renderer applies th
 {% for v in versions %}
 ## [{{ v.version }}] — {{ v.date }}
 
-{% if v.enhanced.summary %}
-{{ v.enhanced.summary }}
-
-{% endif %}
 {% for entry in v.entries %}
 - **{{ entry.type }}**: {{ entry.description }}{% if entry.scope %} *({{ entry.scope }})*{% endif %}
 {% endfor %}

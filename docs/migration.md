@@ -13,7 +13,7 @@ remove the old tool.
 | Convention-driven bumps from commits | yes | partial (via plugins) | yes |
 | Per-PR explicit bump intent (changeset files) | no | yes | partial (label-driven) |
 | Standing release PR you can review before publish | no | yes | yes |
-| LLM-enhanced changelogs | no | no | yes |
+| LLM-enhanced release notes | no | no | yes |
 | Rust/Cargo support | no | no | yes |
 | Mixed npm + cargo monorepo | no | no | yes |
 | Zero-install PR previews via GitHub Action | no | no | yes |
@@ -251,6 +251,12 @@ diagnostic output.
 ---
 
 ## Upgrading ReleaseKit
+
+### `CHANGELOG.md` is LLM-free
+
+`CHANGELOG.md` no longer contains the LLM summary, categories, rewritten entries or `notes.releaseNotes.links`
+section in any mode; it lists the commit-derived entries by change type. The LLM output stays in the release notes.
+`notes generate` skips its LLM tasks unless it writes release notes (`--release-notes-dir`).
 
 ### Tag names follow the tag config
 
