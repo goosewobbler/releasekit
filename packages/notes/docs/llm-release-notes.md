@@ -24,8 +24,6 @@ Add an `llm` block under `notes.releaseNotes` in `releasekit.config.json`:
 
 > By default no file is written — the generated content is passed directly to the publish step (e.g. as a GitHub release body). Add a `file` property (`"file": { "dir": "release-notes" }`) to also write an immutable per-version file under that directory.
 
-> In standing-PR mode the tasks shape only the release notes; the standing PR's `CHANGELOG.md` stays plain. See [Previewing and editing release notes](../../release/docs/ci-setup.md#previewing-and-editing-release-notes).
-
 ---
 
 ## What the LLM changes
