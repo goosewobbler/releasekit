@@ -170,7 +170,7 @@ export function createNotesCommand(): Command {
         const releaseNotes = config.releaseNotes;
         if (releaseNotes && runsLlmTasks(releaseNotes.llm) && !releaseNotes.file?.dir) {
           const message =
-            'Skipping the LLM: its tasks shape release notes, and this run writes none. Pass --release-notes-dir to write them.';
+            'Skipping the LLM: its tasks shape release notes, and this run writes none. Pass --release-notes-dir or set notes.releaseNotes.file.dir to write them.';
           if (options.llmProvider || options.llmModel || options.llmBaseUrl || options.llmTasks) {
             warn(message);
           } else {

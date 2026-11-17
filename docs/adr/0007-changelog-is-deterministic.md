@@ -20,7 +20,7 @@ The LLM tasks (`enhance`, `categorize`, `summarize`, `releaseNotes`) shape only 
 
 ## Consequences
 
-- The changelog is reproducible from history, and standing-PR diffs show only real changes.
+- The changelog is reproducible from history, and its standing-PR diff shows only real changes.
 - Direct, immediate and standing-PR releases write the same changelog.
 - Direct-mode users lose the LLM summary and categories in `CHANGELOG.md`. This is a breaking change, accepted before 1.0.
 - #876 is dropped.
