@@ -54,7 +54,7 @@ export async function extractAllChangelogEntriesWithHash(
   }
 }
 
-/** Entries from commits that change nothing under `packageDirs`. */
+/** Entries from commits that change nothing under `packageDirs`, the pathspecs every non-shared package owns. */
 export async function extractRepoLevelChangelogEntries(
   projectDir: string,
   revisionRange: string,

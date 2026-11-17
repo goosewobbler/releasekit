@@ -452,7 +452,7 @@ If a standing-PR publish fails partway through, add the **`release:retry`** labe
 2. Re-runs the manifest-driven publish for that PR (`standing-pr publish --pr <n>`) — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases.
 3. Removes the label, so each application is exactly one retry; re-apply it to retry again.
 
-A refused publish usually can't be retried this way: its failure report says whether it can, or to merge the next standing PR instead. See [A refused publish](../../../docs/troubleshooting.md#a-refused-publish).
+A refused publish usually can't be retried this way: its failure report says whether a retry can work, and if not, to merge the next standing PR. See [A refused publish](../../../docs/troubleshooting.md#a-refused-publish).
 
 Applying the label to a non-standing or unmerged PR simply doesn't match the job's guard — nothing runs. A successful retry resolves the partial-publish failure report and clears the supersede warning from the next standing PR. Full recovery walkthrough: [Recovering from a failed publish](../../../docs/troubleshooting.md#recovering-from-a-failed-publish). (For reference, releasekit's own repo implements the same flow as a standalone [`release-retry.yml`](../../../.github/workflows/release-retry.yml) that dispatches its release workflow — useful if your publish runs in a separate dispatchable workflow.)
 
