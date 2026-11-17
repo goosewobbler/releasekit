@@ -110,7 +110,7 @@ Entries are processed in parallel. Control the batch size with `concurrency` (de
 
 ## Task: `categorize`
 
-Groups entries into user-friendly categories. The result populates `enhanced.categories` in the template context and drives the built-in markdown renderer's section layout.
+Groups entries into user-friendly categories. The result populates `enhanced.categories` in the release-notes template context and drives the section layout of the built-in release notes.
 
 ### Default categories
 

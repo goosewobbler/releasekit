@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
-import { copyUnsetEnv, LLMConfigSchema, loadConfig, saveAuth } from '@releasekit/config';
+import { copyUnsetEnv, LLMConfigSchema, loadConfig, runsLlmTasks, saveAuth } from '@releasekit/config';
 import { EXIT_CODES, error, info, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import { Command } from 'commander';
 import { runPipeline } from './core/pipeline.js';
@@ -165,6 +165,14 @@ export function createNotesCommand(): Command {
               info(`LLM tasks: ${taskList}`);
             }
           }
+        }
+
+        const releaseNotes = config.releaseNotes;
+        if (releaseNotes && runsLlmTasks(releaseNotes.llm) && !releaseNotes.file?.dir) {
+          warn(
+            'Skipping the LLM: its tasks shape release notes, and this run writes none. Pass --release-notes-dir to write them.',
+          );
+          config.releaseNotes = { ...releaseNotes, llm: undefined };
         }
 
         let inputJson: string;

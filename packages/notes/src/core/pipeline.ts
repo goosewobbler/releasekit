@@ -384,7 +384,7 @@ export async function runPipeline(
 
   // The changelog renders from these; LLM output goes only to release surfaces.
   const changelogContexts = input.packages.map(createTemplateContext);
-  let contexts = changelogContexts;
+  let releaseNotesContexts = changelogContexts;
 
   const changelogConfig = config.changelog === false ? false : { mode: 'root' as const, ...(config.changelog ?? {}) };
   const releaseNotesConfig =
@@ -396,19 +396,19 @@ export async function runPipeline(
     info('Processing with LLM enhancement');
 
     const examplesCount = llmConfig.examples ?? 3;
-    const repoUrl = contexts[0]?.repoUrl ?? input.metadata?.repoUrl;
+    const repoUrl = releaseNotesContexts[0]?.repoUrl ?? input.metadata?.repoUrl;
     const ownerRepo = repoUrl ? parseGitHubOwnerRepo(repoUrl) : null;
     const examplesByPackage = new Map<string, Example[]>();
 
     if (examplesCount > 0 && ownerRepo) {
       await Promise.all(
-        contexts.map(async (ctx) => {
+        releaseNotesContexts.map(async (ctx) => {
           const examples = await fetchExamples({
             owner: ownerRepo.owner,
             repo: ownerRepo.repo,
             packageName: ctx.packageName,
             count: examplesCount,
-            isMonorepo: contexts.length > 1,
+            isMonorepo: releaseNotesContexts.length > 1,
           });
           examplesByPackage.set(ctx.packageName, examples);
           if (examples.length > 0) {
@@ -422,7 +422,9 @@ export async function runPipeline(
     const pullRequestsEnabled = llmConfig.context?.pullRequests !== false;
     if (pullRequestsEnabled && ownerRepo) {
       const allIssueNumbers = [
-        ...new Set(contexts.flatMap((ctx) => ctx.entries.flatMap((e) => parseIssueNumbers(e.issueIds ?? [])))),
+        ...new Set(
+          releaseNotesContexts.flatMap((ctx) => ctx.entries.flatMap((e) => parseIssueNumbers(e.issueIds ?? []))),
+        ),
       ];
 
       if (allIssueNumbers.length > 0) {
@@ -438,7 +440,7 @@ export async function runPipeline(
     }
 
     if (prCache.size > 0) {
-      contexts = contexts.map((ctx) => ({
+      releaseNotesContexts = releaseNotesContexts.map((ctx) => ({
         ...ctx,
         entries: ctx.entries.map((entry) => {
           const prs = parseIssueNumbers(entry.issueIds ?? [])
@@ -449,11 +451,11 @@ export async function runPipeline(
       }));
     }
 
-    const allPackageNames = contexts.map((c) => c.packageName);
+    const allPackageNames = releaseNotesContexts.map((c) => c.packageName);
     // Bound cross-package fan-out with the same `concurrency` knob used within a package, so a large
     // monorepo doesn't open one in-flight LLM request per package all at once and trip rate limits.
     const concurrency = llmConfig.concurrency ?? LLM_DEFAULTS.concurrency;
-    contexts = await mapWithConcurrency(contexts, concurrency, (ctx) =>
+    releaseNotesContexts = await mapWithConcurrency(releaseNotesContexts, concurrency, (ctx) =>
       processWithLLM(ctx, llmConfig, examplesByPackage.get(ctx.packageName) ?? [], allPackageNames),
     );
   }
@@ -461,7 +463,8 @@ export async function runPipeline(
   const files: string[] = [];
 
   const fmtOpts: FormatVersionOptions = {
-    includePackageName: contexts.length > 1 || contexts.some((c) => c.packageName.includes('/')),
+    includePackageName:
+      releaseNotesContexts.length > 1 || releaseNotesContexts.some((c) => c.packageName.includes('/')),
     categoryOrder: llmConfig?.categoryOrder,
     links: releaseNotesConfig?.links,
     firstRelease: releaseNotesConfig?.firstRelease,
@@ -513,7 +516,7 @@ export async function runPipeline(
 
     try {
       const { detectMonorepo } = await import('../monorepo/aggregator.js');
-      const nested = detectMonorepo(process.cwd()).isMonorepo || contexts.length > 1;
+      const nested = detectMonorepo(process.cwd()).isMonorepo || releaseNotesContexts.length > 1;
 
       // Never the changelog document - release notes aren't a changelog.
       const renderContent = (ctx: TemplateContext): string => {
@@ -529,18 +532,22 @@ export async function runPipeline(
         return formatVersion(ctx, fmtOpts);
       };
 
-      const versionedFiles = writeVersionedNotes(contexts, dir, dryRun, nested, renderContent);
+      const versionedFiles = writeVersionedNotes(releaseNotesContexts, dir, dryRun, nested, renderContent);
       files.push(...versionedFiles);
     } catch (error) {
       warn(`Failed to write release notes: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  const packageNotes: Record<string, string> = {};
+  // Keyed by package, so it keeps the bare header (no includePackageName).
+  const packageNotes = Object.fromEntries(
+    changelogContexts.map((ctx) => [
+      ctx.packageName,
+      formatVersion(ctx, { firstRelease: releaseNotesConfig?.firstRelease }),
+    ]),
+  );
   const releaseNotesResult: Record<string, string> = {};
-  for (const ctx of contexts) {
-    // packageNotes is already keyed by package, so it keeps the bare header (no includePackageName).
-    packageNotes[ctx.packageName] = formatVersion(ctx, { firstRelease: releaseNotesConfig?.firstRelease });
+  for (const ctx of releaseNotesContexts) {
     if (pipelineOptions?.skipReleaseNotes) {
       // Leave the map empty, or the callsite treats it as available content and propagates it.
       continue;

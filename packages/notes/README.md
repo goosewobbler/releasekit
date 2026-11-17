@@ -9,12 +9,12 @@
 
 **Changelog and release notes generation from conventional commits**
 
-Generates CHANGELOG.md and release notes from `@releasekit/version` output, with optional LLM-powered enhancement and flexible templating.
+Generates CHANGELOG.md and release notes from `@releasekit/version` output, with flexible templating and optional LLM-enhanced release notes.
 
 ## Features
 
 - 📝 **Conventional changelog** — Keep a Changelog, Angular, or custom format
-- 🤖 **LLM enhancement** (optional) — enhance descriptions, summarize, categorize, or generate prose release notes
+- 🤖 **LLM-enhanced release notes** (optional) — enhance descriptions, summarize, categorize, or generate prose; `CHANGELOG.md` stays commit-derived
 - 🎨 **Flexible templating** — Liquid, Handlebars, or EJS; single-file or composable layout
 - 📦 **Monorepo support** — root aggregation, per-package changelogs, or both
 - 🔀 **Changelog + release notes** — a cumulative `CHANGELOG.md` and per-release notes (GitHub release body, or opt-in per-version files), configured independently

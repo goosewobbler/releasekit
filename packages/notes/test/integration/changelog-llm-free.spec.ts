@@ -77,11 +77,13 @@ describe('Pipeline: the changelog is LLM-free', () => {
     const result = await runPipeline(input, config, false);
 
     const changelog = fs.readFileSync(path.join(dir, 'CHANGELOG.md'), 'utf-8');
-    expect(changelog).toContain('### Added\n\n- Add streaming support');
-    expect(changelog).toContain('### Fixed\n\n- Fix null pointer');
-    expect(changelog).not.toContain('Highlights');
-    expect(changelog).not.toContain('Polished');
-    expect(changelog).not.toContain(SUMMARY);
+    for (const text of [changelog, result.packageNotes['my-lib']]) {
+      expect(text).toContain('### Added\n\n- Add streaming support');
+      expect(text).toContain('### Fixed\n\n- Fix null pointer');
+      expect(text).not.toContain('Highlights');
+      expect(text).not.toContain('Polished');
+      expect(text).not.toContain(SUMMARY);
+    }
 
     const notesFile = result.files.find((file) => file.startsWith(path.join(dir, 'release-notes')));
     for (const notes of [result.releaseNotes?.['my-lib'], fs.readFileSync(notesFile ?? '', 'utf-8')]) {

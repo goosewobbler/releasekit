@@ -341,7 +341,7 @@ Generate changelog from input data (a version-output JSON, read from a file or s
 | `--llm-provider <provider>` | string | config | LLM provider |
 | `--llm-model <model>` | string | config | LLM model |
 | `--llm-base-url <url>` | string | config | LLM base URL (for `openai-compatible` provider) |
-| `--llm-tasks <tasks>` | string | config | Comma-separated LLM tasks (`enhance`, `summarize`, `categorize`, `release-notes`). `release-notes` is `releaseNotes` in config |
+| `--llm-tasks <tasks>` | string | config | Comma-separated LLM tasks (`enhance`, `summarize`, `categorize`, `release-notes`). `release-notes` is `releaseNotes` in config. They run only when the command writes release notes (`--release-notes-dir`) |
 | `--no-llm` | boolean | - | Disable LLM processing |
 | `--target <package>` | string | all | Filter to a specific package name |
 | `--config <path>` | string | auto-discovered | Config file path |

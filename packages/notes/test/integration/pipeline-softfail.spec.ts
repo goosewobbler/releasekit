@@ -66,7 +66,7 @@ describe('Pipeline: per-task soft-fail', () => {
 
     const result = await runPipeline(input, config, false);
 
-    const notes = result.packageNotes['my-lib'] ?? '';
+    const notes = result.releaseNotes?.['my-lib'] ?? '';
     expect(notes).toContain('ENHANCED');
     expect(notes).not.toContain('raw one');
   });

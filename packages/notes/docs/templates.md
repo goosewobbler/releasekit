@@ -156,10 +156,6 @@ When no custom template is configured, the built-in markdown renderer applies th
 {% for v in versions %}
 ## [{{ v.version }}] — {{ v.date }}
 
-{% if v.enhanced.summary %}
-{{ v.enhanced.summary }}
-
-{% endif %}
 {% for entry in v.entries %}
 - **{{ entry.type }}**: {{ entry.description }}{% if entry.scope %} *({{ entry.scope }})*{% endif %}
 {% endfor %}

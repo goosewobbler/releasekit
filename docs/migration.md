@@ -254,8 +254,9 @@ diagnostic output.
 
 ### `CHANGELOG.md` is LLM-free
 
-`CHANGELOG.md` no longer contains the LLM summary, categories or rewritten entries in any mode; it lists the
-commit-derived entries by change type. The LLM output stays in the release notes.
+`CHANGELOG.md` no longer contains the LLM summary, categories, rewritten entries or `notes.releaseNotes.links`
+section in any mode; it lists the commit-derived entries by change type. The LLM output stays in the release notes.
+`notes generate` skips its LLM tasks unless it writes release notes (`--release-notes-dir`).
 
 ### Tag names follow the tag config
 
