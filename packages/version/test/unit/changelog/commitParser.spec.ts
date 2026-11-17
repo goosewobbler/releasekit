@@ -12,7 +12,15 @@ vi.mock('../../../src/utils/logging.js', () => ({
 const RANGE = 'v1.0.0..v1.1.0';
 const PRESET = 'conventionalcommits';
 
-const gitWithLog = (output: string): Git => createFakeGit({ commits: { '*': output } });
+const DELIMITER = '---COMMIT_DELIMITER---';
+/** A fake `git log` listing `messages` (delimiter-joined) under made-up hashes. */
+const gitWithLog = (messages: string): Git => {
+  const output = messages
+    .split(DELIMITER)
+    .map((m, i) => `${i}|||${m}`)
+    .join(DELIMITER);
+  return createFakeGit({ commits: { '*': output } });
+};
 
 describe('Commit Parser', () => {
   beforeEach(() => {
@@ -178,7 +186,12 @@ describe('Commit Parser', () => {
         'def456|||chore(deps): bump actions/upload-artifact from 4 to 7',
       ].join('---COMMIT_DELIMITER---');
 
-      const entries = await extractAllChangelogEntriesWithHash('/test', RANGE, PRESET, gitWithLog(mockGitOutput));
+      const entries = await extractAllChangelogEntriesWithHash(
+        '/test',
+        RANGE,
+        PRESET,
+        createFakeGit({ commits: { '*': mockGitOutput } }),
+      );
 
       expect(entries).toHaveLength(2);
       expect(entries[0].hash).toBe('abc123');
