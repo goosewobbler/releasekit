@@ -3370,6 +3370,24 @@ describe('runStandingPRUpdate', () => {
       expect(body).not.toContain('\r');
     });
 
+    it('should keep a human edit pasted onto the marker lines', async () => {
+      const editedBody = renderNotesRegion({ '@scope/core': 'x' }).replace(
+        /-->\n\nx\n\n<!--/,
+        '-->HUMAN line one\nline two<!--',
+      );
+      const { forge } = await setupPreviewPR({
+        labels: ['release', 'release:preview-notes'],
+        liveBody: editedBody,
+        freshNotes: { '@scope/core': 'REGENERATED notes' },
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
+      expect(body).toContain('HUMAN line one\nline two');
+      expect(body).not.toContain('REGENERATED notes');
+    });
+
     it('should preserve a sync monorepo notes region across an update', async () => {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
       const versionOutput = {

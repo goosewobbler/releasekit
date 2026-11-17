@@ -23,7 +23,7 @@ export function wrapNotesRegion(content: string, pkgKey?: string): string {
 
 /** `undefined` for an unterminated region too, which would otherwise run on into later regions and the footer. */
 export function extractNotesRegion(body: string, pkgKey?: string): string | undefined {
-  const region = extractMarkerRegion(body, openMarker(pkgKey), closeMarker(pkgKey));
+  const region = extractMarkerRegion(body.replaceAll('\r', ''), openMarker(pkgKey), closeMarker(pkgKey));
   return region?.closed ? region.content : undefined;
 }
 

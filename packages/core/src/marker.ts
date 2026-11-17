@@ -4,12 +4,26 @@ export interface MarkerRegion {
   closed: boolean;
 }
 
-/**
- * Reads a region written by {@link wrapMarkerRegion}. The opener and closer count only as a whole line, so a marker
- * copied into the content can't end the region early. Line endings and the whitespace around each marker line are
- * ignored, as GitHub's editor may change them.
- */
+/** Bodies are untrusted, so this slices with `indexOf`: a backtracking regex would be a ReDoS risk. */
 export function extractMarkerRegion(body: string, open: string, close: string): MarkerRegion | undefined {
+  const start = body.indexOf(open);
+  if (start === -1) {
+    return undefined;
+  }
+  const from = start + open.length;
+  const end = body.indexOf(close, from);
+  if (end === -1) {
+    return { content: body.slice(from).trim(), closed: false };
+  }
+  return { content: body.slice(from, end).trim(), closed: true };
+}
+
+/**
+ * Like {@link extractMarkerRegion}, but the opener and closer count only as a whole line, so a marker copied into the
+ * content can't end the region early. Line endings and the whitespace around each marker line are ignored, as GitHub's
+ * editor may change them.
+ */
+export function extractLineMarkerRegion(body: string, open: string, close: string): MarkerRegion | undefined {
   const lines = body.replaceAll('\r', '').split('\n');
   const start = lines.findIndex((line) => line.trim() === open);
   if (start === -1) {
@@ -27,17 +41,6 @@ export interface MarkerData<T> {
   decode(body: string): T | null;
 }
 
-/** Bodies are untrusted, so this slices with `indexOf`: a backtracking regex would be a ReDoS risk. */
-function sliceInlineMarker(body: string, open: string, close: string): string | undefined {
-  const start = body.indexOf(open);
-  if (start === -1) {
-    return undefined;
-  }
-  const from = start + open.length;
-  const end = body.indexOf(close, from);
-  return end === -1 ? undefined : body.slice(from, end).trim();
-}
-
 export function markerData<T>(opts: {
   /** Opening token, e.g. `<!-- releasekit-publish-failure-data:`. */
   open: string;
@@ -53,8 +56,8 @@ export function markerData<T>(opts: {
       return `${open}${opts.serialize(value)}${close}`;
     },
     decode(body) {
-      const payload = sliceInlineMarker(body, open, close);
-      return payload === undefined ? null : opts.deserialize(payload);
+      const payload = extractMarkerRegion(body, open, close);
+      return payload?.closed ? opts.deserialize(payload.content) : null;
     },
   };
 }

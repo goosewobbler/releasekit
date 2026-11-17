@@ -1,5 +1,5 @@
 /** The maintainer-editable task list in a standing-PR body, where a ticked row means "release this package". */
-import { extractMarkerRegion, wrapMarkerRegion } from './marker.js';
+import { extractLineMarkerRegion, wrapMarkerRegion } from './marker.js';
 
 export const SELECTION_MARKER = '<!-- releasekit-selection -->';
 export const SELECTION_MARKER_END = '<!-- releasekit-selection-end -->';
@@ -31,5 +31,5 @@ export function wrapSelectionRegion(content: string): string {
 
 export function extractSelectionRegion(body: string): string | undefined {
   // Keeps reading past a missing closer: dropping the region would re-tick held-back rows, and only row markers are parsed.
-  return extractMarkerRegion(body, SELECTION_MARKER, SELECTION_MARKER_END)?.content;
+  return extractLineMarkerRegion(body, SELECTION_MARKER, SELECTION_MARKER_END)?.content;
 }
