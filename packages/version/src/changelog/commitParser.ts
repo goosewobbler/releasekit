@@ -12,6 +12,8 @@ const BREAKING_CHANGE_REGEX = /BREAKING CHANGE: ([\s\S]+?)(?:\n\n|$)/;
 // Non-conventional version-bump bookkeeping subjects (e.g. `Update version to 1.2.3`). Narrow by
 // construction so a real change like "update version handling in the parser" is never swallowed.
 const VERSION_BUMP_SUBJECT_REGEX = /^update (?:version to v?\d|package versions)\b/i;
+/** Reserved for release commits, which record a release rather than a change. */
+const RELEASE_COMMIT_PREFIX = 'chore: release ';
 
 export interface CommitWithHash {
   hash: string;
@@ -144,6 +146,9 @@ async function extractCommitsFromGitLog(
 
 function parseCommitMessage(message: string): ChangelogEntry | null {
   const trimmedMessage = message.trim();
+  if (trimmedMessage.startsWith(RELEASE_COMMIT_PREFIX)) {
+    return null;
+  }
 
   const match = trimmedMessage.match(CONVENTIONAL_COMMIT_REGEX);
 

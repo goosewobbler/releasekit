@@ -250,18 +250,18 @@ A successful retry marks the failure report resolved and clears the supersede wa
 
 ### Recovery path 2 — supersede (let the next release self-heal)
 
-If you would rather move on, **merge the next standing PR**. In sync mode the release partially self-heals at the new version:
+If you would rather move on, **merge the next standing PR**. It versions on top of the failed release rather than re-proposing it:
 
-- Every package — including the ones that failed before — publishes at the new version.
-- In batch mode the failed release's tag was never pushed, so the next changelog spans both releases' commits. In per-package mode, tags for packages that did publish are already on the remote; leave them.
+- Every package, including the ones that failed before, publishes at the new version. The unpublished versions are skipped, because the next release bumps from the versions the release commit set. With bumps from commits it also counts their commits again, so a failed 1.3.0 is followed by 1.4.0, and a failed 2.0.0 by 3.0.0.
+- Where a tag was never pushed (every tag in batch mode or after a refused publish, a failed package's own tag in per-package mode), the next changelog repeats its entries. `CHANGELOG.md` keeps the section for the skipped version. In per-package mode, tags for packages that did publish are already on the remote; leave them.
 
-The remaining gap is cosmetic: there may be no GitHub Release for the failed version, and the registry has a version hole for the packages that didn't publish. Nothing is broken; the history simply skips a version for those packages.
+Nothing is lost, as every change since the last tag ships. The gap is cosmetic: no GitHub Release for the skipped version, and a version hole on the registry for the packages that didn't publish. To publish the failed versions as they are, retry instead.
 
 ### The supersede warning on the next standing PR
 
 So a failed publish does not silently fade away, ReleaseKit warns while a partially-published release remains unresolved. The **next** standing PR's body and the release preview include a block such as:
 
-> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry). Retry it via `release:retry` on the merged standing PR (#42), **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.
+> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry). Retry it via `release:retry` on the merged standing PR (#42) to publish its versions, **or** merging this PR supersedes it: the next release skips the unpublished versions and bumps on top of them. Do not delete tags for versions that were published.
 
 This gives you an honest choice between the two recovery paths. The warning is keyed off the failure report on the most recently merged standing PR and its resolved status, so it clears automatically once the failed release is retried successfully or superseded by the next release. After a refused publish, the warning offers only the supersede path.
 
@@ -271,7 +271,7 @@ Before it creates a tag or publishes anything, `standing-pr publish` checks the 
 
 The refusal posts the failure report on the PR, with 0 packages published and the reason, unless the PR already has a report from an earlier publish attempt. Retrying won't help, because a retry reads the same manifest and merged commit. The exceptions are a PR whose labels, merger or merge commit couldn't be read from the GitHub API; retry those once the API is reachable. The report says which applies.
 
-To recover, merge the next standing PR. It supersedes the refused release and publishes those changes at its own version. Don't delete tags or revert the release commit.
+To recover, merge the next standing PR. It supersedes the refused release as described in [Recovery path 2](#recovery-path-2--supersede-let-the-next-release-self-heal): the refused versions are skipped. Don't delete tags or revert the release commit.
 
 ---
 

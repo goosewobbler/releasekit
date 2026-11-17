@@ -395,7 +395,7 @@ export function renderRefusalReport(input: RefusalReportInput): string {
     lines.push(
       "Retrying won't help: a retry reads the same manifest and merged commit, so it is refused again.",
       '',
-      "Merge the next standing PR instead. It supersedes this release and publishes these changes at its own version. Don't delete tags or revert the release commit.",
+      "Merge the next standing PR instead. It supersedes this release: it skips this release's versions, bumps on top of them and repeats their changelog entries. Don't delete tags or revert the release commit.",
     );
   }
   lines.push('', '---', ATTRIBUTION_FOOTER);
@@ -449,7 +449,7 @@ export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
   if (refused && !retryable) {
     const release = previousLabel ? `release ${untrusted(previousLabel)}` : 'the previous release';
     return [
-      `> ⚠️ **The publish of ${release} from ${prRef} was refused**, so nothing was tagged or published. Retrying won't help: merging this PR supersedes it, and the next release publishes those changes at the new version. Don't revert its release commit.`,
+      `> ⚠️ **The publish of ${release} from ${prRef} was refused**, so nothing was tagged or published. Retrying won't help: merging this PR supersedes it, and the next release skips those versions, bumps on top of them and repeats their changelog entries. Don't revert its release commit.`,
       '',
     ];
   }
@@ -461,7 +461,7 @@ export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
     : `is partially published** (${published}/${total} packages on the registry)`;
   return [
     `> ⚠️ **Previous release ${untrusted(previousLabel)} ${state}.`,
-    `> ${retryHint}, **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.`,
+    `> ${retryHint} to publish its versions, **or** merging this PR supersedes it: the next release skips the unpublished versions and bumps on top of them. Do not delete tags for versions that were published.`,
     '',
   ];
 }
