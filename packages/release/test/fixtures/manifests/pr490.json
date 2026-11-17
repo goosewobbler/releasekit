@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 2,
+  "versionOutput": {
+    "dryRun": false,
+    "strategy": "sync",
+    "updates": [
+      {
+        "packageName": "releasekit-monorepo",
+        "newVersion": "0.37.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/package.json",
+        "channel": "stable",
+        "isRoot": true,
+        "action": "bumped",
+        "actionReason": "Bumped to 0.37.0."
+      },
+      {
+        "packageName": "@releasekit/version",
+        "newVersion": "0.37.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json",
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.37.0."
+      },
+      {
+        "packageName": "@releasekit/notes",
+        "newVersion": "0.37.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json",
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.37.0."
+      },
+      {
+        "packageName": "@releasekit/publish",
+        "newVersion": "0.37.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json",
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.37.0."
+      },
+      {
+        "packageName": "@releasekit/release",
+        "newVersion": "0.37.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json",
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.37.0."
+      }
+    ],
+    "changelogs": [
+      {
+        "packageName": "monorepo",
+        "version": "0.37.0",
+        "previousVersion": "v0.36.0",
+        "revisionRange": "release/v0.36.0..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "fixed",
+            "description": "sync Cargo.lock self-version when bumping a crate (#497)",
+            "scope": "version",
+            "issueIds": [
+              "#496"
+            ],
+            "originalType": "fix"
+          },
+          {
+            "type": "added",
+            "description": "per-package graduation via graduate:<package> label (#495)",
+            "scope": "release",
+            "issueIds": [
+              "#486"
+            ],
+            "originalType": "feat"
+          },
+          {
+            "type": "added",
+            "description": "group standing-PR selection checklist by channel (#494)",
+            "scope": "release",
+            "issueIds": [
+              "#487"
+            ],
+            "originalType": "feat"
+          },
+          {
+            "type": "added",
+            "description": "per-package release channel \u2014 advance prereleases on their own line by default (#493)",
+            "scope": "version",
+            "issueIds": [
+              "#485"
+            ],
+            "originalType": "feat"
+          },
+          {
+            "type": "added",
+            "description": "per-releasable changelog co-located with each standing-PR row (#492)",
+            "scope": "release",
+            "issueIds": [
+              "#488"
+            ],
+            "originalType": "feat"
+          },
+          {
+            "type": "fixed",
+            "description": "route all package.json private reads through one strict helper (#491)",
+            "scope": "core",
+            "issueIds": [
+              "#484"
+            ],
+            "originalType": "fix"
+          },
+          {
+            "type": "changed",
+            "description": "correct standing-PR ruleset docs after live verification (#489)",
+            "scope": "ci-setup",
+            "issueIds": [
+              "#416"
+            ],
+            "originalType": "docs"
+          }
+        ]
+      }
+    ],
+    "tags": [
+      "v0.37.0"
+    ],
+    "baselineTags": [
+      "release/v0.37.0"
+    ],
+    "commitMessage": "chore: release v0.37.0 [skip ci]"
+  },
+  "releaseNotes": {},
+  "notesFiles": [],
+  "createdAt": "2026-06-30T08:40:37.314Z",
+  "baseSha": "bded363daff1a8c6ebde8db8c82f795b922576f1",
+  "firstUpdatedAt": "2026-06-29T21:28:15.153Z",
+  "overrideLabels": []
+}

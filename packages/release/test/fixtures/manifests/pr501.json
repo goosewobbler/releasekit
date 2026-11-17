@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 2,
+  "versionOutput": {
+    "dryRun": false,
+    "strategy": "sync",
+    "updates": [
+      {
+        "packageName": "releasekit-monorepo",
+        "newVersion": "0.38.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/package.json",
+        "channel": "stable",
+        "isRoot": true,
+        "action": "bumped",
+        "actionReason": "Bumped to 0.38.0."
+      },
+      {
+        "packageName": "@releasekit/version",
+        "newVersion": "0.38.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json",
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.38.0."
+      },
+      {
+        "packageName": "@releasekit/notes",
+        "newVersion": "0.38.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json",
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.38.0."
+      },
+      {
+        "packageName": "@releasekit/publish",
+        "newVersion": "0.38.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json",
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.38.0."
+      },
+      {
+        "packageName": "@releasekit/release",
+        "newVersion": "0.38.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json",
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.38.0."
+      }
+    ],
+    "changelogs": [
+      {
+        "packageName": "monorepo",
+        "version": "0.38.0",
+        "previousVersion": "v0.37.0",
+        "revisionRange": "release/v0.37.0..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "added",
+            "description": "label PR vs closed issues in changelog refs; blockquote PR-comment changelogs",
+            "scope": "notes",
+            "issueIds": [
+              "#506",
+              "#500"
+            ],
+            "prNumber": "#506",
+            "originalType": "feat"
+          },
+          {
+            "type": "fixed",
+            "description": "neutralise changelog auto-links in the preview comment too",
+            "scope": "release",
+            "issueIds": [
+              "#505",
+              "#504"
+            ],
+            "prNumber": "#505",
+            "originalType": "fix"
+          },
+          {
+            "type": "added",
+            "description": "neutralise GitHub auto-linked refs and mentions in changelogs",
+            "scope": "notes",
+            "issueIds": [
+              "#503",
+              "#499"
+            ],
+            "prNumber": "#503",
+            "originalType": "feat"
+          },
+          {
+            "type": "fixed",
+            "description": "increment the prerelease counter instead of escalating the base",
+            "scope": "version",
+            "issueIds": [
+              "#502",
+              "#500"
+            ],
+            "prNumber": "#502",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "harden Cargo.lock resolution and add real-cargo sync coverage",
+            "scope": "version",
+            "issueIds": [
+              "#498",
+              "#497"
+            ],
+            "prNumber": "#498",
+            "originalType": "fix"
+          }
+        ]
+      }
+    ],
+    "tags": [
+      "v0.38.0"
+    ],
+    "baselineTags": [
+      "release/v0.38.0"
+    ],
+    "commitMessage": "chore: release v0.38.0 [skip ci]"
+  },
+  "releaseNotes": {},
+  "notesFiles": [],
+  "createdAt": "2026-06-30T15:59:32.480Z",
+  "baseSha": "73513f8ca216dd0e400e5bf4f6548dc44804ac1a",
+  "firstUpdatedAt": "2026-06-30T10:47:34.391Z",
+  "overrideLabels": []
+}

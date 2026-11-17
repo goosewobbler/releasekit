@@ -1,0 +1,329 @@
+{
+  "schemaVersion": 2,
+  "versionOutput": {
+    "dryRun": false,
+    "strategy": "sync",
+    "updates": [
+      {
+        "packageName": "releasekit-monorepo",
+        "newVersion": "0.44.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/package.json",
+        "files": [
+          "/home/runner/work/releasekit/releasekit/package.json"
+        ],
+        "channel": "stable",
+        "isRoot": true,
+        "action": "bumped",
+        "actionReason": "Bumped to 0.44.0.",
+        "previousVersion": "v0.43.1"
+      },
+      {
+        "packageName": "@releasekit/version",
+        "newVersion": "0.44.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json",
+        "files": [
+          "/home/runner/work/releasekit/releasekit/packages/version/package.json"
+        ],
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.44.0.",
+        "previousVersion": "v0.43.1"
+      },
+      {
+        "packageName": "@releasekit/notes",
+        "newVersion": "0.44.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json",
+        "files": [
+          "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
+        ],
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.44.0.",
+        "previousVersion": "v0.43.1"
+      },
+      {
+        "packageName": "@releasekit/publish",
+        "newVersion": "0.44.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json",
+        "files": [
+          "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
+        ],
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.44.0.",
+        "previousVersion": "v0.43.1"
+      },
+      {
+        "packageName": "@releasekit/release",
+        "newVersion": "0.44.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json",
+        "files": [
+          "/home/runner/work/releasekit/releasekit/packages/release/package.json"
+        ],
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.44.0.",
+        "previousVersion": "v0.43.1"
+      }
+    ],
+    "changelogs": [
+      {
+        "packageName": "monorepo",
+        "version": "0.44.0",
+        "previousVersion": "v0.43.1",
+        "revisionRange": "release/v0.43.1..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "fixed",
+            "description": "apply --project-dir the same way in version and the Action",
+            "issueIds": [
+              "#922"
+            ],
+            "prNumber": "#922",
+            "breaking": true,
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "run commands from --project-dir and reject a missing one",
+            "scope": "release",
+            "issueIds": [
+              "#919"
+            ],
+            "prNumber": "#919",
+            "breaking": true,
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "commit the other files version wrote when the stages run separately",
+            "scope": "publish",
+            "issueIds": [
+              "#920"
+            ],
+            "prNumber": "#920",
+            "originalType": "fix"
+          },
+          {
+            "type": "changed",
+            "description": "share the GitHub event reader and version test fixtures",
+            "issueIds": [
+              "#918"
+            ],
+            "prNumber": "#918",
+            "originalType": "refactor"
+          },
+          {
+            "type": "fixed",
+            "description": "escape comment openers in commit-derived entry text",
+            "scope": "notes",
+            "issueIds": [
+              "#914"
+            ],
+            "prNumber": "#914",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "apply strictReachable from config",
+            "scope": "version",
+            "issueIds": [
+              "#913"
+            ],
+            "prNumber": "#913",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "validate before standing-pr merge and drop --publish",
+            "scope": "release",
+            "issueIds": [
+              "#894"
+            ],
+            "prNumber": "#894",
+            "breaking": true,
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "apply the gate's decision to merged PR labels in release",
+            "scope": "release",
+            "issueIds": [
+              "#896"
+            ],
+            "prNumber": "#896",
+            "breaking": true,
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "reject unknown config keys instead of dropping them",
+            "scope": "config",
+            "issueIds": [
+              "#892"
+            ],
+            "prNumber": "#892",
+            "breaking": true,
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "neutralise releasekit markers in commit-derived text",
+            "scope": "release",
+            "issueIds": [
+              "#893"
+            ],
+            "prNumber": "#893",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "make tag naming follow versionPrefix and tagTemplate",
+            "scope": "version",
+            "issueIds": [
+              "#895"
+            ],
+            "prNumber": "#895",
+            "breaking": true,
+            "originalType": "fix"
+          },
+          {
+            "type": "added",
+            "description": "offer prerelease graduation as standing-PR rows",
+            "scope": "release",
+            "issueIds": [
+              "#897"
+            ],
+            "prNumber": "#897",
+            "originalType": "feat"
+          },
+          {
+            "type": "fixed",
+            "description": "attempt each per-package GitHub release once",
+            "scope": "publish",
+            "issueIds": [
+              "#890"
+            ],
+            "prNumber": "#890",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "keep the tag prefix in compare links so they resolve",
+            "scope": "notes",
+            "issueIds": [
+              "#891"
+            ],
+            "prNumber": "#891",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "skip a Cargo.toml the version step did not bump",
+            "scope": "publish",
+            "issueIds": [
+              "#898"
+            ],
+            "prNumber": "#898",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "list ungrouped entries before scope groups",
+            "scope": "notes",
+            "issueIds": [
+              "#907"
+            ],
+            "prNumber": "#907",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "render changelogs with standard Markdown spacing",
+            "scope": "notes",
+            "issueIds": [
+              "#899"
+            ],
+            "prNumber": "#899",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "record each changelog's tag for GitHub release bodies",
+            "scope": "version",
+            "issueIds": [
+              "#900"
+            ],
+            "prNumber": "#900",
+            "originalType": "fix"
+          },
+          {
+            "type": "added",
+            "description": "name unset {env:} variables and defer the llm.model check",
+            "scope": "config",
+            "issueIds": [
+              "#901"
+            ],
+            "prNumber": "#901",
+            "originalType": "feat"
+          },
+          {
+            "type": "fixed",
+            "description": "publish standing-PR hybrids with npm versioning off",
+            "issueIds": [
+              "#903"
+            ],
+            "prNumber": "#903",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "roll forward when a tag push fails after the branch push",
+            "scope": "release",
+            "issueIds": [
+              "#902"
+            ],
+            "prNumber": "#902",
+            "originalType": "fix"
+          },
+          {
+            "type": "added",
+            "description": "run git.formatCommand on the files a release writes",
+            "issueIds": [
+              "#904"
+            ],
+            "prNumber": "#904",
+            "originalType": "feat"
+          },
+          {
+            "type": "fixed",
+            "description": "keep private packages listed by exact path",
+            "scope": "version",
+            "issueIds": [
+              "#804"
+            ],
+            "prNumber": "#804",
+            "breaking": true,
+            "originalType": "fix"
+          }
+        ],
+        "tag": "v0.44.0"
+      }
+    ],
+    "tags": [
+      "v0.44.0"
+    ],
+    "baselineTags": [
+      "release/v0.44.0"
+    ],
+    "commitMessage": "chore: release v0.44.0 [skip ci]"
+  },
+  "releaseNotes": {},
+  "notesFiles": [],
+  "createdAt": "2026-11-11T09:40:36.540Z",
+  "baseSha": "5fe84b3f0b594aa8fb4330752e6e33f2a1274d4b",
+  "headSha": "372695894c624b506ba9ccc5328726929f0f0aab",
+  "firstUpdatedAt": "2026-11-10T20:15:29.194Z",
+  "overrideLabels": []
+}

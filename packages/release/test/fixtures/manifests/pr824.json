@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 2,
+  "versionOutput": {
+    "dryRun": false,
+    "strategy": "sync",
+    "updates": [
+      {
+        "packageName": "releasekit-monorepo",
+        "newVersion": "0.43.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/package.json",
+        "files": [
+          "/home/runner/work/releasekit/releasekit/package.json"
+        ],
+        "channel": "stable",
+        "isRoot": true,
+        "action": "bumped",
+        "actionReason": "Bumped to 0.43.0.",
+        "previousVersion": "v0.42.1"
+      },
+      {
+        "packageName": "@releasekit/version",
+        "newVersion": "0.43.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json",
+        "files": [
+          "/home/runner/work/releasekit/releasekit/packages/version/package.json"
+        ],
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.43.0.",
+        "previousVersion": "v0.42.1"
+      },
+      {
+        "packageName": "@releasekit/notes",
+        "newVersion": "0.43.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json",
+        "files": [
+          "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
+        ],
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.43.0.",
+        "previousVersion": "v0.42.1"
+      },
+      {
+        "packageName": "@releasekit/publish",
+        "newVersion": "0.43.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json",
+        "files": [
+          "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
+        ],
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.43.0.",
+        "previousVersion": "v0.42.1"
+      },
+      {
+        "packageName": "@releasekit/release",
+        "newVersion": "0.43.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json",
+        "files": [
+          "/home/runner/work/releasekit/releasekit/packages/release/package.json"
+        ],
+        "channel": "stable",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.43.0.",
+        "previousVersion": "v0.42.1"
+      }
+    ],
+    "changelogs": [
+      {
+        "packageName": "monorepo",
+        "version": "0.43.0",
+        "previousVersion": "v0.42.1",
+        "revisionRange": "release/v0.42.1..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "fixed",
+            "description": "treat a type!: header as breaking with the angular preset",
+            "scope": "version",
+            "issueIds": [
+              "#846"
+            ],
+            "prNumber": "#846",
+            "breaking": true,
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "bump each package from its own commits",
+            "scope": "version",
+            "issueIds": [
+              "#849"
+            ],
+            "prNumber": "#849",
+            "originalType": "fix"
+          },
+          {
+            "type": "added",
+            "description": "raise internal Cargo dependents' requirements on release",
+            "scope": "version",
+            "issueIds": [
+              "#855"
+            ],
+            "prNumber": "#855",
+            "breaking": true,
+            "originalType": "feat"
+          },
+          {
+            "type": "fixed",
+            "description": "scope PR previews to the PR's own commits",
+            "scope": "release",
+            "issueIds": [
+              "#806"
+            ],
+            "prNumber": "#806",
+            "breaking": true,
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "refuse a draft manifest a bot didn't write",
+            "scope": "release",
+            "issueIds": [
+              "#793"
+            ],
+            "prNumber": "#793",
+            "breaking": true,
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "validate version-output changelogs before mapping them",
+            "scope": "notes",
+            "issueIds": [
+              "#759"
+            ],
+            "prNumber": "#759",
+            "breaking": true,
+            "originalType": "fix"
+          },
+          {
+            "type": "changed",
+            "description": "drop the checkout step the action already runs",
+            "scope": "action",
+            "issueIds": [
+              "#830"
+            ],
+            "prNumber": "#830",
+            "originalType": "docs"
+          },
+          {
+            "type": "fixed",
+            "description": "honour dry-run, Node 24, and caller tokens; refresh action.md",
+            "scope": "action",
+            "issueIds": [
+              "#752",
+              "#738"
+            ],
+            "prNumber": "#752",
+            "breaking": true,
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "bump pubspec.yaml in sync and single strategies",
+            "scope": "version",
+            "issueIds": [
+              "#750",
+              "#733"
+            ],
+            "prNumber": "#750",
+            "breaking": true,
+            "originalType": "fix"
+          },
+          {
+            "type": "changed",
+            "description": "list crates in version.packages, not cargo.paths",
+            "scope": "rust",
+            "issueIds": [
+              "#823"
+            ],
+            "prNumber": "#823",
+            "originalType": "docs"
+          }
+        ]
+      }
+    ],
+    "tags": [
+      "v0.43.0"
+    ],
+    "baselineTags": [
+      "release/v0.43.0"
+    ],
+    "commitMessage": "chore: release v0.43.0 [skip ci]"
+  },
+  "releaseNotes": {},
+  "notesFiles": [],
+  "createdAt": "2026-11-07T09:46:43.452Z",
+  "baseSha": "d92dad089dd51f15c0ba83d6f2d83d3112346d7c",
+  "firstUpdatedAt": "2026-11-03T22:05:00.333Z",
+  "overrideLabels": []
+}

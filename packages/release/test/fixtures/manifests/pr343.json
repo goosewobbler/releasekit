@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 2,
+  "versionOutput": {
+    "dryRun": false,
+    "strategy": "sync",
+    "updates": [
+      {
+        "packageName": "releasekit-monorepo",
+        "newVersion": "0.30.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/package.json",
+        "isRoot": true
+      },
+      {
+        "packageName": "@releasekit/version",
+        "newVersion": "0.30.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json"
+      },
+      {
+        "packageName": "@releasekit/notes",
+        "newVersion": "0.30.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
+      },
+      {
+        "packageName": "@releasekit/publish",
+        "newVersion": "0.30.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
+      },
+      {
+        "packageName": "@releasekit/release",
+        "newVersion": "0.30.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json"
+      }
+    ],
+    "changelogs": [
+      {
+        "packageName": "monorepo",
+        "version": "0.30.0",
+        "previousVersion": "v0.29.1",
+        "revisionRange": "release/v0.29.1..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "added",
+            "description": "warn on missing baseline tags + truncate oversized standing-PR body (#333, #334) (#346)",
+            "scope": "release",
+            "originalType": "feat"
+          },
+          {
+            "type": "added",
+            "description": "apply standing-PR override labels immediately + guard stale manifests (#336, #337) (#345)",
+            "scope": "release",
+            "originalType": "feat"
+          },
+          {
+            "type": "fixed",
+            "description": "surface the all-history changelog fallback and omit the false baseline (#339) (#342)",
+            "scope": "version",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "derive compare-link 'to' ref for sanitized \"@v\" package tags (#338) (#344)",
+            "scope": "notes",
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "escalate prerelease packages on bump:* + prerelease (#335) (#340)",
+            "scope": "release",
+            "originalType": "fix"
+          }
+        ]
+      }
+    ],
+    "tags": [
+      "v0.30.0"
+    ],
+    "baselineTags": [
+      "release/v0.30.0"
+    ],
+    "commitMessage": "chore: release v0.30.0 [skip ci]"
+  },
+  "releaseNotes": {},
+  "notesFiles": [],
+  "createdAt": "2026-06-17T00:30:16.878Z",
+  "baseSha": "da08f680ba11ee7e21359f019c915ca575b47975",
+  "firstUpdatedAt": "2026-06-16T23:04:30.475Z",
+  "overrideLabels": []
+}

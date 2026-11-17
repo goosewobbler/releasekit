@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 2,
+  "versionOutput": {
+    "dryRun": false,
+    "strategy": "sync",
+    "updates": [
+      {
+        "packageName": "releasekit-monorepo",
+        "newVersion": "0.33.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/package.json",
+        "isRoot": true,
+        "action": "bumped",
+        "actionReason": "Bumped to 0.33.0."
+      },
+      {
+        "packageName": "@releasekit/version",
+        "newVersion": "0.33.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.33.0."
+      },
+      {
+        "packageName": "@releasekit/notes",
+        "newVersion": "0.33.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.33.0."
+      },
+      {
+        "packageName": "@releasekit/publish",
+        "newVersion": "0.33.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.33.0."
+      },
+      {
+        "packageName": "@releasekit/release",
+        "newVersion": "0.33.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json",
+        "action": "bumped",
+        "actionReason": "Bumped to 0.33.0."
+      }
+    ],
+    "changelogs": [
+      {
+        "packageName": "monorepo",
+        "version": "0.33.0",
+        "previousVersion": "v0.32.1",
+        "revisionRange": "release/v0.32.1..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "changed",
+            "description": "migrate git execution onto the @releasekit/git seam (#357) (#436)",
+            "scope": "publish",
+            "originalType": "refactor"
+          },
+          {
+            "type": "changed",
+            "description": "migrate git execution to the @releasekit/git seam (#357, PR 3) (#435)",
+            "scope": "release",
+            "originalType": "refactor"
+          },
+          {
+            "type": "changed",
+            "description": "migrate git access to the @releasekit/git seam (#357, PR 2) (#434)",
+            "scope": "notes",
+            "originalType": "refactor"
+          },
+          {
+            "type": "added",
+            "description": "add the @releasekit/git execution seam (#357, PR 1) (#427)",
+            "scope": "git",
+            "originalType": "feat"
+          },
+          {
+            "type": "fixed",
+            "description": "skip the PR preview on the standing release PR (#424) (#425)",
+            "scope": "release",
+            "issueIds": [
+              "#424"
+            ],
+            "originalType": "fix"
+          },
+          {
+            "type": "fixed",
+            "description": "label a post-publish push failure git-push, not unknown (#429) (#433)",
+            "scope": "publish",
+            "issueIds": [
+              "#429"
+            ],
+            "originalType": "fix"
+          },
+          {
+            "type": "added",
+            "description": "surface the resolved version action in summary + --json (#420) (#426)",
+            "scope": "version",
+            "issueIds": [
+              "#420"
+            ],
+            "originalType": "feat"
+          },
+          {
+            "type": "fixed",
+            "description": "failure-report headline describes the release, not the publish (#428) (#431)",
+            "scope": "release",
+            "issueIds": [
+              "#428"
+            ],
+            "originalType": "fix"
+          },
+          {
+            "type": "changed",
+            "description": "deepen the shared LLM-task module (#361) (#423)",
+            "scope": "notes",
+            "issueIds": [
+              "#361"
+            ],
+            "originalType": "refactor"
+          }
+        ]
+      }
+    ],
+    "tags": [
+      "v0.33.0"
+    ],
+    "baselineTags": [
+      "release/v0.33.0"
+    ],
+    "commitMessage": "chore: release v0.33.0 [skip ci]"
+  },
+  "releaseNotes": {},
+  "notesFiles": [],
+  "createdAt": "2026-06-25T00:41:34.750Z",
+  "baseSha": "f5518e5aa701f527b0004d90ac23f87bfcd53b77",
+  "firstUpdatedAt": "2026-06-24T20:13:40.909Z",
+  "overrideLabels": []
+}
