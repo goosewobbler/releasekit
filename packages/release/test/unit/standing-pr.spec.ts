@@ -3996,7 +3996,7 @@ describe('runStandingPRPublish', () => {
     });
 
     expect(result).not.toBeNull();
-    // The publish stage falls back to GitHub's --generate-notes for the release body.
+    // The publish stage falls back to the changelog, then GitHub's generated notes, for the release body.
     expect(vi.mocked(runPublishStep)).toHaveBeenCalledWith(
       expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
       expect.objectContaining({ skipGitCommit: true }),

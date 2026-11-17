@@ -149,6 +149,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
   afterEach(() => {
     process.chdir(originalCwd);
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     fs.rmSync(workspace, { recursive: true, force: true });
   });
 
@@ -227,7 +228,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { 'pkg-b': 'B' } });
 
-    expect(releaseBodies()).toEqual({ 'pkg-a-v1.2.3': GENERATED });
+    expect(releaseBodies()).toEqual({ 'pkg-a-v1.2.3': '- Fix pkg-a' });
   });
 
   it("should not give a package's notes to a longer-named package with empty notes", async () => {
@@ -235,7 +236,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { pkg: 'P', 'pkg-2': '' } });
 
-    expect(releaseBodies()).toEqual({ 'pkg-v1.2.3': 'P', 'pkg-2-v1.2.3': GENERATED });
+    expect(releaseBodies()).toEqual({ 'pkg-v1.2.3': 'P', 'pkg-2-v1.2.3': '- Fix pkg-2' });
   });
 
   it("should match per-package tags from a custom template to each package's own notes", async () => {
@@ -300,20 +301,125 @@ describe('GitHub release bodies in the publish pipeline', () => {
     expect(releaseBodies()).toEqual({ 'v1.2.3': 'A', 'v2.0.0': GENERATED });
   });
 
-  it.each(['auto', 'releaseNotes'] as const)(
-    'should warn naming only the tag no notes match when body is %s',
-    async (body) => {
-      const config = getDefaultConfig();
-      config.githubRelease.body = body;
-      const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
+  it('should warn naming only the tag no notes match when body is releaseNotes', async () => {
+    const config = getDefaultConfig();
+    config.githubRelease.body = 'releaseNotes';
+    const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
 
-      await runPipeline(input, config, { ...options, releaseNotes: { 'pkg-a': 'A' } });
+    await runPipeline(input, config, { ...options, releaseNotes: { 'pkg-a': 'A' } });
 
-      expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': 'A', 'pkg-b/1.2.3': GENERATED });
-      expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
-      expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': 'A', 'pkg-b/1.2.3': GENERATED });
+    expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
+    expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
+  });
+
+  it("should give a tag without release notes its changelog's entries, warning naming it, when body is auto", async () => {
+    const input = recordChangelogTags(perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' }));
+
+    await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { 'pkg-a': 'A' } });
+
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': 'A', 'pkg-b/1.2.3': '- Fix pkg-b' });
+    expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
+    expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
+  });
+
+  it('should escape mentions in a changelog body', async () => {
+    const input = syncInput('v1.2.3');
+    input.changelogs = [changelog('monorepo', "Handle @octocat's case")];
+
+    await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
+
+    expect(releaseBodies()).toEqual({ 'v1.2.3': "- Handle \\@octocat's case" });
+  });
+
+  function placeholderInput(synthetic: boolean): VersionOutput {
+    const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
+    input.changelogs[1] = {
+      ...changelog('pkg-b', 'Update version to 1.2.3'),
+      entries: [{ type: 'changed', description: 'Update version to 1.2.3', ...(synthetic ? { synthetic } : {}) }],
+    };
+    return recordChangelogTags(input);
+  }
+
+  it('should link refs to the workflow repository when the changelog has no repo URL', async () => {
+    vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
+    const input = syncInput('v1.2.3');
+    input.changelogs = [
+      {
+        ...changelog('monorepo', ''),
+        entries: [{ type: 'fixed', description: 'Fix it', prNumber: '42', issueIds: ['#42'] }],
+      },
+    ];
+
+    await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
+
+    expect(releaseBodies()).toEqual({ 'v1.2.3': '- Fix it (PR [#42](https://github.com/owner/repo/pull/42))' });
+  });
+
+  it('should not link refs to github.com for a workflow on another GitHub server', async () => {
+    vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
+    vi.stubEnv('GITHUB_SERVER_URL', 'https://github.example.com');
+    const input = syncInput('v1.2.3');
+    input.changelogs = [
+      {
+        ...changelog('monorepo', ''),
+        entries: [{ type: 'fixed', description: 'Fix it', prNumber: '42', issueIds: ['#42'] }],
+      },
+    ];
+
+    await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
+
+    expect(releaseBodies()).toEqual({ 'v1.2.3': '- Fix it (\\#42)' });
+  });
+
+  it.each([
+    ['a lockstep carry', true],
+    ['a package with no changes of its own', false],
+  ])('should give %s generated notes when body is auto', async (_, synthetic) => {
+    await runPipeline(placeholderInput(synthetic), getDefaultConfig(), options);
+
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
+  });
+
+  it('should give a lockstep carry its placeholder when body is changelog', async () => {
+    const config = getDefaultConfig();
+    config.githubRelease.body = 'changelog';
+
+    await runPipeline(placeholderInput(true), config, options);
+
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': '- Update version to 1.2.3' });
+  });
+
+  it('should give one release for several tags generated notes when body is auto', async () => {
+    const config = getDefaultConfig();
+    config.githubRelease.perPackage = false;
+    const input = recordChangelogTags(perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' }));
+
+    await runPipeline(input, config, options);
+
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': GENERATED });
+  });
+
+  it.each(['release-1.2.3', 'app-v1.2.3'])(
+    'should give a sync release tagged %s the sole changelog when body is auto and release notes are disabled',
+    async (tag) => {
+      await runPipeline(recordChangelogTags(syncInput(tag)), getDefaultConfig(), options);
+
+      expect(releaseBodies()).toEqual({ [tag]: '- Fix the sync release' });
+      expect(warnMock).not.toHaveBeenCalled();
     },
   );
+
+  it('should warn naming only the tag with neither release notes nor a changelog when body is auto', async () => {
+    const input = perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' });
+    input.changelogs = input.changelogs.filter((c) => c.packageName === 'pkg-a');
+
+    await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
+
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
+    expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
+    expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
+  });
 
   it('should warn naming only the tag no changelog matches when body is changelog', async () => {
     const config = getDefaultConfig();

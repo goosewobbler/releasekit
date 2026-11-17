@@ -1,10 +1,11 @@
-import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
+import type { VersionOutput, VersionPackageChangelog, VersionPackageUpdate } from '@releasekit/core';
 import {
   assertNotOption,
   breakingFirst,
   debug,
   info,
   matchesPackageName,
+  renderChangelogEntryLine,
   sanitizePackageName,
   success,
   warn,
@@ -28,6 +29,7 @@ function resolveNotes(
   bodySource: BodySource,
   release: ReleaseTag,
   releaseNotesEnabled: boolean,
+  changelogFallback: boolean,
   pipelineNotes?: Record<string, string>,
 ): { body?: string; useGithubNotes: boolean } {
   if (bodySource === 'none') {
@@ -68,11 +70,18 @@ function resolveNotes(
     if (body) {
       return { body, useGithubNotes: false };
     }
-    warn(
-      `Release notes configured but no content found for tag ${release.tag}, falling back to GitHub auto-generated notes`,
-    );
   }
 
+  const changelogBody = changelogFallback
+    ? formatChangelogForTag(release, withoutPlaceholders(release.input.changelogs))
+    : undefined;
+  if (changelogBody) {
+    if (releaseNotesEnabled) {
+      warn(`No release notes found for tag ${release.tag}, falling back to its changelog`);
+    }
+    return { body: changelogBody, useGithubNotes: false };
+  }
+  warn(`No release notes or changelog match tag ${release.tag}, falling back to GitHub auto-generated notes`);
   return { useGithubNotes: true };
 }
 
@@ -189,25 +198,39 @@ function findNotesForTag(release: ReleaseTag, notes: Record<string, string>): st
   return key === undefined || !notes[key]?.trim() ? undefined : notes[key];
 }
 
-function formatChangelogForTag(release: ReleaseTag): string | undefined {
-  const { changelogs } = release.input;
+/** Drops the `Update version to X` entry the version step writes for a package with no changes of its own. */
+function withoutPlaceholders(changelogs: VersionPackageChangelog[]): VersionPackageChangelog[] {
+  return changelogs.map((c) => ({
+    ...c,
+    entries: c.entries.filter((e) => !e.synthetic && e.description !== `Update version to ${c.version}`),
+  }));
+}
+
+/** Without a repo URL, refs render as escaped plain text instead of links. */
+function repoUrlFallback(input: VersionOutput): string | null {
+  const repository = process.env.GITHUB_REPOSITORY;
+  const server = process.env.GITHUB_SERVER_URL ?? 'https://github.com';
+  return input.changelogs.find((c) => c.repoUrl)?.repoUrl ?? (repository ? `${server}/${repository}` : null);
+}
+
+function formatChangelogForTag(
+  release: ReleaseTag,
+  changelogs: VersionPackageChangelog[] = release.input.changelogs,
+): string | undefined {
   const key = resolveTagKey(
     release,
     changelogs.map((c) => c.packageName),
     changelogs.filter((c) => c.entries.length > 0).map((c) => c.packageName),
   );
   const target = changelogs.find((c) => c.packageName === key);
-
   if (!target || target.entries.length === 0) {
     return undefined;
   }
 
-  const lines: string[] = [];
-  for (const entry of breakingFirst(target.entries)) {
-    const scope = entry.scope ? `**${entry.scope}:** ` : '';
-    lines.push(`- ${entry.breaking ? '**BREAKING** ' : ''}${scope}${entry.description}`);
-  }
-  return lines.join('\n');
+  const repoUrl = target.repoUrl ?? repoUrlFallback(release.input);
+  return breakingFirst(target.entries)
+    .map((entry) => renderChangelogEntryLine(entry, 'link', repoUrl))
+    .join('\n');
 }
 
 /** Error strategy: CATCHES per-tag. Non-critical. */
@@ -236,6 +259,8 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     return;
   }
   const tagsToRelease = config.githubRelease.perPackage ? tags : [firstTag];
+  // One release for several tags would carry only the first tag's changelog.
+  const changelogFallback = tagsToRelease.length === tags.length;
 
   const skipPackages = config.githubRelease.skipPackages ?? [];
   const syncTag = ctx.input.updates.length > 0 && ctx.input.updates.every((u) => !u.tag);
@@ -310,6 +335,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       config.githubRelease.body,
       { tag, owner, shared: owners.length > 1 || (owners.length === 0 && syncTag), input: ctx.input },
       releaseNotesEnabled,
+      changelogFallback,
       ctx.releaseNotes,
     );
     if (body) {
