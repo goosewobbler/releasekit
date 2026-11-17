@@ -103,8 +103,6 @@ export interface Git {
   mergeBase(a: string, b: string, cwd?: string): Promise<string | null>;
   countCommits(range: string, opts?: GitCountCommitsOptions): Promise<number>;
   log(opts: GitLogOptions): Promise<string>;
-  /** File paths changed by `commitSha`. */
-  diffTreeNames(commitSha: string, cwd?: string): Promise<string[]>;
   /** Relative to `cwd`, as git prints them. */
   lsFiles(opts?: GitLsFilesOptions): Promise<string[]>;
   /** False for a tracked file, and on failure (e.g. outside a repository). */

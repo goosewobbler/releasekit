@@ -1,10 +1,8 @@
 import { createFakeGit, type Git } from '@releasekit/git';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  commitTouchesAnyPackage,
   extractAllChangelogEntriesWithHash,
   extractChangelogEntriesFromCommits,
-  extractRepoLevelChangelogEntries,
 } from '../../../src/changelog/commitParser.js';
 
 vi.mock('../../../src/utils/logging.js', () => ({
@@ -13,8 +11,7 @@ vi.mock('../../../src/utils/logging.js', () => ({
 
 const RANGE = 'v1.0.0..v1.1.0';
 
-const gitWithLog = (output: string, diffNames?: Record<string, string[]>): Git =>
-  createFakeGit({ commits: { '*': output }, diffNames });
+const gitWithLog = (output: string): Git => createFakeGit({ commits: { '*': output } });
 
 describe('Commit Parser', () => {
   beforeEach(() => {
@@ -187,152 +184,6 @@ describe('Commit Parser', () => {
       const opts = logSpy.mock.calls[0]?.[0];
       expect(opts?.paths).toBeUndefined();
       expect(opts?.extraArgs).toEqual(['--no-merges']);
-    });
-  });
-
-  describe('commitTouchesAnyPackage', () => {
-    it('should return true when a commit touches a package directory', async () => {
-      const git = createFakeGit({
-        diffNames: { abc123: ['packages/version/src/index.ts', 'packages/version/package.json'] },
-      });
-
-      const result = await commitTouchesAnyPackage('/test', 'abc123', ['packages/version', 'packages/notes'], [], git);
-
-      expect(result).toBe(true);
-    });
-
-    it('should return false when a commit only touches repo-level files', async () => {
-      const git = createFakeGit({ diffNames: { abc123: ['.github/workflows/ci.yml', 'README.md'] } });
-
-      const result = await commitTouchesAnyPackage('/test', 'abc123', ['packages/version', 'packages/notes'], [], git);
-
-      expect(result).toBe(false);
-    });
-
-    it('should return false when a commit has no changed files', async () => {
-      const git = createFakeGit({ diffNames: { abc123: [] } });
-
-      const result = await commitTouchesAnyPackage('/test', 'abc123', ['packages/version'], [], git);
-
-      expect(result).toBe(false);
-    });
-
-    it('should return false for shared packages when sharedPackageDirs is provided', async () => {
-      const git = createFakeGit({
-        diffNames: { abc123: ['packages/core/src/index.ts', 'packages/core/package.json'] },
-      });
-
-      const result = await commitTouchesAnyPackage(
-        '/test',
-        'abc123',
-        ['packages/version', 'packages/core'],
-        ['packages/core'],
-        git,
-      );
-
-      expect(result).toBe(false);
-    });
-
-    it('should return true for non-shared packages even when other packages are shared', async () => {
-      const git = createFakeGit({ diffNames: { abc123: ['packages/version/src/index.ts'] } });
-
-      const result = await commitTouchesAnyPackage(
-        '/test',
-        'abc123',
-        ['packages/version', 'packages/core'],
-        ['packages/core'],
-        git,
-      );
-
-      expect(result).toBe(true);
-    });
-  });
-
-  describe('extractRepoLevelChangelogEntries', () => {
-    it('should extract only commits that do not touch any package directory', async () => {
-      const git = createFakeGit({
-        commits: {
-          '*': 'aaa123|||feat(version): add feature\n---COMMIT_DELIMITER---\nbbb456|||chore(ci): update workflow',
-        },
-        diffNames: {
-          aaa123: ['packages/version/src/feature.ts'],
-          bbb456: ['.github/workflows/ci.yml'], // CI only → repo-level
-        },
-      });
-
-      const entries = await extractRepoLevelChangelogEntries('/test', RANGE, ['packages/version'], [], git);
-
-      expect(entries).toHaveLength(1);
-      expect(entries[0].description).toBe('update workflow');
-    });
-
-    it('should return an empty array when all commits touch packages', async () => {
-      const git = createFakeGit({
-        commits: {
-          '*': 'abc123|||feat(version): feature\n---COMMIT_DELIMITER---\ndef456|||fix(notes): bugfix',
-        },
-        diffNames: {
-          abc123: ['packages/version/src/index.ts'],
-          def456: ['packages/notes/src/index.ts'],
-        },
-      });
-
-      const entries = await extractRepoLevelChangelogEntries(
-        '/test',
-        RANGE,
-        ['packages/version', 'packages/notes'],
-        [],
-        git,
-      );
-
-      expect(entries).toHaveLength(0);
-    });
-
-    it('should include a commit when it touches shared directories', async () => {
-      const git = createFakeGit({
-        commits: { '*': 'shared123|||chore: update shared config' },
-        diffNames: { shared123: ['shared/config.js'] },
-      });
-
-      const entries = await extractRepoLevelChangelogEntries('/test', RANGE, ['packages/version'], [], git);
-
-      expect(entries).toHaveLength(1);
-      expect(entries[0].description).toBe('update shared config');
-    });
-
-    it('should treat commits to shared packages as repo-level', async () => {
-      const git = createFakeGit({
-        commits: { '*': 'core123|||feat(core): add new utility' },
-        diffNames: { core123: ['packages/core/src/index.ts'] },
-      });
-
-      const entries = await extractRepoLevelChangelogEntries(
-        '/test',
-        RANGE,
-        ['packages/version', 'packages/core'],
-        ['packages/core'],
-        git,
-      );
-
-      expect(entries).toHaveLength(1);
-      expect(entries[0].description).toBe('add new utility');
-    });
-
-    it('should exclude commits to non-shared packages from repo-level', async () => {
-      const git = createFakeGit({
-        commits: { '*': 'version123|||feat(version): add feature' },
-        diffNames: { version123: ['packages/version/src/index.ts'] },
-      });
-
-      const entries = await extractRepoLevelChangelogEntries(
-        '/test',
-        RANGE,
-        ['packages/version', 'packages/core'],
-        ['packages/core'],
-        git,
-      );
-
-      expect(entries).toHaveLength(0);
     });
   });
 });

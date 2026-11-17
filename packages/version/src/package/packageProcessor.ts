@@ -118,7 +118,14 @@ export class PackageProcessor {
     // Falls back to the release set when the engine didn't populate it (e.g. tests).
     const workspace =
       this.fullConfig.allWorkspacePackages ?? packages.map((p) => ({ name: p.packageJson.name, dir: p.dir }));
-    const workspaceDirs = workspace.map((p) => p.dir);
+    const sharedPackagePatterns = this.fullConfig.sharedPackages ?? [];
+    // Commits to a shared package are listed as project-wide. Nested packages are in the list themselves, so no scope
+    // excludes them. The workspace root is left out, since owning it would claim every commit.
+    const workspaceRoot = path.resolve(repoRoot);
+    const packageOwnedDirs = workspace
+      .filter((p) => !shouldMatchPackageTargets(p.name, sharedPackagePatterns))
+      .flatMap((p) => resolveCommitScope(p.dir, this.fullConfig, { repoRoot, releasableDirs: [] }).scope)
+      .filter((dir) => dir !== workspaceRoot);
 
     for (const pkg of pkgsToConsider) {
       const name = pkg.packageJson.name;
@@ -238,20 +245,10 @@ export class PackageProcessor {
 
         changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange, commitScope);
 
-        const sharedPackagePatterns = this.fullConfig.sharedPackages ?? [];
-        const sharedPackageDirs =
-          sharedPackagePatterns.length === 0
-            ? []
-            : workspace.filter((p) => shouldMatchPackageTargets(p.name, sharedPackagePatterns)).map((p) => p.dir);
         // Bounded so one untagged package can't flood "Project-wide changes" with the entire history.
         const sharedRevisionRange = await baselineResolver.sharedFloor(revisionRange);
 
-        const repoLevelEntries = await extractRepoLevelChangelogEntries(
-          pkgPath,
-          sharedRevisionRange,
-          workspaceDirs,
-          sharedPackageDirs,
-        );
+        const repoLevelEntries = await extractRepoLevelChangelogEntries(pkgPath, sharedRevisionRange, packageOwnedDirs);
 
         // Emitted once on VersionOutput rather than duplicated into every package changelog.
         if (repoLevelEntries.length > 0) {

@@ -196,14 +196,6 @@ export class GitCli implements Git {
     return stdout;
   }
 
-  async diffTreeNames(commitSha: string, cwd?: string): Promise<string[]> {
-    assertNotOption(commitSha, 'commit');
-    const { stdout } = await this.exec(['diff-tree', '--no-commit-id', '--name-only', '-r', commitSha], {
-      cwd: this.cwd(cwd),
-    });
-    return splitLines(stdout);
-  }
-
   async lsFiles(opts: GitLsFilesOptions = {}): Promise<string[]> {
     const args = ['ls-files', '-z'];
     if (opts.changed) {

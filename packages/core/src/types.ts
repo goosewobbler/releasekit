@@ -56,7 +56,8 @@ export interface VersionOutput {
   strategy?: 'sync' | 'single' | 'async' | 'group';
   updates: VersionPackageUpdate[];
   changelogs: VersionPackageChangelog[];
-  /** Entries from commits that touch no package directory. */
+  /** Entries from commits that touch no package outside `sharedPackages`, counting the directories a package
+   *  versions through `cargo.paths` / `pub.paths`. */
   sharedEntries?: VersionChangelogEntry[];
   commitMessage?: string;
   /** Consumer-facing tags from `tagTemplate`. */

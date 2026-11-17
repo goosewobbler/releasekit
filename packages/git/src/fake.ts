@@ -53,7 +53,6 @@ export interface FakeGitSeed {
   remoteBranches?: Record<string, string[]>;
   /** `git log` responses keyed by range; `'*'` is a catch-all when no range matches. */
   commits?: FakeLog;
-  diffNames?: Record<string, string[]>;
   /** Returned by `forEachRef` as-is; `format` is ignored, so seed final lines. */
   refLines?: string[];
   commitCounts?: Record<string, number>;
@@ -85,7 +84,6 @@ export class FakeGit implements Git {
   private readonly mergeBases: Record<string, string>;
   private readonly remoteBranches: Record<string, string[]>;
   private readonly commits: FakeLog;
-  private readonly diffNames: Record<string, string[]>;
   private readonly refLines: string[];
   private readonly commitCounts: Record<string, number>;
   private statusText: string;
@@ -114,7 +112,6 @@ export class FakeGit implements Git {
     this.mergeBases = seed.mergeBases ?? {};
     this.remoteBranches = seed.remoteBranches ?? {};
     this.commits = seed.commits ?? {};
-    this.diffNames = seed.diffNames ?? {};
     this.refLines = [...(seed.refLines ?? [])];
     this.commitCounts = seed.commitCounts ?? {};
     this.statusText = seed.status ?? '';
@@ -169,10 +166,6 @@ export class FakeGit implements Git {
   async log(opts: GitLogOptions): Promise<string> {
     const key = opts.range ?? '*';
     return this.commits[key] ?? this.commits['*'] ?? '';
-  }
-
-  async diffTreeNames(commitSha: string, _cwd?: string): Promise<string[]> {
-    return [...(this.diffNames[commitSha] ?? [])];
   }
 
   async lsFiles(_opts: GitLsFilesOptions = {}): Promise<string[]> {

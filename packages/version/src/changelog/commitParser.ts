@@ -52,60 +52,32 @@ export async function extractAllChangelogEntriesWithHash(
   }
 }
 
-/** Shared package directories count as repo-level, so touching only those returns false. */
-export async function commitTouchesAnyPackage(
-  projectDir: string,
-  commitHash: string,
-  packageDirs: string[],
-  sharedPackageDirs: string[] = [],
-  git: Git = createGitCli(),
-): Promise<boolean> {
-  try {
-    const changedFiles = await git.diffTreeNames(commitHash, projectDir);
-
-    if (changedFiles.length === 0) {
-      return false;
-    }
-
-    return changedFiles.some((file) => {
-      return packageDirs.some((pkgDir) => {
-        if (sharedPackageDirs.some((sharedDir) => pkgDir.includes(sharedDir))) {
-          return false;
-        }
-        const normalizedFile = file.replace(/\\/g, '/');
-        const normalizedPkgDir = pkgDir.replace(/\\/g, '/').replace(/^\.\//, '');
-        return normalizedFile.startsWith(normalizedPkgDir);
-      });
-    });
-  } catch (error) {
-    log(
-      `Error checking if commit ${commitHash} touches packages: ${error instanceof Error ? error.message : String(error)}`,
-      'debug',
-    );
-    return false;
-  }
-}
-
+/** Entries from commits that change nothing under `packageDirs`, the pathspecs every non-shared package owns. */
 export async function extractRepoLevelChangelogEntries(
   projectDir: string,
   revisionRange: string,
   packageDirs: string[],
-  sharedPackageDirs: string[] = [],
   git: Git = createGitCli(),
 ): Promise<ChangelogEntry[]> {
   try {
     const allCommits = await extractAllChangelogEntriesWithHash(projectDir, revisionRange, git);
+    if (packageDirs.length === 0) {
+      return allCommits.map((c) => c.entry);
+    }
 
-    const touches = await Promise.all(
-      allCommits.map((commit) => commitTouchesAnyPackage(projectDir, commit.hash, packageDirs, sharedPackageDirs, git)),
-    );
-    const repoLevelCommits = allCommits.filter((_commit, i) => !touches[i]);
+    const packageCommits = await git.log({
+      range: revisionRange,
+      format: '%H',
+      // Without it, history simplification hides a side branch whose merge leaves a package unchanged.
+      extraArgs: ['--no-merges', '--full-history'],
+      paths: packageDirs,
+      cwd: projectDir,
+    });
+    const packageHashes = new Set(packageCommits.split('\n').map((line) => line.trim()));
+    const repoLevelCommits = allCommits.filter((commit) => !packageHashes.has(commit.hash));
 
     if (repoLevelCommits.length > 0) {
-      log(
-        `Found ${repoLevelCommits.length} repo-level commit(s) (including shared packages: ${sharedPackageDirs.join(', ')})`,
-        'debug',
-      );
+      log(`Found ${repoLevelCommits.length} repo-level commit(s)`, 'debug');
     }
 
     return repoLevelCommits.map((c) => c.entry);

@@ -84,12 +84,6 @@ describe('FakeGit queries', () => {
     expect(await createFakeGit().log({ range: 'v1..HEAD' })).toBe('');
   });
 
-  it('should return seeded changed paths per commit', async () => {
-    const git = createFakeGit({ diffNames: { sha1: ['a.ts', 'b.ts'] } });
-    expect(await git.diffTreeNames('sha1')).toEqual(['a.ts', 'b.ts']);
-    expect(await git.diffTreeNames('sha2')).toEqual([]);
-  });
-
   it('should return seeded for-each-ref lines', async () => {
     const git = createFakeGit({ refLines: ['v1 sha1', 'v2 sha2'] });
     expect(await git.forEachRef({ format: '%(refname)' })).toEqual(['v1 sha1', 'v2 sha2']);

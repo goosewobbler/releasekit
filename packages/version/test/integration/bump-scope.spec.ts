@@ -100,6 +100,51 @@ describe('bump scope', () => {
     expect(newVersions().app).toBe('2.0.0');
   });
 
+  it('should list only commits outside every package and the crates they version as project-wide', () => {
+    createRepo({ packages: ['app', 'other'], version: { cargo: { paths: ['../../crates/app'] } } });
+    mkdirSync(join(tempDir, 'crates', 'app'), { recursive: true });
+    writeFileSync(
+      join(tempDir, 'crates', 'app', 'Cargo.toml'),
+      '[package]\nname = "app"\nversion = "1.0.0"\npublish = false\n',
+    );
+    execSync(
+      'git add crates && git commit -qm "chore: add crate" && git tag -f app@v1.0.0 && git tag -f other@v1.0.0',
+      {
+        cwd: tempDir,
+      },
+    );
+    commitTo('packages/app', 'fix', 'app fix');
+    commitTo('crates/app', 'fix', 'crate fix');
+    commitTo('.', 'docs', 'readme');
+
+    const output = runVersionJson(tempDir);
+
+    expect(output.sharedEntries?.map((e) => e.description)).toEqual(['readme']);
+  });
+
+  it('should list commits to a shared package as project-wide', () => {
+    createRepo({ packages: ['app', 'core'], version: { sharedPackages: ['core'] } });
+    commitTo('packages/app', 'fix', 'app fix');
+    commitTo('packages/core', 'fix', 'core fix');
+
+    expect(runVersionJson(tempDir).sharedEntries?.map((e) => e.description)).toEqual(['core fix']);
+  });
+
+  it('should still list project-wide commits when a package versions a crate at the repository root', () => {
+    createRepo({ packages: ['app', 'other'], version: { cargo: { paths: ['../..'] } } });
+    writeFileSync(join(tempDir, 'Cargo.toml'), '[package]\nname = "app"\nversion = "1.0.0"\npublish = false\n');
+    execSync(
+      'git add Cargo.toml && git commit -qm "chore: add crate" && git tag -f app@v1.0.0 && git tag -f other@v1.0.0',
+      {
+        cwd: tempDir,
+      },
+    );
+    commitTo('packages/app', 'fix', 'app fix');
+    commitTo('.', 'docs', 'readme');
+
+    expect(runVersionJson(tempDir).sharedEntries?.map((e) => e.description)).toEqual(['readme']);
+  });
+
   it("should not bump a package from a nested package's commits", () => {
     createRepo({ workspaceGlobs: ['packages/*', 'packages/*/plugin'], packages: ['host', 'host/plugin'] });
     commitTo('packages/host/plugin', 'feat', 'drop the old plugin API', true);
