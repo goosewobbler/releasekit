@@ -1847,7 +1847,7 @@ function assertOverrideLabelsCurrent(
     throw new ManifestRefusal(
       `Cannot verify standing PR #${prNumber} override labels against the manifest — the PR could not be read ` +
         `from GitHub. Refusing to publish a manifest that carried override labels without confirming they still ` +
-        `match.${action === 'merge' ? ' Re-run once the GitHub API is reachable.' : ''}`,
+        `match. Re-run once the GitHub API is reachable (or apply the retry label).`,
       true,
     );
   }

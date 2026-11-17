@@ -4,8 +4,8 @@ export const BREAKING_SECTION = 'Breaking';
 const DEMOTED_SECTION = 'Dependencies & version bumps';
 
 /**
- * Several types fold onto one label (feat/added → Added), so entries group by label, not raw type. Key order is section
- * order, Keep a Changelog's sections first.
+ * Several types fold onto one label (feat/added → Added), so entries group by label, not raw type. Key order sets the
+ * rendered section order: Keep a Changelog's sections first.
  */
 const CHANGELOG_TYPE_LABELS: Record<string, string> = {
   added: 'Added',

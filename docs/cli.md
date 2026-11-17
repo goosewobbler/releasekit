@@ -430,7 +430,7 @@ Regenerate release notes for **already-released** versions of one or more packag
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-p, --package <name>` | string | package.json name at `--path` | Package to backfill |
-| `--path <dir>` | string | `.` | Package directory. With `sync: false` and no `--path`, defaults to the directory of the workspace package `--package` names |
+| `--path <dir>` | string | `.` | Package directory. With `sync: false` and no `--path`, a `--package` that names a workspace package reads that package's directory instead |
 | `--all` | boolean | `false` | Backfill every package in the workspace (monorepo discovery) |
 | `--from <version>` | string | - | Earliest version to backfill (inclusive) |
 | `--to <version>` | string | - | Latest version to backfill (inclusive) |
