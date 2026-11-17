@@ -296,6 +296,8 @@ with a `version` block); it used to fail.
   `## ` line goes under the existing header. See
   [Templates](../packages/notes/docs/templates.md#writing-to-an-existing-changelog).
 - In `packages` and `both` modes, per-package changelogs use the custom template too.
+- `@releasekit/notes` API: `writeMarkdown` is replaced by `writeChangelog(path, content, dryRun)`, which prepends
+  rendered content, and `writeMonorepoChangelogs` takes a render function instead of `config` and `refs`.
 
 ---
 
