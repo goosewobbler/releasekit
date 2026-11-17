@@ -205,6 +205,7 @@ interface EventPullRequest {
   head?: { sha?: string };
   base?: { ref?: string };
   merge_commit_sha?: string | null;
+  merged_by?: { login?: string; type?: string } | null;
 }
 
 /** This run's event payload PR, when the event is about PR `prNumber`. */
@@ -1869,31 +1870,37 @@ function assertOverrideLabelsCurrent(
 async function assertMergeAuthorized(
   forge: Forge,
   prNumber: number,
+  livePr: PullRequestDetails | undefined,
   authz: StandingPrAuthorization | undefined,
 ): Promise<void> {
   if (!authz?.enforceMergeAuthor) {
     return;
   }
-  const actor = getEventActor();
-  if (!actor.mergedBy) {
-    // e.g. a dispatch publish or an inferred PR.
-    warn(
-      `enforceMergeAuthor is set but the merging actor is unknown (no merged_by in the event) — skipping the publish-author check for PR #${prNumber}.`,
+  // A dispatched publish has no PR in its event.
+  const eventMerger = eventPullRequest(prNumber)?.merged_by;
+  const merger = eventMerger?.login ? { login: eventMerger.login, type: eventMerger.type } : livePr?.mergedBy;
+  if (!merger) {
+    throw new ManifestRefusal(
+      livePr
+        ? `Refusing to publish PR #${prNumber}: enforceMergeAuthor is set but GitHub reports no merger for it, so it ` +
+            `may not be merged. Check that the PR is a merged standing PR; to publish without the merge-author check, ` +
+            `set ci.standingPr.authorization.enforceMergeAuthor: false.`
+        : `Refusing to publish PR #${prNumber}: enforceMergeAuthor is set but the merger is unknown - the PR could ` +
+            `not be read from GitHub.`,
+      !livePr,
     );
-    return;
   }
-  // Fails open on an unverifiable check since the ruleset already gated the merge.
   let authorized = true;
   try {
-    authorized = await isAuthorizedActor(forge, actor.mergedBy, actor.mergedByType, authz);
+    authorized = await isAuthorizedActor(forge, merger.login, merger.type, authz);
   } catch (err) {
     warn(
-      `Could not verify merger '${actor.mergedBy}' permission — proceeding, since branch protection is the primary gate: ${err instanceof Error ? err.message : String(err)}`,
+      `Could not verify merger '${merger.login}' permission — proceeding, since branch protection is the primary gate: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
   if (!authorized) {
     throw new ManifestRefusal(
-      `Refusing to publish PR #${prNumber}: it was merged by '${actor.mergedBy}', who lacks the required '${authz.requiredPermission}' permission (ci.standingPr.authorization). Restrict who can merge the release branch with a branch-protection ruleset, or set ci.standingPr.authorization.enforceMergeAuthor: false.`,
+      `Refusing to publish PR #${prNumber}: it was merged by '${merger.login}', who lacks the required '${authz.requiredPermission}' permission (ci.standingPr.authorization). Restrict who can merge the release branch with a branch-protection ruleset, or set ci.standingPr.authorization.enforceMergeAuthor: false.`,
     );
   }
 }
@@ -1915,7 +1922,7 @@ async function verifyManifestForPublish(
   try {
     manifest = await readTrustedManifest(forge, prNumber, 'publish');
     assertOverrideLabelsCurrent(manifest, prNumber, livePr, releaseKitConfig.ci, 'publish');
-    await assertMergeAuthorized(forge, prNumber, releaseKitConfig.ci?.standingPr?.authorization);
+    await assertMergeAuthorized(forge, prNumber, livePr, releaseKitConfig.ci?.standingPr?.authorization);
 
     // A `baseSha` that isn't an ancestor of HEAD means the manifest describes work not on this branch (rewritten
     // history, wrong branch or a forged baseSha).

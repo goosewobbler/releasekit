@@ -77,13 +77,12 @@ describe('getEventActor', () => {
     } catch {}
   });
 
-  it('should read action, sender, and merged_by from the event payload', () => {
+  it('should read action and sender from the event payload', () => {
     fs.writeFileSync(
       tmpFile,
       JSON.stringify({
         action: 'edited',
         sender: { login: 'alice', type: 'User' },
-        pull_request: { merged_by: { login: 'maintainer' } },
       }),
     );
     process.env.GITHUB_EVENT_PATH = tmpFile;
@@ -92,7 +91,6 @@ describe('getEventActor', () => {
       action: 'edited',
       login: 'alice',
       type: 'User',
-      mergedBy: 'maintainer',
     });
   });
 

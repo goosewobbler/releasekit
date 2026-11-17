@@ -836,7 +836,7 @@ export const StandingPrConfigSchema = z.strictObject({
         .boolean()
         .default(true)
         .describe(
-          'Refuse to publish the standing PR when the actor who merged it is not authorized (defense-in-depth behind a branch-protection ruleset, which is the primary merge gate). Set false to rely on branch protection alone.',
+          'Refuse to publish the standing PR when the actor who merged it is not authorized or cannot be determined (defense-in-depth behind a branch-protection ruleset, which is the primary merge gate). Set false to rely on branch protection alone.',
         ),
     })
     .optional()

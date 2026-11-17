@@ -383,7 +383,7 @@ describe('GitHubForge', () => {
       expect(fns.pullsList).toHaveBeenCalledTimes(2);
     });
 
-    it('should map a pull request to {body,labels,headSha,headRef,baseRef,mergeCommitSha}', async () => {
+    it('should map a pull request to {body,labels,headSha,headRef,baseRef,mergeCommitSha,mergedBy}', async () => {
       const { octokit, fns } = makeOctokit();
       fns.pullsGet.mockResolvedValue({
         data: {
@@ -392,6 +392,7 @@ describe('GitHubForge', () => {
           head: { sha: 'abc', ref: 'release/next' },
           base: { ref: 'main' },
           merge_commit_sha: 'def',
+          merged_by: { login: 'maintainer', type: 'User', id: 1 },
         },
       });
       expect(await new GitHubForge(octokit, 'o', 'r').getPullRequest(4)).toEqual({
@@ -401,6 +402,7 @@ describe('GitHubForge', () => {
         headRef: 'release/next',
         baseRef: 'main',
         mergeCommitSha: 'def',
+        mergedBy: { login: 'maintainer', type: 'User' },
       });
     });
 
