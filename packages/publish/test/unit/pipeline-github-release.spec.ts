@@ -107,25 +107,37 @@ function recordChangelogTags(input: VersionOutput): VersionOutput {
   };
 }
 
-/** Each created release's `--notes` body, or `--generate-notes` when GitHub writes it. */
+/** Each `gh` call's notes file content, read while the call runs: the stage removes the file afterwards. */
+const notesFiles = new Map<string[], string>();
+
+async function recordNotesFile(_command: string, args: string[]) {
+  const notesIndex = args.indexOf('--notes-file');
+  if (notesIndex !== -1) {
+    notesFiles.set(args, fs.readFileSync(args[notesIndex + 1] as string, 'utf-8'));
+  }
+  return { stdout: '', stderr: '', exitCode: 0 };
+}
+
+function releaseCreateCalls(): string[][] {
+  return vi
+    .mocked(execCommand)
+    .mock.calls.filter(([command, args]) => command === 'gh' && args[1] === 'create')
+    .map(([, args]) => args);
+}
+
+/** Each created release's notes file body, or `--generate-notes` when GitHub writes it. */
 function releaseBodies(): Record<string, string | undefined> {
   const bodies: Record<string, string | undefined> = {};
-  for (const [command, args] of vi.mocked(execCommand).mock.calls) {
-    if (command !== 'gh' || args[1] !== 'create') {
-      continue;
-    }
-    const notesIndex = args.indexOf('--notes');
-    bodies[args[2] as string] = notesIndex === -1 ? args.find((arg) => arg === GENERATED) : args[notesIndex + 1];
+  for (const args of releaseCreateCalls()) {
+    bodies[args[2] as string] = notesFiles.get(args) ?? args.find((arg) => arg === GENERATED);
   }
   return bodies;
 }
 
 function releaseTitles(): Record<string, string | undefined> {
   const titles: Record<string, string | undefined> = {};
-  for (const [command, args] of vi.mocked(execCommand).mock.calls) {
-    if (command === 'gh' && args[1] === 'create') {
-      titles[args[2] as string] = args[args.indexOf('--title') + 1];
-    }
+  for (const args of releaseCreateCalls()) {
+    titles[args[2] as string] = args[args.indexOf('--title') + 1];
   }
   return titles;
 }
@@ -137,7 +149,8 @@ function warningsNaming(tag: string): string[] {
 describe('GitHub release bodies in the publish pipeline', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(execCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+    notesFiles.clear();
+    vi.mocked(execCommand).mockImplementation(recordNotesFile);
     // Nothing is published yet, and no GitHub release exists.
     vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 404 } as Response));
@@ -556,5 +569,43 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
       expect(releaseBodies()).toEqual({ 'release-1.2.3': GENERATED, 'pkg-c-v1.2.3': 'C' });
     });
+  });
+
+  it.each([
+    ['succeeds', recordNotesFile],
+    [
+      'fails',
+      async (command: string, args: string[]) => {
+        await recordNotesFile(command, args);
+        throw new Error('gh failed');
+      },
+    ],
+  ])('should pass the body through a notes file it removes when gh %s', async (_, implementation) => {
+    vi.mocked(execCommand).mockImplementation(async (command, args) =>
+      command === 'gh' ? implementation(command, args) : recordNotesFile(command, args),
+    );
+
+    await runPipeline(syncInput('v1.2.3'), getDefaultConfig(), { ...options, releaseNotes: { monorepo: 'X' } });
+
+    const [args] = releaseCreateCalls();
+    const notesPath = args?.[args.indexOf('--notes-file') + 1] as string;
+    expect(releaseBodies()).toEqual({ 'v1.2.3': 'X' });
+    expect(args).not.toContain('--notes');
+    expect(fs.existsSync(notesPath)).toBe(false);
+  });
+
+  it("should cut a body over GitHub's limit at a line break, warning naming the tag", async () => {
+    const line = '- Fix something\n';
+    const notes = line.repeat(200_000 / line.length);
+
+    await runPipeline(syncInput('v1.2.3'), getDefaultConfig(), { ...options, releaseNotes: { monorepo: notes } });
+
+    const body = releaseBodies()['v1.2.3'] as string;
+    const note = '\n\n…(truncated; see CHANGELOG.md for the full list)';
+    expect(notes).toHaveLength(200_000);
+    expect(body.length).toBeLessThanOrEqual(125_000);
+    expect(body.endsWith(note)).toBe(true);
+    expect(notes.startsWith(`${body.slice(0, -note.length)}\n`)).toBe(true);
+    expect(warningsNaming('v1.2.3')).toHaveLength(1);
   });
 });

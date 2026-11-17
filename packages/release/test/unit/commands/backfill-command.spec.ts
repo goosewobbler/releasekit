@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -19,7 +19,8 @@ vi.mock('@releasekit/notes', () => ({
 vi.mock('@releasekit/publish', () => ({ loadConfig: vi.fn(() => ({ githubRelease: {} })) }));
 vi.mock('../../../src/backfill/reconstruct.js', () => ({ reconstructChangelogs: vi.fn(async () => []) }));
 
-import { loadConfig as loadNotesConfig, runPipeline } from '@releasekit/notes';
+import { NOTES_MARKER } from '@releasekit/core';
+import { loadConfig as loadNotesConfig, runPipeline, versionOutputToChangelogInput } from '@releasekit/notes';
 import { loadConfig as loadPublishConfig } from '@releasekit/publish';
 import { loadConfig as loadVersionConfig } from '@releasekit/version';
 import { reconstructChangelogs } from '../../../src/backfill/reconstruct.js';
@@ -28,6 +29,7 @@ import { createBackfillCommand } from '../../../src/commands/backfill-command.js
 describe('backfill command', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('should load the publish config from --config', async () => {
@@ -72,5 +74,41 @@ describe('backfill command', () => {
     }
 
     expect(reconstructChangelogs).toHaveBeenCalledWith(expect.objectContaining({ versionPrefix: 'v' }));
+  });
+
+  it('should pass the release body to gh edit through a notes file', async () => {
+    vi.mocked(loadNotesConfig).mockReturnValueOnce({ releaseNotes: {} } as never);
+    vi.mocked(reconstructChangelogs).mockResolvedValueOnce([{ tag: 'v1.0.0', changelog: { entries: [] } } as never]);
+    vi.mocked(versionOutputToChangelogInput).mockReturnValueOnce({ packages: [{}] } as never);
+    vi.mocked(runPipeline).mockResolvedValueOnce({ files: [], releaseNotes: { pkg: 'Notes body' } } as never);
+    const bin = mkdtempSync(join(tmpdir(), 'rk-fake-gh-'));
+    const gh = join(bin, 'gh');
+    writeFileSync(
+      gh,
+      [
+        '#!/bin/sh',
+        `if [ "$2" = view ]; then echo '{"isDraft":false,"body":""}'; exit 0; fi`,
+        `printf '%s\\n' "$@" > "${bin}/args"`,
+        `cat "$5" > "${bin}/notes"`,
+      ].join('\n'),
+    );
+    chmodSync(gh, 0o755);
+    vi.stubEnv('PATH', `${bin}:${process.env.PATH}`);
+
+    try {
+      await createBackfillCommand().parseAsync(
+        ['--package', 'pkg', '--path', 'missing', '--update-releases', '--apply'],
+        {
+          from: 'user',
+        },
+      );
+
+      const [action, verb, tag, flag, notesPath] = readFileSync(join(bin, 'args'), 'utf8').trim().split('\n');
+      expect([action, verb, tag, flag]).toEqual(['release', 'edit', 'v1.0.0', '--notes-file']);
+      expect(readFileSync(join(bin, 'notes'), 'utf8')).toBe(`${NOTES_MARKER}\n\nNotes body\n`);
+      expect(existsSync(notesPath as string)).toBe(false);
+    } finally {
+      rmSync(bin, { recursive: true, force: true });
+    }
   });
 });

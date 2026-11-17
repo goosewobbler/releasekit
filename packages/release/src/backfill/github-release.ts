@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { assertNotOption, NOTES_MARKER } from '@releasekit/core';
+import { assertNotOption, NOTES_MARKER, warn, writeReleaseNotesFile } from '@releasekit/core';
 
 export { NOTES_MARKER };
 
@@ -31,7 +31,15 @@ export function withMarker(body: string): string {
 
 export function editReleaseBody(tag: string, body: string): void {
   assertNotOption(tag, 'tag');
-  execFileSync('gh', ['release', 'edit', tag, '--notes', body], { encoding: 'utf8' });
+  const notesFile = writeReleaseNotesFile(body);
+  if (notesFile.truncated) {
+    warn(`  ${tag}: release body is over GitHub's 125,000-character limit, truncated it`);
+  }
+  try {
+    execFileSync('gh', ['release', 'edit', tag, '--notes-file', notesFile.path], { encoding: 'utf8' });
+  } finally {
+    notesFile.cleanup();
+  }
 }
 
 export function getReleaseInfo(tag: string): { isDraft: boolean; body: string | null } | null {

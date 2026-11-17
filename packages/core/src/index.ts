@@ -81,6 +81,7 @@ export {
 } from './packageUtils.js';
 export { isPathWithinRoot } from './paths.js';
 export { type PrerequisiteResolution, resolvePrerequisites } from './prerequisites.js';
+export { writeReleaseNotesFile } from './releaseBody.js';
 export {
   extractSelectionRegion,
   RK_GRAD_SYNC_MARKER,

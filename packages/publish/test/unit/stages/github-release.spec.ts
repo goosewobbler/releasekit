@@ -46,14 +46,21 @@ function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
   };
 }
 
+/** Each call's notes file content, read while the call runs: the stage removes the file afterwards. */
+const notesFiles = new Map<string[], string>();
+
 describe('github-release stage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    notesFiles.clear();
     const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
-    vi.mocked(execCommand).mockResolvedValue({
-      stdout: 'https://github.com/owner/repo/releases/tag/v1.0.0',
-      stderr: '',
-      exitCode: 0,
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs');
+    vi.mocked(execCommand).mockImplementation(async (_command, args) => {
+      const notesIndex = args.indexOf('--notes-file');
+      if (notesIndex !== -1) {
+        notesFiles.set(args, readFileSync(args[notesIndex + 1] as string, 'utf-8'));
+      }
+      return { stdout: 'https://github.com/owner/repo/releases/tag/v1.0.0', stderr: '', exitCode: 0 };
     });
     // Default: release does not exist (gh release view returns non-zero)
     vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: 'not found', exitCode: 1 });
@@ -122,8 +129,7 @@ describe('github-release stage', () => {
     await runGithubReleaseStage(ctx);
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args).toContain('--notes');
-    expect(args).toContain('## 1.0.0\n\n- Enhanced notes from pipeline');
+    expect(notesFiles.get(args)).toBe('## 1.0.0\n\n- Enhanced notes from pipeline');
     expect(args).not.toContain('--generate-notes');
   });
 
@@ -183,7 +189,7 @@ describe('github-release stage', () => {
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     expect(args).toContain('--generate-notes');
-    expect(args).not.toContain('--notes');
+    expect(args).not.toContain('--notes-file');
   });
 
   it('should mark a breaking change and list it first in a changelog body', async () => {
@@ -224,9 +230,7 @@ describe('github-release stage', () => {
     await runGithubReleaseStage(ctx);
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args[args.indexOf('--notes') + 1]).toBe(
-      '- **BREAKING** Reject the old preset (`config`)\n- Patch serializer',
-    );
+    expect(notesFiles.get(args)).toBe('- **BREAKING** Reject the old preset (`config`)\n- Patch serializer');
   });
 
   it('should match sanitized tag format (scope-pkg-vX.Y.Z) to scoped package name', async () => {
@@ -284,8 +288,7 @@ describe('github-release stage', () => {
     await runGithubReleaseStage(ctx);
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args).toContain('--notes');
-    expect(args[args.indexOf('--notes') + 1]).toBe('LLM-enhanced release notes');
+    expect(notesFiles.get(args)).toBe('LLM-enhanced release notes');
     expect(args).not.toContain('--generate-notes');
     // Title should be resolved via the releaseNotes keys even though changelogs is empty
     expect(args[args.indexOf('--title') + 1]).toBe('@releasekit/version: v0.4.1');
@@ -311,8 +314,7 @@ describe('github-release stage', () => {
     await runGithubReleaseStage(ctx);
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args).toContain('--notes');
-    expect(args[args.indexOf('--notes') + 1]).toBe('LLM-enhanced release notes');
+    expect(notesFiles.get(args)).toBe('LLM-enhanced release notes');
     expect(args).not.toContain('--generate-notes');
     expect(args[args.indexOf('--title') + 1]).toBe('@wdio/tauri-plugin: v1.1.0');
   });
@@ -327,7 +329,7 @@ describe('github-release stage', () => {
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     expect(args).toContain('--generate-notes');
-    expect(args).not.toContain('--notes');
+    expect(args).not.toContain('--notes-file');
   });
 
   it('should pass no notes flags when body is none', async () => {
@@ -340,7 +342,7 @@ describe('github-release stage', () => {
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     expect(args).not.toContain('--generate-notes');
-    expect(args).not.toContain('--notes');
+    expect(args).not.toContain('--notes-file');
   });
 
   it('should create per-package releases by default', async () => {
