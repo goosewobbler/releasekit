@@ -96,38 +96,44 @@ describe('Pipeline: rendered notes', () => {
   }
 
   describe('enhance without categorize', () => {
-    it('should render the enhanced descriptions in the changelog, per-version file and release body', async () => {
+    it('should render the enhanced descriptions in the per-version file and release body but not the changelog', async () => {
       const out = await render({
         changelog: { mode: 'root', file: path.join(tmpDir, 'CHANGELOG.md') },
         releaseNotes: { file: { dir: path.join(tmpDir, 'notes') }, llm: llm({ enhance: true }) },
       });
 
-      for (const rendered of [out.changelog, out.perVersionFile, out.body]) {
+      for (const rendered of [out.perVersionFile, out.body]) {
         expect(rendered).toContain('Responses can now be streamed');
         expect(rendered).toContain('Fixed a crash when the config is empty');
         expect(rendered).not.toContain('add streaming');
       }
+      expect(out.changelog).toContain('add streaming');
+      expect(out.changelog).not.toContain('Responses can now be streamed');
     });
 
     it.each([
       ['keep-a-changelog', path.join(BUILTIN_TEMPLATES, 'keep-a-changelog')],
       ['angular', path.join(BUILTIN_TEMPLATES, 'angular')],
       ['github-release', path.join(BUILTIN_TEMPLATES, 'github-release', 'release.md.ejs')],
-    ])('should render the enhanced descriptions through the built-in %s template', async (_name, templatePath) => {
-      const out = await render({
-        changelog: { mode: 'root', file: path.join(tmpDir, 'CHANGELOG.md'), templates: { path: templatePath } },
-        releaseNotes: {
-          file: { dir: path.join(tmpDir, 'notes') },
-          templates: { path: templatePath },
-          llm: llm({ enhance: true }),
-        },
-      });
+    ])(
+      'should render the enhanced descriptions through the built-in %s release-notes template',
+      async (_name, templatePath) => {
+        const out = await render({
+          changelog: { mode: 'root', file: path.join(tmpDir, 'CHANGELOG.md'), templates: { path: templatePath } },
+          releaseNotes: {
+            file: { dir: path.join(tmpDir, 'notes') },
+            templates: { path: templatePath },
+            llm: llm({ enhance: true }),
+          },
+        });
 
-      for (const rendered of [out.changelog, out.perVersionFile, out.body]) {
-        expect(rendered).toContain('Responses can now be streamed');
-        expect(rendered).not.toContain('add streaming');
-      }
-    });
+        for (const rendered of [out.perVersionFile, out.body]) {
+          expect(rendered).toContain('Responses can now be streamed');
+          expect(rendered).not.toContain('add streaming');
+        }
+        expect(out.changelog).toContain('add streaming');
+      },
+    );
   });
 
   describe('release body matches the per-version file', () => {

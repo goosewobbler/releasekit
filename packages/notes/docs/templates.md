@@ -96,7 +96,7 @@ Each version block (`version`) receives:
 | `date` | `string` | Release date in `YYYY-MM-DD` format |
 | `repoUrl` | `string \| null` | Repository URL |
 | `compareUrl` | `string \| undefined` | Link to diff between previous and current version |
-| `entries` | `ChangelogEntry[]` | Changelog entries, rewritten by the LLM when `tasks.enhance` is on |
+| `entries` | `ChangelogEntry[]` | Changelog entries. Release-notes templates get the LLM-rewritten entries when `tasks.enhance` is on; changelog templates always get the commit-derived ones |
 | `enhanced` | `EnhancedData \| undefined` | LLM-processed data (see below) |
 
 ### Entry
