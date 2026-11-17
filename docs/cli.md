@@ -455,7 +455,7 @@ releasekit-release backfill --all --apply
 releasekit-release backfill --package @scope/pkg --update-releases --only-missing --apply
 ```
 
-`--all` backfills every package a release would version, scoped by `version.packages`; packages with no matching tags are skipped. It is mutually exclusive with `--package`. Tags are resolved per package (package-specific) or from the shared global series (sync/single).
+With `--all`, packages with no matching tags are skipped. It is mutually exclusive with `--package`. Tags are resolved per package (package-specific) or from the shared global series (sync/single).
 
 With `sync: true`, each package's notes come from every commit in its directory. Otherwise they come from commits to its directory and to any crate or Dart package it versions through `cargo.paths` or `pub.paths` (ignored with `version.groups`). A nested package's commits count only if it never releases on its own, because it's private or outside `version.packages`.
 
