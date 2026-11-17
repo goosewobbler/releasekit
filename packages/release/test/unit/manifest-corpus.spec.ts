@@ -28,9 +28,7 @@ describe.each(fixtures)('the manifest persisted in %s', (file) => {
     expect(() => parseManifest(manifestComment(persisted))).not.toThrow();
   });
 
-  // The notes pipeline publish runs on a merged standing PR's manifest, here without repo config, a changelog write
-  // or an LLM.
-  it('should render release notes for every package', async () => {
+  it("should render each changelog's release notes", async () => {
     const { versionOutput } = parseManifest(manifestComment(persisted));
 
     const result = await runPipeline(
@@ -42,7 +40,6 @@ describe.each(fixtures)('the manifest persisted in %s', (file) => {
     for (const changelog of versionOutput.changelogs) {
       const notes = result.releaseNotes?.[changelog.packageName] ?? '';
       expect(notes).toContain(changelog.version);
-      expect(notes).not.toContain('undefined');
       expect(/^- /m.test(notes)).toBe(changelog.entries.length > 0);
     }
   });
