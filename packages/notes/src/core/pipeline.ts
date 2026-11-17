@@ -15,7 +15,7 @@ import { enhanceAndCategorize } from '../llm/tasks/enhance-and-categorize.js';
 import { generateReleaseNotes } from '../llm/tasks/release-notes.js';
 import { summarizeEntries } from '../llm/tasks/summarize.js';
 import { type FormatVersionOptions, formatVersion, renderMarkdown, writeChangelog } from '../output/markdown.js';
-import { writeVersionedNotes } from '../output/versioned.js';
+import { nestsReleaseNotes, writeVersionedNotes } from '../output/versioned.js';
 import { renderTemplate } from '../templates/loader.js';
 import { mapWithConcurrency } from '../utils/concurrency.js';
 import { withRetry } from '../utils/retry.js';
@@ -334,6 +334,11 @@ export interface PipelineOptions {
   skipReleaseNotes?: boolean;
   /** Use during publish from manifest to regenerate only the release notes against an already-bumped tree. */
   skipChangelogs?: boolean;
+  /**
+   * Generate release notes only for these packages, and no changelogs. The other packages still count toward the
+   * release-notes file layout.
+   */
+  releaseNotesFor?: string[];
 }
 
 export async function runPipeline(
@@ -346,7 +351,10 @@ export async function runPipeline(
 
   // The changelog renders from these; LLM output goes only to release surfaces.
   const changelogContexts = input.packages.map(createTemplateContext);
-  let releaseNotesContexts = changelogContexts;
+  const releaseNotesFor = pipelineOptions?.releaseNotesFor;
+  let releaseNotesContexts = releaseNotesFor
+    ? changelogContexts.filter((ctx) => releaseNotesFor.includes(ctx.packageName))
+    : changelogContexts;
 
   const changelogConfig = config.changelog === false ? false : { mode: 'root' as const, ...(config.changelog ?? {}) };
   const releaseNotesConfig =
@@ -370,7 +378,7 @@ export async function runPipeline(
             repo: ownerRepo.repo,
             packageName: ctx.packageName,
             count: examplesCount,
-            isMonorepo: releaseNotesContexts.length > 1,
+            isMonorepo: input.packages.length > 1,
           });
           examplesByPackage.set(ctx.packageName, examples);
           if (examples.length > 0) {
@@ -413,7 +421,7 @@ export async function runPipeline(
       }));
     }
 
-    const allPackageNames = releaseNotesContexts.map((c) => c.packageName);
+    const allPackageNames = input.packages.map((p) => p.packageName);
     // Bound cross-package fan-out with the same `concurrency` knob used within a package, so a large
     // monorepo doesn't open one in-flight LLM request per package all at once and trip rate limits.
     const concurrency = llmConfig.concurrency ?? LLM_DEFAULTS.concurrency;
@@ -425,15 +433,14 @@ export async function runPipeline(
   const files: string[] = [];
 
   const fmtOpts: FormatVersionOptions = {
-    includePackageName:
-      releaseNotesContexts.length > 1 || releaseNotesContexts.some((c) => c.packageName.includes('/')),
+    includePackageName: input.packages.length > 1 || changelogContexts.some((c) => c.packageName.includes('/')),
     categoryOrder: llmConfig?.categoryOrder,
     links: releaseNotesConfig?.links,
     firstRelease: releaseNotesConfig?.firstRelease,
     refs: (changelogConfig !== false ? changelogConfig.refs : undefined) ?? 'link',
   };
 
-  if (!pipelineOptions?.skipChangelogs && changelogConfig !== false && changelogConfig.mode) {
+  if (!pipelineOptions?.skipChangelogs && !releaseNotesFor && changelogConfig !== false && changelogConfig.mode) {
     const fileName = changelogConfig.file ?? 'CHANGELOG.md';
     const mode = changelogConfig.mode;
     const templates = changelogConfig.templates;
@@ -474,8 +481,7 @@ export async function runPipeline(
     info(`Generating release notes → ${dir}`);
 
     try {
-      const { detectMonorepo } = await import('../monorepo/aggregator.js');
-      const nested = detectMonorepo(process.cwd()).isMonorepo || releaseNotesContexts.length > 1;
+      const nested = nestsReleaseNotes(input.packages.length);
 
       const versionedFiles = writeVersionedNotes(releaseNotesContexts, dir, dryRun, nested, (ctx) =>
         renderReleaseNotes(ctx, 'file', releaseNotesConfig, fmtOpts),
