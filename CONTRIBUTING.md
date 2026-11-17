@@ -100,8 +100,8 @@ PR titles are validated by the `pr-title.yml` CI workflow. Since PRs are squash-
 - Run a single package: `pnpm --filter @releasekit/version test`
 - Coverage: `pnpm --filter @releasekit/version test:coverage`
 
-All new features and bug fixes should include tests. Each package sets coverage thresholds in its
-`vitest.config.ts`, a little below its current coverage, and CI fails a pull request that drops below them.
+All new features and bug fixes should include tests. CI fails a pull request that drops a package's coverage below
+its threshold.
 
 ## Pull Request Process
 

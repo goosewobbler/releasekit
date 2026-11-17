@@ -4,7 +4,7 @@ In standing-PR mode, releasekit keeps one open pull request describing the next 
 
 ## The regions
 
-Every input in the body is delimited by an HTML comment marker. **The markers are the contract.** The bot never parses the surrounding prose — it slices between region markers (the selection region's markers must each sit on a line of its own), and for checkboxes reads only the `[x]` / `[ ]` glyph of a `- [ ]` row that carries the marker; text after the marker is ignored. That means you can reword a row's visible label freely; you cannot move, edit, or delete its marker.
+Every input in the body is delimited by an HTML comment marker. **The markers are the contract.** The bot never parses the surrounding prose. A checkbox is read from the `- [ ]`, `- [x]` or `- [X]` row, indented or not, that carries the checkbox's own marker: only its `[ ]` / `[x]` / `[X]` counts. You can reword a row's visible label freely; you cannot move, edit, or delete its marker.
 
 | Marker | What it is | What an edit does |
 |---|---|---|
@@ -15,7 +15,7 @@ Every input in the body is delimited by an HTML comment marker. **The markers ar
 | `<!-- rk-grad-sync -->` | A sync release's graduation checkbox | Ticking asks the bot to graduate the release to stable |
 | `<!-- releasekit-manifest -->` | The release manifest, in a bot comment | **Bot-owned.** Drives the entire publish |
 
-The checklist rows live inside `<!-- releasekit-selection -->` … `<!-- releasekit-selection-end -->`, and the manifest lives in its own comment rather than the body.
+The checklist rows live inside `<!-- releasekit-selection -->` … `<!-- releasekit-selection-end -->`, each of those two markers on a line of its own, and the manifest lives in its own comment rather than the body.
 
 The bot escapes markers in text it copies into the body, such as changelog entries and release notes, so a commit message can't open, end or forge a region. In changelog entries it escapes every `<!--`, so none can hide the rows below.
 

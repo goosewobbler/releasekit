@@ -227,7 +227,7 @@ What was pushed depends on the mode. The order is in [Publish order and partial 
 - **Batch mode** (one shared tag): nothing is pushed. In a direct release the version commit is still local. Re-run; packages already on the registry are skipped, then the branch, tags, and GitHub Releases are pushed.
 - **Per-package mode** (each update has its own tag): the release commit and the tags of packages that published are already on the remote. No GitHub Release was created. Roll forward with the next release. Do not delete those tags.
 - **A tag push failed after the branch push** (direct release, either mode): the release commit is on the remote, but its tags are not. A re-run fails every time, because its new release commit can't be pushed over this one. Roll forward with the next release; this version gets no GitHub Release. Before that release, restore the tags with the commands from the failure report. Without them it counts from the previous tag, so its changelog repeats this release's entries and its bump counts this release's commits again. Under `mismatchStrategy: 'error'` it can also throw a version mismatch if this release moved onto or off a prerelease.
-- **Standing-PR mode:** the merge already put the version commit on `main`. Add `release:retry` to the merged standing PR (below). Do not delete a tag whose version was published. A publish that refused the manifest is different; see [A refused publish](#a-refused-publish).
+- **Standing-PR mode:** the merge already put the version commit on `main`. Add `release:retry` to the merged standing PR (below). Do not delete a tag whose version was published. A [refused publish](#a-refused-publish) is different.
 
 ### The failure report
 
@@ -253,7 +253,7 @@ A successful retry marks the failure report resolved and clears the supersede wa
 If you would rather move on, **merge the next standing PR**. It versions on top of the failed release rather than re-proposing it:
 
 - Every package, including the ones that failed before, publishes at the new version. The unpublished versions are skipped, because the next release bumps from the versions the release commit set. With bumps from commits it also counts their commits again, so a failed 1.3.0 is followed by 1.4.0, and a failed 2.0.0 by 3.0.0.
-- Where a tag was never pushed (every tag in batch mode or after a refused publish, a failed package's own tag in per-package mode), the next changelog repeats its entries. `CHANGELOG.md` keeps the section for the skipped version. In per-package mode, tags for packages that did publish are already on the remote; leave them.
+- The next changelog repeats the failed release's entries wherever its tag was never pushed: every tag in batch mode or after a refused publish, and a failed package's own tag in per-package mode. `CHANGELOG.md` keeps the section for the skipped version. In per-package mode, tags for packages that did publish are already on the remote; leave them.
 
 Nothing is lost, as every change since the last tag ships. The gap is cosmetic: no GitHub Release for the skipped version, and a version hole on the registry for the packages that didn't publish. To publish the failed versions as they are, retry instead.
 
@@ -263,7 +263,7 @@ So a failed publish does not silently fade away, ReleaseKit warns while a partia
 
 > ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry). Retry it via `release:retry` on the merged standing PR (#42) to publish its versions, **or** merging this PR supersedes it: the next release skips the unpublished versions and bumps on top of them. Do not delete tags for versions that were published.
 
-This gives you an honest choice between the two recovery paths. The warning is keyed off the failure report on the most recently merged standing PR and its resolved status, so it clears automatically once the failed release is retried successfully or superseded by the next release. After a refused publish, the warning offers only the supersede path.
+This gives you an honest choice between the two recovery paths. The warning is keyed off the failure report on the most recently merged standing PR and its resolved status, so it clears automatically once the failed release is retried successfully or superseded by the next release. After a refused publish that can't be retried, the warning offers only the supersede path.
 
 ### A refused publish
 

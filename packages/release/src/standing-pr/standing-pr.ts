@@ -1769,9 +1769,9 @@ async function packagesBumpedBy(mergeSha: string, packageDirs: Record<string, st
 }
 
 /**
- * The branch can move after the last update, so the PR may merge a head the manifest doesn't describe. Its versions
- * are already checked against the merged tree; what it can still miss is a package the merge bumps, which would stay
- * on the base branch untagged and unpublished.
+ * The branch can move after the last update, so the PR may merge a head the manifest doesn't describe. The manifest's
+ * versions are already checked against the merged tree, but it can still miss a package the merge bumps, leaving that
+ * package untagged and unpublished on the base branch.
  */
 async function assertManifestCoversMerge(
   manifest: StandingPRManifest,

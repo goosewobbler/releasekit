@@ -145,7 +145,7 @@ releasekit release --dry-run
 In GitHub Actions (`GITHUB_REPOSITORY`, `GITHUB_SHA` and `GITHUB_TOKEN` set, outside `workflow_dispatch`), `release` first makes [`gate`](#releasekit-release-gate)'s decision on the merged PR the pushed commit came from. A PR calls for a release with a `bump:*` or `release:graduate` label under `ci.releaseTrigger: "label"`, without `release:skip` under `"commit"`, and with `release:immediate` in `standing-pr` strategy.
 
 - **No release**: the PR's labels don't call for one, HEAD matches `release.ci.skipPatterns`, or, with sync versioning, a newer tag already contains the pushed commit (a re-run after the checkout moved past its release). `release` exits 0, logs the reason, and `--json` reports `changed: false`. A PR with conflicting labels blocks the release the same way.
-- **Release**: the winning PR's `bump:*` and `channel:prerelease` labels set the bump (under `"commit"`, commits set it: only `bump:major` overrides it, and `channel:prerelease` makes it a prerelease), `release:graduate` the graduation and `scope:*` the target. `--bump`, `--stable` or `--prerelease` replace its bump and channel, and `--target` or `--scope` its scope. Without a scope label, every changed package releases. Without sync versioning, a package whose newer tag already contains the pushed commit doesn't.
+- **Release**: the winning PR's `bump:*` and `channel:prerelease` labels set the bump (under `"commit"`, commits set it: only `bump:major` overrides it, and `channel:prerelease` makes it a prerelease), `release:graduate` the graduation and `scope:*` the target. `--bump`, `--stable` or `--prerelease` replace its bump and channel, and `--target` or `--scope` its scope. Without a scope label, every changed package releases. Without sync versioning, a package with a newer tag that already contains the pushed commit is skipped.
 - **A direct push** (the pushed commit isn't from a merged PR): under `"commit"` in direct strategy, `release` releases from commits. Elsewhere it carries no labels, so it doesn't release.
 - **No GitHub context**: `release` releases from commits.
 
@@ -430,7 +430,7 @@ Regenerate release notes for **already-released** versions of one or more packag
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-p, --package <name>` | string | package.json name at `--path` | Package to backfill |
-| `--path <dir>` | string | `.` | Package directory. Without it and with `sync: false`, a `--package` that names a workspace package uses that package's directory |
+| `--path <dir>` | string | `.` | Package directory. With `sync: false` and no `--path`, a `--package` that names a workspace package uses that package's directory instead |
 | `--all` | boolean | `false` | Backfill every package in the workspace (monorepo discovery) |
 | `--from <version>` | string | - | Earliest version to backfill (inclusive) |
 | `--to <version>` | string | - | Latest version to backfill (inclusive) |
