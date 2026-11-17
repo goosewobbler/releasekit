@@ -23,10 +23,10 @@ type Update = VersionOutput['updates'][number];
 const REGION_HEADING = '### Packages to release';
 const REGION_HINT =
   '> Untick a package to hold it back from the next release, then save — the bot re-runs and updates this PR. ' +
-  'Keep the `<!-- rk-sel... -->` marker comment at the end of each row; it identifies the row.';
+  'Keep the `<!-- rk-sel... -->` marker comment on each row; it identifies the row.';
 const GRADUATION_HINT =
   '> Tick a package to graduate it to stable on the next release, then save — the bot re-runs and updates this PR. ' +
-  'Keep the `<!-- rk-grad... -->` marker comment at the end of each row; it identifies the row.';
+  'Keep the `<!-- rk-grad... -->` marker comment on each row; it identifies the row.';
 const GRADUATION_HEADING = '#### Graduate to stable';
 
 const CHANNEL_ORDER: readonly ReleaseChannel[] = ['stable', 'prerelease'] as const;
@@ -533,7 +533,7 @@ function* checklistRows(text: string): Generator<{ line: string; ticked: boolean
 
 export function extractSyncGraduation(body: string): boolean {
   for (const { line, ticked } of checklistRows(body)) {
-    if (line.endsWith(RK_GRAD_SYNC_MARKER)) {
+    if (line.includes(RK_GRAD_SYNC_MARKER)) {
       return ticked;
     }
   }
@@ -543,8 +543,8 @@ export function extractSyncGraduation(body: string): boolean {
 const MARKER_CLOSE = ' -->';
 
 /**
- * A marker counts only at the end of a task-list row, so one copied into a row's changelog (always behind a `>`) or
- * into the middle of a line can't forge a row.
+ * A marker counts only on a task-list row, so one copied into a row's changelog (always behind a `>`) can't forge a
+ * row. The row's own marker is rendered last, so the last one wins, and text typed after it is ignored.
  */
 function markerHits(region: string, marker: string): Array<{ name: string; ticked: boolean }> {
   const open = `<!-- ${marker}:`;
@@ -554,9 +554,10 @@ function markerHits(region: string, marker: string): Array<{ name: string; ticke
     if (markerStart === -1) {
       continue;
     }
-    const name = line.slice(markerStart + open.length, -MARKER_CLOSE.length);
-    if (line.endsWith(MARKER_CLOSE)) {
-      hits.push({ name, ticked });
+    const nameStart = markerStart + open.length;
+    const nameEnd = line.indexOf(MARKER_CLOSE, nameStart);
+    if (nameEnd !== -1) {
+      hits.push({ name: line.slice(nameStart, nameEnd), ticked });
     }
   }
   return hits;

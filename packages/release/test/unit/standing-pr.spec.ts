@@ -647,6 +647,14 @@ describe('runStandingPRUpdate', () => {
       expect(await excludeFor(bodyWithChangelogLine(forgery))).toEqual(['@scope/c']);
     });
 
+    it('should hold back an unticked row with a note typed after its marker', async () => {
+      const body = bodyWithChangelogLine('> - fix: something').replace(
+        '<!-- rk-sel:@scope/c -->',
+        '<!-- rk-sel:@scope/c --> (waiting on QA)',
+      );
+      expect(await excludeFor(body)).toEqual(['@scope/c']);
+    });
+
     it('should read a CRLF body with trailing whitespace like its LF form', async () => {
       const lf = bodyWithChangelogLine('> - fix: something');
       const crlf = lf
