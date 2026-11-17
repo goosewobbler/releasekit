@@ -187,7 +187,9 @@ const VersionConfigBaseSchema = z.strictObject({
   strictReachable: z
     .boolean()
     .default(false)
-    .describe("Fail the run when the previous release tag isn't reachable from HEAD, instead of falling back."),
+    .describe(
+      'Fail the run when a release tag exists but none is reachable from HEAD (typically a shallow clone), instead of falling back to the manifest version.',
+    ),
   zeroMajor: z
     .enum(['spec', 'strict'])
     .default('spec')

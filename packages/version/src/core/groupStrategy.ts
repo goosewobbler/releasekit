@@ -15,7 +15,7 @@ import semver from 'semver';
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { BaseVersionError } from '../errors/baseError.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
-import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
+import { checkUnreachableTags, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import type { Config } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
@@ -86,6 +86,8 @@ async function planMember(
   pkg: Package,
   formattedPrefix: string,
   globalTag: string,
+  globalPrefix: string | undefined,
+  excluded = false,
 ): Promise<MemberPlan> {
   const name = pkg.packageJson.name;
 
@@ -100,6 +102,23 @@ async function planMember(
   }
   if (!latestTag) {
     latestTag = globalTag;
+  }
+  if (!latestTag && !config.baseRef && !excluded) {
+    await checkUnreachableTags(
+      [
+        ...(config.baselineTagTemplate
+          ? []
+          : [
+              {
+                packageName: name,
+                versionPrefix: formattedPrefix,
+                options: { tagTemplate: config.tagTemplate, packageSpecificTags: config.packageSpecificTags },
+              },
+            ]),
+        { globalPrefix },
+      ],
+      config.strictReachable ?? false,
+    );
   }
 
   const commitScope = resolveCommitScope(pkg.dir, config, { ignorePaths: true }).scope;
@@ -460,7 +479,9 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
           continue;
         }
 
-        const plans = await Promise.all(members.map((pkg) => planMember(config, pkg, formattedPrefix, globalTag)));
+        const plans = await Promise.all(
+          members.map((pkg) => planMember(config, pkg, formattedPrefix, globalTag, globalPrefix)),
+        );
         const computation = computeGroup(group, plans, config);
 
         if (!computation.hasChange) {
@@ -479,7 +500,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
             droppedNames = excludedMembers.map((m) => m.packageJson.name);
           } else {
             const excludedPlans = await Promise.all(
-              excludedMembers.map((m) => planMember(config, m, formattedPrefix, globalTag)),
+              excludedMembers.map((m) => planMember(config, m, formattedPrefix, globalTag, globalPrefix, true)),
             );
             droppedNames = excludedPlans.filter((p) => p.changed).map((p) => p.pkg.packageJson.name);
           }
@@ -511,7 +532,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         if (!targetFilter(pkg) || !shouldProcess(pkg, config)) {
           continue;
         }
-        const plan = await planMember(config, pkg, formattedPrefix, globalTag);
+        const plan = await planMember(config, pkg, formattedPrefix, globalTag, globalPrefix);
         if (!plan.changed || !checkManifestToBump(pkg.packageJson.name, pkg.dir, config, { ignorePaths: true })) {
           continue;
         }
