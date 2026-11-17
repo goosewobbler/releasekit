@@ -56,29 +56,3 @@ export function createConventionalCommit(
     execFileSync('git', ['commit', '--no-verify', '-m', header], { cwd: dir });
   }
 }
-
-export function safeGitCommit(cwd: string, message: string) {
-  try {
-    const status = execFileSync('git', ['status', '--porcelain'], { cwd }).toString();
-    if (status.trim()) {
-      execFileSync('git', ['commit', '-m', message], { cwd });
-    } else {
-      console.log(`[DEBUG] No changes to commit in ${cwd}`);
-    }
-  } catch (err) {
-    let errorMsg = '';
-    if (err && typeof err === 'object') {
-      if ('stderr' in err && err.stderr) {
-        errorMsg = String((err as { stderr: string }).stderr);
-      } else if ('message' in err) {
-        errorMsg = String((err as Error).message);
-      } else {
-        errorMsg = String(err);
-      }
-    } else {
-      errorMsg = String(err);
-    }
-    console.error(`[DEBUG] git commit failed in ${cwd}:`, errorMsg);
-    throw err;
-  }
-}
