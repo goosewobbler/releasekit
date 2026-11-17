@@ -9,11 +9,8 @@ export default mergeConfig(
       // Under a full turbo run, the first import of the notes pipeline can exceed the 5s default.
       testTimeout: 15_000,
       coverage: {
+        thresholds: { lines: 85, functions: 89, branches: 81, statements: 85 },
         exclude: [
-          '**/*.spec.ts',
-          '**/*.test.ts',
-          '**/types.ts',
-          'src/index.ts',
           'src/cli.ts',
           'src/llm/anthropic.ts',
           'src/llm/openai.ts',
