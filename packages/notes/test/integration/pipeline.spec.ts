@@ -86,7 +86,7 @@ describe('Pipeline: version output → markdown', () => {
   it('should populate compareUrls in document context', () => {
     const input = parseVersionOutput(JSON.stringify(versionOutputFixture));
     const contexts = input.packages.map(createTemplateContext);
-    const doc = createDocumentContext(contexts, 'https://github.com/acme/my-lib');
+    const doc = createDocumentContext(contexts, 'https://github.com/acme/my-lib', { refs: 'link' });
 
     expect(doc.compareUrls).toBeDefined();
     expect(doc.compareUrls?.['2.0.0']).toBe('https://github.com/acme/my-lib/compare/v1.0.0...v2.0.0');

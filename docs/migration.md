@@ -305,6 +305,26 @@ with a `version` block); it used to fail.
 `ci.standingPr.primaryPackages` is now `version.primaryPackages`; config loading fails on the old key.
 `ci.standingPr.selection` stays where it is.
 
+### Changelog entries render the same everywhere
+
+- Every surface writes an entry as `- **scope**: description (refs)`; standing-PR rows, the preview and
+  `body: changelog` release bodies used to put the scope after the description.
+- No entry has a `**BREAKING**` prefix; the Breaking section marks it.
+- `body: changelog` release bodies have section headings instead of a flat list.
+- LLM categories no longer group entries by scope inside a category.
+- `notes.changelog.demoteScopes` is removed, and config loading fails if it's set. `deps` and `deps-dev` entries
+  always go last, under "Dependencies & version bumps", now in `CHANGELOG.md` and release bodies too.
+- A `<!--` inside a code span gets a zero-width space on every surface, as standing-PR rows already did.
+
+### Templates get sections
+
+- `enhanced.categories` is removed from the template context. Use `sections`, which holds the LLM categories when
+  `categorize` ran and the commit-type groups otherwise, Breaking first.
+- `enhanced` is set only when the `summarize` or `releaseNotes` task produced text.
+- Each entry has `line`, the rendered Markdown line. The bundled templates use `sections` and `line`, so their
+  sections and entry lines match the built-in renderer's. See
+  [Templates](../packages/notes/docs/templates.md#sections).
+
 ---
 
 ## Further reading

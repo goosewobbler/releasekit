@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import { assertLlmModel, runsLlmTasks } from '@releasekit/config';
-import { debug, info, parseGitHubOwnerRepo, warn } from '@releasekit/core';
+import { debug, info, parseGitHubOwnerRepo, renderChangelogEntryLine, warn } from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
 import { withContentHashCache } from '../llm/cache.js';
 import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken } from '../llm/context/prFetcher.js';
@@ -14,12 +14,19 @@ import { enhanceEntries } from '../llm/tasks/enhance.js';
 import { enhanceAndCategorize } from '../llm/tasks/enhance-and-categorize.js';
 import { generateReleaseNotes } from '../llm/tasks/release-notes.js';
 import { summarizeEntries } from '../llm/tasks/summarize.js';
-import { type FormatVersionOptions, formatVersion, renderMarkdown, writeChangelog } from '../output/markdown.js';
+import {
+  type FormatVersionOptions,
+  formatVersion,
+  renderMarkdown,
+  versionSections,
+  writeChangelog,
+} from '../output/markdown.js';
 import { nestsReleaseNotes, writeVersionedNotes } from '../output/versioned.js';
 import { renderTemplate } from '../templates/loader.js';
 import { mapWithConcurrency } from '../utils/concurrency.js';
 import { withRetry } from '../utils/retry.js';
 import type {
+  ChangelogEntry,
   ChangelogInput,
   Config,
   DocumentContext,
@@ -32,6 +39,8 @@ import type {
   ReleaseNotesConfig,
   TemplateContext,
   TemplateEngine,
+  TemplateEntry,
+  TemplateVersion,
 } from './types.js';
 
 /**
@@ -150,7 +159,32 @@ export function createTemplateContext(pkg: PackageChangelog): TemplateContext {
   };
 }
 
-export function createDocumentContext(contexts: TemplateContext[], repoUrl?: string): DocumentContext {
+function toTemplateVersion(ctx: TemplateContext, options: FormatVersionOptions): TemplateVersion {
+  const refs = options.refs ?? 'link';
+  const withLine = (entry: ChangelogEntry): TemplateEntry => ({
+    ...entry,
+    line: renderChangelogEntryLine(entry, refs, ctx.repoUrl),
+  });
+
+  const { enhanced, ...rest } = ctx;
+  const { categories: _, ...prose } = enhanced ?? {};
+  return {
+    ...rest,
+    entries: ctx.entries.map(withLine),
+    sections: versionSections(ctx, options.categoryOrder).map((s) => ({
+      label: s.label,
+      entries: s.items.map(withLine),
+    })),
+    // Set even when absent: EJS throws on a bare `enhanced` that isn't a key.
+    enhanced: prose.summary || prose.releaseNotes ? prose : undefined,
+  };
+}
+
+export function createDocumentContext(
+  contexts: TemplateContext[],
+  repoUrl: string | undefined,
+  options: FormatVersionOptions,
+): DocumentContext {
   const compareUrls: Record<string, string> = {};
   for (const ctx of contexts) {
     if (ctx.compareUrl) {
@@ -163,7 +197,7 @@ export function createDocumentContext(contexts: TemplateContext[], repoUrl?: str
       name: contexts[0]?.packageName ?? 'project',
       repoUrl,
     },
-    versions: contexts,
+    versions: contexts.map((ctx) => toTemplateVersion(ctx, options)),
     compareUrls: Object.keys(compareUrls).length > 0 ? compareUrls : undefined,
   };
 }
@@ -309,7 +343,11 @@ function renderReleaseNotes(
 ): string {
   if (releaseNotesConfig.templates?.path) {
     const templatePath = path.resolve(releaseNotesConfig.templates.path);
-    const docCtx = { ...createDocumentContext([ctx], ctx.repoUrl ?? undefined), perPackage: true, output };
+    const docCtx = {
+      ...createDocumentContext([ctx], ctx.repoUrl ?? undefined, fmtOpts),
+      perPackage: true,
+      output,
+    };
     return renderTemplate(templatePath, docCtx, releaseNotesConfig.templates.engine as TemplateEngine | undefined)
       .content;
   }
@@ -449,7 +487,7 @@ export async function runPipeline(
       templates?.path
         ? renderTemplate(
             path.resolve(templates.path),
-            createDocumentContext(ctxs, ctxs[0]?.repoUrl ?? undefined),
+            createDocumentContext(ctxs, ctxs[0]?.repoUrl ?? undefined, options),
             templates.engine,
           ).content
         : renderMarkdown(ctxs, options);

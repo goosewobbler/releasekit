@@ -72,13 +72,31 @@ export interface TemplateContext {
   isFirstRelease?: boolean;
 }
 
+export interface TemplateEntry extends ChangelogEntry {
+  /** The built-in renderer's line: refs rendered, mentions and comment openers escaped. */
+  line: string;
+}
+
+export interface TemplateSection {
+  label: string;
+  entries: TemplateEntry[];
+}
+
+/** What a template sees for one version. */
+export interface TemplateVersion extends Omit<TemplateContext, 'entries' | 'enhanced'> {
+  entries: TemplateEntry[];
+  /** LLM categories when `categorize` ran, otherwise commit-type groups. Breaking leads unless `categoryOrder` places it. */
+  sections: TemplateSection[];
+  enhanced?: Omit<EnhancedData, 'categories'>;
+}
+
 export interface DocumentContext {
   project: {
     name: string;
     repoUrl?: string;
   };
-  versions: TemplateContext[];
-  unreleased?: TemplateContext;
+  versions: TemplateVersion[];
+  unreleased?: TemplateVersion;
   compareUrls?: Record<string, string>;
   /** Templates can use this to suppress document-level headings that are redundant
    *  when the content is embedded in a release that already shows the package/version. */

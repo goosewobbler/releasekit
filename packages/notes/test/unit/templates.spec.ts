@@ -1,7 +1,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { DocumentContext, TemplateContext } from '../../src/core/types.js';
+import { createDocumentContext } from '../../src/core/pipeline.js';
+import type { TemplateContext } from '../../src/core/types.js';
 import { renderEjs } from '../../src/templates/ejs.js';
 import { registerHandlebarsHelpers, renderHandlebars } from '../../src/templates/handlebars.js';
 import { renderLiquid } from '../../src/templates/liquid.js';
@@ -91,28 +92,26 @@ describe('EJS Engine', () => {
   });
 });
 
+const doc = (versions: TemplateContext[]) => createDocumentContext(versions, undefined, { refs: 'link' });
+
 describe('release.liquid template', () => {
   const template = fs.readFileSync(
     path.resolve(__dirname, '../../../../templates/release-notes/release.liquid'),
     'utf-8',
   );
 
-  it('should render categories from enhanced.categories', () => {
-    const ctx: DocumentContext = {
-      project: { name: 'test-pkg' },
-      versions: [
-        {
-          ...sampleContext,
-          enhanced: {
-            entries: sampleContext.entries,
-            categories: [
-              { name: 'New', entries: [{ type: 'added', description: 'New feature' }] },
-              { name: 'Fixed', entries: [{ type: 'fixed', description: 'Bug fix', scope: 'core' }] },
-            ],
-          },
+  it('should render LLM categories as sections', () => {
+    const ctx = doc([
+      {
+        ...sampleContext,
+        enhanced: {
+          categories: [
+            { name: 'New', entries: [{ type: 'added', description: 'New feature' }] },
+            { name: 'Fixed', entries: [{ type: 'fixed', description: 'Bug fix', scope: 'core' }] },
+          ],
         },
-      ],
-    };
+      },
+    ]);
 
     const result = renderLiquid(template, ctx);
     expect(result).toContain('### New:');
@@ -121,11 +120,8 @@ describe('release.liquid template', () => {
     expect(result).toContain('- **core**: Bug fix');
   });
 
-  it('should fall back to type-based sections when no enhanced.categories', () => {
-    const ctx: DocumentContext = {
-      project: { name: 'test-pkg' },
-      versions: [sampleContext],
-    };
+  it('should render commit-type sections without LLM categories', () => {
+    const ctx = doc([sampleContext]);
 
     const result = renderLiquid(template, ctx);
     expect(result).toContain('### New:');
@@ -135,26 +131,17 @@ describe('release.liquid template', () => {
   });
 
   it('should render compareUrl when present', () => {
-    const ctx: DocumentContext = {
-      project: { name: 'test-pkg' },
-      versions: [{ ...sampleContext, compareUrl: 'https://github.com/test/test-pkg/compare/v0.9.0...v1.0.0' }],
-    };
+    const ctx = doc([{ ...sampleContext, compareUrl: 'https://github.com/test/test-pkg/compare/v0.9.0...v1.0.0' }]);
 
     const result = renderLiquid(template, ctx);
     expect(result).toContain('**Full Changelog**: https://github.com/test/test-pkg/compare/v0.9.0...v1.0.0');
   });
 
   it('should lead with a first-release line when isFirstRelease is true', () => {
-    const first: DocumentContext = {
-      project: { name: 'test-pkg' },
-      versions: [{ ...sampleContext, isFirstRelease: true }],
-    };
+    const first = doc([{ ...sampleContext, isFirstRelease: true }]);
     expect(renderLiquid(template, first)).toContain('_First release of `test-pkg`._');
 
-    const subsequent: DocumentContext = {
-      project: { name: 'test-pkg' },
-      versions: [{ ...sampleContext, isFirstRelease: false }],
-    };
+    const subsequent = doc([{ ...sampleContext, isFirstRelease: false }]);
     expect(renderLiquid(template, subsequent)).not.toContain('First release of');
   });
 
@@ -163,7 +150,6 @@ describe('release.liquid template', () => {
       'with',
       {
         enhanced: {
-          entries: sampleContext.entries,
           categories: [
             { name: 'New', entries: [{ type: 'added', description: 'New feature' }] },
             {
@@ -184,31 +170,24 @@ describe('release.liquid template', () => {
       },
     ],
   ])('should move breaking changes into a Breaking section first, %s LLM categories', (_label, version) => {
-    const result = renderLiquid(template, {
-      project: { name: 'test-pkg' },
-      versions: [{ ...sampleContext, ...version }],
-    });
+    const result = renderLiquid(template, doc([{ ...sampleContext, ...version }]));
 
     expect(result).toContain('### Breaking:\n- **config**: Reject old presets\n\n### New:\n- New feature');
     expect(result).not.toContain('### Fixed:');
   });
 
   it('should skip empty categories', () => {
-    const ctx: DocumentContext = {
-      project: { name: 'test-pkg' },
-      versions: [
-        {
-          ...sampleContext,
-          enhanced: {
-            entries: sampleContext.entries,
-            categories: [
-              { name: 'New', entries: [] },
-              { name: 'Fixed', entries: [{ type: 'fixed', description: 'Bug fix' }] },
-            ],
-          },
+    const ctx = doc([
+      {
+        ...sampleContext,
+        enhanced: {
+          categories: [
+            { name: 'New', entries: [] },
+            { name: 'Fixed', entries: [{ type: 'fixed', description: 'Bug fix' }] },
+          ],
         },
-      ],
-    };
+      },
+    ]);
 
     const result = renderLiquid(template, ctx);
     expect(result).not.toContain('### New:');
@@ -216,33 +195,27 @@ describe('release.liquid template', () => {
   });
 
   it('should render version header with package name and version', () => {
-    const ctx: DocumentContext = {
-      project: { name: 'test-pkg' },
-      versions: [{ ...sampleContext, packageName: '@releasekit/publish', version: '0.4.0' }],
-    };
+    const ctx = doc([{ ...sampleContext, packageName: '@releasekit/publish', version: '0.4.0' }]);
 
     const result = renderLiquid(template, ctx);
     expect(result).toContain('## `@releasekit/publish` @ 0.4.0');
   });
 
   it('should render separator between multiple versions', () => {
-    const ctx: DocumentContext = {
-      project: { name: 'test-pkg' },
-      versions: [
-        {
-          ...sampleContext,
-          packageName: 'pkg-a',
-          version: '1.0.0',
-          entries: [{ type: 'added', description: 'Feature A' }],
-        },
-        {
-          ...sampleContext,
-          packageName: 'pkg-b',
-          version: '2.0.0',
-          entries: [{ type: 'added', description: 'Feature B' }],
-        },
-      ],
-    };
+    const ctx = doc([
+      {
+        ...sampleContext,
+        packageName: 'pkg-a',
+        version: '1.0.0',
+        entries: [{ type: 'added', description: 'Feature A' }],
+      },
+      {
+        ...sampleContext,
+        packageName: 'pkg-b',
+        version: '2.0.0',
+        entries: [{ type: 'added', description: 'Feature B' }],
+      },
+    ]);
 
     const result = renderLiquid(template, ctx);
     expect(result).toContain('## `pkg-a` @ 1.0.0');
@@ -251,23 +224,20 @@ describe('release.liquid template', () => {
   });
 
   it('should not render separator after last version', () => {
-    const ctx: DocumentContext = {
-      project: { name: 'test-pkg' },
-      versions: [
-        {
-          ...sampleContext,
-          packageName: 'pkg-a',
-          version: '1.0.0',
-          entries: [{ type: 'added', description: 'Feature A' }],
-        },
-        {
-          ...sampleContext,
-          packageName: 'pkg-b',
-          version: '2.0.0',
-          entries: [{ type: 'added', description: 'Feature B' }],
-        },
-      ],
-    };
+    const ctx = doc([
+      {
+        ...sampleContext,
+        packageName: 'pkg-a',
+        version: '1.0.0',
+        entries: [{ type: 'added', description: 'Feature A' }],
+      },
+      {
+        ...sampleContext,
+        packageName: 'pkg-b',
+        version: '2.0.0',
+        entries: [{ type: 'added', description: 'Feature B' }],
+      },
+    ]);
 
     const result = renderLiquid(template, ctx);
     expect(result).toContain('---');
@@ -278,39 +248,38 @@ describe('release.liquid template', () => {
 });
 
 describe('Built-in templates', () => {
-  const breakingCtx: DocumentContext = {
-    project: { name: 'test-pkg' },
-    versions: [
-      {
-        ...sampleContext,
-        entries: [
-          { type: 'fixed', description: 'Patch serializer' },
-          { type: 'fixed', description: 'Reject old presets', scope: 'config', breaking: true },
-        ],
-      },
-    ],
-  };
+  const breakingCtx = doc([
+    {
+      ...sampleContext,
+      entries: [
+        { type: 'fixed', description: 'Patch serializer' },
+        { type: 'fixed', description: 'Reject old presets', scope: 'config', breaking: true },
+      ],
+    },
+  ]);
 
   it.each(['keep-a-changelog', 'angular', 'github-release/release.md.ejs'])(
-    'should mark a breaking change and list it first in %s',
+    'should list a breaking change under a leading Breaking section, without a prefix, in %s',
     (name) => {
       const { content } = renderTemplate(path.join(process.cwd(), 'templates', name), breakingCtx);
 
-      const breaking = content.indexOf('- **BREAKING** **config**: Reject old presets');
-      expect(breaking).toBeGreaterThanOrEqual(0);
-      expect(breaking).toBeLessThan(content.indexOf('- Patch serializer'));
+      expect(content).toContain(
+        '### Breaking\n\n- **config**: Reject old presets\n\n### Fixed\n\n- Patch serializer\n',
+      );
+      expect(content).not.toContain('BREAKING');
       expect(content.split('Reject old presets').length - 1).toBe(1);
     },
   );
 
-  it('should list a breaking change under a leading Breaking section in keep-a-changelog', () => {
-    const { content } = renderTemplate(path.join(process.cwd(), 'templates', 'keep-a-changelog'), breakingCtx);
+  it.each(['angular', 'github-release/release.md.ejs'])(
+    'should write entry text in %s as is, without HTML entities',
+    (name) => {
+      const ctx = doc([{ ...sampleContext, entries: [{ type: 'fixed', description: "Don't drop `&` args" }] }]);
+      const { content } = renderTemplate(path.join(process.cwd(), 'templates', name), ctx);
 
-    const breakingHeading = content.indexOf('### Breaking');
-    expect(breakingHeading).toBeGreaterThanOrEqual(0);
-    expect(content.indexOf('Reject old presets')).toBeGreaterThan(breakingHeading);
-    expect(content.indexOf('Reject old presets')).toBeLessThan(content.indexOf('### Fixed'));
-  });
+      expect(content).toContain("- Don't drop `&` args\n");
+    },
+  );
 });
 
 describe('Template Loader', () => {

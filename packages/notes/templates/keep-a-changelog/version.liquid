@@ -1,56 +1,12 @@
-## [{{ version.version }}]{% if version.previousVersion %}{% endif %} - {{ version.date }}
-{% if version.compareUrl %}
+## [{{ version.version }}] - {{ version.date }}
+{%- if version.compareUrl %}
+
 [Full Changelog]({{ version.compareUrl }})
-{% endif %}
+{%- endif %}
+{%- for section in version.sections %}
 
-{% assign breaking = version.entries | where: "breaking" %}
-{% assign nonBreaking = version.entries | reject: "breaking" %}
-{% assign added = nonBreaking | where: "type", "added" %}
-{% assign changed = nonBreaking | where: "type", "changed" %}
-{% assign deprecated = nonBreaking | where: "type", "deprecated" %}
-{% assign removed = nonBreaking | where: "type", "removed" %}
-{% assign fixed = nonBreaking | where: "type", "fixed" %}
-{% assign security = nonBreaking | where: "type", "security" %}
-
-{% if breaking.size > 0 %}
-### Breaking
-{% for entry in breaking %}
+### {{ section.label }}
+{% for entry in section.entries %}
 {% include "entry" %}
-{% endfor %}
-{% endif %}
-{% if added.size > 0 %}
-### Added
-{% for entry in added %}
-{% include "entry" %}
-{% endfor %}
-{% endif %}
-{% if changed.size > 0 %}
-### Changed
-{% for entry in changed %}
-{% include "entry" %}
-{% endfor %}
-{% endif %}
-{% if deprecated.size > 0 %}
-### Deprecated
-{% for entry in deprecated %}
-{% include "entry" %}
-{% endfor %}
-{% endif %}
-{% if removed.size > 0 %}
-### Removed
-{% for entry in removed %}
-{% include "entry" %}
-{% endfor %}
-{% endif %}
-{% if fixed.size > 0 %}
-### Fixed
-{% for entry in fixed %}
-{% include "entry" %}
-{% endfor %}
-{% endif %}
-{% if security.size > 0 %}
-### Security
-{% for entry in security %}
-{% include "entry" %}
-{% endfor %}
-{% endif %}
+{%- endfor %}
+{%- endfor %}

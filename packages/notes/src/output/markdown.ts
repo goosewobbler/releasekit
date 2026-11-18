@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
   type ChangelogRefsMode,
+  type ChangelogSection,
   groupChangelogSections,
   info,
   renderChangelogEntryLine,
@@ -115,6 +116,19 @@ export interface FormatVersionOptions {
   refs?: ChangelogRefsMode;
 }
 
+/** Shared with the template context, so templates group entries as this renderer does. */
+export function versionSections(
+  context: TemplateContext,
+  categoryOrder?: string[],
+): ChangelogSection<ChangelogEntry>[] {
+  const categories = context.enhanced?.categories;
+  return groupChangelogSections(
+    context.entries,
+    (e) => e,
+    categories ? { categories, order: categoryOrder } : undefined,
+  );
+}
+
 export function formatVersion(context: TemplateContext, options?: FormatVersionOptions): string {
   const refs = options?.refs ?? 'link';
 
@@ -138,12 +152,7 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
   }
 
   const categories = context.enhanced?.categories;
-  const sections = groupChangelogSections(
-    context.entries,
-    (e) => e,
-    categories ? { categories, order: options?.categoryOrder } : undefined,
-  );
-  for (const section of sections) {
+  for (const section of versionSections(context, options?.categoryOrder)) {
     blocks.push(
       `### ${section.label}`,
       section.items.map((entry) => renderChangelogEntryLine(entry, refs, context.repoUrl)).join('\n'),

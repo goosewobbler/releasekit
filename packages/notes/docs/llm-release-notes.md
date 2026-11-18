@@ -79,7 +79,7 @@ Four tasks are available. Any combination can be enabled simultaneously.
 | Task | What it does | Output location |
 |------|-------------|-----------------|
 | `enhance` | Rewrites entry descriptions to be clear and user-facing | `entries[].description` (replaced in-place) |
-| `categorize` | Groups entries into semantic categories | `enhanced.categories` in template context |
+| `categorize` | Groups entries into semantic categories | `sections` in template context |
 | `summarize` | Generates a 2–3 sentence release summary | `enhanced.summary` in template context |
 | `releaseNotes` | Writes full prose markdown release notes | `enhanced.releaseNotes` / pipeline result |
 
@@ -108,7 +108,7 @@ Entries are processed in parallel. Control the batch size with `concurrency` (de
 
 ## Task: `categorize`
 
-Groups entries into user-friendly categories. The result populates `enhanced.categories` in the release-notes template context and drives the section layout of the built-in release notes.
+Groups entries into user-friendly categories. The result populates `sections` in the release-notes template context and drives the section layout of the built-in release notes.
 
 ### Default categories
 
