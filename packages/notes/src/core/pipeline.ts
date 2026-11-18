@@ -1,6 +1,15 @@
 import * as path from 'node:path';
 import { assertLlmModel, configuredRefsMode, runsLlmTasks } from '@releasekit/config';
-import { debug, info, parseGitHubOwnerRepo, renderChangelogEntryLine, warn } from '@releasekit/core';
+import {
+  debug,
+  groupChangelogSections,
+  info,
+  parseGitHubOwnerRepo,
+  renderChangelogEntryLine,
+  sharedPackageEntriesFor,
+  unlistedEntries,
+  warn,
+} from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
 import { withContentHashCache } from '../llm/cache.js';
 import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken } from '../llm/context/prFetcher.js';
@@ -18,6 +27,7 @@ import {
   type FormatVersionOptions,
   formatVersion,
   renderMarkdown,
+  sharedPackageBlock,
   versionSections,
   writeChangelog,
 } from '../output/markdown.js';
@@ -40,6 +50,7 @@ import type {
   TemplateContext,
   TemplateEngine,
   TemplateEntry,
+  TemplateSection,
   TemplateVersion,
 } from './types.js';
 
@@ -166,15 +177,18 @@ function toTemplateVersion(ctx: TemplateContext, options: FormatVersionOptions):
     line: renderChangelogEntryLine(entry, refs, ctx.repoUrl),
   });
 
-  const { enhanced, ...rest } = ctx;
+  const toTemplateSection = (s: { label: string; items: ChangelogEntry[] }): TemplateSection => ({
+    label: s.label,
+    entries: s.items.map(withLine),
+  });
+
+  const { enhanced, sharedEntries, ...rest } = ctx;
   const { categories: _, ...prose } = enhanced ?? {};
   return {
     ...rest,
     entries: ctx.entries.map(withLine),
-    sections: versionSections(ctx, options.categoryOrder).map((s) => ({
-      label: s.label,
-      entries: s.items.map(withLine),
-    })),
+    sections: versionSections(ctx, options.categoryOrder).map(toTemplateSection),
+    shared: groupChangelogSections(sharedEntries ?? [], (e) => e).map(toTemplateSection),
     // Set even when absent: EJS throws on a bare `enhanced` that isn't a key.
     enhanced: prose.summary || prose.releaseNotes ? prose : undefined,
   };
@@ -351,7 +365,12 @@ function renderReleaseNotes(
     return renderTemplate(templatePath, docCtx, releaseNotesConfig.templates.engine as TemplateEngine | undefined)
       .content;
   }
-  return ctx.enhanced?.releaseNotes || formatVersion(ctx, fmtOpts);
+  const prose = ctx.enhanced?.releaseNotes;
+  if (!prose) {
+    return formatVersion(ctx, fmtOpts);
+  }
+  const shared = sharedPackageBlock(ctx, fmtOpts.refs ?? 'link');
+  return shared ? `${prose.trimEnd()}\n\n${shared}\n` : prose;
 }
 
 export interface PipelineResult {
@@ -468,6 +487,15 @@ export async function runPipeline(
     );
   }
 
+  const sharedEntries = input.sharedEntries ?? [];
+  // Matched against the commit-derived entries: `enhance` rewrites the release-notes ones.
+  const ownEntries = new Map(changelogContexts.map((ctx) => [ctx.packageName, ctx.entries]));
+  const withShared = (ctx: TemplateContext): TemplateContext => {
+    const shared = sharedPackageEntriesFor(sharedEntries, ownEntries.get(ctx.packageName) ?? []);
+    return shared.length > 0 ? { ...ctx, sharedEntries: shared } : ctx;
+  };
+  releaseNotesContexts = releaseNotesContexts.map(withShared);
+
   const files: string[] = [];
 
   const fmtOpts: FormatVersionOptions = {
@@ -483,20 +511,29 @@ export async function runPipeline(
     const mode = changelogConfig.mode;
     const templates = changelogConfig.templates;
 
-    const renderChangelog = (ctxs: TemplateContext[], options: FormatVersionOptions): string =>
+    const renderChangelog = (
+      ctxs: TemplateContext[],
+      options: FormatVersionOptions,
+      runSharedEntries?: ChangelogEntry[],
+    ): string =>
       templates?.path
         ? renderTemplate(
             path.resolve(templates.path),
             createDocumentContext(ctxs, ctxs[0]?.repoUrl ?? undefined, options),
             templates.engine,
           ).content
-        : renderMarkdown(ctxs, options);
+        : renderMarkdown(ctxs, options, runSharedEntries);
 
     info(`Generating changelog → ${fileName}`);
 
     try {
       if (mode === 'root' || mode === 'both') {
-        writeChangelog(fileName, renderChangelog(changelogContexts, fmtOpts), dryRun);
+        const runEntries = changelogContexts.flatMap((ctx) => ctx.entries);
+        writeChangelog(
+          fileName,
+          renderChangelog(changelogContexts, fmtOpts, unlistedEntries(sharedEntries, runEntries)),
+          dryRun,
+        );
         if (!dryRun) {
           files.push(fileName);
         }
@@ -504,8 +541,12 @@ export async function runPipeline(
 
       if (mode === 'packages' || mode === 'both') {
         const refs = fmtOpts.refs;
-        const monoFiles = await writeMonorepoFiles(changelogContexts, config, dryRun, fileName, (ctxs) =>
-          renderChangelog(ctxs, { refs }),
+        const monoFiles = await writeMonorepoFiles(
+          changelogContexts.map(withShared),
+          config,
+          dryRun,
+          fileName,
+          (ctxs) => renderChangelog(ctxs, { refs }),
         );
         files.push(...monoFiles);
       }
@@ -534,7 +575,7 @@ export async function runPipeline(
   const packageNotes = Object.fromEntries(
     changelogContexts.map((ctx) => [
       ctx.packageName,
-      formatVersion(ctx, { firstRelease: releaseNotesConfig?.firstRelease }),
+      formatVersion(withShared(ctx), { firstRelease: releaseNotesConfig?.firstRelease }),
     ]),
   );
   const releaseNotesResult: Record<string, string> = {};

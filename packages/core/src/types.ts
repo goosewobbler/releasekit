@@ -18,6 +18,8 @@ export interface VersionChangelogEntry {
    * extraction-error fallback, which isn't a no-change carry.
    */
   synthetic?: boolean;
+  /** On a `sharedEntries` entry: its commit touched a `sharedPackages` package. Absent for a repo-level entry. */
+  sharedPackage?: boolean;
 }
 
 export interface VersionPackageChangelog {

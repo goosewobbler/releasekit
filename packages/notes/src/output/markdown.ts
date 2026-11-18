@@ -5,6 +5,8 @@ import {
   type ChangelogSection,
   groupChangelogSections,
   info,
+  PROJECT_WIDE_HEADING,
+  renderChangelogBlock,
   renderChangelogEntryLine,
   success,
   warn,
@@ -129,6 +131,12 @@ export function versionSections(
   );
 }
 
+export function sharedPackageBlock(context: TemplateContext, refs: ChangelogRefsMode): string | undefined {
+  return context.sharedEntries?.length
+    ? renderChangelogBlock(PROJECT_WIDE_HEADING, 3, context.sharedEntries, refs, context.repoUrl)
+    : undefined;
+}
+
 export function formatVersion(context: TemplateContext, options?: FormatVersionOptions): string {
   const refs = options?.refs ?? 'link';
 
@@ -169,6 +177,11 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
     }
   }
 
+  const shared = sharedPackageBlock(context, refs);
+  if (shared) {
+    blocks.push(shared);
+  }
+
   return `${blocks.join('\n\n')}\n`;
 }
 
@@ -182,11 +195,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 `;
 }
 
-export function renderMarkdown(contexts: TemplateContext[], options?: FormatVersionOptions): string {
+/** `sharedEntries` are listed once, after the versions, under a dated heading of their own. */
+export function renderMarkdown(
+  contexts: TemplateContext[],
+  options?: FormatVersionOptions,
+  sharedEntries: ChangelogEntry[] = [],
+): string {
   const sections: string[] = [formatHeader()];
 
   for (const context of contexts) {
     sections.push(formatVersion(context, options));
+  }
+
+  const first = contexts[0];
+  if (first && sharedEntries.length > 0) {
+    const heading = `${PROJECT_WIDE_HEADING} - ${first.date}`;
+    sections.push(`${renderChangelogBlock(heading, 2, sharedEntries, options?.refs ?? 'link', first.repoUrl)}\n`);
   }
 
   return sections.join('\n');

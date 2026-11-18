@@ -42,36 +42,49 @@ export async function extractAllChangelogEntriesWithHash(
   }
 }
 
-/** Entries from commits that change nothing under `packageDirs`, the pathspecs every non-shared package owns. */
+async function hashesTouching(
+  git: Git,
+  projectDir: string,
+  revisionRange: string,
+  paths: string[],
+): Promise<Set<string>> {
+  if (paths.length === 0) {
+    return new Set();
+  }
+  const output = await git.log({
+    range: revisionRange,
+    format: '%H',
+    // Without `--full-history`, history simplification hides a side branch whose merge leaves the paths unchanged.
+    extraArgs: ['--no-merges', '--full-history'],
+    paths,
+    cwd: projectDir,
+  });
+  return new Set(output.split('\n').map((line) => line.trim()));
+}
+
+/**
+ * Entries from commits that change nothing under `packageDirs`, the pathspecs every non-shared package owns. An entry
+ * whose commit changes something under `sharedPackageDirs` is marked `sharedPackage`.
+ */
 export async function extractRepoLevelChangelogEntries(
   projectDir: string,
   revisionRange: string,
   preset: Preset,
   packageDirs: string[],
+  sharedPackageDirs: string[],
   git: Git = createGitCli(),
 ): Promise<ChangelogEntry[]> {
   try {
     const allCommits = await extractAllChangelogEntriesWithHash(projectDir, revisionRange, preset, git);
-    if (packageDirs.length === 0) {
-      return allCommits.map((c) => c.entry);
-    }
-
-    const packageCommits = await git.log({
-      range: revisionRange,
-      format: '%H',
-      // Without `--full-history`, history simplification hides a side branch whose merge leaves a package unchanged.
-      extraArgs: ['--no-merges', '--full-history'],
-      paths: packageDirs,
-      cwd: projectDir,
-    });
-    const packageHashes = new Set(packageCommits.split('\n').map((line) => line.trim()));
+    const packageHashes = await hashesTouching(git, projectDir, revisionRange, packageDirs);
     const repoLevelCommits = allCommits.filter((commit) => !packageHashes.has(commit.hash));
 
     if (repoLevelCommits.length > 0) {
       log(`Found ${repoLevelCommits.length} repo-level commit(s)`, 'debug');
     }
 
-    return repoLevelCommits.map((c) => c.entry);
+    const sharedHashes = await hashesTouching(git, projectDir, revisionRange, sharedPackageDirs);
+    return repoLevelCommits.map((c) => (sharedHashes.has(c.hash) ? { ...c.entry, sharedPackage: true } : c.entry));
   } catch (error) {
     log(`Error extracting repo-level commits: ${error instanceof Error ? error.message : String(error)}`, 'warning');
     return [];

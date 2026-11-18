@@ -2,11 +2,13 @@ import type { ChangelogRefsMode, VersionOutput, VersionPackageChangelog, Version
 import {
   assertNotOption,
   debug,
-  groupChangelogSections,
   info,
   matchesPackageName,
-  renderChangelogEntryLine,
+  PROJECT_WIDE_HEADING,
+  renderChangelogBlock,
+  renderChangelogSections,
   sanitizePackageName,
+  sharedPackageEntriesFor,
   success,
   warn,
   writeReleaseNotesFile,
@@ -230,13 +232,13 @@ function formatChangelogForTag(
     return undefined;
   }
 
+  const shared = sharedPackageEntriesFor(release.input.sharedEntries ?? [], target.entries);
   const repoUrl = target.repoUrl ?? repoUrlFallback(release.input);
-  return groupChangelogSections(target.entries, (e) => e)
-    .map(
-      (section) =>
-        `### ${section.label}\n\n${section.items.map((entry) => renderChangelogEntryLine(entry, refs, repoUrl)).join('\n')}`,
-    )
-    .join('\n\n');
+  const blocks = renderChangelogSections(target.entries, 3, refs, repoUrl);
+  if (shared.length > 0) {
+    blocks.push(renderChangelogBlock(PROJECT_WIDE_HEADING, 3, shared, refs, repoUrl));
+  }
+  return blocks.join('\n\n');
 }
 
 /** Error strategy: CATCHES per-tag. Non-critical. */

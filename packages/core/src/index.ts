@@ -8,6 +8,14 @@ export {
   planCargoLockUpdates,
 } from './cargo.js';
 export {
+  type ChangelogBlockEntry,
+  PROJECT_WIDE_HEADING,
+  renderChangelogBlock,
+  renderChangelogSections,
+  sharedPackageEntriesFor,
+  unlistedEntries,
+} from './changelogBlock.js';
+export {
   type ChangelogEntryLineInput,
   type ChangelogRefsMode,
   escapeChangelogMentions,

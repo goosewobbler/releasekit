@@ -638,6 +638,7 @@ describe('Package Processor', () => {
         'wdio-dioxus-bridge@v1.0.0-next.2..HEAD',
         'conventionalcommits',
         expect.any(Array),
+        expect.any(Array),
       );
     });
 
@@ -660,6 +661,7 @@ describe('Package Processor', () => {
         'HEAD',
         'conventionalcommits',
         expect.any(Array),
+        expect.any(Array),
       );
     });
 
@@ -681,10 +683,13 @@ describe('Package Processor', () => {
       // commit touching only package-b is attributed to it (absent here), not dumped into shared.
       await processor.processPackages([mockPackages[0]]);
 
-      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'conventionalcommits', [
-        '/path/to/package-a',
-        '/path/to/package-b',
-      ]);
+      expect(extractSharedSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        'conventionalcommits',
+        ['/path/to/package-a', '/path/to/package-b'],
+        [],
+      );
     });
 
     it('should leave a configured sharedPackages package out of the package dirs, so its commits are repo-level', async () => {
@@ -704,9 +709,13 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'conventionalcommits', [
-        '/path/to/package-a',
-      ]);
+      expect(extractSharedSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        'conventionalcommits',
+        ['/path/to/package-a'],
+        ['/path/to/package-b'],
+      );
     });
 
     it('should treat no package as shared when sharedPackages is unset — no hardcoded names', async () => {
@@ -725,10 +734,13 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'conventionalcommits', [
-        '/path/to/core',
-        '/path/to/package-a',
-      ]);
+      expect(extractSharedSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        'conventionalcommits',
+        ['/path/to/core', '/path/to/package-a'],
+        [],
+      );
     });
 
     it('should emit repo-level entries as sharedEntries, not in individual package changelogs', async () => {

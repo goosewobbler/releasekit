@@ -10,3 +10,14 @@
 {% include "entry" %}
 {%- endfor %}
 {%- endfor %}
+{%- if version.shared.size > 0 %}
+
+### Project-wide changes
+{%- for section in version.shared %}
+
+#### {{ section.label }}
+{% for entry in section.entries %}
+{% include "entry" %}
+{%- endfor %}
+{%- endfor %}
+{%- endif %}

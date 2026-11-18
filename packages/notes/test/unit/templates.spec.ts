@@ -271,6 +271,22 @@ describe('Built-in templates', () => {
     },
   );
 
+  it.each(['keep-a-changelog', 'angular', 'github-release/release.md.ejs'])(
+    'should list shared-package entries last, under Project-wide changes, in %s',
+    (name) => {
+      const ctx = doc([
+        {
+          ...sampleContext,
+          sharedEntries: [{ type: 'fixed', description: 'Fix the bundled core', sharedPackage: true }],
+        },
+      ]);
+      const { content } = renderTemplate(path.join(process.cwd(), 'templates', name), ctx);
+
+      expect(content).toContain('### Project-wide changes\n\n#### Fixed\n\n- Fix the bundled core\n');
+      expect(content.indexOf('### Project-wide changes')).toBeGreaterThan(content.indexOf('Bug fix'));
+    },
+  );
+
   it.each(['angular', 'github-release/release.md.ejs'])(
     'should write entry text in %s as is, without HTML entities',
     (name) => {

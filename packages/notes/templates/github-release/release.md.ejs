@@ -14,6 +14,18 @@
 <% }); -%>
 <% }); -%>
 <% } -%>
+<% if (version.shared.length > 0) { -%>
+
+### Project-wide changes
+<% version.shared.forEach(function(section) { -%>
+
+#### <%- section.label %>
+
+<% section.entries.forEach(function(entry) { -%>
+<%- entry.line %>
+<% }); -%>
+<% }); -%>
+<% } -%>
 <% if (version.compareUrl) { -%>
 
 **Full Changelog**: <%- version.compareUrl %>

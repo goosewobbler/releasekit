@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 import type { NotesConfig } from '@releasekit/config';
-import type { VersionOutput, VersionPackageChangelog } from '@releasekit/core';
+import {
+  sharedPackageEntriesFor,
+  type VersionChangelogEntry,
+  type VersionOutput,
+  type VersionPackageChangelog,
+} from '@releasekit/core';
 import { renderedRegionText, truncatePackageNotes } from './notes-region.js';
 
 /** What the update last wrote into a key's notes region, so a later run can tell it from a human edit. */
@@ -20,9 +25,15 @@ function shortHash(text: string): string {
 }
 
 /** Changes when anything that shapes the text generated from a changelog key does. */
-export function changelogInputHash(changelog: VersionPackageChangelog, config: unknown): string {
+export function changelogInputHash(
+  changelog: VersionPackageChangelog,
+  config: unknown,
+  sharedPackageEntries: VersionChangelogEntry[],
+): string {
   const { version, previousVersion, entries } = changelog;
-  return shortHash(JSON.stringify({ version, previousVersion, entries, config }));
+  // Left out when empty, so releases without them keep their existing hash.
+  const shared = sharedPackageEntries.length > 0 ? sharedPackageEntries : undefined;
+  return shortHash(JSON.stringify({ version, previousVersion, entries, config, shared }));
 }
 
 export function releaseNotesInputHashes(
@@ -34,7 +45,13 @@ export function releaseNotesInputHashes(
   const config = releaseNotes
     ? { ...releaseNotes, llm: releaseNotes.llm && { ...releaseNotes.llm, apiKey: undefined } }
     : releaseNotes;
-  return Object.fromEntries(versionOutput.changelogs.map((cl) => [cl.packageName, changelogInputHash(cl, config)]));
+  const shared = versionOutput.sharedEntries ?? [];
+  return Object.fromEntries(
+    versionOutput.changelogs.map((cl) => [
+      cl.packageName,
+      changelogInputHash(cl, config, sharedPackageEntriesFor(shared, cl.entries)),
+    ]),
+  );
 }
 
 /** Writes each shipped region where the notes pipeline writes a per-version notes file. */

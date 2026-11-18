@@ -23,6 +23,8 @@ export interface ChangelogEntry {
   originalType?: string;
   breaking?: boolean;
   leadIn?: string;
+  /** On a project-wide entry: its commit touched a `sharedPackages` package, so every package's notes list it. */
+  sharedPackage?: boolean;
   /** Populated upstream of LLM tasks; never serialised to disk. */
   context?: { prs: PRContext[] };
 }
@@ -43,6 +45,8 @@ export type InputSource = 'version';
 export interface ChangelogInput {
   source: InputSource;
   packages: PackageChangelog[];
+  /** Project-wide entries, from commits that touch no package outside `sharedPackages`. */
+  sharedEntries?: ChangelogEntry[];
   metadata?: {
     repoUrl?: string;
     defaultBranch?: string;
@@ -70,6 +74,8 @@ export interface TemplateContext {
   compareUrl?: string;
   enhanced?: EnhancedData;
   isFirstRelease?: boolean;
+  /** Shared-package entries, listed after the version's own. */
+  sharedEntries?: ChangelogEntry[];
 }
 
 export interface TemplateEntry extends ChangelogEntry {
@@ -83,10 +89,12 @@ export interface TemplateSection {
 }
 
 /** What a template sees for one version. */
-export interface TemplateVersion extends Omit<TemplateContext, 'entries' | 'enhanced'> {
+export interface TemplateVersion extends Omit<TemplateContext, 'entries' | 'enhanced' | 'sharedEntries'> {
   entries: TemplateEntry[];
   /** LLM categories when `categorize` ran, otherwise commit-type groups. Breaking leads unless `categoryOrder` places it. */
   sections: TemplateSection[];
+  /** Shared-package entries in commit-type groups. Empty in a root changelog. */
+  shared: TemplateSection[];
   enhanced?: Omit<EnhancedData, 'categories'>;
 }
 

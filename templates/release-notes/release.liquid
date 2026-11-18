@@ -15,6 +15,18 @@ _First release of `{{ version.packageName }}`._
 {{ entry.line }}
 {%- endfor %}
 {%- endfor %}
+{%- if version.shared.size > 0 %}
+
+### Project-wide changes:
+{%- for section in version.shared %}
+{%- if section.label == "Added" %}{% assign heading = "New" %}{% else %}{% assign heading = section.label %}{% endif %}
+
+#### {{ heading }}:
+{%- for entry in section.entries %}
+{{ entry.line }}
+{%- endfor %}
+{%- endfor %}
+{%- endif %}
 {%- if version.compareUrl %}
 
 **Full Changelog**: {{ version.compareUrl }}
