@@ -143,11 +143,13 @@ export function removeDescriptionRefs(text: string, refs: Array<string | undefin
 export interface ChangelogEntryLineInput {
   description: string;
   scope?: string;
+  /** An LLM-written label, shown in the scope's place. */
+  leadIn?: string;
   issueIds?: string[];
   prNumber?: string;
-  breaking?: boolean;
 }
 
+/** A breaking entry gets no marker here: every surface lists it under the Breaking section. */
 export function renderChangelogEntryLine(
   entry: ChangelogEntryLineInput,
   mode: ChangelogRefsMode,
@@ -160,10 +162,10 @@ export function renderChangelogEntryLine(
     mode,
     repoUrl,
   );
-  const scope = entry.scope ? ` (\`${entry.scope}\`)` : '';
+  const label = entry.leadIn || entry.scope;
   const refs = renderIssueRefs(entry.issueIds ?? [], mode, repoUrl, entry.prNumber);
-  const line = `- ${entry.breaking ? '**BREAKING** ' : ''}${description}${scope}${refs ? ` ${refs}` : ''}${suffix}`;
-  // Last, over the whole line: a backtick in the description can pair with the scope's, and removing a ref can join
-  // the halves of a split opener.
+  const line = `- ${label ? `**${label}**: ` : ''}${description}${refs ? ` ${refs}` : ''}${suffix}`;
+  // Last, over the whole line: a backtick in the label can pair with one in the description, and removing a ref can
+  // join the halves of a split opener.
   return escapeCommentOpeners(escapeChangelogMentions(line));
 }

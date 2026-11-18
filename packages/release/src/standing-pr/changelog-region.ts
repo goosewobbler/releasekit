@@ -1,4 +1,4 @@
-import { DEFAULT_DEMOTE_SCOPES, type ReleaseKitConfig } from '@releasekit/config';
+import type { ReleaseKitConfig } from '@releasekit/config';
 import {
   type ChangelogRefsMode,
   groupChangelogSections,
@@ -14,15 +14,9 @@ import type { RowChangelogRenderer } from './selection-region.js';
  * change once. Both read structured entries and never parse prose.
  */
 
-export interface ChangelogRenderOptions {
-  refs: ChangelogRefsMode;
-  demoteScopes: readonly string[];
-}
-
-/** `notes.changelog: false` gets the defaults: the standing PR and preview render changelogs regardless. */
-export function changelogRenderOptions(config: ReleaseKitConfig): ChangelogRenderOptions {
-  const changelog = config.notes?.changelog || undefined;
-  return { refs: changelog?.refs ?? 'link', demoteScopes: changelog?.demoteScopes ?? DEFAULT_DEMOTE_SCOPES };
+/** `notes.changelog: false` gets the default: the standing PR and preview render changelogs regardless. */
+export function configuredRefsMode(config: ReleaseKitConfig): ChangelogRefsMode {
+  return (config.notes?.changelog || undefined)?.refs ?? 'link';
 }
 
 interface AttributedEntry {
@@ -80,8 +74,7 @@ function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOpti
   return renderChangelogEntryLine(entry, refOpts.refs, refOpts.repoUrl, attr);
 }
 
-/** Demoted entries are moved, never removed, so the caller's de-duplicated change count still holds. */
-function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demoteScopes: readonly string[]): string[] {
+function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions): string[] {
   const distinct = new Set<string>();
   for (const d of deduped) {
     for (const p of d.pkgs) {
@@ -89,25 +82,30 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
     }
   }
   const attribution = distinct.size > 1;
+  return changelogSectionLines(
+    deduped,
+    (d) => d.entry,
+    (d) => entryLine(d, attribution, refOpts),
+  );
+}
 
+export function changelogSectionLines<T>(
+  items: readonly T[],
+  entryOf: (item: T) => VersionChangelogEntry,
+  lineOf: (item: T) => string,
+): string[] {
   const lines: string[] = [];
-  for (const section of groupChangelogSections(deduped, (d) => d.entry, { demoteScopes })) {
+  for (const section of groupChangelogSections(items, entryOf)) {
     // A heading, not bold: inside the blockquote bold text collapses to near-zero spacing between sections.
-    lines.push(`#### ${section.label}`, '');
-    for (const d of section.items) {
-      lines.push(entryLine(d, attribution, refOpts));
-    }
-    lines.push('');
+    lines.push(`#### ${section.label}`, '', ...section.items.map(lineOf), '');
   }
-  if (lines[lines.length - 1] === '') {
-    lines.pop();
-  }
+  lines.pop();
   return lines;
 }
 
 /** The content is blockquoted but the `<details>` tags aren't: GitHub renders a `> `-prefixed raw-HTML block
  *  unreliably. Inner blank lines keep a bare `>` so the quote stays one contiguous block. */
-function wrapDetails(summary: string, inner: string[], indent: string): string {
+export function wrapDetails(summary: string, inner: string[], indent = ''): string {
   const quotedInner = inner.map((l) => (l.length > 0 ? `${indent}> ${l}` : `${indent}>`));
   const lines = [`${indent}<details><summary>${summary}</summary>`, '', ...quotedInner, '', `${indent}</details>`];
   return lines.join('\n');
@@ -122,11 +120,10 @@ function repoUrlOf(changelogs: VersionOutput['changelogs']): string | null {
   return changelogs.find((cl) => cl.repoUrl)?.repoUrl ?? null;
 }
 
-/** The renderer returns `''` when the gated packages have no real entries; demoted entries count toward the total. */
+/** The renderer returns `''` when the gated packages have no real entries. */
 export function makeRowChangelogRenderer(
   changelogs: VersionOutput['changelogs'],
   refs: ChangelogRefsMode = 'link',
-  demoteScopes: readonly string[] = DEFAULT_DEMOTE_SCOPES,
 ): RowChangelogRenderer {
   const byPkg = new Map(changelogs.map((cl) => [cl.packageName, cl]));
   const refOpts: RefRenderOptions = { refs, repoUrl: repoUrlOf(changelogs) };
@@ -148,7 +145,7 @@ export function makeRowChangelogRenderer(
     const summary = heldBack
       ? `<s>Changelog (${pluralEntries(deduped.length)})</s> — held back, won’t publish`
       : `Changelog (${pluralEntries(deduped.length)})`;
-    return wrapDetails(summary, renderGrouped(deduped, refOpts, demoteScopes), indent);
+    return wrapDetails(summary, renderGrouped(deduped, refOpts), indent);
   };
 }
 
@@ -175,7 +172,7 @@ export function countCombinedChanges(versionOutput: VersionOutput): number {
 /** `sharedOnly` narrows to project-wide (`sharedEntries`) changes, which have no per-row home. */
 export function renderCombinedFooter(
   versionOutput: VersionOutput,
-  opts: { sharedOnly?: boolean; refs?: ChangelogRefsMode; demoteScopes?: readonly string[] } = {},
+  opts: { sharedOnly?: boolean; refs?: ChangelogRefsMode } = {},
 ): string {
   const deduped = dedupe(collectAttributed(versionOutput, !!opts.sharedOnly));
   if (deduped.length === 0) {
@@ -186,5 +183,5 @@ export function renderCombinedFooter(
     ? `Show project-wide changes (${n} ${n === 1 ? 'change' : 'changes'})`
     : `Show all changes (${n} ${n === 1 ? 'change' : 'changes'}, de-duplicated)`;
   const refOpts: RefRenderOptions = { refs: opts.refs ?? 'link', repoUrl: repoUrlOf(versionOutput.changelogs) };
-  return wrapDetails(summary, renderGrouped(deduped, refOpts, opts.demoteScopes ?? DEFAULT_DEMOTE_SCOPES), '');
+  return wrapDetails(summary, renderGrouped(deduped, refOpts));
 }

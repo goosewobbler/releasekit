@@ -1,24 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  BREAKING_SECTION,
   type ChangelogRefsMode,
-  escapeChangelogMentions,
-  escapeCommentOpeners,
   groupChangelogSections,
   info,
-  neutralizeDescriptionRefs,
-  renderIssueRefs,
+  renderChangelogEntryLine,
   success,
   warn,
 } from '@releasekit/core';
-import type {
-  ChangelogEntry,
-  EnhancedCategory,
-  FirstReleaseConfig,
-  LinksConfig,
-  TemplateContext,
-} from '../core/types.js';
+import type { ChangelogEntry, FirstReleaseConfig, LinksConfig, TemplateContext } from '../core/types.js';
 
 // A true statement, so it reads fine even when published unedited (automated modes).
 // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional template-placeholder syntax
@@ -31,129 +21,6 @@ export function firstReleaseLine(context: TemplateContext, config?: FirstRelease
   const template = config?.text ?? DEFAULT_FIRST_RELEASE_TEXT;
   // biome-ignore lint/suspicious/noTemplateCurlyInString: replacing literal template placeholders
   return template.replaceAll('${packageName}', context.packageName).replaceAll('${version}', context.version);
-}
-
-interface EntryRefOptions {
-  hideScope?: boolean;
-  refs?: ChangelogRefsMode;
-  repoUrl?: string | null;
-}
-
-// Unescaped, a `@scope/pkg` or `@user` pings a real org or team, and a `<!--` hides the rest of the notes. Code spans
-// stay as written, since a notes region neutralizes any marker in one.
-function escapeCommitText(text: string): string {
-  return escapeCommentOpeners(escapeChangelogMentions(text), { keepCodeSpans: true });
-}
-
-function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
-  // Bare `#N` refs from the commit subject are de-duped against the appended label.
-  const refsMode = opts?.refs ?? 'link';
-  const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
-  const description = neutralizeDescriptionRefs(entry.description, appendedRefs, refsMode, opts?.repoUrl ?? null);
-  const { scope, leadIn } = entry;
-  let line: string;
-
-  if (leadIn && entry.breaking) {
-    line = `- **BREAKING** **${leadIn}**: ${description}`;
-  } else if (leadIn) {
-    line = `- **${leadIn}**: ${description}`;
-  } else if (entry.breaking && scope && !opts?.hideScope) {
-    line = `- **BREAKING** **${scope}**: ${description}`;
-  } else if (entry.breaking) {
-    line = `- **BREAKING** ${description}`;
-  } else if (scope && !opts?.hideScope) {
-    line = `- **${scope}**: ${description}`;
-  } else {
-    line = `- ${description}`;
-  }
-
-  // renderIssueRefs includes its own parens.
-  const refs = renderIssueRefs(entry.issueIds ?? [], refsMode, opts?.repoUrl ?? null, entry.prNumber);
-  if (refs) {
-    line += ` ${refs}`;
-  }
-
-  // Over the whole line, since a backtick in the scope or lead-in can pair with one in the description.
-  return escapeCommitText(line);
-}
-
-function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts: EntryRefOptions): string[] {
-  const blocks = [`### ${name}`];
-
-  const scopeCounts = new Map<string, number>();
-  for (const entry of entries) {
-    if (entry.scope) {
-      scopeCounts.set(entry.scope, (scopeCounts.get(entry.scope) ?? 0) + 1);
-    }
-  }
-  const groupedScopes = new Set<string>();
-  for (const [scope, count] of scopeCounts) {
-    if (count > 1) {
-      groupedScopes.add(scope);
-    }
-  }
-
-  // Ungrouped entries go first: after a group's list, Markdown would read them as part of that group.
-  const ungrouped: ChangelogEntry[] = [];
-  const byScope = new Map<string, ChangelogEntry[]>();
-  for (const entry of entries) {
-    if (entry.scope && groupedScopes.has(entry.scope)) {
-      const group = byScope.get(entry.scope) ?? [];
-      group.push(entry);
-      byScope.set(entry.scope, group);
-    } else {
-      ungrouped.push(entry);
-    }
-  }
-
-  if (ungrouped.length > 0) {
-    blocks.push(ungrouped.map((entry) => formatEntry(entry, refOpts)).join('\n'));
-  }
-  for (const [scope, group] of byScope) {
-    blocks.push(
-      `**${escapeCommitText(scope)}**:`,
-      group.map((entry) => formatEntry(entry, { ...refOpts, hideScope: true })).join('\n'),
-    );
-  }
-
-  return blocks;
-}
-
-function rerouteBreakingEntries(categories: EnhancedCategory[]): EnhancedCategory[] {
-  const hasBreaking = categories.some((c) => c.entries.some((e) => e.breaking));
-  if (!hasBreaking) {
-    return categories;
-  }
-
-  const breakingEntries: ChangelogEntry[] = [];
-  const stripped = categories.map((c) => ({
-    ...c,
-    entries: c.entries.filter((e) => {
-      if (e.breaking) {
-        breakingEntries.push(e);
-        return false;
-      }
-      return true;
-    }),
-  }));
-
-  const breakingCatIdx = stripped.findIndex((c) => c.name === BREAKING_SECTION);
-  if (breakingCatIdx >= 0) {
-    return stripped.map((c, i) => (i === breakingCatIdx ? { ...c, entries: [...breakingEntries, ...c.entries] } : c));
-  }
-  return [{ name: BREAKING_SECTION, entries: breakingEntries }, ...stripped.filter((c) => c.entries.length > 0)];
-}
-
-function applyOrder(categories: EnhancedCategory[], order: string[]): EnhancedCategory[] {
-  if (order.length === 0) {
-    return categories;
-  }
-  return [...categories].sort((a, b) => {
-    const ai = order.indexOf(a.name);
-    const bi = order.indexOf(b.name);
-    const rank = (name: string, idx: number) => (idx === -1 ? (name === BREAKING_SECTION ? -1 : order.length) : idx);
-    return rank(a.name, ai) - rank(b.name, bi);
-  });
 }
 
 interface LinkItem {
@@ -249,7 +116,7 @@ export interface FormatVersionOptions {
 }
 
 export function formatVersion(context: TemplateContext, options?: FormatVersionOptions): string {
-  const refOpts: EntryRefOptions = { refs: options?.refs ?? 'link', repoUrl: context.repoUrl };
+  const refs = options?.refs ?? 'link';
 
   const versionLabel =
     options?.includePackageName && context.packageName ? `${context.packageName}@${context.version}` : context.version;
@@ -270,27 +137,26 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
     blocks.push(context.enhanced.summary);
   }
 
-  if (context.enhanced?.categories && context.enhanced.categories.length > 0) {
-    let categories = rerouteBreakingEntries(context.enhanced.categories);
-    categories = applyOrder(categories, options?.categoryOrder ?? []);
+  const categories = context.enhanced?.categories;
+  const sections = groupChangelogSections(
+    context.entries,
+    (e) => e,
+    categories ? { categories, order: options?.categoryOrder } : undefined,
+  );
+  for (const section of sections) {
+    blocks.push(
+      `### ${section.label}`,
+      section.items.map((entry) => renderChangelogEntryLine(entry, refs, context.repoUrl)).join('\n'),
+    );
+  }
 
-    for (const category of categories) {
-      if (category.entries.length === 0) {
-        continue;
-      }
-      blocks.push(...formatCategorySection(category.name, category.entries, refOpts));
-    }
-
+  if (categories && categories.length > 0) {
     const links = resolveLinks(context.entries, options?.links);
     if (links.length > 0) {
       blocks.push(
         `### ${options?.links?.title ?? 'Links'}`,
         links.map((link) => `- [${link.label}](${link.url})`).join('\n'),
       );
-    }
-  } else {
-    for (const section of groupChangelogSections(context.entries, (e) => e)) {
-      blocks.push(`### ${section.label}`, section.items.map((entry) => formatEntry(entry, refOpts)).join('\n'));
     }
   }
 

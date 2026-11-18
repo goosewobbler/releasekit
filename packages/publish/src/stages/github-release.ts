@@ -1,8 +1,8 @@
 import type { VersionOutput, VersionPackageChangelog, VersionPackageUpdate } from '@releasekit/core';
 import {
   assertNotOption,
-  breakingFirst,
   debug,
+  groupChangelogSections,
   info,
   matchesPackageName,
   renderChangelogEntryLine,
@@ -229,9 +229,12 @@ function formatChangelogForTag(
   }
 
   const repoUrl = target.repoUrl ?? repoUrlFallback(release.input);
-  return breakingFirst(target.entries)
-    .map((entry) => renderChangelogEntryLine(entry, 'link', repoUrl))
-    .join('\n');
+  return groupChangelogSections(target.entries, (e) => e)
+    .map(
+      (section) =>
+        `### ${section.label}\n\n${section.items.map((entry) => renderChangelogEntryLine(entry, 'link', repoUrl)).join('\n')}`,
+    )
+    .join('\n\n');
 }
 
 /** Error strategy: CATCHES per-tag. Non-critical. */

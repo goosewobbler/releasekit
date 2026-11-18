@@ -41,6 +41,14 @@ describe('parseReleaseBodyToExample()', () => {
     expect(result?.entries[0]?.breaking).toBe(true);
   });
 
+  it('should mark entries under a Breaking heading as breaking', () => {
+    const result = parseReleaseBodyToExample(
+      '### Breaking\n- **config**: Drop the old preset\n### Fixed\n- Fix leak\n',
+      'v2.0.0',
+    );
+    expect(result?.entries.map((e) => e.breaking)).toEqual([true, undefined]);
+  });
+
   it('should treat ## heading before ### heading as an overridable category', () => {
     const body = '## v1.0.0\n\n### New\n- Add feature\n';
     const result = parseReleaseBodyToExample(body, '1.0.0');

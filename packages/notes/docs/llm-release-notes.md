@@ -54,14 +54,12 @@ With `enhance + categorize` enabled, the same commits produce:
 
 ### Breaking
 
-- **BREAKING** **API rename**: Rename connect() to initialize()
+- **API rename**: Rename connect() to initialize()
 
 ### New
 
-**ipc**:
-
 - **Deeplink testing**: Add deep link support via triggerDeeplink()
-- Add mock IPC support
+- **ipc**: Add mock IPC support
 
 ### Fixed
 
@@ -85,7 +83,7 @@ Four tasks are available. Any combination can be enabled simultaneously.
 | `summarize` | Generates a 2–3 sentence release summary | `enhanced.summary` in template context |
 | `releaseNotes` | Writes full prose markdown release notes | `enhanced.releaseNotes` / pipeline result |
 
-**Recommended starting point:** Enable `enhance` and `categorize` together. This is the most impactful combination — rewriting and grouping both happen in a single LLM call, and it also unlocks `leadIn` phrases, scope grouping, and breaking change re-routing in the built-in renderer. Add `summarize` or `releaseNotes` when you want prose output for GitHub releases.
+**Recommended starting point:** Enable `enhance` and `categorize` together. This is the most impactful combination — rewriting and grouping both happen in a single LLM call, and it also unlocks `leadIn` phrases and LLM-flagged breaking changes in the built-in renderer. Add `summarize` or `releaseNotes` when you want prose output for GitHub releases.
 
 > **Efficiency tip:** When both `enhance` and `categorize` are enabled, the pipeline makes a **single combined LLM call** (`enhanceAndCategorize`) instead of two sequential calls. This combined path also produces `leadIn` phrases and scope assignments, which are not available when running `enhance` alone.
 
@@ -214,13 +212,11 @@ This is more efficient than two sequential calls and produces richer output. Use
 
 ## Breaking change handling
 
-Any entry where `breaking: true` is set — whether from the source input or flagged by the LLM during enhancement — is automatically moved to a `Breaking` category by the built-in markdown renderer at render time, regardless of which category the LLM assigned it to. If no `Breaking` category exists, one is created and prepended before all other categories.
+Any entry where `breaking: true` is set — whether from the source input or flagged by the LLM during enhancement — is automatically moved to a `Breaking` category by the built-in markdown renderer at render time, regardless of which category the LLM assigned it to. The `Breaking` category comes first unless `categoryOrder` places it.
 
 This happens in the renderer, not during the LLM call, so custom templates receive the raw data and must implement breaking-change handling themselves if needed.
 
-Rendered format:
-- With `leadIn`: `- **BREAKING** **API rename**: Rename connect() to initialize()`
-- Without `leadIn`: `- **BREAKING** Rename connect() to initialize()`
+The section marks an entry as breaking, so its line has no prefix: `- **API rename**: Rename connect() to initialize()`.
 
 ---
 
@@ -228,33 +224,13 @@ Rendered format:
 
 When running the combined `enhanceAndCategorize` task, the LLM generates a `leadIn` phrase for notable entries — a short noun phrase (e.g. `"Streaming API"`, `"Deeplink testing"`) that makes the entry scannable at a glance.
 
-The LLM sets `leadIn` only for entries that introduce a named API, feature, or concept. Routine fixes, dependency bumps, and internal refactors receive `null` and render without a prefix.
+The LLM sets `leadIn` only for entries that introduce a named API, feature, or concept. Routine fixes, dependency bumps, and internal refactors receive `null` and render with just their scope, if any.
 
 Rendered format:
 - With `leadIn`: `- **Deeplink testing**: Add deep link support via triggerDeeplink()`
-- Without `leadIn`: `- Add mock IPC support`
-- With `leadIn` + `breaking`: `- **BREAKING** **API rename**: Rename connect() to initialize()`
+- Without `leadIn`: `- **ipc**: Add mock IPC support`, or `- Add mock IPC support` with no scope
 
 The `leadIn` value is available in templates as `entry.leadIn` (may be `undefined`).
-
----
-
-## Scope grouping
-
-When the built-in markdown renderer encounters a category where **two or more entries share the same scope**, it groups them under a bold scope header instead of repeating the scope on each bullet:
-
-```markdown
-### New
-
-**ipc**:
-
-- **Deeplink testing**: Add deep link support via triggerDeeplink()
-- Add mock IPC support
-```
-
-A scope that appears on only one entry renders inline: `- **scope**: description`. Entries with no scope render as plain bullets. Both come before the scope groups, so no entry sits under a label it doesn't have.
-
-Scope is assigned by the LLM (or inherited from the source commit). Control what scopes are valid with the `scopes` config.
 
 ---
 
@@ -452,14 +428,12 @@ Note that `links` is a property of `releaseNotes`, not `llm`.
 
 ### Breaking
 
-- **BREAKING** **API rename**: Rename connect() to initialize()
+- **API rename**: Rename connect() to initialize()
 
 ### New
 
-**ipc**:
-
 - **Deeplink testing**: Add deep link support via triggerDeeplink()
-- Add mock IPC support
+- **ipc**: Add mock IPC support
 
 ### Fixed
 
@@ -476,7 +450,7 @@ Note that `links` is a property of `releaseNotes`, not `llm`.
 
 **What happened:**
 - The `refactor!` commit has `breaking: true`, so it was re-routed to `Breaking` regardless of the LLM's original category. The `leadIn` phrase `"API rename"` was generated because it introduces a named API change.
-- The two `feat(ipc)` commits share the `ipc` scope, so they're grouped under a `**ipc**:` header. The first gets a `leadIn` (`"Deeplink testing"`); the second is a routine addition and gets none.
+- The first `feat(ipc)` commit gets a `leadIn` (`"Deeplink testing"`), shown in place of its scope; the second is a routine addition and shows its `ipc` scope.
 - The `fix` commit maps to `Fixed` with no scope or `leadIn` (routine fix).
 - The `chore` commit maps to `Developer` (internal tooling change).
 - The static link from `items` is appended under `### Links`.

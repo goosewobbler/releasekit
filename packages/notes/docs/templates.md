@@ -146,11 +146,9 @@ Entries within `enhanced.categories` are the same `ChangelogEntry` objects as in
 
 When no custom template is configured, the built-in markdown renderer applies the following transformations to LLM-categorised output. Custom templates receive the raw data and must implement these behaviours themselves if desired.
 
-**Scope grouping:** Within a category, entries sharing the same scope value (two or more) are rendered under a `**scope**:` group header. Entries with a unique scope render with the scope inline (`**scope**: description`). Entries with no scope render as plain bullets.
+**Breaking change re-routing:** Any entry with `breaking: true` is moved to a `Breaking` category at render time, regardless of which category the LLM assigned it to. The `Breaking` category comes first unless `categoryOrder` places it. Output without LLM categories gets the same leading `Breaking` section, and lists non-breaking `deps` and `deps-dev` entries last, under `Dependencies & version bumps`. The section marks a breaking entry, so its line has no `**BREAKING**` prefix.
 
-**Breaking change re-routing:** Any entry with `breaking: true` is moved to a `Breaking` category at render time, regardless of which category the LLM assigned it to. If no `Breaking` category exists, one is created and prepended before all other categories. Output without LLM categories gets the same leading `Breaking` section.
-
-**`leadIn` prefix:** Entries with a `leadIn` value render as `**leadIn**: description`. Combined with `breaking: true`, the format is `**BREAKING** **leadIn**: description`.
+**`leadIn` prefix:** Entries with a `leadIn` value render as `**leadIn**: description`, in place of the scope.
 
 **Links section:** When `notes.releaseNotes.links` is configured, a links section is appended after all categories. This section is only rendered in the LLM-categorised path.
 

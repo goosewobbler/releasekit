@@ -32,7 +32,7 @@ import { type NotesStepResult, runNotesStep, runPublishStep, runVersionStep } fr
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
-import { changelogRenderOptions, makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
+import { configuredRefsMode, makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
 import { graduationOvershoot, lockstepGroupOf } from './graduation.js';
 import { extractNotesRegions, notesRegionKeys, renderNotesRegion } from './notes-region.js';
 import {
@@ -934,7 +934,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const branch = standingPrConfig?.branch ?? 'release/next';
   const base = releaseKitConfig.git?.branch ?? 'main';
-  const { refs: changelogRefsMode, demoteScopes } = changelogRenderOptions(releaseKitConfig);
+  const changelogRefsMode = configuredRefsMode(releaseKitConfig);
   const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
 
   const bypassSkipGuard = options.reconcile || isStandingPrEventRun();
@@ -1506,7 +1506,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       warn(`Selection: ${w.reason}`);
     }
     const warningSuffix = warnings.length > 0 ? `\n\n${warnings.map((w) => `> ⚠️ ${w.reason}`).join('\n')}` : '';
-    const rowChangelog = makeRowChangelogRenderer(versionOutputRows.changelogs, changelogRefsMode, demoteScopes);
+    const rowChangelog = makeRowChangelogRenderer(versionOutputRows.changelogs, changelogRefsMode);
     const channelToggle: ChannelToggleConfig | undefined = channelToggleEnabled
       ? {
           prereleased: new Set(channelPrereleasedTicks),
@@ -1534,8 +1534,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const footerEnabled = standingPrConfig?.combinedChangelogFooter !== false;
   const footer =
     footerEnabled || versionOutput.strategy === 'sync'
-      ? renderCombinedFooter(versionOutput, { refs: changelogRefsMode, demoteScopes })
-      : renderCombinedFooter(versionOutput, { sharedOnly: true, refs: changelogRefsMode, demoteScopes });
+      ? renderCombinedFooter(versionOutput, { refs: changelogRefsMode })
+      : renderCombinedFooter(versionOutput, { sharedOnly: true, refs: changelogRefsMode });
 
   let summaryLine: string | undefined;
   let summaryTable: string | undefined;

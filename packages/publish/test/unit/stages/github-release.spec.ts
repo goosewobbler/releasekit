@@ -192,7 +192,7 @@ describe('github-release stage', () => {
     expect(args).not.toContain('--notes-file');
   });
 
-  it('should mark a breaking change and list it first in a changelog body', async () => {
+  it('should lead a changelog body with Breaking and end it with dependency bumps', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const config = getDefaultConfig();
     config.githubRelease.body = 'changelog';
@@ -210,6 +210,7 @@ describe('github-release stage', () => {
             revisionRange: 'v0.9.0..HEAD',
             repoUrl: null,
             entries: [
+              { type: 'changed', description: 'Bump lodash', scope: 'deps' },
               { type: 'fixed', description: 'Patch serializer' },
               { type: 'fixed', description: 'Reject the old preset', scope: 'config', breaking: true },
             ],
@@ -230,7 +231,9 @@ describe('github-release stage', () => {
     await runGithubReleaseStage(ctx);
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(notesFiles.get(args)).toBe('- **BREAKING** Reject the old preset (`config`)\n- Patch serializer');
+    expect(notesFiles.get(args)).toBe(
+      '### Breaking\n\n- **config**: Reject the old preset\n\n### Fixed\n\n- Patch serializer\n\n### Dependencies & version bumps\n\n- **deps**: Bump lodash',
+    );
   });
 
   it('should match sanitized tag format (scope-pkg-vX.Y.Z) to scoped package name', async () => {

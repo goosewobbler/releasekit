@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { breakingFirst, groupChangelogSections } from '../../src/index.js';
+import { groupChangelogSections } from '../../src/index.js';
 
 interface Entry {
   type: string;
@@ -61,32 +61,84 @@ describe('groupChangelogSections', () => {
     ]);
   });
 
-  it('should move non-breaking entries in a demoted scope to a trailing section, keeping breaking ones first', () => {
+  it('should move non-breaking deps and deps-dev entries to a trailing section, keeping breaking ones first', () => {
     expect(
-      labelsAndDescriptions(
-        [
-          { type: 'changed', description: 'Bump lodash', scope: 'deps' },
-          { type: 'fix', description: 'Fix', scope: 'cli' },
-          { type: 'changed', description: 'Require node 22', scope: 'deps', breaking: true },
-        ],
-        { demoteScopes: ['deps'] },
-      ),
+      labelsAndDescriptions([
+        { type: 'changed', description: 'Bump lodash', scope: 'deps' },
+        { type: 'fix', description: 'Fix', scope: 'cli' },
+        { type: 'chore', description: 'Bump vitest', scope: 'deps-dev' },
+        { type: 'changed', description: 'Require node 22', scope: 'deps', breaking: true },
+      ]),
     ).toEqual([
       ['Breaking', ['Require node 22']],
       ['Fixed', ['Fix']],
-      ['Dependencies & version bumps', ['Bump lodash']],
+      ['Dependencies & version bumps', ['Bump lodash', 'Bump vitest']],
     ]);
   });
-});
 
-describe('breakingFirst', () => {
-  it('should put breaking entries first and keep the original order otherwise', () => {
-    const entries = [
-      { description: 'a' },
-      { description: 'b', breaking: true },
-      { description: 'c' },
-      { description: 'd', breaking: true },
-    ];
-    expect(breakingFirst(entries).map((e) => e.description)).toEqual(['b', 'd', 'a', 'c']);
+  describe('with categories', () => {
+    const categorized = (categories: { name: string; entries: Entry[] }[], order?: string[]): [string, string[]][] =>
+      labelsAndDescriptions([], { categories, order });
+
+    it('should keep the categories and lead with breaking entries rerouted out of them', () => {
+      expect(
+        categorized([
+          {
+            name: 'Features',
+            entries: [
+              { type: 'feat', description: 'New flag' },
+              { type: 'feat', description: 'Drop node 18', breaking: true },
+            ],
+          },
+          { name: 'Fixes', entries: [{ type: 'fix', description: 'Reject old preset', breaking: true }] },
+        ]),
+      ).toEqual([
+        ['Breaking', ['Drop node 18', 'Reject old preset']],
+        ['Features', ['New flag']],
+      ]);
+    });
+
+    it("should put rerouted entries ahead of the LLM's own Breaking category and move it first", () => {
+      expect(
+        categorized([
+          { name: 'Features', entries: [{ type: 'feat', description: 'Rename option', breaking: true }] },
+          { name: 'Breaking', entries: [{ type: 'feat', description: 'Drop node 18' }] },
+        ]),
+      ).toEqual([['Breaking', ['Rename option', 'Drop node 18']]]);
+    });
+
+    it('should order categories by the given order, unnamed ones after, Breaking first unless named', () => {
+      const categories = ['Fixes', 'Docs', 'Features', 'Other'].map((name) => ({
+        name,
+        entries: [{ type: 'feat', description: name }],
+      }));
+      categories.push({ name: 'Misc', entries: [{ type: 'feat', description: 'Break', breaking: true }] });
+      expect(categorized(categories, ['Features', 'Fixes']).map(([label]) => label)).toEqual([
+        'Breaking',
+        'Features',
+        'Fixes',
+        'Docs',
+        'Other',
+      ]);
+      expect(categorized(categories, ['Features', 'Breaking']).map(([label]) => label)).toEqual([
+        'Features',
+        'Breaking',
+        'Fixes',
+        'Docs',
+        'Other',
+      ]);
+    });
+
+    it('should not demote deps entries', () => {
+      expect(
+        categorized([{ name: 'Maintenance', entries: [{ type: 'chore', description: 'Bump lodash', scope: 'deps' }] }]),
+      ).toEqual([['Maintenance', ['Bump lodash']]]);
+    });
+
+    it('should group by type when there are no categories', () => {
+      expect(labelsAndDescriptions([{ type: 'fix', description: 'Fix' }], { categories: [] })).toEqual([
+        ['Fixed', ['Fix']],
+      ]);
+    });
   });
 });

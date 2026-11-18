@@ -36,27 +36,40 @@ function changelogTypeLabel(type: string): string {
     : type.charAt(0).toUpperCase() + type.slice(1);
 }
 
+// Dependabot's default commit scopes.
+const DEMOTED_SCOPES: ReadonlySet<string> = new Set(['deps', 'deps-dev']);
+
 interface SectionEntry {
   type: string;
   scope?: string;
   breaking?: boolean;
 }
 
-interface GroupChangelogOptions {
-  /** Non-breaking entries in these scopes go last, in their own section. */
-  demoteScopes?: readonly string[];
+export interface ChangelogSection<T> {
+  label: string;
+  items: T[];
+}
+
+export interface ChangelogCategories<T> {
+  categories: readonly { name: string; entries: readonly T[] }[];
+  /** Category names in render order. Unlisted categories follow, except Breaking, which leads. */
+  order?: readonly string[];
 }
 
 /**
- * Breaking entries lead under {@link BREAKING_SECTION}, out of their type group; the rest group by type label in
- * section order, then any other label in first-seen order. Empty sections are omitted.
+ * Breaking entries lead under {@link BREAKING_SECTION}, out of their group. Without `categorized`, the rest group by
+ * type label in section order, then any other label in first-seen order, then `deps` and `deps-dev` entries. With it,
+ * the rest keep their categories. Empty sections are omitted.
  */
 export function groupChangelogSections<T>(
   items: readonly T[],
   entryOf: (item: T) => SectionEntry,
-  { demoteScopes = [] }: GroupChangelogOptions = {},
-): { label: string; items: T[] }[] {
-  const demote = new Set(demoteScopes);
+  categorized?: ChangelogCategories<T>,
+): ChangelogSection<T>[] {
+  if (categorized && categorized.categories.length > 0) {
+    return groupByCategory(categorized, entryOf);
+  }
+
   const breaking: T[] = [];
   const demoted: T[] = [];
   const byLabel = new Map<string, T[]>();
@@ -64,7 +77,7 @@ export function groupChangelogSections<T>(
     const entry = entryOf(item);
     if (entry.breaking) {
       breaking.push(item);
-    } else if (entry.scope !== undefined && demote.has(entry.scope)) {
+    } else if (entry.scope !== undefined && DEMOTED_SCOPES.has(entry.scope)) {
       demoted.push(item);
     } else {
       const label = changelogTypeLabel(entry.type);
@@ -77,7 +90,7 @@ export function groupChangelogSections<T>(
     }
   }
 
-  const sections: { label: string; items: T[] }[] = [];
+  const sections: ChangelogSection<T>[] = [];
   if (breaking.length > 0) {
     sections.push({ label: BREAKING_SECTION, items: breaking });
   }
@@ -97,11 +110,36 @@ export function groupChangelogSections<T>(
   return sections;
 }
 
-export function breakingFirst<T extends { breaking?: boolean }>(entries: readonly T[]): T[] {
+function groupByCategory<T>(
+  { categories, order = [] }: ChangelogCategories<T>,
+  entryOf: (item: T) => SectionEntry,
+): ChangelogSection<T>[] {
   const breaking: T[] = [];
-  const rest: T[] = [];
-  for (const entry of entries) {
-    (entry.breaking ? breaking : rest).push(entry);
+  const sections: ChangelogSection<T>[] = categories.map(({ name, entries }) => ({
+    label: name,
+    items: entries.filter((item) => {
+      if (entryOf(item).breaking) {
+        breaking.push(item);
+        return false;
+      }
+      return true;
+    }),
+  }));
+
+  // The LLM may name a Breaking category itself.
+  const llmBreaking = sections.find((s) => s.label === BREAKING_SECTION);
+  if (llmBreaking) {
+    llmBreaking.items.unshift(...breaking);
+  } else {
+    sections.push({ label: BREAKING_SECTION, items: breaking });
   }
-  return [...breaking, ...rest];
+
+  const rank = (label: string): number => {
+    const index = order.indexOf(label);
+    if (index !== -1) {
+      return index;
+    }
+    return label === BREAKING_SECTION ? -1 : order.length;
+  };
+  return sections.filter((s) => s.items.length > 0).sort((a, b) => rank(a.label) - rank(b.label));
 }

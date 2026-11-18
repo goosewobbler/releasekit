@@ -4,6 +4,7 @@ import {
   neutralizeDescriptionRefs,
   parseGitHubOwnerRepo,
   removeDescriptionRefs,
+  renderChangelogEntryLine,
   renderIssueRefs,
 } from '../../src/changelogRefs.js';
 
@@ -18,6 +19,17 @@ describe('parseGitHubOwnerRepo', () => {
 
   it('should parse an SCP-style SSH URL', () => {
     expect(parseGitHubOwnerRepo('git@github.com:owner/repo.git')).toEqual({ owner: 'owner', repo: 'repo' });
+  });
+
+  it('should parse an SCP-style SSH URL without .git', () => {
+    expect(parseGitHubOwnerRepo('git@github.com:owner/repo')).toEqual({ owner: 'owner', repo: 'repo' });
+  });
+
+  it('should strip only a trailing .git', () => {
+    expect(parseGitHubOwnerRepo('https://github.com/owner/owner.github.io')).toEqual({
+      owner: 'owner',
+      repo: 'owner.github.io',
+    });
   });
 
   it('should return null for a non-GitHub host', () => {
@@ -165,6 +177,10 @@ describe('neutralizeDescriptionRefs', () => {
     expect(neutralizeDescriptionRefs('reverts #461 behaviour', ['#461'], 'escape', repo)).toBe('reverts behaviour');
   });
 
+  it('should keep the parentheses of a description-only ref', () => {
+    expect(neutralizeDescriptionRefs('fix (#12)', [], 'escape', repo)).toBe('fix (\\#12)');
+  });
+
   it('should escape a description-only ref in escape mode', () => {
     expect(neutralizeDescriptionRefs('see #999 for context', [], 'escape', repo)).toBe('see \\#999 for context');
   });
@@ -208,5 +224,69 @@ describe('removeDescriptionRefs', () => {
       'Fixed the parser, see #12',
     );
     expect(removeDescriptionRefs('Kept `#720` in code (#720)', ['#720'])).toBe('Kept `#720` in code');
+  });
+});
+
+describe('renderChangelogEntryLine', () => {
+  const repo = 'https://github.com/octocat/hello';
+  const line = (entry: Parameters<typeof renderChangelogEntryLine>[0], suffix?: string) =>
+    renderChangelogEntryLine(entry, 'escape', repo, suffix);
+
+  it('should lead with the bold scope and follow the description with refs and the suffix', () => {
+    expect(line({ description: 'Fix parser', scope: 'cli', issueIds: ['#12'] }, ' _(a, b)_')).toBe(
+      '- **cli**: Fix parser (\\#12) _(a, b)_',
+    );
+  });
+
+  it("should show the lead-in in the scope's place", () => {
+    expect(line({ description: 'Add streaming', scope: 'api', leadIn: 'Streaming API' })).toBe(
+      '- **Streaming API**: Add streaming',
+    );
+  });
+
+  it('should fall back to the scope when the lead-in is empty', () => {
+    expect(line({ description: 'Add mock IPC', scope: 'ipc', leadIn: '' })).toBe('- **ipc**: Add mock IPC');
+  });
+
+  it('should render an entry with neither scope nor refs as the bare description', () => {
+    expect(line({ description: 'Fix parser' })).toBe('- Fix parser');
+  });
+
+  it('should not mark a breaking entry', () => {
+    const entry = { description: 'Drop node 18', breaking: true };
+    expect(line(entry)).toBe('- Drop node 18');
+  });
+
+  it('should label the PR and drop its duplicate from the description', () => {
+    expect(
+      renderChangelogEntryLine({ description: 'Fix parser (#5)', issueIds: ['#5'], prNumber: '#5' }, 'link', repo),
+    ).toBe('- Fix parser (PR [#5](https://github.com/octocat/hello/pull/5))');
+  });
+
+  it('should escape mentions in the scope and description', () => {
+    expect(line({ description: 'Thanks @octocat', scope: '@scope/pkg' })).toBe('- **\\@scope/pkg**: Thanks \\@octocat');
+  });
+
+  describe('comment openers', () => {
+    it('should escape one in the description, scope and lead-in', () => {
+      expect(line({ description: 'handle <!-- in templates', scope: 'a<!--' })).toBe(
+        '- **a&lt;!--**: handle &lt;!-- in templates',
+      );
+      expect(line({ description: 'four', leadIn: 'c<!--' })).toBe('- **c&lt;!--**: four');
+    });
+
+    it('should break one inside a code span with a zero-width space', () => {
+      expect(line({ description: 'escape `<!--` in output' })).toBe('- escape `<!\u200B--` in output');
+    });
+
+    it('should escape one between escaped backticks, which are not a code span', () => {
+      expect(line({ description: 'handle \\`<!-- template -->\\` markers' })).toBe(
+        '- handle \\`&lt;!-- template -->\\` markers',
+      );
+    });
+
+    it('should treat a code span after an escaped backslash as a code span', () => {
+      expect(line({ description: 'show \\\\`<!--` here' })).toBe('- show \\\\`<!\u200B--` here');
+    });
   });
 });

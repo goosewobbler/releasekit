@@ -1,6 +1,6 @@
 import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
-import { info, success, warn } from '@releasekit/core';
+import { type ChangelogRefsMode, info, success, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
@@ -11,7 +11,7 @@ import { fetchPRLabels, forgeFor, postOrUpdateComment } from '../github.js';
 import { readGitHubEvent } from '../github-event.js';
 import { composeBumpFromLabels, DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
 import { runRelease } from '../release.js';
-import { type ChangelogRenderOptions, changelogRenderOptions } from '../standing-pr/changelog-region.js';
+import { configuredRefsMode } from '../standing-pr/changelog-region.js';
 import {
   fetchStandingPRSnapshot,
   findLatestMergedStandingPR,
@@ -110,7 +110,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   }
 
   let result = null;
-  let changelogRender: ChangelogRenderOptions | undefined;
+  let refs: ChangelogRefsMode | undefined;
   if (!labelContext.skip && !labelContext.noBumpLabel) {
     const releaseConfig = loadConfig({ cwd: effectiveOptions.projectDir, configPath: effectiveOptions.config });
     // Advisory mode scopes the analysis to this PR's commits.
@@ -122,7 +122,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
           releaseConfig.git?.remote ?? 'origin',
         )
       : undefined;
-    changelogRender = changelogRenderOptions(releaseConfig);
+    refs = configuredRefsMode(releaseConfig);
     const prereleaseFlag = resolvePrerelease(
       effectiveOptions,
       releaseConfig.version?.packages ?? [],
@@ -172,7 +172,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     mergedRows,
     labelContext,
     supersedeWarning,
-    ...changelogRender,
+    refs,
   });
 
   if (!context || !forge) {

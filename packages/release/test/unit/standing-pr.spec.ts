@@ -86,7 +86,6 @@ vi.mock('node:fs', () => {
 });
 
 vi.mock('@releasekit/config', () => ({
-  DEFAULT_DEMOTE_SCOPES: ['deps', 'deps-dev'],
   loadCIConfig: vi.fn(),
   loadConfig: vi.fn().mockReturnValue({
     ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true } },
@@ -1640,8 +1639,8 @@ describe('runStandingPRUpdate', () => {
     for (const pane of [body.slice(0, footerStart), body.slice(footerStart)]) {
       const breaking = pane.indexOf('#### Breaking');
       expect(breaking).toBeGreaterThanOrEqual(0);
-      expect(pane.indexOf('**BREAKING** Require node 22')).toBeGreaterThan(breaking);
-      expect(pane.indexOf('**BREAKING** Require node 22')).toBeLessThan(pane.indexOf('#### Fixed'));
+      expect(pane.indexOf('- **deps**: Require node 22')).toBeGreaterThan(breaking);
+      expect(pane.indexOf('- **deps**: Require node 22')).toBeLessThan(pane.indexOf('#### Fixed'));
       expect(pane.indexOf('#### Dependencies & version bumps')).toBeGreaterThan(pane.indexOf('Fix broken export'));
       expect(pane.split('Require node 22').length - 1).toBe(1);
     }

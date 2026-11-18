@@ -182,7 +182,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(syncInput(tag), config, options);
 
-    expect(releaseBodies()).toEqual({ [tag]: '- Fix the sync release' });
+    expect(releaseBodies()).toEqual({ [tag]: '### Fixed\n\n- Fix the sync release' });
   });
 
   it('should give a v-tagged release the sole release notes when the input predates strategy', async () => {
@@ -241,7 +241,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { 'pkg-b': 'B' } });
 
-    expect(releaseBodies()).toEqual({ 'pkg-a-v1.2.3': '- Fix pkg-a' });
+    expect(releaseBodies()).toEqual({ 'pkg-a-v1.2.3': '### Fixed\n\n- Fix pkg-a' });
   });
 
   it("should not give a package's notes to a longer-named package with empty notes", async () => {
@@ -249,7 +249,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { pkg: 'P', 'pkg-2': '' } });
 
-    expect(releaseBodies()).toEqual({ 'pkg-v1.2.3': 'P', 'pkg-2-v1.2.3': '- Fix pkg-2' });
+    expect(releaseBodies()).toEqual({ 'pkg-v1.2.3': 'P', 'pkg-2-v1.2.3': '### Fixed\n\n- Fix pkg-2' });
   });
 
   it("should match per-package tags from a custom template to each package's own notes", async () => {
@@ -286,7 +286,10 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' }), config, options);
 
-    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': '- Fix pkg-b' });
+    expect(releaseBodies()).toEqual({
+      'pkg-a/1.2.3': '### Fixed\n\n- Fix pkg-a',
+      'pkg-b/1.2.3': '### Fixed\n\n- Fix pkg-b',
+    });
   });
 
   it("should match scoped name@v tags to each package's own notes", async () => {
@@ -331,7 +334,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(input, getDefaultConfig(), { ...options, releaseNotes: { 'pkg-a': 'A' } });
 
-    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': 'A', 'pkg-b/1.2.3': '- Fix pkg-b' });
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': 'A', 'pkg-b/1.2.3': '### Fixed\n\n- Fix pkg-b' });
     expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
     expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
   });
@@ -342,7 +345,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
 
-    expect(releaseBodies()).toEqual({ 'v1.2.3': "- Handle \\@octocat's case" });
+    expect(releaseBodies()).toEqual({ 'v1.2.3': "### Fixed\n\n- Handle \\@octocat's case" });
   });
 
   function placeholderInput(synthetic: boolean): VersionOutput {
@@ -366,7 +369,9 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
 
-    expect(releaseBodies()).toEqual({ 'v1.2.3': '- Fix it (PR [#42](https://github.com/owner/repo/pull/42))' });
+    expect(releaseBodies()).toEqual({
+      'v1.2.3': '### Fixed\n\n- Fix it (PR [#42](https://github.com/owner/repo/pull/42))',
+    });
   });
 
   it('should not link refs to github.com for a workflow on another GitHub server', async () => {
@@ -382,7 +387,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
 
-    expect(releaseBodies()).toEqual({ 'v1.2.3': '- Fix it (\\#42)' });
+    expect(releaseBodies()).toEqual({ 'v1.2.3': '### Fixed\n\n- Fix it (\\#42)' });
   });
 
   it.each([
@@ -391,7 +396,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
   ])('should give %s generated notes when body is auto', async (_, synthetic) => {
     await runPipeline(placeholderInput(synthetic), getDefaultConfig(), options);
 
-    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '### Fixed\n\n- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
   });
 
   it('should give a lockstep carry its placeholder when body is changelog', async () => {
@@ -400,7 +405,10 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(placeholderInput(true), config, options);
 
-    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': '- Update version to 1.2.3' });
+    expect(releaseBodies()).toEqual({
+      'pkg-a/1.2.3': '### Fixed\n\n- Fix pkg-a',
+      'pkg-b/1.2.3': '### Changed\n\n- Update version to 1.2.3',
+    });
   });
 
   it('should give one release for several tags generated notes when body is auto', async () => {
@@ -418,7 +426,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
     async (tag) => {
       await runPipeline(recordChangelogTags(syncInput(tag)), getDefaultConfig(), options);
 
-      expect(releaseBodies()).toEqual({ [tag]: '- Fix the sync release' });
+      expect(releaseBodies()).toEqual({ [tag]: '### Fixed\n\n- Fix the sync release' });
       expect(warnMock).not.toHaveBeenCalled();
     },
   );
@@ -429,7 +437,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
 
-    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '### Fixed\n\n- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
     expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
     expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
   });
@@ -442,7 +450,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     await runPipeline(input, config, options);
 
-    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
+    expect(releaseBodies()).toEqual({ 'pkg-a/1.2.3': '### Fixed\n\n- Fix pkg-a', 'pkg-b/1.2.3': GENERATED });
     expect(warningsNaming('pkg-b/1.2.3')).toHaveLength(1);
     expect(warningsNaming('pkg-a/1.2.3')).toEqual([]);
   });
@@ -537,7 +545,7 @@ describe('GitHub release bodies in the publish pipeline', () => {
 
     it.each([
       ['auto', { 'pkg-a/1.2.3': 'A', 'pkg-b/1.2.3': 'B' }],
-      ['changelog', { 'pkg-a/1.2.3': '- Fix pkg-a', 'pkg-b/1.2.3': '- Fix pkg-b' }],
+      ['changelog', { 'pkg-a/1.2.3': '### Fixed\n\n- Fix pkg-a', 'pkg-b/1.2.3': '### Fixed\n\n- Fix pkg-b' }],
     ] as const)(
       "should give each per-package tag from a custom template its own package's body when body is %s",
       async (body, expected) => {

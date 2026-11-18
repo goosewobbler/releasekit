@@ -87,7 +87,7 @@ describe('formatVersion: leadIn phrases', () => {
     expect(result).not.toContain('**');
   });
 
-  it('should prefix BREAKING before leadIn when both are set', async () => {
+  it('should show the leadIn under Breaking without a BREAKING prefix', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
 
     const ctx = makeContext({
@@ -102,61 +102,12 @@ describe('formatVersion: leadIn phrases', () => {
     });
 
     const result = formatVersion(ctx);
-    expect(result).toContain('- **BREAKING** **API removal**: Removed old API');
+    expect(result).toContain('### Breaking\n\n- **API removal**: Removed old API');
   });
 });
 
-describe('formatVersion: scope grouping', () => {
-  it('should group multiple entries with the same scope under a bold scope header', async () => {
-    const { formatVersion } = await import('../../../src/output/markdown.js');
-
-    const ctx = makeContext({
-      enhanced: {
-        categories: [
-          {
-            name: 'New',
-            entries: [
-              { type: 'added', description: 'Feature A', scope: 'api' },
-              { type: 'added', description: 'Feature B', scope: 'api' },
-            ],
-          },
-        ],
-      },
-    });
-
-    const result = formatVersion(ctx);
-    expect(result).toContain('**api**:');
-    expect(result).not.toContain('**api**: Feature A');
-    expect(result).toContain('- Feature A');
-    expect(result).toContain('- Feature B');
-  });
-
-  it('should not create a scope group header for a single entry with that scope', async () => {
-    const { formatVersion } = await import('../../../src/output/markdown.js');
-
-    const ctx = makeContext({
-      enhanced: {
-        categories: [
-          {
-            name: 'Fixed',
-            entries: [
-              { type: 'fixed', description: 'Fix A', scope: 'core' },
-              { type: 'fixed', description: 'Fix B', scope: 'ui' },
-            ],
-          },
-        ],
-      },
-    });
-
-    const result = formatVersion(ctx);
-    // Group headers appear on their own line (not prefixed with '-')
-    expect(result).not.toMatch(/^\*\*core\*\*:/m);
-    expect(result).not.toMatch(/^\*\*ui\*\*:/m);
-    expect(result).toContain('**core**: Fix A');
-    expect(result).toContain('**ui**: Fix B');
-  });
-
-  it('should list ungrouped entries before the scope groups, never under a group label', async () => {
+describe('formatVersion: LLM categories', () => {
+  it('should list a category flat in commit order, each entry with its own scope', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
 
     const ctx = makeContext({
@@ -169,9 +120,6 @@ describe('formatVersion: scope grouping', () => {
               { type: 'added', description: 'API 1', scope: 'api' },
               { type: 'added', description: 'Between' },
               { type: 'added', description: 'API 2', scope: 'api' },
-              { type: 'added', description: 'UI 1', scope: 'ui' },
-              { type: 'added', description: 'UI 2', scope: 'ui' },
-              { type: 'added', description: 'After' },
             ],
           },
         ],
@@ -183,18 +131,9 @@ describe('formatVersion: scope grouping', () => {
 ### New
 
 - **cli**: Before
+- **api**: API 1
 - Between
-- After
-
-**api**:
-
-- API 1
-- API 2
-
-**ui**:
-
-- UI 1
-- UI 2
+- **api**: API 2
 `);
   });
 });
@@ -222,7 +161,7 @@ describe('formatVersion: breaking changes section', () => {
     const changedPos = result.indexOf('### Changed');
     expect(breakingPos).toBeGreaterThanOrEqual(0);
     expect(breakingPos).toBeLessThan(changedPos);
-    expect(result).toContain('- **BREAKING** Breaking change');
+    expect(result).toContain('### Breaking\n\n- Breaking change');
   });
 
   it('should lead with a Breaking section without LLM categories', async () => {
@@ -237,15 +176,16 @@ describe('formatVersion: breaking changes section', () => {
     });
 
     expect(formatVersion(ctx)).toContain(
-      '### Breaking\n\n- **BREAKING** Reject the old preset\n\n### Added\n\n- New flag\n\n### Fixed\n\n- Patch serializer\n',
+      '### Breaking\n\n- Reject the old preset\n\n### Added\n\n- New flag\n\n### Fixed\n\n- Patch serializer\n',
     );
   });
 
-  it('should order sections in Keep a Changelog order without LLM categories', async () => {
+  it('should order sections in Keep a Changelog order without LLM categories, dependency bumps last', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
 
     const ctx = makeContext({
       entries: [
+        { type: 'changed', description: 'Bump lodash', scope: 'deps' },
         { type: 'fixed', description: 'A fix' },
         { type: 'deprecated', description: 'A deprecation' },
         { type: 'changed', description: 'A change' },
@@ -256,7 +196,13 @@ describe('formatVersion: breaking changes section', () => {
     const headings = formatVersion(ctx)
       .split('\n')
       .filter((l) => l.startsWith('### '));
-    expect(headings).toEqual(['### Added', '### Changed', '### Deprecated', '### Fixed']);
+    expect(headings).toEqual([
+      '### Added',
+      '### Changed',
+      '### Deprecated',
+      '### Fixed',
+      '### Dependencies & version bumps',
+    ]);
   });
 
   it('should not render a Breaking section when no entries have breaking: true', async () => {
@@ -687,19 +633,6 @@ describe('formatVersion: mention escaping', () => {
     });
     expect(formatVersion(ctx)).toContain('- **\\@octocat**: a feature');
   });
-
-  it('should neutralise a scoped-package mention in the grouped scope header', async () => {
-    const { formatVersion } = await import('../../../src/output/markdown.js');
-    const ctx = makeContext({
-      entries: [
-        { type: 'fixed', description: 'fix one', scope: '@wdio/native-cdp-bridge' },
-        { type: 'fixed', description: 'fix two', scope: '@wdio/native-cdp-bridge' },
-      ],
-    });
-    const result = formatVersion(ctx);
-    expect(result).toContain('**\\@wdio/native-cdp-bridge**:');
-    expect(result).not.toContain('**@wdio/native-cdp-bridge**:');
-  });
 });
 
 describe('formatVersion: comment openers', () => {
@@ -717,54 +650,6 @@ describe('formatVersion: comment openers', () => {
     expect(result).toContain('- handle &lt;!-- in templates');
     expect(result).not.toContain('<!--');
     expect(result).toContain('- a later fix');
-  });
-
-  it('should leave a comment opener in a code span as written', async () => {
-    const { formatVersion } = await import('../../../src/output/markdown.js');
-    const ctx = makeContext({ entries: [{ type: 'fixed', description: 'escape `<!--` in output' }] });
-
-    expect(formatVersion(ctx)).toContain('- escape `<!--` in output');
-  });
-
-  it('should escape a comment opener between escaped backticks, which are not a code span', async () => {
-    const { formatVersion } = await import('../../../src/output/markdown.js');
-    const ctx = makeContext({ entries: [{ type: 'fixed', description: 'handle \\`<!-- template -->\\` markers' }] });
-
-    expect(formatVersion(ctx)).toContain('- handle \\`&lt;!-- template -->\\` markers');
-  });
-
-  it('should leave a code span after an escaped backslash as written', async () => {
-    const { formatVersion } = await import('../../../src/output/markdown.js');
-    const ctx = makeContext({ entries: [{ type: 'fixed', description: 'show \\\\`<!--` here' }] });
-
-    expect(formatVersion(ctx)).toContain('- show \\\\`<!--` here');
-  });
-
-  it('should escape comment openers in the scope, the grouped scope header and the lead-in', async () => {
-    const { formatVersion } = await import('../../../src/output/markdown.js');
-    const ctx = makeContext({
-      enhanced: {
-        categories: [
-          {
-            name: 'Fixed',
-            entries: [
-              { type: 'fixed', description: 'one', scope: 'a<!--' },
-              { type: 'fixed', description: 'two', scope: 'b<!--' },
-              { type: 'fixed', description: 'three', scope: 'b<!--' },
-              { type: 'fixed', description: 'four', leadIn: 'c<!--' },
-            ],
-          },
-        ],
-      },
-    });
-
-    const result = formatVersion(ctx);
-
-    expect(result).toContain('- **a&lt;!--**: one');
-    expect(result).toMatch(/^\*\*b&lt;!--\*\*:$/m);
-    expect(result).toContain('- two');
-    expect(result).toContain('- **c&lt;!--**: four');
-    expect(result).not.toContain('<!--');
   });
 });
 
@@ -851,7 +736,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-- **BREAKING** Drop the old flag
+- Drop the old flag
 
 ### Added
 
@@ -872,7 +757,7 @@ _First release of test-pkg._
 `);
   });
 
-  it('should space LLM categories, scope groups and the links section the same way', async () => {
+  it('should space LLM categories and the links section the same way', async () => {
     const { renderMarkdown } = await import('../../../src/output/markdown.js');
 
     const ctx = makeContext({
@@ -920,24 +805,16 @@ A faster parser.
 ### New
 
 - Stream input
+- **api**: Batch writes
+- **api**: Retry hook
 - **cli**: Watch mode
-
-**api**:
-
-- Batch writes
-- Retry hook
-
-**ui**:
-
-- Dark theme
-- Compact view
+- **ui**: Dark theme
+- **ui**: Compact view
 
 ### Changed
 
-**core**:
-
-- Faster start
-- Smaller bundle
+- **core**: Faster start
+- **core**: Smaller bundle
 
 ### Fixed
 

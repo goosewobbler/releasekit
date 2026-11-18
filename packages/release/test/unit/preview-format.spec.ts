@@ -203,11 +203,11 @@ describe('formatPreviewComment', () => {
   it('should include changelog with entry grouping by type', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('#### Added');
-    expect(result).toContain('- New dry-run flag (`cli`)');
+    expect(result).toContain('- **cli**: New dry-run flag');
     expect(result).toContain('#### Fixed');
     // Bare #NNN renders as a canonical link by default; the ref group carries its own parens.
     expect(result).toContain(
-      '- Fix prerelease sorting (`semver`) ([#42](https://github.com/goosewobbler/releasekit/issues/42))',
+      '- **semver**: Fix prerelease sorting ([#42](https://github.com/goosewobbler/releasekit/issues/42))',
     );
     expect(result).toContain('#### Chores');
     expect(result).toContain('- Migrate to Vitest');
@@ -223,7 +223,7 @@ describe('formatPreviewComment', () => {
     }
 
     const comment = formatPreviewComment(output);
-    expect(comment).toContain('> #### Breaking\n>\n> - **BREAKING** New dry-run flag (`cli`)');
+    expect(comment).toContain('> #### Breaking\n>\n> - **cli**: New dry-run flag');
     expect(comment.split('New dry-run flag').length - 1).toBe(1);
   });
 
@@ -255,11 +255,9 @@ describe('formatPreviewComment', () => {
       ];
     }
 
-    const comment = formatPreviewComment(output);
-    expect(comment).toContain(
-      '> #### Fixed\n>\n> - Conventional fix\n>\n> #### Dependencies & version bumps\n>\n> - Bump lodash (`deps`)',
+    expect(formatPreviewComment(output)).toContain(
+      '> #### Fixed\n>\n> - Conventional fix\n>\n> #### Dependencies & version bumps\n>\n> - **deps**: Bump lodash',
     );
-    expect(formatPreviewComment(output, { demoteScopes: [] })).toContain('> #### Changed\n>\n> - Bump lodash (`deps`)');
   });
 
   it('should order sections as the published changelog does', () => {
@@ -281,10 +279,10 @@ describe('formatPreviewComment', () => {
 
   it('should render bare #NNN refs per the refs mode', () => {
     expect(formatPreviewComment(releaseOutput, { refs: 'escape' })).toContain(
-      '- Fix prerelease sorting (`semver`) (\\#42)',
+      '- **semver**: Fix prerelease sorting (\\#42)',
     );
     const stripped = formatPreviewComment(releaseOutput, { refs: 'strip' });
-    expect(stripped).toContain('- Fix prerelease sorting (`semver`)');
+    expect(stripped).toContain('- **semver**: Fix prerelease sorting');
     expect(stripped).not.toContain('#42');
     expect(stripped).not.toContain('[#42]');
   });
@@ -305,7 +303,7 @@ describe('formatPreviewComment', () => {
     }
     const result = formatPreviewComment(withPr);
     expect(result).toContain(
-      '- Fix prerelease sorting (`semver`) (PR [#503](https://github.com/goosewobbler/releasekit/pull/503) · closes [#500](https://github.com/goosewobbler/releasekit/issues/500))',
+      '- **semver**: Fix prerelease sorting (PR [#503](https://github.com/goosewobbler/releasekit/pull/503) · closes [#500](https://github.com/goosewobbler/releasekit/issues/500))',
     );
   });
 
@@ -313,12 +311,10 @@ describe('formatPreviewComment', () => {
     const result = formatPreviewComment(releaseOutput);
     // Raw HTML renders unreliably under `> `.
     expect(result).toContain('### Changelog');
-    expect(result).toContain('<details>');
     expect(result).not.toContain('> <details>');
     expect(result).not.toContain('> </details>');
-    expect(result).toContain('<summary><b>@releasekit/version</b> 0.3.0 → 0.3.1</summary>');
-    expect(result).toContain('> #### Added');
-    expect(result).toContain('> - New dry-run flag (`cli`)');
+    expect(result).toContain('<details><summary><b>@releasekit/version</b> 0.3.0 → 0.3.1</summary>\n\n> #### Added');
+    expect(result).toContain('> - **cli**: New dry-run flag');
   });
 
   it('should always neutralise @-mentions in preview descriptions', () => {
@@ -341,17 +337,17 @@ describe('formatPreviewComment', () => {
       ];
     }
     expect(formatPreviewComment(withMarker)).toContain(
-      '- Spoof &lt;!-- releasekit-notes:x --> (`<!\u200B-- rk-sel:y -->`)',
+      '- **&lt;!-- rk-sel:y -->**: Spoof &lt;!-- releasekit-notes:x -->',
     );
   });
 
-  it('should escape a scope mention that a stray backtick leaves outside its code span', () => {
+  it('should escape a scope mention alongside a stray backtick in the description', () => {
     const withBacktick = structuredClone(releaseOutput);
     const firstChangelog = withBacktick.versionOutput.changelogs[0];
     if (firstChangelog) {
       firstChangelog.entries = [{ type: 'fixed', description: 'Accept ` in paths', scope: '@org/team' }];
     }
-    expect(formatPreviewComment(withBacktick)).toContain('- Accept ` in paths (`\\@org/team`)');
+    expect(formatPreviewComment(withBacktick)).toContain('- **\\@org/team**: Accept ` in paths');
   });
 
   it('should wrap each package changelog in details element', () => {

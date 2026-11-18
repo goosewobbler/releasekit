@@ -95,7 +95,7 @@ describe('changelog-region', () => {
         }),
       );
       expect(footer).toContain(
-        '> #### Breaking\n>\n> - **BREAKING** Reject the old preset\n>\n> #### Fixed\n>\n> - Patch serializer',
+        '> #### Breaking\n>\n> - Reject the old preset\n>\n> #### Fixed\n>\n> - Patch serializer',
       );
     });
 
@@ -125,7 +125,9 @@ describe('changelog-region', () => {
           ],
         }),
       );
-      expect(footer).toContain('- **BREAKING** Reject the old preset');
+      expect(footer).toContain(
+        '> #### Breaking\n>\n> - Reject the old preset _(b)_\n>\n> #### Fixed\n>\n> - Reject the old preset _(a)_',
+      );
       expect(footer).toContain('Show all changes (2 changes, de-duplicated)');
     });
 
@@ -138,8 +140,8 @@ describe('changelog-region', () => {
           ],
         }),
       );
-      expect(footer).toContain('(`cli`)');
-      expect(footer).toContain('(`router`)');
+      expect(footer).toContain('- **cli**: Fix edge case');
+      expect(footer).toContain('- **router**: Fix edge case');
       expect(footer).toContain('Show all changes (2 changes, de-duplicated)');
     });
 
@@ -398,7 +400,7 @@ describe('changelog-region', () => {
       expect(block).toContain('- App fix');
       expect(block).not.toContain('#### Changed');
       expect(block).toContain('#### Dependencies & version bumps');
-      expect(block).toContain('- bump the npm-dependencies group');
+      expect(block).toContain('- **deps**: bump the npm-dependencies group');
       const demoted = block.indexOf('#### Dependencies & version bumps');
       expect(demoted).toBeGreaterThan(block.indexOf('#### Added'));
       expect(demoted).toBeGreaterThan(block.indexOf('#### Fixed'));
@@ -412,7 +414,7 @@ describe('changelog-region', () => {
         ]),
       ]);
       expect(render(['@scope/app'], false, '')).toContain(
-        '> #### Breaking\n>\n> - **BREAKING** require node 22 (`deps`)\n>\n> #### Dependencies & version bumps\n>\n> - bump lodash (`deps`)',
+        '> #### Breaking\n>\n> - **deps**: require node 22\n>\n> #### Dependencies & version bumps\n>\n> - **deps**: bump lodash',
       );
     });
 
@@ -451,7 +453,7 @@ describe('changelog-region', () => {
       expect(footer).toContain('#### Added');
       expect(footer).not.toContain('#### Changed');
       expect(footer).toContain('#### Dependencies & version bumps');
-      expect(footer).toContain('- bump deps');
+      expect(footer).toContain('- **deps**: bump deps');
       expect(footer.indexOf('#### Dependencies & version bumps')).toBeGreaterThan(footer.indexOf('#### Added'));
     });
 
@@ -463,8 +465,7 @@ describe('changelog-region', () => {
       expect(footer).toContain('_(a, b)_');
     });
 
-    // The row renderer and the footer each fall back to the default separately, so cover both.
-    it('should demote Dependabot deps-dev entries by default in rows and the combined footer', () => {
+    it('should demote Dependabot deps-dev entries in rows and the combined footer', () => {
       const changelogs = [
         cl('@scope/app', [
           { type: 'feat', description: 'App feature' },
@@ -474,42 +475,12 @@ describe('changelog-region', () => {
       const block = makeRowChangelogRenderer(changelogs)(['@scope/app'], false, '');
       expect(block).not.toContain('#### Changed');
       expect(block).toContain('#### Dependencies & version bumps');
-      expect(block).toContain('- bump the development-dependencies group (`deps-dev`)');
+      expect(block).toContain('- **deps-dev**: bump the development-dependencies group');
 
       const footer = renderCombinedFooter(output({ changelogs }));
       expect(footer).not.toContain('#### Changed');
       expect(footer).toContain('#### Dependencies & version bumps');
-      expect(footer).toContain('- bump the development-dependencies group');
-    });
-
-    it('should render every scope inline when demoteScopes is empty', () => {
-      const render = makeRowChangelogRenderer(
-        [cl('@scope/app', [{ type: 'changed', description: 'bump deps', scope: 'deps' }])],
-        'link',
-        [],
-      );
-      const block = render(['@scope/app'], false, '');
-      expect(block).not.toContain('Dependencies & version bumps');
-      expect(block).toContain('#### Changed');
-      expect(block).toContain('- bump deps (`deps`)');
-    });
-
-    it('should demote whichever scopes are configured', () => {
-      const render = makeRowChangelogRenderer(
-        [
-          cl('@scope/app', [
-            { type: 'feat', description: 'App feature' },
-            { type: 'changed', description: 'retune workflow', scope: 'ci' },
-          ]),
-        ],
-        'link',
-        ['ci'],
-      );
-      const block = render(['@scope/app'], false, '');
-      expect(block).toContain('#### Added');
-      expect(block).toContain('#### Dependencies & version bumps');
-      expect(block).toContain('- retune workflow');
-      expect(block).not.toContain('#### Changed');
+      expect(footer).toContain('- **deps-dev**: bump the development-dependencies group');
     });
   });
 

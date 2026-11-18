@@ -17,7 +17,12 @@ export {
   renderChangelogEntryLine,
   renderIssueRefs,
 } from './changelogRefs.js';
-export { BREAKING_SECTION, breakingFirst, groupChangelogSections } from './changelogSections.js';
+export {
+  BREAKING_SECTION,
+  type ChangelogCategories,
+  type ChangelogSection,
+  groupChangelogSections,
+} from './changelogSections.js';
 export {
   enterProjectDir,
   type ProjectDirOptions,
