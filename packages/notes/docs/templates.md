@@ -43,8 +43,8 @@ Pass a directory containing named template files. Each file renders a different 
 ```
 templates/
 ├── document.liquid    # Outer document wrapper (receives DocumentContext)
-├── version.liquid     # One version block (receives TemplateContext)
-└── entry.liquid       # One changelog entry (receives ChangelogEntry fields directly)
+├── version.liquid     # One version block (a Version, as `version` in Liquid)
+└── entry.liquid       # One changelog entry (receives an Entry)
 ```
 
 ```bash
@@ -53,7 +53,7 @@ releasekit-notes --template ./templates/
 
 All three files are optional — omit any you don't need to customise, and the built-in for that level is used.
 
-The `entry.liquid` template receives the `ChangelogEntry` fields directly as top-level variables: `type`, `description`, `scope`, `breaking`, `issueIds`, `leadIn`.
+An entry template gets one [Entry](#entry). Handlebars and EJS entry templates get its fields directly, as in `{{{line}}}`. A Liquid include shares the caller's variables, so name the `version.liquid` loop variable `entry` and use `{{ entry.line }}`.
 
 ### Writing to an existing changelog
 
@@ -78,8 +78,8 @@ The outermost template (`document`) receives:
 |----------|------|-------------|
 | `project.name` | `string` | Repository/package name |
 | `project.repoUrl` | `string \| null` | Repository URL |
-| `versions` | `TemplateContext[]` | All rendered versions, newest first |
-| `unreleased` | `TemplateContext \| undefined` | Unreleased changes, if any |
+| `versions` | `Version[]` | All rendered versions, newest first |
+| `unreleased` | `Version \| undefined` | Unreleased changes, if any |
 | `compareUrls` | `Record<string, string> \| undefined` | Map of version → compare URL for all versions |
 | `perPackage` | `boolean \| undefined` | `true` when rendered inline for a single package (e.g. GitHub release body). Use this to suppress document-level headings that are redundant when the content is embedded in a release that already shows the package name and version. |
 | `output` | `'file' \| 'release' \| undefined` | Which release-notes destination this render targets: `'file'` (an in-repo per-version file) or `'release'` (the GitHub release body). Branch on it to emit content that only suits one — most importantly, docs-site **YAML frontmatter**, which would render as literal text in a GitHub release. |
@@ -107,8 +107,30 @@ Each version block (`version`) receives:
 | `date` | `string` | Release date in `YYYY-MM-DD` format |
 | `repoUrl` | `string \| null` | Repository URL |
 | `compareUrl` | `string \| undefined` | Link to diff between previous and current version |
-| `entries` | `ChangelogEntry[]` | Changelog entries. Release-notes templates get the LLM-rewritten entries when `tasks.enhance` is on; changelog templates always get the commit-derived ones |
-| `enhanced` | `EnhancedData \| undefined` | LLM-processed data (see below) |
+| `entries` | `Entry[]` | Changelog entries in commit order. Release-notes templates get the LLM-rewritten entries when `tasks.enhance` is on; changelog templates always get the commit-derived ones |
+| `sections` | `Section[]` | The same entries grouped as the built-in renderer groups them (see below) |
+| `enhanced` | `object \| undefined` | LLM-written text (see below) |
+
+### Sections
+
+Each section in `sections` has a `label` and its `entries`, in this order:
+
+1. `Breaking`, holding every breaking entry. With LLM categories, `categoryOrder` can place it later.
+2. With the `categorize` task on a release-notes template, the LLM categories, ordered by `categoryOrder`. Otherwise the commit types, labelled `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed` and `Security`, in that order.
+3. Without LLM categories, `Dependencies & version bumps`, holding non-breaking `deps` and `deps-dev` entries.
+
+Empty sections are left out. To use your own heading, match the label:
+
+```liquid
+{% for section in version.sections %}
+### {% if section.label == "Added" %}New{% else %}{{ section.label }}{% endif %}
+{% for entry in section.entries %}
+{{ entry.line }}
+{% endfor %}
+{% endfor %}
+```
+
+A breaking entry is marked by its section, not its line. A template that lists the flat `entries` has to check `entry.breaking` itself.
 
 ### Entry
 
@@ -122,31 +144,26 @@ Each entry in `entries` has:
 | `breaking` | `boolean \| undefined` | `true` for breaking changes. Combined `enhanceAndCategorize` can also set it. |
 | `issueIds` | `string[] \| undefined` | Referenced issue/PR numbers |
 | `leadIn` | `string \| undefined` | Short scannable phrase for notable entries (e.g. `"Streaming API"`). Set by the LLM during `enhance` or combined `enhanceAndCategorize`. `undefined` for routine entries. |
+| `line` | `string` | The built-in renderer's Markdown line: `- **scope**: description (refs)`, with the lead-in in the scope's place and refs rendered per `notes.changelog.refs` |
+
+`line` has `@` mentions and `<!--` comment openers escaped; the other fields are raw commit or LLM text. Print it without the engine's HTML escaping: `{{{ line }}}` in Handlebars, `<%- line %>` in EJS. Liquid doesn't escape.
 
 ### Enhanced data (`enhanced`)
 
-Present in release-notes templates when any LLM task ran successfully. Changelog templates never get it:
+Present in release-notes templates when the `summarize` or `releaseNotes` task produced text. Changelog templates never get it:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `enhanced.summary` | `string \| undefined` | 2–3 sentence release summary (`summarize` task) |
-| `enhanced.categories` | `Category[] \| undefined` | Grouped entries (`categorize` task) |
 | `enhanced.releaseNotes` | `string \| undefined` | Full prose release notes (`releaseNotes` task) |
 
-Each `Category` in `enhanced.categories`:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | `string` | Category display name |
-| `entries` | `ChangelogEntry[]` | Entries in this category (same type as `entries`; may have `leadIn`, `scope`, `breaking` populated by the LLM) |
-
-Entries within `enhanced.categories` are the same `ChangelogEntry` objects as in `entries`, with all LLM-assigned fields populated. Custom templates can access `entry.leadIn`, `entry.scope`, and `entry.breaking` directly.
+The `categorize` task's categories come through `sections`.
 
 ### Built-in renderer behaviour
 
-When no custom template is configured, the built-in markdown renderer applies the following transformations to LLM-categorised output. Custom templates receive the raw data and must implement these behaviours themselves if desired.
+When no custom template is configured, the built-in markdown renderer applies the following transformations to LLM-categorised output. Templates get the same grouping in `sections`.
 
-**Breaking change re-routing:** Any entry with `breaking: true` is moved to a `Breaking` category at render time, regardless of which category the LLM assigned it to. The `Breaking` category comes first unless `categoryOrder` places it. Output without LLM categories gets the same leading `Breaking` section, and lists non-breaking `deps` and `deps-dev` entries last, under `Dependencies & version bumps`. The section marks a breaking entry, so its line has no `**BREAKING**` prefix.
+**Breaking change re-routing:** Any entry with `breaking: true` is moved to a `Breaking` category at render time, regardless of which category the LLM assigned it to. See [Sections](#sections) for the order.
 
 **`leadIn` prefix:** Entries with a `leadIn` value render as `**leadIn**: description`, in place of the scope.
 
@@ -174,31 +191,13 @@ When no custom template is configured, the built-in markdown renderer applies th
 ### Liquid (composable — `version.liquid`)
 
 ```liquid
-## [{{ version }}]({{ compareUrl }}) — {{ date }}
-
-{% if enhanced.categories %}
-{% for cat in enhanced.categories %}
-### {{ cat.name }}
-
-{% for entry in cat.entries %}
-{% if entry.breaking and entry.leadIn %}
-- **BREAKING** **{{ entry.leadIn }}**: {{ entry.description }}
-{% elsif entry.breaking %}
-- **BREAKING** {{ entry.description }}
-{% elsif entry.leadIn %}
-- **{{ entry.leadIn }}**: {{ entry.description }}
-{% elsif entry.scope %}
-- **{{ entry.scope }}**: {{ entry.description }}
-{% else %}
-- {{ entry.description }}
-{% endif %}
+## [{{ version.version }}]({{ version.compareUrl }}) — {{ version.date }}
+{% for section in version.sections %}
+### {{ section.label }}
+{% for entry in section.entries %}
+{{ entry.line }}
 {% endfor %}
 {% endfor %}
-{% else %}
-{% for entry in entries %}
-- {{ entry.description }}
-{% endfor %}
-{% endif %}
 ```
 
 ### Handlebars (`version.hbs`)
@@ -207,24 +206,33 @@ When no custom template is configured, the built-in markdown renderer applies th
 ## [{{version}}] — {{date}}
 
 {{#if enhanced.summary}}
-> {{enhanced.summary}}
+> {{{enhanced.summary}}}
 
 {{/if}}
+{{#each sections}}
+### {{{label}}}
+
 {{#each entries}}
-- **{{type}}**: {{description}}
+{{{line}}}
+{{/each}}
+
 {{/each}}
 ```
 
-### EJS (`release.md.ejs`)
+### EJS (composable — `version.ejs`)
 
 ```ejs
 ## <%= version %> — <%= date %>
 
 <% if (enhanced && enhanced.releaseNotes) { %>
-<%= enhanced.releaseNotes %>
+<%- enhanced.releaseNotes %>
 <% } else { %>
-<% entries.forEach(entry => { %>
-- **<%= entry.type %>**: <%= entry.description %>
+<% sections.forEach(section => { %>
+### <%- section.label %>
+
+<% section.entries.forEach(entry => { %>
+<%- entry.line %>
+<% }) %>
 <% }) %>
 <% } %>
 ```

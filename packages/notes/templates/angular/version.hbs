@@ -3,13 +3,11 @@
 [Full Changelog]({{compareUrl}})
 {{/if}}
 
+{{#each sections}}
+### {{{label}}}
+
 {{#each entries}}
-{{#if breaking}}
 {{> entry}}
-{{/if}}
 {{/each}}
-{{#each entries}}
-{{#unless breaking}}
-{{> entry}}
-{{/unless}}
+
 {{/each}}

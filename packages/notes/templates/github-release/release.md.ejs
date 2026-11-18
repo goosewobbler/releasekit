@@ -1,20 +1,21 @@
 ## What's Changed
+<% if (versions.length > 0) { -%>
+<% const version = versions[0]; -%>
+<% if (version.enhanced?.releaseNotes) { -%>
 
-<% if (versions.length > 0) { %>
-<% const version = versions[0]; %>
+<%- version.enhanced.releaseNotes %>
+<% } else { -%>
+<% version.sections.forEach(function(section) { -%>
 
-<% if (version.enhanced?.releaseNotes) { %>
-<%= version.enhanced.releaseNotes %>
-<% } else { %>
-<% if (version.entries.length > 0) { %>
-<% [...version.entries.filter((e) => e.breaking), ...version.entries.filter((e) => !e.breaking)].forEach(function(entry) { %>
-- <% if (entry.breaking) { %>**BREAKING** <% } %><% if (entry.scope) { %>**<%= entry.scope %>**: <% } %><%= entry.description %><% if (entry.issueIds) { %> (<%= entry.issueIds.join(', ') %>)<% } %>
+### <%- section.label %>
 
-<% }); %>
-<% } %>
-<% } %>
+<% section.entries.forEach(function(entry) { -%>
+<%- entry.line %>
+<% }); -%>
+<% }); -%>
+<% } -%>
+<% if (version.compareUrl) { -%>
 
-<% if (version.compareUrl) { %>
-**Full Changelog**: <%= version.compareUrl %>
-<% } %>
-<% } %>
+**Full Changelog**: <%- version.compareUrl %>
+<% } -%>
+<% } -%>

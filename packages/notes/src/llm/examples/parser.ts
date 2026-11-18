@@ -18,7 +18,7 @@ export function parseReleaseBodyToExample(markdown: string, version: string): Ex
 
     const heading = /^#{2,4} (.+)/.exec(line)?.[1];
     if (heading) {
-      currentCategory = heading.trim();
+      currentCategory = heading.trim().replace(/:$/, '');
       continue;
     }
     if (line.startsWith('#')) {

@@ -155,7 +155,7 @@ Generates a one-paragraph summary of the entire release, added to the template c
 
 ### `categorize`
 
-Groups entries into user-friendly categories rather than conventional commit types. The result is available in templates as `enhanced.categories`.
+Groups entries into user-friendly categories rather than conventional commit types. The result is available in release-notes templates as `sections`.
 
 ```json
 { "tasks": { "categorize": true } }
