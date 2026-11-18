@@ -1,5 +1,5 @@
 import { type PublishConfig as BasePublishConfig, PublishConfigSchema } from '@releasekit/config';
-import type { VersionOutput } from '@releasekit/core';
+import type { ChangelogRefsMode, VersionOutput } from '@releasekit/core';
 import type { PackageManager } from './utils/package-manager.js';
 
 export interface NpmConfig {
@@ -65,6 +65,8 @@ export interface PublishConfig {
   git: GitConfig;
   githubRelease: GitHubReleaseConfig;
   verify: VerifyConfig;
+  /** `notes.changelog.refs`, for release bodies built from changelog entries. */
+  changelogRefs: ChangelogRefsMode;
 }
 
 export interface PublishCliOptions {
@@ -159,7 +161,7 @@ export function getDefaultConfig(): PublishConfig {
   return toPublishConfig(PublishConfigSchema.parse({}));
 }
 
-export function toPublishConfig(config: BasePublishConfig): PublishConfig {
+export function toPublishConfig(config: BasePublishConfig, changelogRefs: ChangelogRefsMode = 'link'): PublishConfig {
   // Zod shallow-clones defaults, so nested default objects would otherwise be shared between configs.
   const { npm, cargo, pub, git, githubRelease, verify } = structuredClone(config);
   return {
@@ -178,5 +180,6 @@ export function toPublishConfig(config: BasePublishConfig): PublishConfig {
     },
     githubRelease,
     verify,
+    changelogRefs,
   };
 }

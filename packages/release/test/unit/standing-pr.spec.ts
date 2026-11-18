@@ -85,7 +85,8 @@ vi.mock('node:fs', () => {
   return { default: fs, ...fs };
 });
 
-vi.mock('@releasekit/config', () => ({
+vi.mock('@releasekit/config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@releasekit/config')>()),
   loadCIConfig: vi.fn(),
   loadConfig: vi.fn().mockReturnValue({
     ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true } },

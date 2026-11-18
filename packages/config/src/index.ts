@@ -2,6 +2,7 @@ export { type CargoManifest, isCargoToml, isCratePublishable, parseCargoToml } f
 export { ConfigError } from './errors.js';
 export { runFormatCommand } from './formatCommand.js';
 export {
+  configuredRefsMode,
   type LoadOptions,
   loadCIConfig,
   loadConfig,

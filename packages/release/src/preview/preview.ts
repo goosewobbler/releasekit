@@ -1,5 +1,5 @@
 import type { CIConfig } from '@releasekit/config';
-import { loadCIConfig, loadConfig } from '@releasekit/config';
+import { configuredRefsMode, loadCIConfig, loadConfig } from '@releasekit/config';
 import { type ChangelogRefsMode, info, success, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
@@ -11,7 +11,6 @@ import { fetchPRLabels, forgeFor, postOrUpdateComment } from '../github.js';
 import { readGitHubEvent } from '../github-event.js';
 import { composeBumpFromLabels, DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
 import { runRelease } from '../release.js';
-import { configuredRefsMode } from '../standing-pr/changelog-region.js';
 import {
   fetchStandingPRSnapshot,
   findLatestMergedStandingPR,
@@ -122,7 +121,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
           releaseConfig.git?.remote ?? 'origin',
         )
       : undefined;
-    refs = configuredRefsMode(releaseConfig);
+    refs = configuredRefsMode(releaseConfig.notes);
     const prereleaseFlag = resolvePrerelease(
       effectiveOptions,
       releaseConfig.version?.packages ?? [],

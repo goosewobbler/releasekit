@@ -82,7 +82,7 @@ export async function runPublishStep(
 ): Promise<ReleaseOutput['publishOutput']> {
   const { runPipeline, loadConfig } = await import('@releasekit/publish');
 
-  const config = loadConfig({ configPath: options.config });
+  const config = loadConfig({ cwd: options.projectDir, configPath: options.config });
 
   if (options.branch) {
     config.git.branch = options.branch;

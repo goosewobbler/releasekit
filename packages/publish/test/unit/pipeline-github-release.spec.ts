@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import type { VersionOutput, VersionPackageChangelog, VersionPackageUpdate } from '@releasekit/core';
 import { createFakeGit, type FakeGit } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDefaultConfig } from '../../src/config.js';
+import { getDefaultConfig, loadConfig } from '../../src/config.js';
 import { runPipeline } from '../../src/pipeline/index.js';
 import type { PublishCliOptions } from '../../src/types.js';
 import { execCommand, execCommandSafe } from '../../src/utils/exec.js';
@@ -388,6 +388,30 @@ describe('GitHub release bodies in the publish pipeline', () => {
     await runPipeline(recordChangelogTags(input), getDefaultConfig(), options);
 
     expect(releaseBodies()).toEqual({ 'v1.2.3': '### Fixed\n\n- Fix it (\\#42)' });
+  });
+
+  it.each([
+    [{ refs: 'strip' }, '- Fix it'],
+    [{ refs: 'escape' }, '- Fix it (\\#42)'],
+    [{}, '- Fix it (PR [#42](https://github.com/owner/repo/pull/42))'],
+    [false, '- Fix it (PR [#42](https://github.com/owner/repo/pull/42))'],
+  ])("should render a changelog body's refs per notes.changelog %j", async (changelogConfig, line) => {
+    vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
+    fs.writeFileSync(
+      path.join(workspace, 'releasekit.config.json'),
+      JSON.stringify({ notes: { changelog: changelogConfig }, publish: { githubRelease: { body: 'changelog' } } }),
+    );
+    const input = syncInput('v1.2.3');
+    input.changelogs = [
+      {
+        ...changelog('monorepo', ''),
+        entries: [{ type: 'fixed', description: 'Fix it', prNumber: '42', issueIds: ['#42'] }],
+      },
+    ];
+
+    await runPipeline(recordChangelogTags(input), loadConfig({ cwd: workspace }), options);
+
+    expect(releaseBodies()).toEqual({ 'v1.2.3': `### Fixed\n\n${line}` });
   });
 
   it.each([
