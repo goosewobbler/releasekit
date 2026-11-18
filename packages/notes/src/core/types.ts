@@ -38,6 +38,7 @@ export interface PackageChangelog {
   repoUrl: string | null;
   date: string;
   entries: ChangelogEntry[];
+  sharedPackageEntries?: ChangelogEntry[];
 }
 
 export type InputSource = 'version';

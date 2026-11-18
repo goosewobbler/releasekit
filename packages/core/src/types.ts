@@ -31,6 +31,11 @@ export interface VersionPackageChangelog {
   entries: VersionChangelogEntry[];
   /** The tag this changelog releases: the package's own, or a sync release's shared one. Absent in older manifests. */
   tag?: string;
+  /**
+   * Commits in this changelog's range that touch a `sharedPackages` package and no other package, the package's own
+   * commits aside. Recorded, possibly empty, by per-package versioning when `sharedPackages` is set.
+   */
+  sharedPackageEntries?: VersionChangelogEntry[];
 }
 
 /** `'graduated'`: a prerelease promoted to stable, ignoring any requested bump. `'first-release'`: no prior tag. */

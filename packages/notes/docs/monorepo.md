@@ -77,7 +77,7 @@ Custom file name applies to all packages:
 
 Commits that touch no package outside `version.sharedPackages` are project-wide:
 
-- **Touching a shared package**, such as a bundled core: every released package's changelog, per-version notes file and release body ends with a `### Project-wide changes` block listing them.
+- **Touching a shared package**, such as a bundled core: every released package's changelog, per-version notes file and release body ends with a `### Project-wide changes` block listing the ones since that package's previous release.
 - **Touching no package**, such as CI or root tooling: only the root changelog lists them.
 
 The root changelog lists both kinds once per run, after that run's versions:

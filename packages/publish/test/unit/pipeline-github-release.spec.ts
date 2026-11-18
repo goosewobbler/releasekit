@@ -408,6 +408,23 @@ describe('GitHub release bodies in the publish pipeline', () => {
     );
   });
 
+  it("should end a changelog body with the package's recorded shared-package entries, not the run's", async () => {
+    const input = recordChangelogTags(perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' }));
+    const fix = { type: 'fix', description: 'Fix the bundled core', sharedPackage: true };
+    input.sharedEntries = [fix];
+    input.changelogs = input.changelogs.map((c) => ({
+      ...c,
+      sharedPackageEntries: c.packageName === 'pkg-a' ? [fix] : [],
+    }));
+
+    await runPipeline(input, getDefaultConfig(), options);
+
+    expect(releaseBodies()).toEqual({
+      'pkg-a/1.2.3': '### Fixed\n\n- Fix pkg-a\n\n### Project-wide changes\n\n#### Fixed\n\n- Fix the bundled core',
+      'pkg-b/1.2.3': '### Fixed\n\n- Fix pkg-b',
+    });
+  });
+
   it('should not link refs to github.com for a workflow on another GitHub server', async () => {
     vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
     vi.stubEnv('GITHUB_SERVER_URL', 'https://github.example.com');

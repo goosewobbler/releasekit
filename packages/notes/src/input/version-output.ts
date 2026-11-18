@@ -64,6 +64,7 @@ export function versionOutputToChangelogInput(
     repoUrl: changelog.repoUrl,
     date: new Date().toISOString().split('T')[0] ?? '',
     entries: changelog.entries.map(toChangelogEntry),
+    sharedPackageEntries: changelog.sharedPackageEntries?.map(toChangelogEntry),
   }));
 
   const repoUrl = packages[0]?.repoUrl ?? null;

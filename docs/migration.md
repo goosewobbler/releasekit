@@ -330,8 +330,8 @@ with a `version` block); it used to fail.
 ### Project-wide changes reach the notes
 
 - Commits touching only a `version.sharedPackages` package are listed under `### Project-wide changes` in every
-  released package's changelog, release notes and release body, including `body: changelog` bodies. They used to
-  appear only in the standing PR and the preview.
+  released package's changelog, release notes and release body, including `body: changelog` bodies, each listing the
+  ones since that package's previous release. They used to appear only in the standing PR and the preview.
 - A root changelog lists every project-wide entry once per run, under `## Project-wide changes - <date>` after the
   run's versions.
 - Templates get `shared` on each version, and the bundled templates render it. See
