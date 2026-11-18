@@ -11,3 +11,15 @@
 {{/each}}
 
 {{/each}}
+{{#if shared.length}}
+### Project-wide changes
+
+{{#each shared}}
+#### {{{label}}}
+
+{{#each entries}}
+{{> entry}}
+{{/each}}
+
+{{/each}}
+{{/if}}

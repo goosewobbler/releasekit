@@ -1,0 +1,277 @@
+{
+  "schemaVersion": 2,
+  "versionOutput": {
+    "dryRun": false,
+    "updates": [
+      {
+        "packageName": "@releasekit/version",
+        "newVersion": "0.21.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json",
+        "tag": "releasekit-version-v0.21.0"
+      },
+      {
+        "packageName": "@releasekit/notes",
+        "newVersion": "0.21.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json",
+        "tag": "releasekit-notes-v0.21.0"
+      },
+      {
+        "packageName": "@releasekit/publish",
+        "newVersion": "0.21.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json",
+        "tag": "releasekit-publish-v0.21.0"
+      },
+      {
+        "packageName": "@releasekit/release",
+        "newVersion": "0.21.0",
+        "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json",
+        "tag": "releasekit-release-v0.21.0"
+      }
+    ],
+    "changelogs": [
+      {
+        "packageName": "@releasekit/version",
+        "version": "0.21.0",
+        "previousVersion": "releasekit-version-v0.20.0",
+        "revisionRange": "releasekit-version-v0.20.0..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "added",
+            "description": "enhance standing PR preview with merge prediction (#191)",
+            "scope": "release",
+            "originalType": "feat"
+          },
+          {
+            "type": "changed",
+            "description": "enhance documentation (#190)",
+            "originalType": "docs"
+          }
+        ]
+      },
+      {
+        "packageName": "@releasekit/notes",
+        "version": "0.21.0",
+        "previousVersion": "releasekit-notes-v0.20.0",
+        "revisionRange": "releasekit-notes-v0.20.0..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "changed",
+            "description": "bump the production-dependencies group across 1 directory with 6 updates (#187)",
+            "scope": "deps",
+            "originalType": "chore"
+          },
+          {
+            "type": "fixed",
+            "description": "enhance error handling in fetchPullRequestContext function",
+            "scope": "notes",
+            "originalType": "fix"
+          },
+          {
+            "type": "changed",
+            "description": "enhance documentation (#190)",
+            "originalType": "docs"
+          }
+        ]
+      },
+      {
+        "packageName": "@releasekit/publish",
+        "version": "0.21.0",
+        "previousVersion": "releasekit-publish-v0.20.0",
+        "revisionRange": "releasekit-publish-v0.20.0..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "changed",
+            "description": "enhance documentation (#190)",
+            "originalType": "docs"
+          }
+        ]
+      },
+      {
+        "packageName": "@releasekit/release",
+        "version": "0.21.0",
+        "previousVersion": "releasekit-release-v0.20.0",
+        "revisionRange": "releasekit-release-v0.20.0..HEAD",
+        "repoUrl": "https://github.com/goosewobbler/releasekit",
+        "entries": [
+          {
+            "type": "changed",
+            "description": "remove 'scheduled' release strategy (#192)",
+            "originalType": "chore"
+          },
+          {
+            "type": "added",
+            "description": "enhance standing PR preview with merge prediction (#191)",
+            "scope": "release",
+            "originalType": "feat"
+          },
+          {
+            "type": "changed",
+            "description": "enhance documentation (#190)",
+            "originalType": "docs"
+          },
+          {
+            "type": "added",
+            "description": "add standing PR command to release program",
+            "scope": "release",
+            "originalType": "feat"
+          }
+        ]
+      }
+    ],
+    "sharedEntries": [
+      {
+        "type": "changed",
+        "description": "bump the development-dependencies group across 1 directory with 3 updates (#186)",
+        "scope": "deps-dev",
+        "originalType": "chore"
+      },
+      {
+        "type": "changed",
+        "description": "remove 'scheduled' release strategy (#192)",
+        "originalType": "chore"
+      },
+      {
+        "type": "changed",
+        "description": "bump the production-dependencies group across 1 directory with 6 updates (#187)",
+        "scope": "deps",
+        "originalType": "chore"
+      },
+      {
+        "type": "fixed",
+        "description": "enhance error handling in fetchPullRequestContext function",
+        "scope": "notes",
+        "originalType": "fix",
+        "sharedPackage": true
+      },
+      {
+        "type": "added",
+        "description": "enhance standing PR preview with merge prediction (#191)",
+        "scope": "release",
+        "originalType": "feat",
+        "sharedPackage": true
+      },
+      {
+        "type": "changed",
+        "description": "enhance documentation (#190)",
+        "originalType": "docs"
+      },
+      {
+        "type": "changed",
+        "description": "add OLLAMA_API_KEY to standing PR workflow",
+        "scope": "ci",
+        "originalType": "chore"
+      },
+      {
+        "type": "changed",
+        "description": "bump actions/checkout from 4.3.1 to 6.0.2 (#185)",
+        "scope": "deps",
+        "originalType": "chore"
+      },
+      {
+        "type": "fixed",
+        "description": "refine allowed tools in Claude code review workflow",
+        "scope": "ci",
+        "originalType": "fix"
+      },
+      {
+        "type": "fixed",
+        "description": "update allowed tools in Claude code review workflow",
+        "scope": "ci",
+        "originalType": "fix"
+      },
+      {
+        "type": "fixed",
+        "description": "update Claude code review workflow to handle issue comments dynamically",
+        "scope": "ci",
+        "originalType": "fix"
+      },
+      {
+        "type": "fixed",
+        "description": "enhance Claude code review action with allowed tools",
+        "scope": "ci",
+        "originalType": "fix"
+      },
+      {
+        "type": "fixed",
+        "description": "enhance Claude code review workflow for issue comments",
+        "scope": "ci",
+        "originalType": "fix"
+      },
+      {
+        "type": "fixed",
+        "description": "update Claude code review workflow for improved feedback",
+        "scope": "ci",
+        "originalType": "fix"
+      },
+      {
+        "type": "fixed",
+        "description": "update Claude code review workflow to support issue comments",
+        "scope": "ci",
+        "originalType": "fix"
+      },
+      {
+        "type": "fixed",
+        "description": "add allowed tools to Claude code review action",
+        "scope": "ci",
+        "originalType": "fix"
+      },
+      {
+        "type": "fixed",
+        "description": "add GitHub token to Claude code review action",
+        "scope": "ci",
+        "originalType": "fix"
+      },
+      {
+        "type": "fixed",
+        "description": "update concurrency group to use ref instead of sha",
+        "scope": "ci",
+        "originalType": "fix"
+      },
+      {
+        "type": "fixed",
+        "description": "update cache restore action version in workflow",
+        "scope": "ci",
+        "originalType": "fix"
+      },
+      {
+        "type": "fixed",
+        "description": "update concurrency group to include pull request number",
+        "scope": "ci",
+        "originalType": "fix"
+      },
+      {
+        "type": "added",
+        "description": "add standing PR command to release program",
+        "scope": "release",
+        "originalType": "feat",
+        "sharedPackage": true
+      }
+    ],
+    "tags": [
+      "releasekit-version-v0.21.0",
+      "releasekit-notes-v0.21.0",
+      "releasekit-publish-v0.21.0",
+      "releasekit-release-v0.21.0"
+    ],
+    "commitMessage": "chore: release @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release@0.21.0 [skip ci]"
+  },
+  "releaseNotes": {
+    "@releasekit/version": "\n\n### New:\n- Standing PR preview now includes merge prediction.\n\n### Documentation:\n- Documentation has been improved.\n\n**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.20.0...releasekit-version-v0.21.0\n\n",
+    "@releasekit/notes": "\n\n### Fixed:\n- Improved error handling in the fetchPullRequestContext function to better handle failures.\n\n### Documentation:\n- Documentation was reviewed and enhanced for clarity.\n\n### Developer:\n- **Dependencies**: Updated 6 production dependencies to their latest compatible versions.\n\n**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.20.0...releasekit-notes-v0.21.0\n\n",
+    "@releasekit/publish": "\n\n### Documentation:\n- Improved documentation for better clarity and usability.\n\n**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-publish-v0.20.0...releasekit-publish-v0.21.0\n\n",
+    "@releasekit/release": "\n\n### New:\n- Enhanced standing PR preview to include merge prediction.\n- Added standing PR command to release program.\n\n### Removed:\n- Removed the 'scheduled' release strategy.\n\n### Documentation:\n- Improved documentation clarity and coverage.\n\n**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.20.0...releasekit-release-v0.21.0\n\n"
+  },
+  "notesFiles": [
+    "/home/runner/work/releasekit/releasekit/packages/version/CHANGELOG.md",
+    "/home/runner/work/releasekit/releasekit/packages/notes/CHANGELOG.md",
+    "/home/runner/work/releasekit/releasekit/packages/publish/CHANGELOG.md",
+    "/home/runner/work/releasekit/releasekit/packages/release/CHANGELOG.md",
+    "RELEASE_NOTES.md"
+  ],
+  "createdAt": "2026-05-05T16:27:11.725Z",
+  "baseSha": "570ed92a344943a33fc9f1a0c7488de4ec1a83c7",
+  "firstUpdatedAt": "2026-05-04T19:41:11.205Z"
+}

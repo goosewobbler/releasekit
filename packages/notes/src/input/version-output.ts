@@ -1,10 +1,15 @@
 import * as fs from 'node:fs';
-import { unwrapEnvelope, type VersionOutput } from '@releasekit/core';
+import { unwrapEnvelope, type VersionChangelogEntry, type VersionOutput } from '@releasekit/core';
 import { VersionOutputSchema } from '@releasekit/core/version-output-schema';
 import type { ChangelogEntry, ChangelogInput, PackageChangelog } from '../core/types.js';
 import { InputParseError, InputValidationError } from '../errors/index.js';
 
-const NotesVersionOutputSchema = VersionOutputSchema.pick({ changelogs: true, updates: true, tags: true }).partial({
+const NotesVersionOutputSchema = VersionOutputSchema.pick({
+  changelogs: true,
+  updates: true,
+  tags: true,
+  sharedEntries: true,
+}).partial({
   updates: true,
   tags: true,
 });
@@ -28,8 +33,21 @@ function normalizeEntryType(type: string): ChangelogEntry['type'] {
   return typeMap[type.toLowerCase()] ?? 'changed';
 }
 
+function toChangelogEntry(entry: VersionChangelogEntry): ChangelogEntry {
+  return {
+    type: normalizeEntryType(entry.type),
+    description: entry.description,
+    issueIds: entry.issueIds,
+    prNumber: entry.prNumber,
+    scope: entry.scope,
+    originalType: entry.originalType,
+    breaking: entry.breaking ?? entry.originalType?.includes('!') ?? false,
+    ...(entry.sharedPackage ? { sharedPackage: true } : {}),
+  };
+}
+
 export function versionOutputToChangelogInput(
-  data: Pick<VersionOutput, 'changelogs'> & Partial<Pick<VersionOutput, 'updates' | 'tags'>>,
+  data: Pick<VersionOutput, 'changelogs'> & Partial<Pick<VersionOutput, 'updates' | 'tags' | 'sharedEntries'>>,
 ): ChangelogInput {
   if (!data.changelogs || !Array.isArray(data.changelogs)) {
     throw new InputParseError('Input must contain a "changelogs" array');
@@ -45,15 +63,7 @@ export function versionOutputToChangelogInput(
     revisionRange: changelog.revisionRange,
     repoUrl: changelog.repoUrl,
     date: new Date().toISOString().split('T')[0] ?? '',
-    entries: changelog.entries.map((entry) => ({
-      type: normalizeEntryType(entry.type),
-      description: entry.description,
-      issueIds: entry.issueIds,
-      prNumber: entry.prNumber,
-      scope: entry.scope,
-      originalType: entry.originalType,
-      breaking: entry.breaking ?? entry.originalType?.includes('!') ?? false,
-    })),
+    entries: changelog.entries.map(toChangelogEntry),
   }));
 
   const repoUrl = packages[0]?.repoUrl ?? null;
@@ -61,6 +71,7 @@ export function versionOutputToChangelogInput(
   return {
     source: 'version',
     packages,
+    sharedEntries: data.sharedEntries?.map(toChangelogEntry),
     metadata: {
       repoUrl: repoUrl ?? undefined,
     },

@@ -122,10 +122,13 @@ export class PackageProcessor {
     // Commits to a shared package are listed as project-wide. Nested packages are in the list themselves, so no scope
     // excludes them. The workspace root is left out, since owning it would claim every commit.
     const workspaceRoot = path.resolve(repoRoot);
-    const packageOwnedDirs = workspace
-      .filter((p) => !shouldMatchPackageTargets(p.name, sharedPackagePatterns))
-      .flatMap((p) => resolveCommitScope(p.dir, this.fullConfig, { repoRoot, releasableDirs: [] }).scope)
-      .filter((dir) => dir !== workspaceRoot);
+    const ownedDirs = (shared: boolean) =>
+      workspace
+        .filter((p) => shouldMatchPackageTargets(p.name, sharedPackagePatterns) === shared)
+        .flatMap((p) => resolveCommitScope(p.dir, this.fullConfig, { repoRoot, releasableDirs: [] }).scope)
+        .filter((dir) => dir !== workspaceRoot);
+    const packageOwnedDirs = ownedDirs(false);
+    const sharedPackageDirs = ownedDirs(true);
 
     for (const pkg of pkgsToConsider) {
       const name = pkg.packageJson.name;
@@ -271,6 +274,7 @@ export class PackageProcessor {
           sharedRevisionRange,
           this.fullConfig.preset,
           packageOwnedDirs,
+          sharedPackageDirs,
         );
 
         // Emitted once on VersionOutput rather than duplicated into every package changelog.

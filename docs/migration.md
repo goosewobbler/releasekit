@@ -327,6 +327,16 @@ with a `version` block); it used to fail.
   sections and entry lines match the built-in renderer's. See
   [Templates](../packages/notes/docs/templates.md#sections).
 
+### Project-wide changes reach the notes
+
+- Commits touching only a `version.sharedPackages` package are listed under `### Project-wide changes` in every
+  released package's changelog, release notes and release body, including `body: changelog` bodies. They used to
+  appear only in the standing PR and the preview.
+- A root changelog lists every project-wide entry once per run, under `## Project-wide changes - <date>` after the
+  run's versions.
+- Templates get `shared` on each version, and the bundled templates render it. See
+  [Monorepo Support](../packages/notes/docs/monorepo.md#project-wide-changes).
+
 ---
 
 ## Further reading

@@ -109,6 +109,7 @@ Each version block (`version`) receives:
 | `compareUrl` | `string \| undefined` | Link to diff between previous and current version |
 | `entries` | `Entry[]` | Changelog entries in commit order. Release-notes templates get the LLM-rewritten entries when `tasks.enhance` is on; changelog templates always get the commit-derived ones |
 | `sections` | `Section[]` | The same entries grouped as the built-in renderer groups them (see below) |
+| `shared` | `Section[]` | [Shared-package entries](monorepo.md#project-wide-changes) in commit-type groups, which the built-in renderer lists under `### Project-wide changes` after the version's own. Empty in a root changelog |
 | `enhanced` | `object \| undefined` | LLM-written text (see below) |
 
 ### Sections

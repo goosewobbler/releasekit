@@ -9,6 +9,7 @@ export const VersionChangelogEntrySchema = z.looseObject({
   scope: z.string().optional(),
   originalType: z.string().optional(),
   breaking: z.boolean().optional(),
+  sharedPackage: z.boolean().optional(),
 });
 
 export const VersionPackageChangelogSchema = z.looseObject({
@@ -34,6 +35,7 @@ export const VersionOutputSchema = z.looseObject({
   dryRun: z.boolean(),
   updates: z.array(VersionPackageUpdateSchema),
   changelogs: z.array(VersionPackageChangelogSchema),
+  sharedEntries: z.array(VersionChangelogEntrySchema).optional(),
   commitMessage: z.string().optional(),
   tags: z.array(z.string()),
   baselineTags: z.array(z.string()).optional(),

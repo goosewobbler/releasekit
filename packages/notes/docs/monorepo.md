@@ -73,6 +73,31 @@ Custom file name applies to all packages:
 
 ---
 
+## Project-wide changes
+
+Commits that touch no package outside `version.sharedPackages` are project-wide:
+
+- **Touching a shared package**, such as a bundled core: every released package's changelog, per-version notes file and release body ends with a `### Project-wide changes` block listing them.
+- **Touching no package**, such as CI or root tooling: only the root changelog lists them.
+
+The root changelog lists both kinds once per run, after that run's versions:
+
+```markdown
+## [utils@1.1.0] - 2026-03-15
+
+### Fixed
+
+- Memory leak in event handler
+
+## Project-wide changes - 2026-03-15
+
+### Fixed
+
+- Pin the bundled zod copy
+```
+
+---
+
 ## CLI Flags
 
 `--changelog-mode` overrides the configured changelog location. Every flag is in the [CLI reference](../../../docs/cli.md#releasekit-notes-generate).

@@ -374,6 +374,40 @@ describe('GitHub release bodies in the publish pipeline', () => {
     });
   });
 
+  it('should end a changelog body with the shared-package entries, and leave out repo-level ones', async () => {
+    const input = recordChangelogTags(perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' }));
+    input.sharedEntries = [
+      { type: 'fix', description: 'Fix the bundled core', sharedPackage: true },
+      { type: 'ci', description: 'Pin the CI runner' },
+    ];
+
+    await runPipeline(input, getDefaultConfig(), options);
+
+    const block = '### Project-wide changes\n\n#### Fixed\n\n- Fix the bundled core';
+    expect(releaseBodies()).toEqual({
+      'pkg-a/1.2.3': `### Fixed\n\n- Fix pkg-a\n\n${block}`,
+      'pkg-b/1.2.3': `### Fixed\n\n- Fix pkg-b\n\n${block}`,
+    });
+  });
+
+  it("should render the shared-package entries' refs per notes.changelog", async () => {
+    vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
+    fs.writeFileSync(
+      path.join(workspace, 'releasekit.config.json'),
+      JSON.stringify({ notes: { changelog: { refs: 'strip' } }, publish: { githubRelease: { body: 'changelog' } } }),
+    );
+    const input = recordChangelogTags(perPackageInput({ 'pkg-a': 'pkg-a/1.2.3' }));
+    input.sharedEntries = [
+      { type: 'fix', description: 'Fix the bundled core', prNumber: '42', issueIds: ['#42'], sharedPackage: true },
+    ];
+
+    await runPipeline(input, loadConfig({ cwd: workspace }), options);
+
+    expect(releaseBodies()['pkg-a/1.2.3']).toBe(
+      '### Fixed\n\n- Fix pkg-a\n\n### Project-wide changes\n\n#### Fixed\n\n- Fix the bundled core',
+    );
+  });
+
   it('should not link refs to github.com for a workflow on another GitHub server', async () => {
     vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
     vi.stubEnv('GITHUB_SERVER_URL', 'https://github.example.com');

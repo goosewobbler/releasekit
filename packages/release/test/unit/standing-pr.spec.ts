@@ -3663,6 +3663,18 @@ describe('runStandingPRUpdate', () => {
       expect(state?.['pkg-a']).toEqual({ inputHash: expect.any(String), renderedHash: expect.any(String) });
     });
 
+    it('should regenerate every unedited region when shared-package entries change, and none for repo-level ones', async () => {
+      const withShared = (sharedEntries: { type: string; description: string; sharedPackage?: boolean }[]) =>
+        ({ ...output(initial), sharedEntries }) as Output;
+      const seeded = await update(output(initial));
+
+      const repoLevel = await update(withShared([{ type: 'ci', description: 'pin the runner' }]), seeded);
+      expect(generatedFor).toEqual([]);
+
+      await update(withShared([{ type: 'fix', description: 'fix the core', sharedPackage: true }]), repoLevel);
+      expect(generatedFor).toEqual([['pkg-a', 'pkg-b']]);
+    });
+
     it("should regenerate only the changed package's unedited region", async () => {
       const seeded = await update(output(initial));
 
