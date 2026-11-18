@@ -7,7 +7,7 @@ import {
 } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
 import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
-import { VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
+import { VersionOutputSchema, VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
 import {
   type Forge,
   type ForgeComment,
@@ -102,6 +102,8 @@ const ManifestVersionOutputSchema = z
         .passthrough(),
     ),
     changelogs: z.array(VersionPackageChangelogSchema),
+    sharedEntries: VersionOutputSchema.shape.sharedEntries,
+    bundledReleases: VersionOutputSchema.shape.bundledReleases,
     tags: z.array(z.string()),
     baselineTags: z.array(z.string()).optional(),
   })

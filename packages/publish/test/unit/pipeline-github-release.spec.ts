@@ -425,6 +425,47 @@ describe('GitHub release bodies in the publish pipeline', () => {
     });
   });
 
+  it("should end a primary's changelog body with its bundled packages' releases", async () => {
+    const input = recordChangelogTags(perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' }));
+    input.changelogs = input.changelogs.map((c) =>
+      c.packageName === 'pkg-a'
+        ? {
+            ...c,
+            bundled: [
+              { packageName: 'lib', versions: ['1.0.1'] },
+              { packageName: 'pkg-b', versions: ['1.2.3'] },
+            ],
+          }
+        : c,
+    );
+    input.bundledReleases = [
+      { packageName: 'lib', version: '1.0.1', entries: [{ type: 'fix', description: 'Fix lib' }] },
+    ];
+
+    await runPipeline(input, getDefaultConfig(), options);
+
+    expect(releaseBodies()['pkg-a/1.2.3']).toBe(
+      '### Fixed\n\n- Fix pkg-a\n\n### lib 1.0.1\n\n#### Fixed\n\n- Fix lib\n\n### pkg-b 1.2.3\n\n#### Fixed\n\n- Fix pkg-b',
+    );
+  });
+
+  it('should give a primary with only a placeholder of its own its bundled sections as the changelog body', async () => {
+    const input = recordChangelogTags(perPackageInput({ 'pkg-a': 'pkg-a/1.2.3', 'pkg-b': 'pkg-b/1.2.3' }));
+    input.changelogs = input.changelogs.map((c) =>
+      c.packageName === 'pkg-a'
+        ? {
+            ...c,
+            entries: [{ type: 'changed', description: 'Update version to 1.2.3', synthetic: true }],
+            bundled: [{ packageName: 'pkg-b', versions: ['1.2.3'] }],
+          }
+        : c,
+    );
+
+    await runPipeline(input, getDefaultConfig(), options);
+
+    expect(releaseBodies()['pkg-a/1.2.3']).toBe('### pkg-b 1.2.3\n\n#### Fixed\n\n- Fix pkg-b');
+  });
+
   it('should not link refs to github.com for a workflow on another GitHub server', async () => {
     vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
     vi.stubEnv('GITHUB_SERVER_URL', 'https://github.example.com');

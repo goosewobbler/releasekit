@@ -4,6 +4,8 @@ import {
   deriveReleaseChannel,
   successEnvelope,
   type VersionAction,
+  type VersionBundledPackage,
+  type VersionBundledRelease,
   type VersionChangelogEntry,
   type VersionOutput,
   type VersionPackageChangelog,
@@ -35,6 +37,7 @@ export function enableJsonOutput(dryRun = false): void {
   _jsonData.updates = [];
   _jsonData.changelogs = [];
   _jsonData.sharedEntries = undefined;
+  _jsonData.bundledReleases = undefined;
   _jsonData.tags = [];
   _jsonData.baselineTags = undefined;
   _jsonData.commitMessage = undefined;
@@ -231,6 +234,22 @@ export function setSharedEntries(entries: VersionChangelogEntry[]): void {
     return;
   }
   _jsonData.sharedEntries = entries.length > 0 ? entries : undefined;
+}
+
+export function setBundled(
+  bundledByPrimary: Map<string, VersionBundledPackage[]>,
+  releases: VersionBundledRelease[],
+): void {
+  if (!_jsonOutputMode) {
+    return;
+  }
+  for (const changelog of _jsonData.changelogs) {
+    const bundled = bundledByPrimary.get(changelog.packageName);
+    if (bundled) {
+      changelog.bundled = bundled;
+    }
+  }
+  _jsonData.bundledReleases = releases.length > 0 ? releases : undefined;
 }
 
 export function addTag(tag: string): void {

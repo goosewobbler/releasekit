@@ -337,6 +337,14 @@ with a `version` block); it used to fail.
 - Templates get `shared` on each version, and the bundled templates render it. See
   [Monorepo Support](../packages/notes/docs/monorepo.md#project-wide-changes).
 
+### Primaries bundle their packages' releases
+
+- With per-package tags and `version.primaryPackages` set, a primary's release notes and GitHub release body end with
+  a section for each group-mate and internal dependency that released since the primary's previous release. See
+  [Monorepo Support](../packages/notes/docs/monorepo.md#bundled-release-notes).
+- Templates get `bundled` on each version, and a root changelog's document gets the run's project-wide entries as
+  `shared`. The bundled templates render both.
+
 ---
 
 ## Further reading

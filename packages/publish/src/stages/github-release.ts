@@ -5,8 +5,10 @@ import {
   info,
   matchesPackageName,
   PROJECT_WIDE_HEADING,
+  renderBundledBlocks,
   renderChangelogBlock,
   renderChangelogSections,
+  resolveBundled,
   sanitizePackageName,
   sharedPackageEntriesOf,
   success,
@@ -222,13 +224,17 @@ function formatChangelogForTag(
   refs: ChangelogRefsMode,
   changelogs: VersionPackageChangelog[] = release.input.changelogs,
 ): string | undefined {
+  const releases = [...(release.input.bundledReleases ?? []), ...release.input.changelogs];
+  const bundledFor = (c: VersionPackageChangelog) => resolveBundled(c.bundled, releases);
+  // A primary bumped only for a bundled package has just a placeholder of its own: the bundled sections are its notes.
   const key = resolveTagKey(
     release,
     changelogs.map((c) => c.packageName),
-    changelogs.filter((c) => c.entries.length > 0).map((c) => c.packageName),
+    changelogs.filter((c) => c.entries.length > 0 || bundledFor(c).length > 0).map((c) => c.packageName),
   );
   const target = changelogs.find((c) => c.packageName === key);
-  if (!target || target.entries.length === 0) {
+  const bundled = target ? bundledFor(target) : [];
+  if (!target || (target.entries.length === 0 && bundled.length === 0)) {
     return undefined;
   }
 
@@ -238,6 +244,7 @@ function formatChangelogForTag(
   if (shared.length > 0) {
     blocks.push(renderChangelogBlock(PROJECT_WIDE_HEADING, 3, shared, refs, repoUrl));
   }
+  blocks.push(...renderBundledBlocks(bundled, 3, refs, repoUrl));
   return blocks.join('\n\n');
 }
 

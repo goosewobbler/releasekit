@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { VersionChangelogEntry } from '@releasekit/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { processInput } from '../../src/core/pipeline.js';
@@ -124,6 +125,25 @@ describe('Shared entries in notes output', () => {
     expect(occurrences(root, 'Fix the bundled core')).toBe(1);
     expect(occurrences(root, 'Pin the CI runner')).toBe(1);
   });
+
+  it.each(['keep-a-changelog', 'angular'])(
+    "should list the run's project-wide entries after the versions in a root changelog from the %s template",
+    async (name) => {
+      const templatePath = fileURLToPath(new URL(`../../templates/${name}`, import.meta.url));
+
+      await processInput(
+        versionOutput([SHARED_PACKAGE, REPO_LEVEL]),
+        { changelog: { mode: 'root', templates: { path: templatePath } } },
+        false,
+      );
+
+      const root = fs.readFileSync(path.join(dir, 'CHANGELOG.md'), 'utf-8');
+      expect(root).toMatch(
+        /## Project-wide changes - \d{4}-\d{2}-\d{2}\n\n### Changed\n\n- Pin the CI runner\n\n### Fixed\n\n- Fix the bundled core\n/,
+      );
+      expect(root.indexOf('## Project-wide changes')).toBeGreaterThan(root.indexOf('Fix b'));
+    },
+  );
 
   it('should read shared entries without the marker as repo-level', async () => {
     const { sharedPackage: _, ...unmarked } = SHARED_PACKAGE;

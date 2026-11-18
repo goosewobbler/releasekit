@@ -8,3 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 {% for version in versions %}
 {% include "version" %}
 {% endfor %}
+{%- if shared.size > 0 %}
+
+## Project-wide changes - {{ versions.first.date }}
+{%- for section in shared %}
+
+### {{ section.label }}
+{% for entry in section.entries %}
+{{ entry.line }}
+{%- endfor %}
+{%- endfor %}
+{%- endif %}

@@ -36,6 +36,19 @@ export interface VersionPackageChangelog {
    * commits aside. Recorded, possibly empty, by per-package versioning when `sharedPackages` is set.
    */
   sharedPackageEntries?: VersionChangelogEntry[];
+  /** A primary's bundled packages, each with the versions of it the primary's notes include, oldest first. */
+  bundled?: VersionBundledPackage[];
+}
+
+export interface VersionBundledPackage {
+  packageName: string;
+  versions: string[];
+}
+
+export interface VersionBundledRelease {
+  packageName: string;
+  version: string;
+  entries: VersionChangelogEntry[];
 }
 
 /** `'graduated'`: a prerelease promoted to stable, ignoring any requested bump. `'first-release'`: no prior tag. */
@@ -66,6 +79,11 @@ export interface VersionOutput {
   /** Entries from commits that touch no package outside `sharedPackages`, counting the directories a package
    *  versions through `cargo.paths` / `pub.paths`. */
   sharedEntries?: VersionChangelogEntry[];
+  /**
+   * Earlier releases a primary's `bundled` packages made since its previous release, each stored once however many
+   * primaries include it. A bundled package's release in this run is its own changelog record.
+   */
+  bundledReleases?: VersionBundledRelease[];
   commitMessage?: string;
   /** Consumer-facing tags from `tagTemplate`. */
   tags: string[];

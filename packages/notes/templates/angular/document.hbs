@@ -5,3 +5,15 @@ All notable changes to this project will be documented in this file.
 {{#each versions}}
 {{> version}}
 {{/each}}
+{{#if shared.length}}
+## Project-wide changes - {{versions.[0].date}}
+
+{{#each shared}}
+### {{{label}}}
+
+{{#each entries}}
+{{{line}}}
+{{/each}}
+
+{{/each}}
+{{/if}}

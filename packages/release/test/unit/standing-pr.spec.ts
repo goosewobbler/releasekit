@@ -3675,6 +3675,22 @@ describe('runStandingPRUpdate', () => {
       expect(generatedFor).toEqual([['pkg-a', 'pkg-b']]);
     });
 
+    it("should regenerate a primary's unedited region when its bundled releases change", async () => {
+      const withBundled = (description: string) =>
+        ({
+          ...output(initial),
+          changelogs: output(initial).changelogs.map((c) =>
+            c.packageName === 'pkg-a' ? { ...c, bundled: [{ packageName: 'lib', versions: ['1.0.1'] }] } : c,
+          ),
+          bundledReleases: [{ packageName: 'lib', version: '1.0.1', entries: [{ type: 'fix', description }] }],
+        }) as Output;
+      const seeded = await update(withBundled('fix lib'));
+
+      await update(withBundled('fix lib differently'), seeded);
+
+      expect(generatedFor).toEqual([['pkg-a']]);
+    });
+
     it("should regenerate only the changed package's unedited region", async () => {
       const seeded = await update(output(initial));
 

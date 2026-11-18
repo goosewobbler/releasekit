@@ -9,6 +9,7 @@ const NotesVersionOutputSchema = VersionOutputSchema.pick({
   updates: true,
   tags: true,
   sharedEntries: true,
+  bundledReleases: true,
 }).partial({
   updates: true,
   tags: true,
@@ -47,7 +48,8 @@ function toChangelogEntry(entry: VersionChangelogEntry): ChangelogEntry {
 }
 
 export function versionOutputToChangelogInput(
-  data: Pick<VersionOutput, 'changelogs'> & Partial<Pick<VersionOutput, 'updates' | 'tags' | 'sharedEntries'>>,
+  data: Pick<VersionOutput, 'changelogs'> &
+    Partial<Pick<VersionOutput, 'updates' | 'tags' | 'sharedEntries' | 'bundledReleases'>>,
 ): ChangelogInput {
   if (!data.changelogs || !Array.isArray(data.changelogs)) {
     throw new InputParseError('Input must contain a "changelogs" array');
@@ -65,6 +67,7 @@ export function versionOutputToChangelogInput(
     date: new Date().toISOString().split('T')[0] ?? '',
     entries: changelog.entries.map(toChangelogEntry),
     sharedPackageEntries: changelog.sharedPackageEntries?.map(toChangelogEntry),
+    bundled: changelog.bundled,
   }));
 
   const repoUrl = packages[0]?.repoUrl ?? null;
@@ -73,6 +76,7 @@ export function versionOutputToChangelogInput(
     source: 'version',
     packages,
     sharedEntries: data.sharedEntries?.map(toChangelogEntry),
+    bundledReleases: data.bundledReleases?.map((r) => ({ ...r, entries: r.entries.map(toChangelogEntry) })),
     metadata: {
       repoUrl: repoUrl ?? undefined,
     },

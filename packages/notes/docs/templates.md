@@ -81,6 +81,7 @@ The outermost template (`document`) receives:
 | `versions` | `Version[]` | All rendered versions, newest first |
 | `unreleased` | `Version \| undefined` | Unreleased changes, if any |
 | `compareUrls` | `Record<string, string> \| undefined` | Map of version → compare URL for all versions |
+| `shared` | `Section[]` | A root changelog's [project-wide entries](monorepo.md#project-wide-changes) for the run, which the built-in renderer lists after the versions. Empty otherwise |
 | `perPackage` | `boolean \| undefined` | `true` when rendered inline for a single package (e.g. GitHub release body). Use this to suppress document-level headings that are redundant when the content is embedded in a release that already shows the package name and version. |
 | `output` | `'file' \| 'release' \| undefined` | Which release-notes destination this render targets: `'file'` (an in-repo per-version file) or `'release'` (the GitHub release body). Branch on it to emit content that only suits one — most importantly, docs-site **YAML frontmatter**, which would render as literal text in a GitHub release. |
 
@@ -110,6 +111,7 @@ Each version block (`version`) receives:
 | `entries` | `Entry[]` | Changelog entries in commit order. Release-notes templates get the LLM-rewritten entries when `tasks.enhance` is on; changelog templates always get the commit-derived ones |
 | `sections` | `Section[]` | The same entries grouped as the built-in renderer groups them (see below) |
 | `shared` | `Section[]` | [Shared-package entries](monorepo.md#project-wide-changes) in commit-type groups, which the built-in renderer lists under `### Project-wide changes` after the version's own. Empty in a root changelog |
+| `bundled` | `Bundled[]` | A primary's [bundled packages](monorepo.md#bundled-release-notes), each with `packageName`, `version`, `firstVersion` (when it released more than once) and `sections`. Release notes only: empty in a changelog |
 | `enhanced` | `object \| undefined` | LLM-written text (see below) |
 
 ### Sections

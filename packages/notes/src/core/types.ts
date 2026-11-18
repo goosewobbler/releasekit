@@ -1,5 +1,5 @@
 import type { MonorepoConfig } from '@releasekit/config';
-import type { ChangelogRefsMode } from '@releasekit/core';
+import type { BundledPackage, ChangelogRefsMode, VersionBundledPackage, VersionBundledRelease } from '@releasekit/core';
 import type { RetryOptions } from '../utils/retry.js';
 
 export type { RetryOptions };
@@ -39,7 +39,10 @@ export interface PackageChangelog {
   date: string;
   entries: ChangelogEntry[];
   sharedPackageEntries?: ChangelogEntry[];
+  bundled?: VersionBundledPackage[];
 }
+
+export type BundledRelease = Omit<VersionBundledRelease, 'entries'> & { entries: ChangelogEntry[] };
 
 export type InputSource = 'version';
 
@@ -48,6 +51,7 @@ export interface ChangelogInput {
   packages: PackageChangelog[];
   /** Project-wide entries, from commits that touch no package outside `sharedPackages`. */
   sharedEntries?: ChangelogEntry[];
+  bundledReleases?: BundledRelease[];
   metadata?: {
     repoUrl?: string;
     defaultBranch?: string;
@@ -77,6 +81,8 @@ export interface TemplateContext {
   isFirstRelease?: boolean;
   /** Shared-package entries, listed after the version's own. */
   sharedEntries?: ChangelogEntry[];
+  /** A primary's bundled packages. Release notes only: the changelog never lists them. */
+  bundled?: BundledPackage<ChangelogEntry>[];
 }
 
 export interface TemplateEntry extends ChangelogEntry {
@@ -90,12 +96,22 @@ export interface TemplateSection {
 }
 
 /** What a template sees for one version. */
-export interface TemplateVersion extends Omit<TemplateContext, 'entries' | 'enhanced' | 'sharedEntries'> {
+export interface TemplateBundledPackage {
+  packageName: string;
+  /** Set when the package released more than once since the primary's previous release. */
+  firstVersion?: string;
+  version: string;
+  sections: TemplateSection[];
+}
+
+export interface TemplateVersion extends Omit<TemplateContext, 'entries' | 'enhanced' | 'sharedEntries' | 'bundled'> {
   entries: TemplateEntry[];
   /** LLM categories when `categorize` ran, otherwise commit-type groups. Breaking leads unless `categoryOrder` places it. */
   sections: TemplateSection[];
   /** Shared-package entries in commit-type groups. Empty in a root changelog. */
   shared: TemplateSection[];
+  /** A primary's bundled packages, each in commit-type groups. Empty outside release notes. */
+  bundled: TemplateBundledPackage[];
   enhanced?: Omit<EnhancedData, 'categories'>;
 }
 
@@ -107,6 +123,8 @@ export interface DocumentContext {
   versions: TemplateVersion[];
   unreleased?: TemplateVersion;
   compareUrls?: Record<string, string>;
+  /** A root changelog's project-wide entries for the run, in commit-type groups. Empty otherwise. */
+  shared: TemplateSection[];
   /** Templates can use this to suppress document-level headings that are redundant
    *  when the content is embedded in a release that already shows the package/version. */
   perPackage?: boolean;

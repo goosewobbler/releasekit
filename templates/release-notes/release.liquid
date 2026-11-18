@@ -27,6 +27,18 @@ _First release of `{{ version.packageName }}`._
 {%- endfor %}
 {%- endfor %}
 {%- endif %}
+{%- for pkg in version.bundled %}
+
+### {{ pkg.packageName }} {% if pkg.firstVersion %}{{ pkg.firstVersion }} → {% endif %}{{ pkg.version }}:
+{%- for section in pkg.sections %}
+{%- if section.label == "Added" %}{% assign heading = "New" %}{% else %}{% assign heading = section.label %}{% endif %}
+
+#### {{ heading }}:
+{%- for entry in section.entries %}
+{{ entry.line }}
+{%- endfor %}
+{%- endfor %}
+{%- endfor %}
 {%- if version.compareUrl %}
 
 **Full Changelog**: {{ version.compareUrl }}
