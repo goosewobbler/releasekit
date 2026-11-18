@@ -37,7 +37,7 @@ const sampleInput: ChangelogInput = {
 };
 
 // Deterministic enhanceAndCategorize response.
-// Exercises: breaking re-routing, leadIn phrases, scope grouping (ipc×2).
+// Exercises: breaking re-routing and leadIn phrases.
 const MOCK_RESPONSE = JSON.stringify({
   entries: [
     {
@@ -79,7 +79,7 @@ describe('Pipeline: render snapshot', () => {
     vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
   });
 
-  it('should render Breaking first, scope groups, and leadIn phrases', async () => {
+  it('should render Breaking first and leadIn phrases', async () => {
     const { createProvider } = await import('../../src/llm/index.js');
     const mockProvider: LLMProvider = {
       name: 'mock',
@@ -113,14 +113,12 @@ describe('Pipeline: render snapshot', () => {
 
       ### Breaking
 
-      - **BREAKING** **API rename**: Rename connect() to initialize()
+      - **API rename**: Rename connect() to initialize()
 
       ### New
 
-      **ipc**:
-
       - **Deeplink testing**: Add deep link support via triggerDeeplink()
-      - Add mock IPC support
+      - **ipc**: Add mock IPC support
 
       ### Fixed
 

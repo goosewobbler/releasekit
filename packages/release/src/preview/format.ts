@@ -1,8 +1,5 @@
-import { DEFAULT_DEMOTE_SCOPES } from '@releasekit/config';
 import {
-  type ChangelogEntryLineInput,
   type ChangelogRefsMode,
-  groupChangelogSections,
   renderChangelogEntryLine,
   type VersionChangelogEntry,
   type VersionPackageChangelog,
@@ -10,7 +7,7 @@ import {
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration } from '../duration.js';
 import { MARKER } from '../github.js';
-import type { ChangelogRenderOptions } from '../standing-pr/changelog-region.js';
+import { changelogSectionLines, wrapDetails } from '../standing-pr/changelog-region.js';
 import type { StandingPRSnapshot } from '../standing-pr/standing-pr.js';
 import type { ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay, syncVersionRange, toDisplayVersion } from '../version-display.js';
@@ -42,7 +39,8 @@ export interface LabelContext {
   immediate?: boolean;
 }
 
-export interface FormatOptions extends Partial<ChangelogRenderOptions> {
+export interface FormatOptions {
+  refs?: ChangelogRefsMode;
   strategy?: ReleaseStrategy;
   standingPrNumber?: number;
   standingPrSnapshot?: StandingPRSnapshot;
@@ -282,10 +280,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   const effectiveStrategy = labelContext?.immediate ? 'direct' : strategy;
   lines.push(getIntroMessage(effectiveStrategy, options?.standingPrNumber), '');
 
-  const render: ChangelogRenderOptions = {
-    refs: options?.refs ?? 'link',
-    demoteScopes: options?.demoteScopes ?? DEFAULT_DEMOTE_SCOPES,
-  };
+  const refs = options?.refs ?? 'link';
   // All packages share one repo, so any changelog's repoUrl serves the shared entries.
   const sharedRepoUrl = versionOutput.changelogs.find((cl) => cl.repoUrl)?.repoUrl ?? null;
   const sharedEntries = versionOutput.sharedEntries?.length ? versionOutput.sharedEntries : undefined;
@@ -297,18 +292,15 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   const syncBumpedOnly = versionOutput.updates.filter((u) => !u.isRoot && !packagesWithChangelog.has(u.packageName));
 
   if (sharedEntries || hasPackageChangelogs || syncBumpedOnly.length > 0) {
-    // Only content is blockquoted: GitHub renders a `> `-prefixed raw-HTML block (the disclosure tags) unreliably.
     lines.push('### Changelog', '');
 
     if (sharedEntries) {
-      lines.push('<details>', '<summary><b>Project-wide changes</b></summary>', '');
-      lines.push(...blockquote(renderEntries(sharedEntries, render, sharedRepoUrl)));
-      lines.push('', '</details>', '');
+      lines.push(wrapDetails('<b>Project-wide changes</b>', renderEntries(sharedEntries, refs, sharedRepoUrl)), '');
     }
 
     for (const changelog of versionOutput.changelogs) {
       if (hasRealEntries(changelog)) {
-        lines.push(...formatPackageChangelog(changelog, render));
+        lines.push(...formatPackageChangelog(changelog, refs));
       }
     }
 
@@ -444,41 +436,18 @@ function renderMergeTable(rows: MergedRow[]): string[] {
   return lines;
 }
 
-function renderEntries(
-  entries: VersionChangelogEntry[],
-  { refs, demoteScopes }: ChangelogRenderOptions,
-  repoUrl: string | null,
-): string[] {
-  return groupChangelogSections(entries, (e) => e, { demoteScopes }).flatMap((section) =>
-    formatEntryGroup(section.label, section.items, refs, repoUrl),
+function renderEntries(entries: VersionChangelogEntry[], refs: ChangelogRefsMode, repoUrl: string | null): string[] {
+  return changelogSectionLines(
+    entries,
+    (e) => e,
+    (e) => renderChangelogEntryLine(e, refs, repoUrl),
   );
 }
 
-function formatPackageChangelog(changelog: VersionPackageChangelog, render: ChangelogRenderOptions): string[] {
-  const lines: string[] = [];
+function formatPackageChangelog(changelog: VersionPackageChangelog, refs: ChangelogRefsMode): string[] {
   const prevVersion = changelog.previousVersion ? toDisplayVersion(changelog.previousVersion) : 'N/A';
   const summary = `<b>${changelog.packageName}</b> ${prevVersion} → ${changelog.version}`;
-
-  lines.push('<details>', `<summary>${summary}</summary>`, '');
-  lines.push(...blockquote(renderEntries(changelog.entries, render, changelog.repoUrl)));
-  lines.push('', '</details>', '');
-  return lines;
-}
-
-function formatEntryGroup(
-  label: string,
-  entries: ChangelogEntryLineInput[],
-  refs: ChangelogRefsMode,
-  repoUrl: string | null,
-): string[] {
-  const lines: string[] = [`#### ${label}`, ''];
-
-  for (const entry of entries) {
-    lines.push(renderChangelogEntryLine(entry, refs, repoUrl));
-  }
-
-  lines.push('');
-  return lines;
+  return [wrapDetails(summary, renderEntries(changelog.entries, refs, changelog.repoUrl)), ''];
 }
 
 /** Blank lines keep a bare `>` so the quote stays one contiguous block. */

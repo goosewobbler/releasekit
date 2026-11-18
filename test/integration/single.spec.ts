@@ -75,7 +75,7 @@ describe('Integration: single package', () => {
   });
 
   describe('Breaking change -> major version bump', () => {
-    it('should generate correct changelog entry with breaking marker', () => {
+    it('should list a breaking change under the Breaking section', () => {
       const versionOutput = {
         dryRun: true,
         updates: [
@@ -105,7 +105,7 @@ describe('Integration: single package', () => {
       const markdown = renderMarkdown(contexts);
 
       expect(markdown).toContain('## [1.0.0]');
-      expect(markdown).toContain('**BREAKING**');
+      expect(markdown).toContain('### Breaking\n\n- Redesign API');
     });
   });
 

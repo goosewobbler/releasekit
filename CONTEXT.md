@@ -38,3 +38,9 @@ The AGENTS.md invariant ("machine state embedded in comments uses its own marker
 - **`markerRegion`** (`wrapMarkerRegion`/`extractMarkerRegion`) — a span of editable content between a distinct open/close marker pair. Two adapters today: `notes-region` (editable release notes) and `selection-region` (the [[Selection region]] task-list; per-row `<!-- rk-sel:NAME -->` identity markers, with the `[x]`/`[ ]` glyph the human toggles).
 
 The *find + idempotent upsert* of the whole comment is a separate concern, owned by the **[[forge]]** (`findComment`/`upsertMarkerComment`). Prose-only bot comments (preview, gate-notify) just upsert a marker-keyed body, except that after a release `markStaleAfterRelease` edits a preview in place, adding a `<!-- releasekit-preview-stale -->` line and notice that the next upsert drops.
+
+## Changelog rendering
+
+- **Changelog surface** — anywhere changelog entries are rendered: `CHANGELOG.md`, per-version notes files, GitHub release bodies, standing-PR rows and the preview. **Release surfaces** are the subset LLM output may reach (ADR 0007): release bodies, notes files and the standing PR's notes region.
+- **Section** — a labelled group of entries. Breaking comes first, then either LLM categories (when `categorize` ran) or type labels in Keep a Changelog order followed by "Dependencies & version bumps" for `deps`/`deps-dev` entries.
+- **Entry line** — one entry rendered as a Markdown list item: optional bold scope or lead-in, description, refs. The same shape on every surface; a breaking entry is marked by its section, not by a prefix.

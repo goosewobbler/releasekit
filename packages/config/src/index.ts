@@ -21,7 +21,6 @@ export {
   type ChangelogConfig,
   type CIConfig,
   type CILabelsConfig,
-  DEFAULT_DEMOTE_SCOPES,
   DEFAULT_PRESET,
   type GitConfig,
   type GitHubReleaseConfig,

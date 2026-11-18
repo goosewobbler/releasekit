@@ -17,7 +17,6 @@ const mockLoadCIConfig = vi.fn();
 const mockLoadConfig = vi.fn();
 
 vi.mock('@releasekit/config', () => ({
-  DEFAULT_DEMOTE_SCOPES: ['deps', 'deps-dev'],
   loadCIConfig: (...args: unknown[]) => mockLoadCIConfig(...args),
   loadConfig: (...args: unknown[]) => mockLoadConfig(...args),
 }));
@@ -139,51 +138,29 @@ describe('runPreview', () => {
       expect(mockPostOrUpdateComment).toHaveBeenCalled();
     });
 
-    it('should demote the scopes configured in notes.changelog.demoteScopes', async () => {
-      mockLoadConfig.mockReturnValue({ notes: { changelog: { demoteScopes: ['tooling'] } } });
+    it('should render refs per notes.changelog.refs, and link them when notes.changelog is false', async () => {
       mockRunRelease.mockResolvedValue({
         versionOutput: {
           ...versionOutputWithChanges,
           changelogs: [
             {
               ...versionOutputWithChanges.changelogs[0],
-              entries: [
-                { type: 'changed', description: 'Bump lodash', scope: 'deps' },
-                { type: 'changed', description: 'Swap linter', scope: 'tooling' },
-              ],
+              repoUrl: 'https://github.com/octocat/hello',
+              entries: [{ type: 'fixed', description: 'Fix parser', issueIds: ['#12'] }],
             },
           ],
         },
         notesGenerated: false,
       });
 
+      mockLoadConfig.mockReturnValue({ notes: { changelog: { refs: 'strip' } } });
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
-
-      const body = mockPostOrUpdateComment.mock.calls[0]?.[2] as string;
-      expect(body).toContain(
-        '> #### Changed\n>\n> - Bump lodash (`deps`)\n>\n> #### Dependencies & version bumps\n>\n> - Swap linter (`tooling`)',
-      );
-    });
-
-    it('should fall back to the default demoted scopes when notes.changelog is false', async () => {
       mockLoadConfig.mockReturnValue({ notes: { changelog: false } });
-      mockRunRelease.mockResolvedValue({
-        versionOutput: {
-          ...versionOutputWithChanges,
-          changelogs: [
-            {
-              ...versionOutputWithChanges.changelogs[0],
-              entries: [{ type: 'changed', description: 'Bump lodash', scope: 'deps' }],
-            },
-          ],
-        },
-        notesGenerated: false,
-      });
-
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-      const body = mockPostOrUpdateComment.mock.calls[0]?.[2] as string;
-      expect(body).toContain('> #### Dependencies & version bumps\n>\n> - Bump lodash (`deps`)');
+      const [stripped, linked] = mockPostOrUpdateComment.mock.calls.map((call) => call[2] as string);
+      expect(stripped).toContain('> - Fix parser\n');
+      expect(linked).toContain('> - Fix parser ([#12](https://github.com/octocat/hello/issues/12))');
     });
 
     it('should skip when CI config disables preview', async () => {

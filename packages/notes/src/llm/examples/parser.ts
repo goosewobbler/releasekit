@@ -1,3 +1,4 @@
+import { BREAKING_SECTION } from '@releasekit/core';
 import { escAttr, escBody } from '../tasks/shared.js';
 import type { Example, ExampleEntry } from './types.js';
 
@@ -34,7 +35,8 @@ export function parseReleaseBodyToExample(markdown: string, version: string): Ex
       if (leadInMatch) {
         entry.leadIn = leadInMatch[1];
       }
-      if (/\*\*BREAKING\*\*/i.test(text)) {
+      // Older bodies prefix the entry instead of using a Breaking heading.
+      if (currentCategory === BREAKING_SECTION || /\*\*BREAKING\*\*/i.test(text)) {
         entry.breaking = true;
       }
       entries.push(entry);
