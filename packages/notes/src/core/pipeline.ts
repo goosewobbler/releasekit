@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { assertLlmModel, runsLlmTasks } from '@releasekit/config';
+import { assertLlmModel, configuredRefsMode, runsLlmTasks } from '@releasekit/config';
 import { debug, info, parseGitHubOwnerRepo, renderChangelogEntryLine, warn } from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
 import { withContentHashCache } from '../llm/cache.js';
@@ -475,7 +475,7 @@ export async function runPipeline(
     categoryOrder: llmConfig?.categoryOrder,
     links: releaseNotesConfig?.links,
     firstRelease: releaseNotesConfig?.firstRelease,
-    refs: (changelogConfig !== false ? changelogConfig.refs : undefined) ?? 'link',
+    refs: configuredRefsMode(config),
   };
 
   if (!pipelineOptions?.skipChangelogs && !releaseNotesFor && changelogConfig !== false && changelogConfig.mode) {

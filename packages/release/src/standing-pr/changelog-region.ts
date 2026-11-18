@@ -1,4 +1,3 @@
-import type { ReleaseKitConfig } from '@releasekit/config';
 import {
   type ChangelogRefsMode,
   groupChangelogSections,
@@ -13,11 +12,6 @@ import type { RowChangelogRenderer } from './selection-region.js';
  * two units deliberately appears under each, and the combined footer ({@link renderCombinedFooter}), listing every
  * change once. Both read structured entries and never parse prose.
  */
-
-/** `notes.changelog: false` gets the default: the standing PR and preview render changelogs regardless. */
-export function configuredRefsMode(config: ReleaseKitConfig): ChangelogRefsMode {
-  return (config.notes?.changelog || undefined)?.refs ?? 'link';
-}
 
 interface AttributedEntry {
   entry: VersionChangelogEntry;

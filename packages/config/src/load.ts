@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import type { ChangelogRefsMode } from '@releasekit/core';
 import { z } from 'zod';
 import { ConfigError } from './errors.js';
 import { mergeGitConfig } from './merge.js';
@@ -94,6 +95,13 @@ export function loadPublishConfig(options?: LoadOptions): PublishConfig {
         }
       : undefined,
   };
+}
+
+/** `notes.changelog: false` gets the default, since entries still render outside the changelog. */
+export function configuredRefsMode(
+  notes: { changelog?: false | { refs?: ChangelogRefsMode } } | undefined,
+): ChangelogRefsMode {
+  return (notes?.changelog || undefined)?.refs ?? 'link';
 }
 
 export function loadNotesConfig(options?: LoadOptions): NotesConfig | undefined {

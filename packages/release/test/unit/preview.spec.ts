@@ -16,7 +16,8 @@ vi.mock('node:fs', () => ({
 const mockLoadCIConfig = vi.fn();
 const mockLoadConfig = vi.fn();
 
-vi.mock('@releasekit/config', () => ({
+vi.mock('@releasekit/config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@releasekit/config')>()),
   loadCIConfig: (...args: unknown[]) => mockLoadCIConfig(...args),
   loadConfig: (...args: unknown[]) => mockLoadConfig(...args),
 }));

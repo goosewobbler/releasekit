@@ -1,5 +1,10 @@
 import * as path from 'node:path';
-import { type CIConfig, loadConfig as loadReleaseKitConfig, runFormatCommand } from '@releasekit/config';
+import {
+  type CIConfig,
+  configuredRefsMode,
+  loadConfig as loadReleaseKitConfig,
+  runFormatCommand,
+} from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
 import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
 import { VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
@@ -32,7 +37,7 @@ import { type NotesStepResult, runNotesStep, runPublishStep, runVersionStep } fr
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
-import { configuredRefsMode, makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
+import { makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
 import { graduationOvershoot, lockstepGroupOf } from './graduation.js';
 import { extractNotesRegions, notesRegionKeys, renderNotesRegion } from './notes-region.js';
 import {
@@ -934,7 +939,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const branch = standingPrConfig?.branch ?? 'release/next';
   const base = releaseKitConfig.git?.branch ?? 'main';
-  const changelogRefsMode = configuredRefsMode(releaseKitConfig);
+  const changelogRefsMode = configuredRefsMode(releaseKitConfig.notes);
   const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
 
   const bypassSkipGuard = options.reconcile || isStandingPrEventRun();

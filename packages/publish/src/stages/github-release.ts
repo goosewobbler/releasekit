@@ -1,4 +1,4 @@
-import type { VersionOutput, VersionPackageChangelog, VersionPackageUpdate } from '@releasekit/core';
+import type { ChangelogRefsMode, VersionOutput, VersionPackageChangelog, VersionPackageUpdate } from '@releasekit/core';
 import {
   assertNotOption,
   debug,
@@ -31,6 +31,7 @@ function resolveNotes(
   release: ReleaseTag,
   releaseNotesEnabled: boolean,
   changelogFallback: boolean,
+  refs: ChangelogRefsMode,
   pipelineNotes?: Record<string, string>,
 ): { body?: string; useGithubNotes: boolean } {
   if (bodySource === 'none') {
@@ -57,7 +58,7 @@ function resolveNotes(
   }
 
   if (bodySource === 'changelog') {
-    const packageBody = formatChangelogForTag(release);
+    const packageBody = formatChangelogForTag(release, refs);
     if (packageBody) {
       return { body: packageBody, useGithubNotes: false };
     }
@@ -74,7 +75,7 @@ function resolveNotes(
   }
 
   const changelogBody = changelogFallback
-    ? formatChangelogForTag(release, withoutPlaceholders(release.input.changelogs))
+    ? formatChangelogForTag(release, refs, withoutPlaceholders(release.input.changelogs))
     : undefined;
   if (changelogBody) {
     if (releaseNotesEnabled) {
@@ -216,6 +217,7 @@ function repoUrlFallback(input: VersionOutput): string | null {
 
 function formatChangelogForTag(
   release: ReleaseTag,
+  refs: ChangelogRefsMode,
   changelogs: VersionPackageChangelog[] = release.input.changelogs,
 ): string | undefined {
   const key = resolveTagKey(
@@ -232,7 +234,7 @@ function formatChangelogForTag(
   return groupChangelogSections(target.entries, (e) => e)
     .map(
       (section) =>
-        `### ${section.label}\n\n${section.items.map((entry) => renderChangelogEntryLine(entry, 'link', repoUrl)).join('\n')}`,
+        `### ${section.label}\n\n${section.items.map((entry) => renderChangelogEntryLine(entry, refs, repoUrl)).join('\n')}`,
     )
     .join('\n\n');
 }
@@ -340,6 +342,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       { tag, owner, shared: owners.length > 1 || (owners.length === 0 && syncTag), input: ctx.input },
       releaseNotesEnabled,
       changelogFallback,
+      config.changelogRefs,
       ctx.releaseNotes,
     );
     if (!body && useGithubNotes) {
