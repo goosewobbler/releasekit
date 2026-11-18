@@ -23,6 +23,38 @@ const OLD_RELEASE = `## [1.0.0] - 2026-01-01
 
 const EXISTING = `${HEADER}\n${OLD_RELEASE}`;
 
+const UNRELEASED = `## [Unreleased](https://github.com/acme/repo/compare/v1.0.0...HEAD)
+
+- Pending note
+`;
+
+const SEMANTIC_RELEASE = `# [1.0.0](https://github.com/acme/repo/compare/v0.9.0...v1.0.0) (2026-01-01)
+
+### Features
+
+- Old feature
+
+## [0.9.1](https://github.com/acme/repo/compare/v0.9.0...v0.9.1) (2025-12-01)
+
+### Bug Fixes
+
+- Old fix
+`;
+
+const STANDARD_VERSION = `### [1.0.1](https://github.com/acme/repo/compare/v1.0.0...v1.0.1) (2026-01-20)
+
+- Old fix
+
+## [1.0.0](https://github.com/acme/repo/compare/v0.9.0...v1.0.0) (2026-01-10)
+
+- Old feature
+`;
+
+const PREFIXED_RELEASE = `## [@x/a@1.0.0-next.0] - 2026-01-01
+
+- Old prerelease
+`;
+
 const DEFAULT_HEADER = `# Changelog
 
 All notable changes to this project will be documented in this file.
@@ -124,6 +156,14 @@ describe('Pipeline: root changelog keeps its history', () => {
     ['a header and releases', EXISTING, `${HEADER}\n${NEW_RELEASE}\n${OLD_RELEASE}`],
     ['releases and no header', OLD_RELEASE, `${NEW_RELEASE}\n${OLD_RELEASE}`],
     ['a header and no releases', HEADER, `${HEADER}\n${NEW_RELEASE}`],
+    [
+      'an Unreleased section',
+      `${HEADER}\n${UNRELEASED}\n${OLD_RELEASE}`,
+      `${HEADER}\n${UNRELEASED}\n${NEW_RELEASE}\n${OLD_RELEASE}`,
+    ],
+    ['semantic-release headings', SEMANTIC_RELEASE, `${NEW_RELEASE}\n${SEMANTIC_RELEASE}`],
+    ['standard-version headings', `${HEADER}\n${STANDARD_VERSION}`, `${HEADER}\n${NEW_RELEASE}\n${STANDARD_VERSION}`],
+    ['package-prefixed headings', `${HEADER}\n${PREFIXED_RELEASE}`, `${HEADER}\n${NEW_RELEASE}\n${PREFIXED_RELEASE}`],
     ['no content', '', `${DEFAULT_HEADER}\n${NEW_RELEASE}`],
   ])('should keep standard Markdown spacing when prepending to a file with %s', async (_, existing, expected) => {
     const single: ChangelogInput = {
@@ -207,6 +247,22 @@ describe('Pipeline: custom changelog templates prepend', () => {
     });
 
     expect(out.startsWith('# Custom header\n\n## my-lib 1.1.0 (custom)')).toBe(true);
+  });
+
+  it('should prepend a template whose version headings are level 1', async () => {
+    const file = path.join(dir, 'changelog.liquid');
+    fs.writeFileSync(
+      file,
+      '{% for v in versions %}# {{ v.packageName }} ({{ v.version }})\n\n{% for e in v.entries %}- {{ e.description }}\n{% endfor %}{% endfor %}',
+    );
+
+    const out = await writeChangelog(
+      single('1.1.0'),
+      { changelog: { mode: 'root', templates: { path: file } } },
+      EXISTING,
+    );
+
+    expect(out).toBe(`${HEADER}\n# my-lib (1.1.0)\n\n- feature 1.1.0\n\n${OLD_RELEASE}`);
   });
 
   it.each(['keep-a-changelog', 'angular'])('should prepend with the bundled %s template', async (name) => {

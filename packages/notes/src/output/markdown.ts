@@ -183,12 +183,18 @@ export function renderMarkdown(contexts: TemplateContext[], options?: FormatVers
   return sections.join('\n');
 }
 
-function versionSectionsStart(rendered: string): number {
-  if (rendered.startsWith('## ')) {
-    return 0;
+// semantic-release writes `# [x.y.0]` for minors and majors, standard-version `### [x.y.z]` for patches.
+const HEADING_RE = /^#{1,3} (.*)$/gm;
+// Link targets don't count: `## [Unreleased](…/compare/v1.2.3...HEAD)` isn't a version heading.
+const LINK_TARGET_RE = /\]\([^()[\]]*\)/g;
+
+function versionSectionsStart(markdown: string): number {
+  for (const heading of markdown.matchAll(HEADING_RE)) {
+    if (/\d\.\d+\.\d/.test((heading[1] ?? '').replace(LINK_TARGET_RE, ']'))) {
+      return heading.index;
+    }
   }
-  const index = rendered.indexOf('\n## ');
-  return index === -1 ? -1 : index + 1;
+  return -1;
 }
 
 function prependChangelog(existingPath: string, rendered: string): string {
@@ -199,7 +205,9 @@ function prependChangelog(existingPath: string, rendered: string): string {
 
   const sectionsStart = versionSectionsStart(rendered);
   if (sectionsStart === -1) {
-    warn(`Rendered changelog has no version section (a line starting with "## "); nothing added to ${existingPath}`);
+    warn(
+      `Rendered changelog has no version heading (a "#", "##" or "###" heading with a version); nothing added to ${existingPath}`,
+    );
     return existing;
   }
   const sections = `${rendered.slice(sectionsStart).trimEnd()}\n`;

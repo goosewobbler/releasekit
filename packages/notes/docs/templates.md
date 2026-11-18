@@ -60,9 +60,9 @@ The `entry.liquid` template receives the `ChangelogEntry` fields directly as top
 A changelog template renders only this run's versions, in `versions`. How the output reaches the file:
 
 - **New or empty file:** the whole output is written.
-- **Existing file:** the output from its first line starting with `## ` goes directly under the file's header, which is everything before the file's first `## ` line. The rest of the file is kept. Anything the template renders before its first `## ` line, such as its own header, is dropped. Everything from that line to the end of the output is inserted on every run, so render only version sections after the header: no footer, such as link reference definitions, and no fixed `## ` section, such as `## [Unreleased]`.
+- **Existing file:** the output from its first version heading goes directly under the file's header, which is everything before the file's first version heading. A version heading is a `# `, `## ` or `### ` heading containing a version outside any link target, such as `## [1.2.0]`, `# [1.2.0](…) (2026-01-01)` or `## [@scope/pkg@1.2.0-next.0]`. `# Changelog` and `## [Unreleased]` aren't, so new versions go below an `## [Unreleased]` section. The rest of the file is kept. Anything the template renders before its first version heading, such as its own header, is dropped. Everything from that heading to the end of the output is inserted on every run, so render only version sections after the header: no footer, such as link reference definitions, and no fixed section, such as `## [Unreleased]`.
 
-So start each version section with a level-2 heading (`## `). If the output has none, an existing file is left unchanged and a warning is logged.
+So start each version section with a version heading. If the output has none, an existing file is left unchanged and a warning is logged.
 
 In `packages` and `both` modes, each package's changelog is rendered on its own: `versions` holds only that package's version, and `project.name` is the package name.
 
