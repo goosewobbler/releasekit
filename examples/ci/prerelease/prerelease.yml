@@ -41,7 +41,8 @@ jobs:
 
       # Pass the dispatch input via env, not inline interpolation: a value like
       # `beta; rm -rf .` would otherwise be executed by the shell.
-      - run: pnpm exec releasekit release --prerelease "$PRERELEASE_IDENTIFIER"
+      - name: Prerelease
+        run: pnpm exec releasekit release --prerelease "$PRERELEASE_IDENTIFIER"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PRERELEASE_IDENTIFIER: ${{ inputs.identifier }}

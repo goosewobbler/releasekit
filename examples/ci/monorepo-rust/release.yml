@@ -39,7 +39,8 @@ jobs:
       - name: Remove token-based .npmrc so npm OIDC can take over
         run: rm -f .npmrc
 
-      - run: pnpm exec releasekit release
+      - name: Release
+        run: pnpm exec releasekit release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

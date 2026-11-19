@@ -74,17 +74,21 @@ describe('examples smoke-test generator', () => {
     }
   });
 
-  it('should skip the standing-pr banner step instead of treating it as the releasekit step', () => {
-    const steps = stepsOf('smoke-standing-pr');
-    expect(steps.some((s) => /\bgh\s+api\b/.test(s.run ?? ''))).toBe(false);
-    expect(steps.some((s) => s.run === 'pnpm install --frozen-lockfile')).toBe(true);
+  it('should throw when a scenario names a step its example job lacks', () => {
+    const scenario = { ...SCENARIOS[0], releaseStep: 'No such step' };
+    expect(() => buildWorkflow([scenario])).toThrow(/Step "No such step" not found in job "release"/);
   });
 
   it('should always invoke releasekit with --dry-run so publish never fires', () => {
     for (const scenario of SCENARIOS) {
-      const releaseStep = stepsOf(`smoke-${scenario.id}`).find((s) => /\breleasekit\b/.test(s.run ?? ''));
-      expect(releaseStep, `${scenario.id} must run releasekit`).toBeDefined();
-      expect(releaseStep?.run).toContain('--dry-run');
+      const steps = stepsOf(`smoke-${scenario.id}`);
+      const releasekitSteps = steps.filter((s) => /releasekit/.test(s.run ?? ''));
+      expect(releasekitSteps.length, `${scenario.id} must run releasekit`).toBeGreaterThan(0);
+      for (const step of releasekitSteps) {
+        expect(step.run, `${scenario.id}: ${step.name ?? step.run}`).toContain('--dry-run');
+      }
+      const actionSteps = steps.filter((s) => s.uses?.startsWith('goosewobbler/releasekit'));
+      expect(actionSteps, `${scenario.id} must not use the releasekit Action`).toEqual([]);
     }
   });
 
