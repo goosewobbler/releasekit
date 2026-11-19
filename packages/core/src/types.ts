@@ -32,11 +32,12 @@ export interface VersionPackageChangelog {
   /** The tag this changelog releases: the package's own, or a sync release's shared one. Absent in older manifests. */
   tag?: string;
   /**
-   * Commits in this changelog's range that touch a `sharedPackages` package and no other package, the package's own
-   * commits aside. Recorded, possibly empty, by per-package versioning when `sharedPackages` is set.
+   * Entries from commits in this changelog's range that touch a `sharedPackages` package and no non-shared package,
+   * leaving out commits under this package's own directories. Recorded, possibly empty, by async-mode releases with
+   * shared packages; absent otherwise and in older manifests.
    */
   sharedPackageEntries?: VersionChangelogEntry[];
-  /** A primary's bundled packages, each with the versions of it the primary's notes include, oldest first. */
+  /** A primary's bundled packages, each with the versions of that package the primary's notes include, oldest first. */
   bundled?: VersionBundledPackage[];
 }
 

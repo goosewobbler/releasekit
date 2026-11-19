@@ -81,7 +81,6 @@ export async function recordBundledReleases(
   const releases = new Map<string, VersionBundledRelease>();
   const bundledByPrimary = new Map<string, VersionBundledPackage[]>();
 
-  /** Oldest first. */
   const tagsReachableFrom = async (name: string, ref: string) =>
     (await listPackageTags(name, prefix, tagOptions, git, ref))
       .map((tag) => ({ tag, version: versionFromTag(tag) }))
@@ -98,7 +97,7 @@ export async function recordBundledReleases(
     // A release in this run covers its range: a graduation's earlier prereleases are already in it.
     const ownStart = thisRun.get(name)?.revisionRange.split('..')[0];
     const coveredByOwn = ownStart ? new Set((await tagsReachableFrom(name, ownStart)).map((t) => t.tag)) : undefined;
-    // As each strategy scopes the package's own changelog.
+    // Matches the scope each strategy gives the package's own changelog.
     const scope = resolveCommitScope(pkg.dir, config, { repoRoot, ignorePaths: output.strategy === 'group' }).scope;
 
     const versions: string[] = [];
@@ -108,7 +107,6 @@ export async function recordBundledReleases(
       }
       const key = `${name}@${version}`;
       if (!releases.has(key)) {
-        // A package's first tag starts at the nearest earlier tag, as its own first release did.
         // A tag on the root commit has no parent to list from.
         const [nearest] =
           i > 0 ? [] : await git.listTags({ sort: '-creatordate', merged: `${tag}^`, cwd: repoRoot }).catch(() => []);

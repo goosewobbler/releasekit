@@ -329,9 +329,12 @@ with a `version` block); it used to fail.
 
 ### Project-wide changes reach the notes
 
-- Commits touching only a `version.sharedPackages` package are listed under `### Project-wide changes` in every
-  released package's changelog, release notes and release body, including `body: changelog` bodies, each listing the
-  ones since that package's previous release. They used to appear only in the standing PR and the preview.
+In async mode (`sync: false`, no `groups`, more than one package in the run):
+
+- Commits touching a `version.sharedPackages` package and no non-shared package are listed under
+  `### Project-wide changes` in every released package's changelog, release notes and release body
+  (`body: changelog` included), listing the ones since that package's previous release. They used to appear only in
+  the standing PR and the preview.
 - A root changelog lists every project-wide entry once per run, under `## Project-wide changes - <date>` after the
   run's versions.
 - Templates get `shared` on each version, and the bundled templates render it. See
@@ -339,8 +342,9 @@ with a `version` block); it used to fail.
 
 ### Primaries bundle their packages' releases
 
-- With per-package tags and `version.primaryPackages` set, a primary's release notes and GitHub release body end with
-  a section for each group-mate and internal dependency that released since the primary's previous release. See
+- In async mode or grouped releases with per-package tags and `version.primaryPackages` set, a primary's release
+  notes and GitHub release body end with a section for each group-mate and internal dependency that released since
+  the primary's previous release. See
   [Monorepo Support](../packages/notes/docs/monorepo.md#bundled-release-notes).
 - Templates get `bundled` on each version, and a root changelog's document gets the run's project-wide entries as
   `shared`. The bundled templates render both.
