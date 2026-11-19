@@ -200,7 +200,7 @@ Calculate versions, commit to the release branch, and create/update the standing
 releasekit standing-pr update --reconcile
 ```
 
-While the base branch holds a release whose tags aren't on the remote yet, the update waits and returns `noop` with a `reason`. It goes ahead if that release has a publish-failure report, or with a warning once it landed over two hours ago.
+While the base branch holds a release whose tags aren't on the remote yet, the update returns `noop` with a `reason` instead of bumping on top of it. [CI setup](../packages/release/docs/ci-setup.md#lifecycle-and-edge-cases) says when it goes ahead anyway.
 
 The standing PR body carries a **Packages to release** checklist — untick a changed package to hold
 it back from the next release (it is excluded from the version step, never bumped). Requires the

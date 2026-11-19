@@ -2258,9 +2258,8 @@ interface UntaggedRelease {
 
 /**
  * A release on `origin/<base>` whose tags aren't on the remote yet: a merged standing PR missing any of its manifest's
- * tags, or a direct release commit with none. Recomputing from its bumped manifests would double-bump. One whose
- * publish reported a failure, or that landed longer ago than the backstop, doesn't count: the next release supersedes
- * it.
+ * tags, or a direct release commit with none. Recomputing from its bumped versions would double-bump. One whose
+ * publish reported a failure doesn't count, as the next release supersedes it, nor does one older than the backstop.
  */
 export async function findReleaseInFlight(options: FindReleaseInFlightOptions): Promise<ReleaseInFlight | null> {
   const { forge, cwd, base, branch, skipPatterns } = options;
@@ -2282,7 +2281,7 @@ export async function findReleaseInFlight(options: FindReleaseInFlightOptions): 
 
   const commit = await latestReleaseCommit(base, skipPatterns, cwd);
   if (commit && !Object.values(remoteTags).includes(commit.sha)) {
-    // A standing PR's tags can sit on a notes commit off the base branch, so its merge commit is covered above.
+    // A standing PR's merge commit needn't carry its tags, so the manifest check above covers it.
     const standingMerge = merged ? (await forge.getPullRequest(merged.number)).mergeCommitSha : undefined;
     if (commit.sha !== standingMerge) {
       untagged.push({

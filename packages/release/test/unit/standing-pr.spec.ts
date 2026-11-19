@@ -436,7 +436,7 @@ describe('runStandingPRUpdate', () => {
       vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
     }
 
-    /** Standing PR #318 merged `mergedMinutesAgo` ago; a feeder sits on top, so HEAD is no release commit. */
+    /** A feeder sits on top of the standing PR's merge, so HEAD is no release commit. */
     async function mergedStandingPR(
       opts: { mergedMinutesAgo?: number; tagged?: boolean; failureReport?: boolean } = {},
     ) {
