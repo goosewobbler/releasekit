@@ -82,6 +82,27 @@ describe('FakeForge', () => {
     expect(await forge.getIssue(issue.number)).toMatchObject({ author: human });
   });
 
+  it("should report a seeded comment's editor, and make the actor the editor of a comment it updates", async () => {
+    const rando = { login: 'rando', type: 'User' };
+    const forge = createFakeForge({ comments: [{ id: 1, body: 'MARK edited', editor: rando }] });
+    const { nodeId } = (await forge.findComment(1, 'MARK')) ?? { nodeId: '' };
+
+    expect(await forge.getAuthoredBody(nodeId)).toEqual({
+      body: 'MARK edited',
+      author: FAKE_BOT,
+      editor: rando,
+      editors: [rando, FAKE_BOT],
+    });
+    await forge.upsertMarkerComment(1, 'MARK', 'MARK rewritten');
+    expect(await forge.getAuthoredBody(nodeId)).toEqual({
+      body: 'MARK rewritten',
+      author: FAKE_BOT,
+      editor: FAKE_BOT,
+      editors: [FAKE_BOT, rando, FAKE_BOT],
+    });
+    await expect(forge.getAuthoredBody('IC_99')).rejects.toThrow('IC_99');
+  });
+
   it('should make createLabel idempotent against seeded labels', async () => {
     const forge = createFakeForge({ labelNames: ['existing'] });
 

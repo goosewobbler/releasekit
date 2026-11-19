@@ -33,11 +33,18 @@ export const FAKE_BOT: CommentAuthor = { login: 'github-actions[bot]', type: 'Bo
 
 interface FakeComment {
   id: number;
+  nodeId: string;
   body: string;
   /** Left undefined, a seeded comment is visible from any PR's `findComment`. */
   prNumber?: number;
   /** Left undefined, a seeded comment reads as written by {@link FAKE_BOT}. */
   user?: CommentAuthor;
+  /** As {@link AuthoredBody.editors}. */
+  editors: Array<CommentAuthor | undefined>;
+}
+
+function commentNodeId(id: number): string {
+  return `IC_${id}`;
 }
 
 /** Left undefined, a seeded issue is open. */
@@ -45,8 +52,6 @@ type FakeIssue = Omit<IssueDetails, 'state'> & { state?: IssueState };
 
 /** `nodeId` defaults to `PR_<number>`. */
 export type FakeStandingPullRequest = Omit<StandingPullRequest, 'nodeId'> & { nodeId?: string };
-
-const BOT: CommentAuthor = { login: 'github-actions[bot]', type: 'Bot' };
 
 export interface FakeForgeSeed {
   standingPR?: FakeStandingPullRequest | null;
@@ -56,7 +61,8 @@ export interface FakeForgeSeed {
   issues?: Record<number, FakeIssue>;
   openIssues?: Array<{ number: number; url: string; labels: string[] }>;
   pullRequests?: Record<number, PullRequestDetails>;
-  comments?: FakeComment[];
+  /** A comment's `editor` seeds one edit by that account. */
+  comments?: Array<Omit<FakeComment, 'nodeId' | 'editors'> & { editor?: CommentAuthor }>;
   labelNames?: string[];
   releases?: ReleaseSummary[];
   releasesByTag?: Record<string, ReleaseRef>;
@@ -129,7 +135,10 @@ export class FakeForge implements Forge {
       }
     }
     this.pullRequestDetails = seed.pullRequests ?? {};
-    this.comments = (seed.comments ?? []).map((c) => ({ ...c, user: c.user ?? FAKE_BOT }));
+    this.comments = (seed.comments ?? []).map(({ editor, ...c }) => {
+      const user = c.user ?? FAKE_BOT;
+      return { ...c, nodeId: commentNodeId(c.id), user, editors: editor ? [editor, user] : [] };
+    });
     this.labelNames = [...(seed.labelNames ?? [])];
     this.releases = seed.releases ?? [];
     this.releasesByTag = seed.releasesByTag ?? {};
@@ -185,11 +194,15 @@ export class FakeForge implements Forge {
     if (seeded) {
       return seeded;
     }
+    const comment = this.comments.find((c) => c.nodeId === nodeId);
+    if (comment) {
+      return { body: comment.body, author: comment.user, editor: comment.editors[0], editors: [...comment.editors] };
+    }
     const prNumber = /^PR_(\d+)$/.exec(nodeId)?.[1];
     if (prNumber === undefined) {
       throw new Error(`No PR, issue or comment with node ID ${nodeId}`);
     }
-    return { body: (await this.getPullRequest(Number(prNumber))).body, author: BOT, editors: [] };
+    return { body: (await this.getPullRequest(Number(prNumber))).body, author: FAKE_BOT, editors: [] };
   }
 
   async createPullRequest(pr: NewPullRequest): Promise<PullRequestRef> {
@@ -265,9 +278,10 @@ export class FakeForge implements Forge {
 
   async createComment(prNumber: number, body: string): Promise<ForgeComment> {
     this.createdComments.push({ prNumber, body });
-    const comment = { id: this.nextCommentId++, body, prNumber, user: this.actor };
+    const id = this.nextCommentId++;
+    const comment = { id, nodeId: commentNodeId(id), body, prNumber, user: this.actor, editors: [] };
     this.comments.push(comment);
-    return { id: comment.id, body, user: comment.user };
+    return { id, nodeId: comment.nodeId, body, user: comment.user };
   }
 
   async updateComment(commentId: number, body: string): Promise<ForgeComment> {
@@ -275,9 +289,10 @@ export class FakeForge implements Forge {
     const comment = this.comments.find((c) => c.id === commentId);
     if (comment) {
       comment.body = body;
+      comment.editors = [this.actor, ...(comment.editors.length > 0 ? comment.editors : [comment.user])];
     }
     // An edit keeps the comment's original author.
-    return { id: commentId, body, user: comment?.user };
+    return { id: commentId, nodeId: commentNodeId(commentId), body, user: comment?.user };
   }
 
   async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<ForgeComment> {
@@ -311,7 +326,7 @@ export class FakeForge implements Forge {
       return seeded;
     }
     const labels = this.standingPR?.number === issueNumber ? this.standingPR.labels : [];
-    return labels.map((label) => ({ action: 'labeled', label, actor: BOT }));
+    return labels.map((label) => ({ action: 'labeled', label, actor: FAKE_BOT }));
   }
 
   async setCommitStatus(status: CommitStatus): Promise<void> {

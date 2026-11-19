@@ -1185,6 +1185,42 @@ describe('runStandingPRUpdate', () => {
     ).toBe(true);
   });
 
+  it.each([
+    ['ignore and rewrite in place a bot manifest someone else edited', { login: 'rando', type: 'User' }, undefined],
+    ['honour a manifest the bot edited itself', { login: 'github-actions[bot]', type: 'Bot' }, 'major'],
+  ])('should %s', async (_case, editor, expectedBump) => {
+    await withAuthz();
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      strategy: 'async' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const approving = serializeManifest({ ...baseManifest, overrideLabels: ['bump:major'] });
+    const forge = await mockForge({
+      standingPR: openStandingPR(99, ['release', 'bump:major']),
+      pullRequests: { 99: { body: '', labels: [] } },
+      comments: [{ id: 5, prNumber: 99, body: approving, editor }],
+    });
+    vi.spyOn(forge, 'listLabelEvents').mockRejectedValue(new Error('502 Bad Gateway'));
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    onTestFinished(() => logged.mockRestore());
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string };
+    expect(writeCall.bump).toBe(expectedBump);
+    const edited = logged.mock.calls.some(([line]) =>
+      String(line).includes("release manifest on #99 was last edited by 'rando'"),
+    );
+    expect(edited).toBe(editor.login === 'rando');
+    expect(forge.createdComments.some((c) => c.body.startsWith('<!-- releasekit-manifest -->'))).toBe(false);
+    expect(forge.updatedComments.map((c) => c.commentId)).toContain(5);
+    expect((await forge.getAuthoredBody('IC_5')).editor).toEqual({ login: 'github-actions[bot]', type: 'Bot' });
+  });
+
   it('should restore an authorized label that an unauthorized actor removed (unlabeled)', async () => {
     await withAuthz();
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
@@ -2462,7 +2498,11 @@ describe('runStandingPRUpdate', () => {
       expect(body).not.toContain('partially published');
     });
 
-    async function updateWithFailureReport(report: { body: string; user?: { login: string; type: string } }) {
+    async function updateWithFailureReport(report: {
+      body: string;
+      user?: { login: string; type: string };
+      editor?: { login: string; type: string };
+    }) {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
       const versionOutput = withPackageChangelogs(
         createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.25.0' }]),
@@ -2498,6 +2538,15 @@ describe('runStandingPRUpdate', () => {
       ['a bot other than the one that opened the PR', { login: 'echo-app[bot]', type: 'Bot' }],
     ])('should ignore a failure report %s wrote', async (_who, user) => {
       const { body } = await updateWithFailureReport({ body: failureReport('"v9.9.9"'), user });
+
+      expect(body).not.toContain('partially published');
+    });
+
+    it("should ignore the bot's failure report once someone else has edited it", async () => {
+      const { body } = await updateWithFailureReport({
+        body: failureReport('"v9.9.9"'),
+        editor: { login: 'attacker', type: 'User' },
+      });
 
       expect(body).not.toContain('partially published');
     });
@@ -5367,6 +5416,18 @@ describe('publishFromManifest', () => {
     await expect(
       publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
     ).rejects.toThrow(/posted by 'attacker', not by the bot account that opened #99/);
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a manifest someone other than its bot last edited', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    await mockForge({
+      comments: [{ id: 77, body: serializeManifest(baseManifest), editor: { login: 'rando', type: 'User' } }],
+    });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/Refusing to publish PR #99\. The release manifest on #99 was last edited by 'rando'/);
     expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
   });
 

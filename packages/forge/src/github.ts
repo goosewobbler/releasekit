@@ -78,8 +78,13 @@ function toAuthor(user: { login: string; type: string } | null | undefined): Com
   return user ? { login: user.login, type: user.type } : undefined;
 }
 
-function toComment(comment: { id: number; body?: string; user: { login: string; type: string } | null }): ForgeComment {
-  return { id: comment.id, body: comment.body ?? '', user: toAuthor(comment.user) };
+function toComment(comment: {
+  id: number;
+  node_id: string;
+  body?: string;
+  user: { login: string; type: string } | null;
+}): ForgeComment {
+  return { id: comment.id, nodeId: comment.node_id, body: comment.body ?? '', user: toAuthor(comment.user) };
 }
 
 function isAlreadyExistsError(error: unknown): boolean {
