@@ -84,8 +84,7 @@ export interface Config extends VersionConfigBase {
   sync: boolean;
   groups?: Record<string, VersionGroup>;
   packages: string[];
-  /** Foundational packages whose changes route to repo-level ("Project-wide changes") in every
-   *  package's changelog (exact name or glob). */
+  /** Foundational packages whose changes are listed as project-wide entries (exact name or glob). */
   sharedPackages?: string[];
   /** See VersionConfig.sharedChangelogFloor. */
   sharedChangelogFloor?: 'union' | 'sinceLastRelease';

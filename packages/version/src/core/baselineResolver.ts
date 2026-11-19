@@ -18,10 +18,9 @@ export interface BaselineResolverOptions {
   baseRef?: string;
   sharedFloorCwd?: string;
   /**
-   * How the shared floor (C) is bounded in package-specific-tag mode. `'union'`: each package
-   * contributes its own range, so the shared block is the union floored by the oldest baseline.
-   * `'sinceLastRelease'`: every package's shared block is floored by the single global
-   * nearest-reachable tag, so global commits don't recur.
+   * How the shared floor (C) bounds the run's project-wide entries (standing PR, root changelog). `'union'`: each
+   * package contributes its own range, so the floor is the oldest baseline. `'sinceLastRelease'`: the single global
+   * nearest-reachable tag, so global commits don't recur. A package's own notes use its own range instead.
    */
   sharedChangelogFloor?: 'union' | 'sinceLastRelease';
 }

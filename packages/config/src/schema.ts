@@ -139,19 +139,19 @@ const VersionConfigBaseSchema = z.strictObject({
     .array(z.string())
     .optional()
     .describe(
-      'Foundational packages whose changes belong in every package’s notes, as exact names or globs. A commit touching only a shared package goes under "Project-wide changes" in every released package’s changelog, release notes and release body since that package’s previous release, and once per run in a root changelog, alongside commits that touch no package. Default: none.',
+      'Foundational packages whose changes belong in every package’s notes, as exact names or globs. In async mode (`sync: false`, no `groups`, more than one package in the run), commits touching a shared package and no non-shared package are listed under "Project-wide changes" in each released package’s changelog, release notes and release body, covering those since that package’s previous release. A root changelog lists them once per run in such releases, alongside commits that touch no package. Default: none.',
     ),
   primaryPackages: z
     .array(z.string())
     .default([])
     .describe(
-      "Packages users install, as exact names or globs. Each anchors a release unit with its group-mates and the internal dependencies it releases with. Used by the standing-PR selection list. With per-package tags, each primary's release notes also list its group-mates' and internal dependencies' releases since its previous release.",
+      "Packages users install, as exact names or globs. Each anchors a release unit with its group-mates and the internal dependencies it releases with. Used by the standing-PR selection list. In async mode or grouped releases with per-package tags, each primary's release notes also list its group-mates' and internal dependencies' releases since its previous release.",
     ),
   sharedChangelogFloor: z
     .enum(['union', 'sinceLastRelease'])
     .default('union')
     .describe(
-      'How project-wide entries in the standing PR and the root changelog are bounded in package-specific-tag mode; each package\'s own notes list the shared-package entries since its previous release. "union" (default): repo-level commits accrue from the union of the releasing packages\' ranges, floored by the OLDEST unreleased baseline — so a genuinely-global commit recurs in every release until the oldest-baselined package is released past it. "sinceLastRelease": floor the block by the single nearest tag reachable across the repo, so global commits already shown by the most recent release don\'t recur (recommended for per-package-tag monorepos). No effect in sync mode, where one shared tag already consumes repo-level commits on each release.',
+      'How project-wide entries in the standing PR and the root changelog are bounded in async mode (see sharedPackages); each package\'s own notes list the shared-package entries since its previous release. "union" (default): repo-level commits accrue from the union of the releasing packages\' ranges, floored by the OLDEST unreleased baseline — so a genuinely-global commit recurs in every release until the oldest-baselined package is released past it. "sinceLastRelease": floor the block by the single nearest tag reachable across the repo, so global commits already shown by the most recent release don\'t recur (recommended for per-package-tag monorepos).',
     ),
   mainPackage: z
     .string()

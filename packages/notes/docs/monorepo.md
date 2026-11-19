@@ -75,12 +75,12 @@ Custom file name applies to all packages:
 
 ## Project-wide changes
 
-Commits that touch no package outside `version.sharedPackages` are project-wide:
+Commits that touch no package outside `version.sharedPackages` are project-wide. In async mode (`sync: false`, no `groups`, more than one package in the run):
 
-- **Touching a shared package**, such as a bundled core: every released package's changelog, per-version notes file and release body ends with a `### Project-wide changes` block listing the ones since that package's previous release.
+- **Touching a shared package**, such as a bundled core: every released package's changelog, per-version notes file and release body ends with a `### Project-wide changes` block listing the ones since that package's previous release. A shared package's own block leaves out its own commits.
 - **Touching no package**, such as CI or root tooling: only the root changelog lists them.
 
-The root changelog lists both kinds once per run, after that run's versions:
+In those releases, the root changelog lists both kinds once per run, after that run's versions:
 
 ```markdown
 ## [utils@1.1.0] - 2026-03-15
@@ -100,7 +100,7 @@ The root changelog lists both kinds once per run, after that run's versions:
 
 ## Bundled release notes
 
-With per-package tags, a primary package's release notes and GitHub release body end with a section for each of its group-mates and internal dependencies (`dependencies`, `peerDependencies` and cargo path dependencies, not following into another primary) that released since the primary's previous release, in an earlier run or this one. Primaries come from `version.primaryPackages`.
+With per-package tags, a releasing package in `version.primaryPackages` gets a section in its release notes and GitHub release body for each of its group-mates and internal dependencies that released changes of their own since the primary's previous release (its previous stable release, if any, for a stable release), in this run or an earlier one. Its internal dependencies are its `dependencies`, `peerDependencies` and cargo path dependencies, followed transitively but not through another primary, which is never bundled.
 
 ```markdown
 ### @myorg/utils 1.1.0 → 1.2.0
@@ -110,7 +110,7 @@ With per-package tags, a primary package's release notes and GitHub release body
 - Memory leak in event handler
 ```
 
-Each section groups the package's entries by type, Breaking first. With `sync: false` and no `groups`, `version.sharedPackages` are left out, since their changes are already under Project-wide changes. `CHANGELOG.md` stays per package. `githubRelease.skipPackages` still decides whether a bundled package gets its own release.
+Only async and grouped releases bundle, and a primary's first release bundles nothing. Each section groups the package's entries by type, Breaking first. In async mode, `version.sharedPackages` are left out, since their changes are already under Project-wide changes. `CHANGELOG.md` stays per package. `githubRelease.skipPackages` still decides whether a bundled package gets its own release.
 
 ---
 

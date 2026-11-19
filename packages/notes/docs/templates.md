@@ -43,7 +43,7 @@ Pass a directory containing named template files. Each file renders a different 
 ```
 templates/
 ├── document.liquid    # Outer document wrapper (receives DocumentContext)
-├── version.liquid     # One version block (a Version, as `version` in Liquid)
+├── version.liquid     # One version block (receives a Version, as `version` in Liquid)
 └── entry.liquid       # One changelog entry (receives an Entry)
 ```
 
