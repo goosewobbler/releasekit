@@ -1,12 +1,13 @@
 import type { VersionOutput } from '@releasekit/core';
 import { hasUnterminatedNotesRegion, info, success, warn } from '@releasekit/core';
-import { isBotComment } from '@releasekit/forge';
+import { type Forge, isBotComment } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
 import { requireGitHubContext } from '../git.js';
 import { forgeFor } from '../github.js';
 import { runRelease } from '../release.js';
 import { extractNotesRegions, renderedRegionText, renderNotesRegion } from '../standing-pr/notes-region.js';
 import { parseManifest, type StandingPRManifest, serializeManifest } from '../standing-pr/standing-pr.js';
+import { findTrustedComment, type TrustedCommentLookup } from '../trusted-comment.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 
@@ -52,6 +53,20 @@ function samePlan(recomputed: VersionOutput | undefined, draft: VersionOutput): 
   );
 }
 
+function findDraftManifestComment(forge: Forge, issueNumber: number): Promise<TrustedCommentLookup> {
+  return findTrustedComment(forge, issueNumber, DRAFT_MANIFEST_MARKER, 'release-draft manifest');
+}
+
+async function findReusableDraft(forge: Forge): Promise<number | undefined> {
+  for (const issue of await forge.listOpenIssuesByLabel(DRAFT_LABEL)) {
+    const { comment } = await findDraftManifestComment(forge, issue.number);
+    if (comment && isReleaseManifestComment(comment.body)) {
+      return issue.number;
+    }
+  }
+  return undefined;
+}
+
 function isReleaseManifestComment(body: string): boolean {
   try {
     parseManifest(body);
@@ -87,8 +102,8 @@ function renderDraftBody(versionOutput: VersionOutput, releaseNotes: Record<stri
 /** Phase 1 of draft-then-dispatch: a human edits the issue's notes, then {@link publishFromDraft} consumes them. */
 export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseOutput | null> {
   const context = requireGitHubContext('a release draft cannot be created');
-  // ghs_ is the workflow's GITHUB_TOKEN or an App installation token; these are user tokens. An unknown format passes,
-  // as --from-draft still checks who posted the manifest.
+  // ghs_ is the workflow's GITHUB_TOKEN or an App installation token; these are user tokens. A user token in another
+  // format is caught once the manifest is posted.
   if (/^(ghp|github_pat|gho|ghu)_/.test(context.token ?? '')) {
     throw new Error(
       "Cannot create a release draft with a personal token: '--from-draft' refuses a manifest a bot didn't post. " +
@@ -108,16 +123,11 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
   const title = display ? `Release draft: ${display}` : 'Release draft';
 
   // Never adopt a hand-labelled issue or a hand-written manifest.
-  const existing = await forge.findOpenIssueByLabel(DRAFT_LABEL);
-  const existingManifest = existing ? await forge.findComment(existing.number, DRAFT_MANIFEST_MARKER) : undefined;
-  const reusable =
-    existing && existingManifest && isBotComment(existingManifest) && isReleaseManifestComment(existingManifest.body)
-      ? existing
-      : null;
+  const reusable = await findReusableDraft(forge);
   if (options.dryRun) {
     info(
-      reusable
-        ? `Dry run: would update release draft issue #${reusable.number} as "${title}".`
+      reusable !== undefined
+        ? `Dry run: would update release draft issue #${reusable} as "${title}".`
         : `Dry run: would open a new release draft issue "${title}".`,
     );
     return result;
@@ -135,14 +145,21 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
   const body = renderDraftBody(versionOutput, releaseNotes ?? {});
   const manifestComment = serializeManifest(manifest, DRAFT_MANIFEST_MARKER);
   let issueNumber: number;
-  if (reusable) {
-    await forge.updateIssue(reusable.number, { title, body });
-    issueNumber = reusable.number;
+  if (reusable !== undefined) {
+    await forge.updateIssue(reusable, { title, body });
+    issueNumber = reusable;
   } else {
     const ref = await forge.createIssue({ title, body, labels: [DRAFT_LABEL] });
     issueNumber = ref.number;
   }
-  await forge.upsertMarkerComment(issueNumber, DRAFT_MANIFEST_MARKER, manifestComment);
+  const written = await forge.upsertMarkerComment(issueNumber, DRAFT_MANIFEST_MARKER, manifestComment);
+  if (!isBotComment(written)) {
+    throw new Error(
+      `The release-draft manifest on issue #${issueNumber} was posted by '${written.user?.login ?? 'an unknown account'}', ` +
+        "not a bot, so '--from-draft' would refuse it. Re-run 'releasekit release --draft' with the workflow's " +
+        'GITHUB_TOKEN or a GitHub App installation token.',
+    );
+  }
 
   success(`Release draft ready for review: issue #${issueNumber}. Edit the notes, then dispatch --from-draft.`);
   return result;
@@ -152,19 +169,17 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   const context = requireGitHubContext(`release draft #${issueNumber} cannot be published`);
 
   const forge = forgeFor(context);
-  const manifestComment = await forge.findComment(issueNumber, DRAFT_MANIFEST_MARKER);
+  const { comment: manifestComment, refusal } = await findDraftManifestComment(forge, issueNumber);
+  if (refusal) {
+    throw new Error(
+      `Refusing to publish from draft #${issueNumber}. ${refusal} Re-run 'releasekit release --draft' with the ` +
+        "workflow's GITHUB_TOKEN or a GitHub App installation token, then dispatch the draft issue it reports.",
+    );
+  }
   if (!manifestComment) {
     throw new Error(
       `No release-draft manifest found on issue #${issueNumber}. Pass the number of the issue ` +
         "'releasekit release --draft' reported, or run --draft again.",
-    );
-  }
-  if (!isBotComment(manifestComment)) {
-    throw new Error(
-      `Refusing to publish from draft #${issueNumber}: its manifest comment was posted by ` +
-        `'${manifestComment.user?.login ?? 'an unknown user'}', not a bot account. Re-run ` +
-        "'releasekit release --draft' with the workflow's GITHUB_TOKEN or a GitHub App installation token, then " +
-        'dispatch the draft issue it reports.',
     );
   }
   let manifest: StandingPRManifest;

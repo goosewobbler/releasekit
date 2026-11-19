@@ -13,7 +13,7 @@ Every input in the body is delimited by an HTML comment marker. **The markers ar
 | `<!-- rk-pre:<pkg> -->` | Channel toggle on a stable row | Ticking asks the bot to ship that package as a prerelease |
 | `<!-- rk-grad:<pkg> -->` | Channel toggle on a prerelease row, or the row offering an unchanged prerelease's graduation | Ticking asks the bot to graduate that package to stable |
 | `<!-- rk-grad-sync -->` | A sync release's graduation checkbox | Ticking asks the bot to graduate the release to stable |
-| `<!-- releasekit-manifest -->` | The release manifest, in a bot comment | **Bot-owned.** Drives the entire publish |
+| `<!-- releasekit-manifest -->` | The release manifest, in a comment by the bot that opened the PR | **Bot-owned.** Drives the entire publish |
 
 The checklist rows live inside `<!-- releasekit-selection -->` … `<!-- releasekit-selection-end -->`, each of those two markers on a line of its own, and the manifest lives in its own comment rather than the body.
 

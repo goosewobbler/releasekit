@@ -1173,7 +1173,7 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(logged.mock.calls.map(([line]) => String(line))).toEqual(
-      expect.arrayContaining([expect.stringContaining("authored by 'rando', not the release bot")]),
+      expect.arrayContaining([expect.stringContaining("posted by 'rando', not by the bot account that opened #99")]),
     );
 
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string };
@@ -2493,11 +2493,11 @@ describe('runStandingPRUpdate', () => {
       ].join('\n');
     }
 
-    it('should ignore a failure report a human wrote', async () => {
-      const { body } = await updateWithFailureReport({
-        body: failureReport('"v9.9.9"'),
-        user: { login: 'attacker', type: 'User' },
-      });
+    it.each([
+      ['a human', { login: 'attacker', type: 'User' }],
+      ['a bot other than the one that opened the PR', { login: 'echo-app[bot]', type: 'Bot' }],
+    ])('should ignore a failure report %s wrote', async (_who, user) => {
+      const { body } = await updateWithFailureReport({ body: failureReport('"v9.9.9"'), user });
 
       expect(body).not.toContain('partially published');
     });
@@ -5453,7 +5453,21 @@ describe('publishFromManifest', () => {
 
     await expect(
       publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
-    ).rejects.toThrow(/not the release bot/);
+    ).rejects.toThrow(/posted by 'attacker', not by the bot account that opened #99/);
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a manifest posted by a bot other than the one that opened the PR', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    await mockForge({
+      comments: [{ id: 77, body: serializeManifest(baseManifest), user: { login: 'echo-app[bot]', type: 'Bot' } }],
+    });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(
+      /posted by 'echo-app\[bot\]', not by the bot account that opened #99 \(opened by 'github-actions\[bot\]'\)/,
+    );
     expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
   });
 
@@ -5472,7 +5486,7 @@ describe('publishFromManifest', () => {
     await mockForge({
       comments: [
         { id: 1, body: serializeManifest(forged), user: { login: 'attacker', type: 'User' } },
-        { id: 2, body: serializeManifest(baseManifest), user: { login: 'releasekit[bot]', type: 'Bot' } },
+        { id: 2, body: serializeManifest(baseManifest), user: { login: 'github-actions[bot]', type: 'Bot' } },
       ],
     });
 
@@ -5737,7 +5751,7 @@ describe('publishFromManifest', () => {
         comments: [{ id: 77, body: serializeManifest(baseManifest), user: { login: 'attacker', type: 'User' } }],
       });
 
-      const body = await expectRefusedWithReport(forge, /not the release bot/);
+      const body = await expectRefusedWithReport(forge, /not by the bot account that opened #99/);
 
       expect(body).toContain('## ❌ Release from #99 was refused');
       expect(body).not.toContain('@scope/core');
