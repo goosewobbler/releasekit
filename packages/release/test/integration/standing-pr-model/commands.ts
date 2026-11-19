@@ -98,7 +98,7 @@ function untaggedBelowTip(model: Readonly<Model>): boolean {
 
 /** An open standing PR, outside the states only the knownBug commands reach. */
 function canRunOnOpenPr(model: Readonly<Model>): boolean {
-  return model.openPr !== undefined && !model.releaseAtTip && !untaggedBelowTip(model);
+  return model.openPr !== undefined && !model.releaseAtTip;
 }
 
 export abstract class Command implements fc.AsyncCommand<Model, World> {
@@ -210,7 +210,7 @@ export class ToggleSelection extends Command {
     const from = pr.body;
     const line = lines[row] as string;
     lines[row] = line.includes('- [ ]') ? line.replace('- [ ]', '- [x]') : line.replace(/- \[[xX]\]/, '- [ ]');
-    pr.body = lines.join('\n');
+    world.forge.editBody(pr.number, this.actor, lines.join('\n'));
     await update(model, world, 'edited', prEvent(world, pr, 'edited', this.actor, { changes: { body: { from } } }));
   }
   toString(): string {
@@ -381,11 +381,16 @@ export class EditManifest extends Command {
     }
     const manifest = parseManifest(comment.body);
     manifest.overrideLabels = [...new Set([...(manifest.overrideLabels ?? []), 'bump:major'])].sort();
-    comment.body = serializeManifest(manifest);
-    await new Label(WRITER, 'bump:major', true).apply(model, world);
+    world.forge.editCommentAs(comment.id, serializeManifest(manifest), WRITER);
+    world.forge.labelEventsUnreadable = true;
+    try {
+      await new Label(WRITER, 'bump:major', true).apply(model, world);
+    } finally {
+      world.forge.labelEventsUnreadable = false;
+    }
   }
   toString(): string {
-    return "writer edits the manifest to approve 'bump:major', then adds it";
+    return "writer edits the manifest to approve 'bump:major', then adds it while the label timeline can't be read";
   }
 }
 
@@ -422,7 +427,7 @@ export const COMMANDS: Array<{ arbitrary: fc.Arbitrary<Command>; weight?: number
   { arbitrary: actors.map((actor) => new MergeMidUpdate(actor)) },
   { weight: 2, arbitrary: failAfter.map((n) => new Publish(n)) },
   { arbitrary: failAfter.map((n) => new Retry(n)) },
-  { arbitrary: fc.constant(new UpdatePastUntaggedRelease()), knownBug: '#799' },
+  { arbitrary: fc.constant(new UpdatePastUntaggedRelease()) },
   {
     arbitrary: fc
       .constantFrom<'schedule' | 'labeled'>('schedule', 'labeled')
@@ -430,7 +435,7 @@ export const COMMANDS: Array<{ arbitrary: fc.Arbitrary<Command>; weight?: number
     knownBug: '#841',
   },
   { arbitrary: fc.constant(new PublishOpenPr()) },
-  { arbitrary: fc.constant(new EditManifest()), knownBug: '#889' },
+  { arbitrary: fc.constant(new EditManifest()) },
 ];
 
 export function commandArbitraries(enabledBugs: ReadonlySet<string>): Array<fc.Arbitrary<Command>> {

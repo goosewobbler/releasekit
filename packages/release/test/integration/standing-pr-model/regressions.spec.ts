@@ -1,8 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { type Command, MergeFeeder, PublishOpenPr, Update } from './commands.js';
-import type { StatefulForge } from './forge.js';
+import { parseManifest } from '../../../src/standing-pr/standing-pr.js';
+import {
+  type Command,
+  EditManifest,
+  Merge,
+  MergeFeeder,
+  Publish,
+  PublishOpenPr,
+  Update,
+  UpdatePastUntaggedRelease,
+} from './commands.js';
+import { MAINTAINER, type StatefulForge } from './forge.js';
 import { initialModel, refresh } from './model.js';
-import { isolateJobEnv, World } from './world.js';
+import { isolateJobEnv, RELEASE_BRANCH, World } from './world.js';
 
 const current = vi.hoisted(() => ({ forge: undefined as StatefulForge | undefined }));
 vi.mock('../../../src/github.js', async (importOriginal) => ({
@@ -19,8 +29,7 @@ afterEach(() => {
   world = undefined;
 });
 
-async function runSequence(w: World, commands: Command[]) {
-  const model = initialModel(w);
+async function runSequence(w: World, commands: Command[], model = initialModel(w)) {
   refresh(model, w);
   for (const command of commands) {
     expect(command.check(model), `${command} can't run here`).toBe(true);
@@ -40,5 +49,35 @@ describe('standing-PR model regressions', () => {
     expect(world.log).toEqual([
       expect.stringMatching(/^publish #\d+ failed: Refusing to publish PR #\d+: it has not merged/),
     ]);
+  }, 120_000);
+
+  it('should wait out an untagged release instead of offering a version past it', async () => {
+    world = World.create({ sync: true, enforceMergeAuthor: false });
+    current.forge = world.forge;
+
+    const model = await runSequence(world, [
+      new MergeFeeder('fix', ['rk-a']),
+      new Update('push'),
+      new Merge(MAINTAINER),
+      new MergeFeeder('fix', ['rk-a']),
+      new UpdatePastUntaggedRelease(),
+    ]);
+    expect(world.forge.openStandingPr(RELEASE_BRANCH)).toBeUndefined();
+
+    await runSequence(world, [new Publish(null)], model);
+    expect([...model.publishedBy.keys()].sort()).toEqual(['rk-a@1.0.1', 'rk-b@1.0.1']);
+    const next = parseManifest(world.forge.manifestWrites.at(-1)?.body ?? '');
+    expect(new Set(next.versionOutput.updates.map((u) => u.newVersion))).toEqual(new Set(['1.0.2']));
+  }, 120_000);
+
+  it("should ignore a release label a writer approved by editing the bot's manifest", async () => {
+    world = World.create({ sync: true, enforceMergeAuthor: false });
+    current.forge = world.forge;
+
+    await runSequence(world, [new MergeFeeder('fix', ['rk-a']), new Update('push'), new EditManifest()]);
+
+    const manifest = parseManifest(world.forge.manifestWrites.at(-1)?.body ?? '');
+    expect(manifest.overrideLabels ?? []).toEqual([]);
+    expect(new Set(manifest.versionOutput.updates.map((u) => u.newVersion))).toEqual(new Set(['1.0.1']));
   }, 120_000);
 });
