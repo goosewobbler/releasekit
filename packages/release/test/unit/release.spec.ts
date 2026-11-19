@@ -1021,6 +1021,31 @@ describe('runRelease', () => {
       expect(mockVersionEngineRun).not.toHaveBeenCalled();
     });
 
+    it('should not release a direct push in commit mode under the standing-pr strategy', async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
+      merge({ number: 10, labels: [] });
+      vi.stubEnv('GITHUB_SHA', 'sha-direct-push');
+
+      const verdict = await gate();
+      const result = await runRelease(noTarget);
+
+      expect(verdict.shouldRelease).toBe(false);
+      expect(result).toBeNull();
+      expect(MockVersionEngine).not.toHaveBeenCalled();
+    });
+
+    it("should release a merged PR whose head subject doesn't match a skip pattern", async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: ['chore: release '] } } });
+      merge({ number: 123, labels: ['bump:minor'] });
+
+      const verdict = await gate();
+      const result = await runRelease(noTarget);
+
+      expect(verdict.shouldRelease).toBe(true);
+      expect(result).not.toBeNull();
+      expect(versionRunOptions().bump).toBe('minor');
+    });
+
     it("should run a commit-mode direct push through gate's skip patterns and --scope", async () => {
       mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit', scopeLabels: { 'scope:core': '@test/core' } });
       merge();
