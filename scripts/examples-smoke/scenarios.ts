@@ -8,16 +8,14 @@ export interface Scenario {
   id: string;
   /** Relative to examples/ci/<id>/. */
   workflow: string;
-  /**
-   * Job whose setup steps to extract. The extractor drops the terminal
-   * `releasekit ...` step and the example's `actions/checkout`; everything
-   * between is kept verbatim.
-   */
+  /** Job whose steps before `releaseStep` become the smoke job's setup. */
   job: string;
+  /** `name` of the job's releasekit step. */
+  releaseStep: string;
   /** Shipped config copied into the throwaway fixture. */
   config: string;
   fixture: 'npm-single' | 'npm-monorepo' | 'npm-cargo-monorepo';
-  /** releasekit subcommand & flags (always including `--dry-run`) that replace the example's terminal step. */
+  /** releasekit subcommand & flags (always including `--dry-run`) that replace `releaseStep`. */
   releaseArgs: string[];
   /** One-line note shown in the job log. */
   proves: string;
@@ -28,6 +26,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'minimal',
     workflow: 'release.yml',
     job: 'release',
+    releaseStep: 'Release',
     config: 'releasekit.config.json',
     fixture: 'npm-single',
     releaseArgs: ['release', '--dry-run'],
@@ -37,6 +36,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'label-driven',
     workflow: 'release.yml',
     job: 'release',
+    releaseStep: 'Release',
     config: 'releasekit.config.json',
     fixture: 'npm-single',
     releaseArgs: ['release', '--dry-run'],
@@ -46,6 +46,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'oidc',
     workflow: 'release.yml',
     job: 'release',
+    releaseStep: 'Release',
     config: 'releasekit.config.json',
     fixture: 'npm-single',
     releaseArgs: ['release', '--dry-run'],
@@ -55,6 +56,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'monorepo-rust',
     workflow: 'release.yml',
     job: 'release',
+    releaseStep: 'Release',
     config: 'releasekit.config.json',
     fixture: 'npm-cargo-monorepo',
     releaseArgs: ['release', '--dry-run'],
@@ -64,6 +66,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'prerelease',
     workflow: 'prerelease.yml',
     job: 'prerelease',
+    releaseStep: 'Prerelease',
     config: 'releasekit.config.json',
     fixture: 'npm-single',
     releaseArgs: ['release', '--prerelease', 'beta', '--dry-run'],
@@ -73,6 +76,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'standing-pr',
     workflow: 'standing-pr.yml',
     job: 'update',
+    releaseStep: 'Update standing release PR',
     config: 'releasekit.config.json',
     fixture: 'npm-single',
     // standing-pr update mutates a real PR via the GitHub API, so probe the environment with a
@@ -84,6 +88,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'release-preview',
     workflow: 'release-preview.yml',
     job: 'preview',
+    releaseStep: 'Post release preview',
     config: 'releasekit.config.json',
     fixture: 'npm-single',
     releaseArgs: ['preview', '--dry-run'],

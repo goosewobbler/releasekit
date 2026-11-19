@@ -31,11 +31,6 @@ function isCheckout(step: Step): boolean {
   return typeof step.uses === 'string' && step.uses.startsWith('actions/checkout');
 }
 
-/** An invocation, not a mention: the standing-pr banner step's `releasekit-processing` marker must not end extraction. */
-function isReleasekitRun(step: Step): boolean {
-  return typeof step.run === 'string' && /\breleasekit(?:\s|$)/m.test(step.run);
-}
-
 /** `gh api` steps (e.g. the standing-pr retry label removal) need real secrets and a real repo. */
 function isOutOfScopeApiStep(step: Step): boolean {
   return typeof step.run === 'string' && /\bgh\s+api\b/.test(step.run);
@@ -52,11 +47,12 @@ function extractSetupSteps(scenario: Scenario): Step[] {
   if (!job?.steps) {
     throw new Error(`Job "${scenario.job}" not found in ${file}`);
   }
+  const releaseIndex = job.steps.findIndex((step) => step.name === scenario.releaseStep);
+  if (releaseIndex === -1) {
+    throw new Error(`Step "${scenario.releaseStep}" not found in job "${scenario.job}" of ${file}`);
+  }
   const setup: Step[] = [];
-  for (const step of job.steps) {
-    if (isReleasekitRun(step)) {
-      break;
-    }
+  for (const step of job.steps.slice(0, releaseIndex)) {
     if (isCheckout(step) || isOutOfScopeApiStep(step)) {
       continue;
     }
@@ -142,7 +138,7 @@ function smokeJob(scenario: Scenario): Record<string, unknown> {
   };
 }
 
-export function buildWorkflow(): Record<string, unknown> {
+export function buildWorkflow(scenarios: Scenario[] = SCENARIOS): Record<string, unknown> {
   const jobs: Record<string, unknown> = {
     prepare: {
       name: 'Prepare fixtures',
@@ -168,7 +164,7 @@ export function buildWorkflow(): Record<string, unknown> {
           name: 'Build fixtures + bundle git history',
           run: [
             'mkdir -p .smoke-bundles',
-            `for s in ${SCENARIOS.map((s) => s.id).join(' ')}; do`,
+            `for s in ${scenarios.map((s) => s.id).join(' ')}; do`,
             '  out=".smoke-fixtures/$s"',
             '  pnpm tsx scripts/examples-smoke/build-fixture.ts \\',
             '    --scenario "$s" --out "$out" --tarball-dir .smoke-tarballs --seed-lockfile',
@@ -178,7 +174,7 @@ export function buildWorkflow(): Record<string, unknown> {
             'done',
           ].join('\n'),
         },
-        ...SCENARIOS.map((s) => ({
+        ...scenarios.map((s) => ({
           name: `Upload fixture bundle (${s.id})`,
           uses: 'actions/upload-artifact@v7',
           with: { name: `smoke-fixture-${s.id}`, path: `.smoke-bundles/${s.id}.bundle`, 'if-no-files-found': 'error' },
@@ -187,7 +183,7 @@ export function buildWorkflow(): Record<string, unknown> {
     },
   };
 
-  for (const scenario of SCENARIOS) {
+  for (const scenario of scenarios) {
     jobs[`smoke-${scenario.id}`] = smokeJob(scenario);
   }
 

@@ -38,6 +38,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm exec releasekit preview
+      - name: Post release preview
+        run: pnpm exec releasekit preview
         env:
           GITHUB_TOKEN: ${{ github.token }}
