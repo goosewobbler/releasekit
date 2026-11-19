@@ -429,7 +429,7 @@ export const COMMANDS: Array<{ arbitrary: fc.Arbitrary<Command>; weight?: number
       .map((trigger) => new UpdateAtReleaseTip(trigger)),
     knownBug: '#841',
   },
-  { arbitrary: fc.constant(new PublishOpenPr()), knownBug: '#854' },
+  { arbitrary: fc.constant(new PublishOpenPr()) },
   { arbitrary: fc.constant(new EditManifest()), knownBug: '#889' },
 ];
 

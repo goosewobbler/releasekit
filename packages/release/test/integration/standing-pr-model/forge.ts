@@ -114,6 +114,7 @@ export class StatefulForge extends FakeForge {
       headSha: this.headSha(pr),
       headRef: pr.head,
       baseRef: pr.base,
+      merged: pr.merged,
       mergeCommitSha: pr.mergeCommitSha,
       mergedBy: pr.mergedBy ? { ...pr.mergedBy } : undefined,
     };

@@ -1,10 +1,9 @@
-import { devNull } from 'node:os';
 import fc from 'fast-check';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { commandArbitraries } from './commands.js';
 import type { StatefulForge } from './forge.js';
 import { initialModel, refresh } from './model.js';
-import { World } from './world.js';
+import { isolateJobEnv, World } from './world.js';
 
 const current = vi.hoisted(() => ({ forge: undefined as StatefulForge | undefined }));
 vi.mock('../../../src/github.js', async (importOriginal) => ({
@@ -20,28 +19,7 @@ const REPLAY = process.env.RELEASEKIT_MODEL_REPLAY;
 const KNOWN_BUGS = new Set((process.env.RELEASEKIT_MODEL_KNOWN_BUGS ?? '').split(',').filter(Boolean));
 const BUDGET_MS = Math.max(RUNS, 5) * 60_000;
 
-const ENV = {
-  GIT_CONFIG_GLOBAL: devNull,
-  GIT_CONFIG_NOSYSTEM: '1',
-  GIT_AUTHOR_NAME: 'test',
-  GIT_AUTHOR_EMAIL: 'test@example.com',
-  GIT_COMMITTER_NAME: 'test',
-  GIT_COMMITTER_EMAIL: 'test@example.com',
-};
-const savedEnv = { ...process.env };
-
-beforeAll(() => {
-  for (const key of Object.keys(process.env)) {
-    if (/^(GITHUB_|ACTIONS_|RUNNER_|GIT_)/.test(key)) {
-      delete process.env[key];
-    }
-  }
-  Object.assign(process.env, ENV);
-});
-
-afterAll(() => {
-  process.env = savedEnv;
-});
+isolateJobEnv();
 
 describe('standing-PR lifecycle model', () => {
   it(

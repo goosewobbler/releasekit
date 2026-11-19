@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { afterAll, beforeAll } from 'vitest';
 import { StatefulForge } from './forge.js';
 import { FakeRegistry } from './registry.js';
 
@@ -44,6 +45,29 @@ export function releaseKitConfig(config: WorldConfig): object {
 
 export function tagFor(config: WorldConfig, pkg: string, version: string): string {
   return config.sync ? `v${version}` : `${pkg}@v${version}`;
+}
+
+/** Gives the file's jobs a fixed git identity and none of the host's CI or git variables. */
+export function isolateJobEnv(): void {
+  const saved = { ...process.env };
+  beforeAll(() => {
+    for (const key of Object.keys(process.env)) {
+      if (/^(GITHUB_|ACTIONS_|RUNNER_|GIT_)/.test(key)) {
+        delete process.env[key];
+      }
+    }
+    Object.assign(process.env, {
+      GIT_CONFIG_GLOBAL: os.devNull,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_AUTHOR_NAME: 'test',
+      GIT_AUTHOR_EMAIL: 'test@example.com',
+      GIT_COMMITTER_NAME: 'test',
+      GIT_COMMITTER_EMAIL: 'test@example.com',
+    });
+  });
+  afterAll(() => {
+    process.env = saved;
+  });
 }
 
 /** What a workflow job sees. */
