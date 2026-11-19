@@ -98,7 +98,7 @@ If `body` is `"auto"` (default), LLM release notes are used automatically when a
 }
 ```
 
-When `file.dir` is set, an immutable per-version file is written under that directory (`release-notes/<package>/<version>.md` in a monorepo) in addition to the GitHub Release being populated. Not supported with `ci.releaseStrategy: "standing-pr"`.
+When `file.dir` is set, an immutable per-version file is written under that directory (`release-notes/<package>/<version>.md` in a monorepo) in addition to the GitHub Release being populated.
 
 ---
 

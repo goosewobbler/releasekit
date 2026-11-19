@@ -966,8 +966,7 @@ export const ReleaseKitConfigSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['notes', 'releaseNotes', 'file'],
-        message:
-          'per-version release-notes files aren\'t supported with ci.releaseStrategy "standing-pr", whose release notes live in the GitHub release',
+        message: 'not supported with ci.releaseStrategy "standing-pr"; release notes go to the GitHub release only',
       });
     }
   })

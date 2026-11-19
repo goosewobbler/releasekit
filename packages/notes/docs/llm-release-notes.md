@@ -22,7 +22,7 @@ Add an `llm` block under `notes.releaseNotes` in `releasekit.config.json`:
 }
 ```
 
-> By default no file is written — the generated content is passed directly to the publish step (e.g. as a GitHub release body). Add a `file` property (`"file": { "dir": "release-notes" }`) to also write an immutable per-version file under that directory. Not supported with `ci.releaseStrategy: "standing-pr"`.
+> By default no file is written — the generated content is passed directly to the publish step (e.g. as a GitHub release body). Add a `file` property (`"file": { "dir": "release-notes" }`) to also write an immutable per-version file under that directory.
 
 ---
 
