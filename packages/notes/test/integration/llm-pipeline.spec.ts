@@ -137,9 +137,9 @@ describe('LLM tasks: categorize', () => {
     const entries = sampleInput.packages[0]?.entries;
     const jsonResponse = JSON.stringify({
       entries: [
-        { category: 'Features', scope: null },
-        { category: 'Fixes', scope: null },
-        { category: 'Maintenance', scope: null },
+        { index: 0, category: 'Features', scope: null },
+        { index: 1, category: 'Fixes', scope: null },
+        { index: 2, category: 'Maintenance', scope: null },
       ],
     });
     const provider = makeMockProvider(jsonResponse);
@@ -161,9 +161,9 @@ describe('LLM tasks: categorize', () => {
     const entries = sampleInput.packages[0]?.entries ?? [];
     const validResponse = JSON.stringify({
       entries: [
-        { category: 'Features', scope: null },
-        { category: 'Fixes', scope: null },
-        { category: 'Maintenance', scope: null },
+        { index: 0, category: 'Features', scope: null },
+        { index: 1, category: 'Fixes', scope: null },
+        { index: 2, category: 'Maintenance', scope: null },
       ],
     });
 
@@ -192,9 +192,9 @@ describe('LLM tasks: categorize', () => {
     const entries = sampleInput.packages[0]?.entries ?? [];
     const jsonResponse = JSON.stringify({
       entries: [
-        { category: 'Features', scope: null },
-        { category: 'Fixes', scope: null },
-        { category: 'Maintenance', scope: null },
+        { index: 0, category: 'Features', scope: null },
+        { index: 1, category: 'Fixes', scope: null },
+        { index: 2, category: 'Maintenance', scope: null },
       ],
     });
 

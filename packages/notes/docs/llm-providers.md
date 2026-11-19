@@ -143,7 +143,7 @@ Entry descriptions are processed in parallel (default concurrency: `5`). Adjust 
 { "concurrency": 3 }
 ```
 
-When `enhance` and `categorize` are both enabled, the pipeline runs a single combined `enhanceAndCategorize` call — see [Combined enhance + categorize](#combined-enhance--categorize). The combined call also generates `leadIn` phrases, scope assignments, and breaking flags. These drive breaking change re-routing and `**leadIn**: description` formatting in the built-in renderer, neither of which is available when running `enhance` alone. Routine fixes and bumps receive no `leadIn`.
+When `enhance` and `categorize` are both enabled, the pipeline runs a single combined `enhanceAndCategorize` call - see [Combined enhance + categorize](#combined-enhance--categorize). The combined call also generates scope assignments and the `leadIn` phrases behind the built-in renderer's `**leadIn**: description` formatting; `enhance` alone produces neither. Routine fixes and bumps receive no `leadIn`.
 
 ### `summarize`
 
@@ -208,7 +208,7 @@ When LLM categorisation is active, you can configure the built-in renderer to ap
 
 ## Combined enhance + categorize
 
-When both `enhance: true` and `categorize: true` are set, the pipeline makes a **single LLM call** (`enhanceAndCategorize`) that rewrites descriptions, assigns categories, generates `leadIn` phrases, identifies scopes, and flags breaking changes — all in one pass. This is more efficient than two sequential calls and is the recommended configuration when using both tasks.
+When both `enhance: true` and `categorize: true` are set, the pipeline makes a **single LLM call** (`enhanceAndCategorize`) that rewrites descriptions, assigns categories, generates `leadIn` phrases and identifies scopes, all in one pass. This is more efficient than two sequential calls and is the recommended configuration when using both tasks.
 
 ```json
 { "tasks": { "enhance": true, "categorize": true } }

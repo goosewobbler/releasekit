@@ -13,6 +13,7 @@ import {
   checkCategoryNames,
   groupByCategory,
   INSTRUCTION_HIERARCHY,
+  orderByIndex,
   parseLLMResult,
   renderEntries,
   renderScopeInstruction,
@@ -51,11 +52,11 @@ leadIn guidelines:
 - Set leadIn ONLY when an entry introduces a named API, feature, or concept worth scanning for (e.g. "Deeplink testing", "browser.electron.triggerDeeplink()")
 - Leave leadIn null for routine fixes, dependency bumps, small tweaks, and refactors
 
-Output a JSON object with an "entries" array. Each element (same order as input) must have:
+Output a JSON object with an "entries" array holding one element per input entry. Each element must have:
+- "index": the index of the input entry it describes
 - "description": rewritten user-friendly text
 - "category": category name (from the list above)
 - "scope": subcategory label or null
-- "breaking": true if this is a breaking change, false or null otherwise
 - "leadIn": short noun phrase for scanning (e.g. "Streaming API") or null`;
 }
 
@@ -78,20 +79,14 @@ export function createEnhanceAndCategorizeValidator(
       return { valid: false, error: `Schema error: ${zodResult.error.message}` };
     }
 
-    const receivedCount = zodResult.data.entries.length;
-    if (receivedCount < entries.length) {
-      return {
-        valid: false,
-        error: `Expected ${entries.length} entries, got ${receivedCount} (entries missing — cannot proceed)`,
-      };
+    const ordered = orderByIndex(zodResult.data.entries, entries.length);
+    if (!ordered.ok) {
+      return { valid: false, error: ordered.error };
     }
-    if (receivedCount > entries.length) {
-      warn(`LLM returned ${receivedCount} entries for ${entries.length} inputs; truncating to expected count.`);
-      zodResult.data.entries.length = entries.length;
-    }
+    const llmEntries = ordered.entries;
 
     const categoryError = checkCategoryNames(
-      zodResult.data.entries,
+      llmEntries,
       context.categories?.map((c) => c.name),
     );
     if (categoryError) {
@@ -99,7 +94,7 @@ export function createEnhanceAndCategorizeValidator(
     }
 
     const enhancedEntries: ChangelogEntry[] = entries.map((original, i) => {
-      const llmEntry = zodResult.data.entries[i];
+      const llmEntry = llmEntries[i];
       if (!llmEntry) {
         return original;
       }
@@ -107,7 +102,6 @@ export function createEnhanceAndCategorizeValidator(
         ...original,
         description: removeDescriptionRefs(llmEntry.description, [...(original.issueIds ?? []), original.prNumber]),
         scope: llmEntry.scope ?? undefined,
-        breaking: original.breaking || llmEntry.breaking === true,
         leadIn: llmEntry.leadIn ?? undefined,
       };
     });
@@ -120,7 +114,7 @@ export function createEnhanceAndCategorizeValidator(
       );
     }
 
-    const categories = groupByCategory(zodResult.data.entries, scopeResult.entries);
+    const categories = groupByCategory(llmEntries, scopeResult.entries);
 
     return {
       valid: true,
@@ -189,7 +183,7 @@ export async function enhanceAndCategorize(
   );
 
   // Chunk so a large release doesn't go into one prompt: the whole set overflows the output ceiling,
-  // fails entry-count validation, and drives corrective retries that resend a growing transcript.
+  // fails index validation, and drives corrective retries that resend a growing transcript.
   const chunkSize = LLM_DEFAULTS.enhanceCategorizeChunkSize;
   const enhancedEntries: ChangelogEntry[] = [];
   const categories: CategorizedEntries[] = [];

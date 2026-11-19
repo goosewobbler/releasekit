@@ -31,8 +31,8 @@ const input: ChangelogInput = {
 
 const ENHANCED = JSON.stringify({
   entries: [
-    { description: 'Polished streaming', category: 'Highlights', scope: null, breaking: null, leadIn: null },
-    { description: 'Polished fix', category: 'Highlights', scope: null, breaking: null, leadIn: null },
+    { index: 0, description: 'Polished streaming', category: 'Highlights', scope: null, leadIn: null },
+    { index: 1, description: 'Polished fix', category: 'Highlights', scope: null, leadIn: null },
   ],
 });
 const SUMMARY = 'LLM summary of the release.';

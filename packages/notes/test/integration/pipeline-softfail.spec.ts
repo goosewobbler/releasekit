@@ -44,9 +44,9 @@ const config: Config = {
 
 const enhancedPayload = JSON.stringify({
   entries: [
-    { description: 'ENHANCED one', category: 'New', scope: null, breaking: null, leadIn: null },
-    { description: 'ENHANCED two', category: 'Fixed', scope: null, breaking: null, leadIn: null },
-    { description: 'ENHANCED three', category: 'Changed', scope: null, breaking: null, leadIn: null },
+    { index: 0, description: 'ENHANCED one', category: 'New', scope: null, leadIn: null },
+    { index: 1, description: 'ENHANCED two', category: 'Fixed', scope: null, leadIn: null },
+    { index: 2, description: 'ENHANCED three', category: 'Changed', scope: null, leadIn: null },
   ],
 });
 

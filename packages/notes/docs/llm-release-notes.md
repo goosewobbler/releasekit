@@ -83,7 +83,7 @@ Four tasks are available. Any combination can be enabled simultaneously.
 | `summarize` | Generates a 2–3 sentence release summary | `enhanced.summary` in template context |
 | `releaseNotes` | Writes full prose markdown release notes | `enhanced.releaseNotes` / pipeline result |
 
-**Recommended starting point:** Enable `enhance` and `categorize` together. This is the most impactful combination — rewriting and grouping both happen in a single LLM call, and it also unlocks `leadIn` phrases and LLM-flagged breaking changes in the built-in renderer. Add `summarize` or `releaseNotes` when you want prose output for GitHub releases.
+**Recommended starting point:** Enable `enhance` and `categorize` together. This is the most impactful combination - rewriting and grouping both happen in a single LLM call, and it also unlocks `leadIn` phrases in the built-in renderer. Add `summarize` or `releaseNotes` when you want prose output for GitHub releases.
 
 > **Efficiency tip:** When both `enhance` and `categorize` are enabled, the pipeline makes a **single combined LLM call** (`enhanceAndCategorize`) instead of two sequential calls. This combined path also produces `leadIn` phrases and scope assignments, which are not available when running `enhance` alone.
 
@@ -102,7 +102,7 @@ Entries are processed in parallel. Control the batch size with `concurrency` (de
 { "concurrency": 3 }
 ```
 
-> **Note:** `leadIn` phrases, scope assignments, and breaking flags are only generated when `enhance` is combined with `categorize` (the combined `enhanceAndCategorize` path). Running `enhance` alone rewrites descriptions only — see [Combined enhance + categorize](#combined-enhance--categorize).
+> **Note:** Running `enhance` alone rewrites descriptions only. `leadIn` phrases and scope assignments need `categorize` too - see [Combined enhance + categorize](#combined-enhance--categorize).
 
 ---
 
@@ -190,7 +190,6 @@ When both `enhance: true` and `categorize: true` are set, the pipeline runs a si
 - Rewritten `description` for each entry
 - Assigned `category`
 - Assigned `scope` (or `null`)
-- `breaking` flag (or `null`)
 - `leadIn` phrase (or `null`)
 
 This is more efficient than two sequential calls and produces richer output. Use the `enhanceAndCategorize` key in `prompts.instructions` to customise this combined call — the standalone `enhance` key applies only when `categorize` is disabled:
@@ -212,7 +211,7 @@ This is more efficient than two sequential calls and produces richer output. Use
 
 ## Breaking change handling
 
-Any entry where `breaking: true` is set — whether from the source input or flagged by the LLM during enhancement — is automatically moved to a `Breaking` category by the built-in markdown renderer at render time, regardless of which category the LLM assigned it to. The `Breaking` category comes first unless `categoryOrder` places it.
+Any entry with `breaking: true`, which only its commit can set, is moved to a `Breaking` category by the built-in markdown renderer at render time, regardless of which category the LLM assigned it to. The `Breaking` category comes first unless `categoryOrder` places it.
 
 This happens in the renderer, not during the LLM call, so custom templates receive the raw data and must implement breaking-change handling themselves if needed.
 
@@ -357,7 +356,7 @@ Override the built-in prompt instructions for any task using `prompts.instructio
     "prompts": {
       "instructions": {
         "enhance": "Write from the perspective of an end user, not a developer.",
-        "enhanceAndCategorize": "Prefer 'New' over 'Changed' for additive changes. Flag any database migrations as breaking.",
+        "enhanceAndCategorize": "Prefer 'New' over 'Changed' for additive changes.",
         "categorize": "When enhance is disabled, this key applies to the standalone categorize call.",
         "summarize": "Write a single sentence, not a paragraph.",
         "releaseNotes": "Start with a one-sentence executive summary, then group changes by theme."

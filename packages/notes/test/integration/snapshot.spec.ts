@@ -41,32 +41,32 @@ const sampleInput: ChangelogInput = {
 const MOCK_RESPONSE = JSON.stringify({
   entries: [
     {
+      index: 0,
       description: 'Rename connect() to initialize()',
       category: 'Breaking',
       scope: null,
-      breaking: true,
       leadIn: 'API rename',
     },
     {
+      index: 1,
       description: 'Add deep link support via triggerDeeplink()',
       category: 'New',
       scope: 'ipc',
-      breaking: null,
       leadIn: 'Deeplink testing',
     },
-    { description: 'Add mock IPC support', category: 'New', scope: 'ipc', breaking: null, leadIn: null },
+    { index: 2, description: 'Add mock IPC support', category: 'New', scope: 'ipc', leadIn: null },
     {
+      index: 3,
       description: 'Resolve memory leak in renderer process',
       category: 'Fixed',
       scope: null,
-      breaking: null,
       leadIn: null,
     },
     {
+      index: 4,
       description: 'Migrate bundler to esbuild 0.20',
       category: 'Developer',
       scope: null,
-      breaking: null,
       leadIn: null,
     },
   ],
