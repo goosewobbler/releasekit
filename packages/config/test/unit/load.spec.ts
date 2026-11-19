@@ -230,6 +230,31 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).not.toThrow();
   });
 
+  it('should reject notes.releaseNotes.file with the standing-PR strategy', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        ci: { releaseStrategy: 'standing-pr' },
+        notes: { releaseNotes: { file: { dir: 'release-notes' } } },
+      }),
+    );
+
+    expect(() => loadConfig()).toThrow(
+      [
+        'Config validation errors:',
+        '  notes.releaseNotes.file: per-version release-notes files need ci.releaseStrategy "direct"; with "standing-pr" the release notes live in the GitHub release',
+      ].join('\n'),
+    );
+
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        ci: { releaseStrategy: 'direct' },
+        notes: { releaseNotes: { file: { dir: 'release-notes' } } },
+      }),
+    );
+    expect(loadConfig()).toMatchObject({ notes: { releaseNotes: { file: { dir: 'release-notes' } } } });
+  });
+
   it('should read version.primaryPackages, defaulting to none', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: { primaryPackages: ['@scope/app'] } }));

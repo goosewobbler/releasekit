@@ -31,7 +31,7 @@ A tick or untick takes effect only when the next `standing-pr update` run rebuil
 
 ### Editable release notes
 
-Only present when the standing PR carries the preview-notes label (`release:preview-notes` by default — see [`ci.labels`](./configuration.md#cilabels)). With the label on, releasekit generates notes into the region, and the region is what lands in the GitHub Release (with the default `publish.githubRelease.body: "auto"`) and in any per-version file `notes.releaseNotes.file` writes. A package's untouched notes refresh when its changelog entries, its version or the `notes.releaseNotes` config change. Edited notes are kept as written, and clearing a region regenerates it.
+Only present when the standing PR carries the preview-notes label (`release:preview-notes` by default — see [`ci.labels`](./configuration.md#cilabels)). With the label on, releasekit generates notes into the region, and the region is what lands in the GitHub Release (with the default `publish.githubRelease.body: "auto"`). A package's untouched notes refresh when its changelog entries, its version or the `notes.releaseNotes` config change. Edited notes are kept as written, and clearing a region regenerates it.
 
 Write inside the markers. Content outside them is regenerated. Each package's notes, edits included, are capped at 8,000 characters in the region. Untouched notes that were cut are regenerated in full at publish; an edited region publishes as cut.
 

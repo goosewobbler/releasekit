@@ -4181,50 +4181,25 @@ describe('runStandingPRUpdate', () => {
         expect(notes).toEqual(seeded.regions);
       });
 
-      it('should write each shipped region, edited or not, to its per-version notes file', async () => {
-        const { loadConfig } = await import('@releasekit/config');
-        const config = loadConfig({ cwd: '/test' });
-        vi.mocked(loadConfig).mockReturnValue({
-          ...config,
-          notes: { releaseNotes: { file: { dir: 'release-notes' } } },
-        } as ReturnType<typeof loadConfig>);
+      it('should tag the merged release commit without writing or committing a notes file', async () => {
         const seeded = await update(output(initial));
-        const body = editRegion(seeded.body, 'Notes for pkg-a: fix a', 'HAND-WRITTEN A');
-        setupGit({ status: '?? release-notes/' });
+        const commitsBeforePublish = fakeGit.committed.length;
         const { writeFileSync } = await import('node:fs');
 
-        const notes = await publish(output(initial), { ...seeded, body });
+        await publish(output(initial), seeded);
 
-        const written = Object.fromEntries(vi.mocked(writeFileSync).mock.calls.map(([file, text]) => [file, text]));
-        expect(written).toEqual({
-          'release-notes/pkg-a/1.1.0.md': notes?.['pkg-a'],
-          'release-notes/pkg-b/1.1.0.md': notes?.['pkg-b'],
-        });
-        expect(notes).toEqual({ 'pkg-a': 'HAND-WRITTEN A', 'pkg-b': 'Notes for pkg-b: fix b' });
-        expect(fakeGit.committed.at(-1)?.paths).toEqual([
-          'release-notes/pkg-a/1.1.0.md',
-          'release-notes/pkg-b/1.1.0.md',
-        ]);
+        expect(parseManifest(seeded.manifest).notesFiles).toEqual([]);
+        expect(vi.mocked(writeFileSync)).not.toHaveBeenCalled();
+        expect(fakeGit.committed).toHaveLength(commitsBeforePublish);
+        expect(fakeGit.tagged.map((t) => t.name)).toEqual(output(initial).tags);
       });
 
-      it('should ship and write a region the web editor saved with CRLF line endings with LF ones', async () => {
-        const { loadConfig } = await import('@releasekit/config');
-        const config = loadConfig({ cwd: '/test' });
-        vi.mocked(loadConfig).mockReturnValue({
-          ...config,
-          notes: { releaseNotes: { file: { dir: 'release-notes' } } },
-        } as ReturnType<typeof loadConfig>);
+      it('should ship a region the web editor saved with CRLF line endings with LF ones', async () => {
         const seeded = await update(output(initial), undefined, (cl) => `Notes for ${cl.packageName}\n\n- line`);
-        const { writeFileSync } = await import('node:fs');
 
         const notes = await publish(output(initial), { ...seeded, body: seeded.body.replace(/\n/g, '\r\n') });
 
         expect(notes?.['pkg-a']).toBe('Notes for pkg-a\n\n- line');
-        expect(vi.mocked(writeFileSync)).toHaveBeenCalledWith(
-          'release-notes/pkg-a/1.1.0.md',
-          notes?.['pkg-a'],
-          'utf-8',
-        );
       });
 
       it('should generate notes for a key without a region', async () => {
@@ -4577,7 +4552,9 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    // A manifest in an open PR can still list a per-version notes file.
+    const manifest = { ...baseManifest, notesFiles: [...baseManifest.notesFiles, 'release-notes/1.2.3.md'] };
+    await mockForge({ comments: [{ id: 1, body: serializeManifest(manifest) }] });
 
     const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
     // publishFromManifest regenerates notes against the merged commit set; the publish step must get those, not
@@ -4585,7 +4562,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(runNotesStep).mockResolvedValue({
       packageNotes: {},
       releaseNotes: { '@scope/core': '- regenerated at publish time' },
-      files: ['RELEASE_NOTES.md'],
+      files: [],
     });
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
       ReturnType<typeof runPublishStep>
@@ -4608,8 +4585,10 @@ describe('runStandingPRPublish', () => {
       expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
       expect.objectContaining({ skipGitCommit: true }),
       { '@scope/core': '- regenerated at publish time' },
-      expect.arrayContaining(['RELEASE_NOTES.md', ...baseManifest.notesFiles]),
+      manifest.notesFiles,
     );
+    expect(fakeGit.committed).toEqual([]);
+    expect(fakeGit.tagged.map((t) => t.name)).toEqual(baseManifest.versionOutput.tags);
     const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
     expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
   });
@@ -5163,70 +5142,6 @@ describe('publishFromManifest', () => {
     await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ '@scope/core': 'EDITED AT MERGE' });
-  });
-
-  describe('with git.formatCommand set', () => {
-    beforeEach(async () => {
-      const { loadConfig } = await import('@releasekit/config');
-      vi.mocked(loadConfig).mockReturnValue({
-        ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true } },
-        git: { branch: 'main', formatCommand: 'prettier --write' },
-      } as ReturnType<typeof loadConfig>);
-      const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
-      vi.mocked(runNotesStep).mockResolvedValue({
-        packageNotes: {},
-        releaseNotes: { '@scope/core': '- notes' },
-        files: ['release-notes/1.2.3.md'],
-      });
-      vi.mocked(runPublishStep).mockResolvedValue({
-        git: { committed: false, tags: [], pushed: true },
-      } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
-      setupGit({ status: '?? release-notes/1.2.3.md' });
-      await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
-    });
-
-    it('should format the new release-notes files before committing them', async () => {
-      const { runFormatCommand } = await import('@releasekit/config');
-      let commitsWhenFormatted: number | undefined;
-      vi.mocked(runFormatCommand).mockImplementation(async () => {
-        commitsWhenFormatted = fakeGit.committed.length;
-      });
-
-      await publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false });
-
-      expect(runFormatCommand).toHaveBeenCalledWith('prettier --write', ['release-notes/1.2.3.md'], '/test');
-      expect(commitsWhenFormatted).toBe(0);
-      expect(fakeGit.committed.map((c) => c.message)).toEqual(['chore: release notes for v1.2.3']);
-    });
-
-    it('should use publish.git.formatCommand over git.formatCommand', async () => {
-      const { loadConfig, runFormatCommand } = await import('@releasekit/config');
-      vi.mocked(loadConfig).mockReturnValue({
-        ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true } },
-        git: { branch: 'main', formatCommand: 'prettier --write' },
-        publish: { git: { formatCommand: 'npx biome format --write' } },
-      } as ReturnType<typeof loadConfig>);
-
-      await publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false });
-
-      expect(runFormatCommand).toHaveBeenCalledWith('npx biome format --write', ['release-notes/1.2.3.md'], '/test');
-    });
-
-    it('should stop before the notes commit, tags and publish when the formatter fails', async () => {
-      const { runFormatCommand } = await import('@releasekit/config');
-      vi.mocked(runFormatCommand).mockRejectedValue(
-        new Error('git.formatCommand `prettier --write` exited with code 2'),
-      );
-
-      await expect(
-        publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false }),
-      ).rejects.toThrow('git.formatCommand `prettier --write` exited with code 2');
-
-      const { runPublishStep } = await import('../../src/steps.js');
-      expect(fakeGit.committed).toEqual([]);
-      expect(fakeGit.tagged).toEqual([]);
-      expect(runPublishStep).not.toHaveBeenCalled();
-    });
   });
 
   it('should publish a sync monorepo notes edit from the PR body', async () => {

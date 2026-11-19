@@ -59,22 +59,6 @@ export function releaseNotesInputHashes(
   );
 }
 
-/** Writes each shipped region where the notes pipeline writes a per-version notes file. */
-export async function writeRegionNotesFiles(
-  regions: Record<string, string>,
-  versionOutput: VersionOutput,
-  notesConfig: NotesConfig | undefined,
-): Promise<string[]> {
-  const dir = notesConfig?.releaseNotes ? notesConfig.releaseNotes.file?.dir : undefined;
-  const shipped = versionOutput.changelogs.filter((cl) => Object.hasOwn(regions, cl.packageName));
-  if (!dir || shipped.length === 0) {
-    return [];
-  }
-  const { nestsReleaseNotes, writeVersionedNotes } = await import('@releasekit/notes');
-  const nested = nestsReleaseNotes(versionOutput.changelogs.length);
-  return writeVersionedNotes(shipped, dir, false, nested, (cl) => regions[cl.packageName] ?? '');
-}
-
 /** GitHub's web editor saves the whole body with CRLF line endings. */
 export function normalizeRegionText(text: string): string {
   return text.replace(/\r\n/g, '\n');

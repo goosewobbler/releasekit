@@ -349,6 +349,12 @@ In async mode (`sync: false`, no `groups`, more than one package in the run):
 - Templates get `bundled` on each version, and a root changelog's document gets the run's project-wide entries as
   `shared`. The bundled templates render both.
 
+### Standing PRs don't write release-notes files
+
+With `ci.releaseStrategy: "standing-pr"`, config loading fails if `notes.releaseNotes.file` is set. Standing-PR
+release notes live in the GitHub release; per-version files need the `direct` strategy. Publish no longer commits
+the files or tags a commit that isn't on the base branch: the tags go on the merged release commit.
+
 ---
 
 ## Further reading
