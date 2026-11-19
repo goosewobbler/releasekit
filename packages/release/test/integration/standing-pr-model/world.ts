@@ -46,7 +46,7 @@ export function tagFor(config: WorldConfig, pkg: string, version: string): strin
   return config.sync ? `v${version}` : `${pkg}@v${version}`;
 }
 
-/** The variables a workflow job sees, set for the duration of one job. */
+/** What a workflow job sees. */
 export interface JobEnv {
   eventName: string;
   event: object;
@@ -241,7 +241,6 @@ export class World {
     }
   }
 
-  /** Each package's version in `rev`'s tree. */
   versionsAt(rev: string): Record<string, string> {
     return Object.fromEntries(
       PACKAGES.map((pkg) => [

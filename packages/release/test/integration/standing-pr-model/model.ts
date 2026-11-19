@@ -20,7 +20,7 @@ export interface UpdateRun {
   trigger: Trigger;
   /** The standing PR open when the run started. */
   openPr?: number;
-  /** Releases merged but not yet published when the run started. */
+  /** `pendingReleases` when the run started. */
   pending: Release[];
   result?: StandingPRResult;
 }
@@ -28,7 +28,6 @@ export interface UpdateRun {
 /** What the commands know about the world, refreshed from it after each one. */
 export interface Model {
   openPr?: number;
-  /** `main`'s tip is a release commit. */
   releaseAtTip: boolean;
   releases: Release[];
   /** The release labels authorized actors applied to each standing PR. */

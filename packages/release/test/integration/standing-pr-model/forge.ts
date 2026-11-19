@@ -52,9 +52,8 @@ export interface Remote {
  */
 export class StatefulForge extends FakeForge {
   readonly prs = new Map<number, PullRequest>();
-  /** Every manifest body the code wrote, in order. */
   readonly manifestWrites: Array<{ prNumber: number; body: string }> = [];
-  /** Fault injection: runs before the next manifest upsert lands. */
+  /** One-shot fault injection. */
   beforeManifestUpsert?: (prNumber: number) => Promise<void>;
   private nextPrNumber = 100;
   private clock = 0;
@@ -189,7 +188,6 @@ export class StatefulForge extends FakeForge {
     return mergeCommitSha;
   }
 
-  /** A feeder PR that has already merged as `mergeCommitSha`. */
   recordMergedFeeder(title: string, labels: string[], mergeCommitSha: string): PullRequest {
     const number = this.nextPrNumber++;
     const pr: PullRequest = {

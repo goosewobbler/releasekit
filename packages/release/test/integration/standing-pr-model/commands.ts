@@ -219,7 +219,6 @@ export class ToggleSelection extends Command {
 }
 
 export class Merge extends Command {
-  /** `BOT` merges through `standing-pr merge`; anyone else through GitHub's UI. */
   constructor(private readonly actor: Actor) {
     super();
   }
@@ -245,7 +244,6 @@ export class Merge extends Command {
   }
 }
 
-/** Merges the standing PR when the update is about to write its manifest. */
 export class MergeMidUpdate extends Command {
   constructor(private readonly actor: Actor) {
     super();
@@ -325,7 +323,6 @@ export class Retry extends Command {
   }
 }
 
-/** Schedule and label runs while `main`'s tip is a tagged release commit. */
 export class UpdateAtReleaseTip extends Command {
   constructor(private readonly trigger: 'schedule' | 'labeled') {
     super();
@@ -341,11 +338,10 @@ export class UpdateAtReleaseTip extends Command {
     await new Label(MAINTAINER, 'bump:minor', true).apply(model, world);
   }
   toString(): string {
-    return `${this.trigger === 'schedule' ? 'schedule update' : "maintainer adds 'bump:minor'"} with a tagged release at main's tip`;
+    return `${this.trigger === 'schedule' ? 'schedule update' : "maintainer adds 'bump:minor'"} with a release commit at main's tip`;
   }
 }
 
-/** A push update while a merged release's bump is on `main` below a feeder commit and its tags aren't. */
 export class UpdatePastUntaggedRelease extends Command {
   check(model: Readonly<Model>): boolean {
     return untaggedBelowTip(model);
@@ -358,7 +354,6 @@ export class UpdatePastUntaggedRelease extends Command {
   }
 }
 
-/** `standing-pr publish --pr` naming the open standing PR, dispatched from the release branch. */
 export class PublishOpenPr extends Command {
   check(model: Readonly<Model>): boolean {
     return model.openPr !== undefined;
@@ -375,7 +370,6 @@ export class PublishOpenPr extends Command {
   }
 }
 
-/** A writer edits the bot's manifest to approve `bump:major`, then applies it. */
 export class EditManifest extends Command {
   check(model: Readonly<Model>): boolean {
     return canRunOnOpenPr(model);
