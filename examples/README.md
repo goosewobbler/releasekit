@@ -84,11 +84,12 @@ Two workflows guard these examples on every change under `examples/`:
 >   so trusted-publisher setup and token scopes are unverified.
 > - **Event-trigger semantics.** The smoke test invokes the *steps*, not the
 >   `pull_request` / `schedule` / `workflow_dispatch` *events*, so guards like
->   the standing-PR `action == 'closed'` check aren't exercised.
+>   the standing-PR relay's and `detect`'s aren't exercised.
 > - **Anything that needs a token or PR context**, such as the merged-PR lookup,
 >   label checks and scope resolution in `release` and `preview`.
 > - **Secret- or permission-gated, API-mutating paths**, such as creating or
->   merging PRs and force-pushing `release/next`.
+>   merging PRs, force-pushing `release/next` and minting the standing-PR
+>   example's App token.
 >
 > Verifying those requires a real release in a real repo. See issue #276 (this
 > smoke-test), and #259 / #263 for the static layer and the missing-pnpm class

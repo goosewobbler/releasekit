@@ -64,7 +64,7 @@ Set the appropriate strategy in `releasekit.config.json` under `version.mismatch
 
 **Cause:** The API key environment variable for the configured LLM provider is not present in the workflow environment. This is treated as a soft failure — notes are generated without LLM enhancement rather than aborting the release.
 
-**Fix:** Pass the secret to the job that runs the notes stage. In the standing-PR workflow that's the publishing jobs (`publish`, `retry-publish` and `immediate-release`), plus `update` if you use the `release:preview-notes` label:
+**Fix:** Pass the secret to the job that runs the notes stage. In the standing-PR workflow that's the `release` job, plus `update` and `reconcile` if you use the `release:preview-notes` label:
 
 ```yaml
 - run: pnpm exec releasekit standing-pr publish
@@ -398,9 +398,9 @@ Background for all of these: the [release taxonomy](./release-taxonomy.md) (grou
 
 **Symptom:** You unticked a package in the **Packages to release** checklist, but the release still includes it (or the body re-ticks it).
 
-**Cause:** Usually the workflow is missing the `edited` trigger, so the body edit never re-runs `standing-pr update`. Two other cases re-tick by design: the package is a **lockstep** (`fixed`/`linked`) group member (can't be held back individually), or the release is **sync** (atomic — no checklist applies).
+**Cause:** Usually the workflow is missing the `edited` trigger or the relay that dispatches its update, so the body edit never re-runs `standing-pr update`. Two other cases re-tick by design: the package is a **lockstep** (`fixed`/`linked`) group member (can't be held back individually), or the release is **sync** (atomic — no checklist applies).
 
-**Fix:** Add `edited` to the workflow's `pull_request: types` plus the `sender.type != 'Bot'` guard (see [`examples/ci/standing-pr`](../examples/ci/standing-pr/standing-pr.yml)). Confirm the `<!-- rk-sel:… -->` marker comments are intact — the selection is read from those, never the visible text.
+**Fix:** Add `edited` to the workflow's `pull_request: types`, and the `relay` job with its `sender.type != 'Bot'` guard (see [`examples/ci/standing-pr`](../examples/ci/standing-pr/standing-pr.yml)). Confirm the `<!-- rk-sel:… -->` marker comments are intact — the selection is read from those, never the visible text.
 
 ---
 

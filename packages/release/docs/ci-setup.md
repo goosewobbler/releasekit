@@ -186,7 +186,7 @@ Accumulate release changes in a persistent "standing" PR that auto-updates as co
 
 ### Setup requirements
 
-Standing PRs need configuration in three places: a repo setting, workflow permissions, and (optionally) secrets.
+Standing PRs need configuration in four places: a repo setting, workflow permissions, a `release` environment, and (optionally) secrets.
 
 **Repo setting (required):**
 
@@ -201,34 +201,52 @@ GitHub Actions is not permitted to create or approve pull requests.
 
 The `pull-requests: write` permission in the workflow is necessary but not sufficient — this is a separate org/repo-level toggle. The same toggle also lets workflow tokens approve pull requests: see [Workflow token approvals](#workflow-token-approvals).
 
-**Workflow permissions** (in the workflow YAML):
-
-```yaml
-permissions:
-  contents: write       # push to release branch, create tags
-  pull-requests: write  # create/update/close standing PR and comments
-  statuses: write       # post the releasekit/standing-pr status check
-```
-
-Only the jobs that publish (`publish`, `retry-publish` and `immediate-release`) get `id-token: write`, so `update`, which runs on label and edit events, can't mint an OIDC token. Job-level `permissions` replace the workflow's, so each of those jobs restates the other scopes:
+**Workflow permissions** (in the workflow YAML): the workflow grants none, and each job names its own. The jobs that write, `update`, `release` and `reconcile`, get:
 
 ```yaml
     permissions:
-      contents: write
-      pull-requests: write
-      statuses: write
-      id-token: write   # npm OIDC trusted publishing
+      contents: write       # push to release branch, create tags
+      pull-requests: write  # create/update/close standing PR and comments
+      statuses: write       # post the releasekit/standing-pr status check
 ```
+
+Only `release`, which publishes, adds `id-token: write` for npm OIDC trusted publishing. The `relay` job, which runs on the standing PR's events, holds only `actions: write`, and `detect` only reads.
 
 **Secrets:**
 
 | Secret | Used by | When required |
 |---|---|---|
 | `GITHUB_TOKEN` | all jobs | Always (auto-provided). |
-| `NPM_TOKEN` | `publish`, `retry-publish` and `immediate-release` | Only if not using OIDC. With OIDC, omit it entirely. |
-| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `publish`, `retry-publish` and `immediate-release` | Required for LLM-enhanced notes at publish time. Also pass to `update` only if you use the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
+| `NPM_TOKEN` | `release` | Only if not using OIDC. With OIDC, omit it entirely. Store it in the `release` environment. |
+| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `release` | Required for LLM-enhanced notes at publish time. Also pass to `update` and `reconcile` only if you use the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
+| `RELEASE_APP_ID` / `RELEASE_APP_PRIVATE_KEY` | `update`, `release` and `reconcile` | Only to act as a GitHub App: see [The release App](#the-release-app-optional). Store them in the `release` environment. |
 
 **Branch protection:** if `release/next` is protected, the bot's force-push will fail. Either leave the release branch unprotected or grant the bot bypass permissions.
+
+### The release environment
+
+Create a `release` environment (Settings → Environments) and restrict its deployment branches to `main` (*Selected branches and tags*). Every job that writes names it, so its secrets reach only runs on `main`: the registry tokens, such as `NPM_TOKEN`, and the App's secrets if you add one. A workflow edited on another branch can't read them, and that's why the example runs its writers on `main` and relays the standing PR's events there.
+
+- **Trusted publishers.** Name the environment in each registry's trusted-publisher settings: on npm, the package's *Trusted publisher* entry for the repo and `standing-pr.yml`, with environment `release`. The registry then accepts an OIDC publish only from a job in that environment, which only runs on `main`.
+- **No reviewers or wait timers.** Updates run in the environment too, every hour and on every label or checkbox change, so a required reviewer would hold each of them.
+- **Deployments.** Each job that names the environment records a deployment to it.
+
+### The release App (optional)
+
+The example works with `GITHUB_TOKEN`. The release bot is then GitHub Actions, and the [rulesets](#branch-rulesets-the-merge-gate) need GitHub Actions as a bypass actor: the release-branch lock for every update, and the `main` ruleset for `release:immediate`, whose release commit goes straight to `main`. That bypass is open to every workflow with a write token, on any branch, so any writer can push past the rulesets with one, and [Code Owners review](#workflow-token-approvals) on `main` doesn't hold.
+
+A GitHub App closes that: only jobs in the `release` environment can mint its token, so only runs on `main` can bypass the rulesets. It matters in an org with many writers, or where Code Owners review on `main` has to hold. Switching needs no workflow edits:
+
+1. **Create the App** (Settings → Developer settings → GitHub Apps, under the org or your account). Turn the webhook off. Repository permissions, the scopes the jobs give `GITHUB_TOKEN`:
+   - **Contents:** read and write, to push the release branch, release commits and tags.
+   - **Pull requests:** read and write, for the standing PR, labels and comments.
+   - **Commit statuses:** read and write, for the `releasekit/standing-pr` check.
+2. **Install it** on the repository only.
+3. **Add two secrets** to the `release` environment: `RELEASE_APP_ID`, the App's ID, and `RELEASE_APP_PRIVATE_KEY`, a private key generated on the App's page. Each writer's first step mints an installation token from them, and uses `GITHUB_TOKEN` while they're missing.
+4. **Swap the bypass actor** on both rulesets: add the App, then remove GitHub Actions.
+5. **Close the open standing PR.** ReleaseKit trusts a release manifest only from the account that opened the PR, so the next update opens a new one as the App. A standing PR that merged before the switch still publishes and retries.
+
+Pushes made with an App token start workflows, unlike `GITHUB_TOKEN`'s. Each update's push to the release branch then runs your CI on the standing PR, so [keep CI off it](#keeping-ci-off-the-standing-pr). The token expires after an hour, so a release that runs longer can fail at its final push.
 
 ### Configuration
 
@@ -292,7 +310,7 @@ The in-code gates keep the *manifest* clean, but the merge itself is a GitHub ac
 
 > **Rulesets require the right plan.** They're available on **public** repositories on any plan, and on **private** repositories only with **GitHub Pro / Team / Enterprise** — a private repo on Free has no rulesets at all. The **evaluate** (dry-run) enforcement mode mentioned below is **Enterprise-only**.
 
-**1. Lock the release branch** — target `release/next` (your `ci.standingPr.branch`). Enable **Restrict creations**, **Restrict updates**, and **Restrict deletions** so only bypass actors can write the branch — no one else can inject a commit that would then be published. If the bypass actor is the Actions bot, that includes every workflow: see [Workflow token approvals](#workflow-token-approvals).
+**1. Lock the release branch** — target `release/next` (your `ci.standingPr.branch`). Enable **Restrict creations**, **Restrict updates**, and **Restrict deletions** so only bypass actors can write the branch — no one else can inject a commit that would then be published. If the bypass actor is the Actions bot, that includes every workflow: see [The release App](#the-release-app-optional).
 
 > ⚠️ The release bot pushes (and force-pushes) this branch, so it **must** be on the ruleset's *Bypass list* or releases break — ReleaseKit can't infer the bot's identity for you. **Add the bot as a bypass actor before the ruleset goes `active`.** On **GitHub Enterprise** you can instead create it in **evaluate** (dry-run) mode first and confirm in the repo's *rule insights* that the bot isn't tripped, then switch to active — but **evaluate mode is Enterprise-only**, so on every other plan add the bypass actor first and create the ruleset directly as `active`. (A bypass actor's force-push is not blocked by the lock, so the standing-PR refresh keeps working.)
 
@@ -309,9 +327,9 @@ So in ruleset 2, also enable:
 - **Require review from Code Owners.** A workflow token isn't a code owner. The rule only covers paths in `CODEOWNERS`, so give it a `*` rule naming an owner with write access, such as `* @acme/maintainers`. A later pattern overrides `*` for its paths, so every pattern needs such an owner.
 - **Dismiss stale pull request approvals when new commits are pushed**, so a code owner's approval doesn't carry over to commits pushed after it. Each standing-PR update, including the hourly scheduled run, pushes a new commit and can dismiss the standing PR's approval too, so approve it just before merging.
 
-None of this applies to a ruleset's bypass actors. With the example's `GITHUB_TOKEN`, the release bot is the Actions bot, and a bypass for it is open to every workflow. Ruleset 1 needs one for the release branch. The example's `immediate-release` job pushes straight to `main`, so it needs one on ruleset 2 as well, which voids the settings above. Remove that job if you rely on them.
+None of this applies to a ruleset's bypass actors. With the example's `GITHUB_TOKEN`, the release bot is the Actions bot, and a bypass for it is open to every workflow. Ruleset 1 needs one for the release branch, and `release:immediate`, which pushes its release commit straight to `main`, needs one on ruleset 2, which voids the settings above. With [the release App](#the-release-app-optional) as the only bypass actor, no workflow token can bypass either ruleset, so Code Owners review holds.
 
-To keep registry credentials away from workflows on other branches, publish from a deployment environment restricted to the default branch. A merged PR's `closed` run has the branch it merged into as its ref, so the publish jobs it triggers pass the restriction. Name the environment on each of them, move registry tokens such as `NPM_TOKEN` to environment secrets, and require the environment in each registry's trusted-publisher settings. GitHub documents that ref only for the `closed` run, so a label-triggered job such as the example's `retry-publish` may be rejected.
+The registry credentials sit in [the release environment](#the-release-environment), out of reach of workflows on other branches.
 
 #### Token caveats
 
@@ -320,23 +338,36 @@ To keep registry credentials away from workflows on other branches, publish from
 
 ### Workflow
 
-Copy `standing-pr.yml` from [`examples/ci/standing-pr`](../../../examples/ci/standing-pr/standing-pr.yml); [its README](../../../examples/ci/standing-pr/README.md) lists the four jobs and what fires each. The triggers:
+Copy `standing-pr.yml` from [`examples/ci/standing-pr`](../../../examples/ci/standing-pr/standing-pr.yml); [its README](../../../examples/ci/standing-pr/README.md) lists the jobs and what fires each. The triggers:
 
 ```yaml
 on:
   push:
     branches: [main]
   pull_request:
-    types: [closed, labeled, unlabeled, edited]
+    types: [labeled, unlabeled, edited]
     branches: [main]
   schedule:
     - cron: '0 * * * *' # advances the minAge status check as time passes
+  workflow_dispatch:
+    inputs:
+      pr: # a merged standing PR to publish again; empty runs an update
+      edited: # cancel the update in progress
 ```
+
+Every job that writes runs on `main`, in [the release environment](#the-release-environment):
+
+- **Push to `main`:** `update` rebuilds the standing PR. `detect` reads the PR merged as the pushed commit, and starts `release` only for the standing PR's merge or a `release:immediate` PR. `release` publishes, then `reconcile` rebuilds the standing PR.
+- **Label or checkbox change on the open standing PR:** the `relay` job, holding only `actions: write`, dispatches the workflow on `main`, which runs `update`. It adds a few seconds.
+- **`release:retry` on the merged standing PR:** the relay dispatches `release` on `main` with the PR's number.
+- **Schedule:** `update`, to advance `minAge`.
+
+The jobs share two concurrency groups, and GitHub replaces a queued job with a newer one in its group. Every rebuild (`update` and `reconcile`) shares one, which is safe because an update gives the same result whatever started it; a checkbox edit also cancels the rebuild in progress. Every release shares the other, which no update joins, so no update can replace a queued release. A release run that a newer one replaces still publishes: the newer run publishes the merged standing PR still waiting for its tags.
 
 ### How it works
 
 1. **Update → PR:** On every push to `main`, `standing-pr update` runs a dry-run version analysis against commits since the last release tag. If there are releasable changes, it force-resets `release/next` from `main`, writes the version bumps and regenerated changelogs, force-pushes, and creates or updates the standing PR with the version table and notes.
-2. **Merge → publish:** Maintainers merge the standing PR when ready. The `pull_request.closed` trigger fires `standing-pr publish`, which reads the release manifest from the bot's PR comment and publishes the packages. It does not re-run the version-bump computation, but it does **validate the manifest against the merged source** before publishing anything (see **Manifest integrity** below), so the publish reflects exactly what was reviewed and merged. The job then runs `standing-pr update --reconcile`, so prereleases that just shipped are offered for graduation without waiting for the next push.
+2. **Merge → publish:** Maintainers merge the standing PR when ready. The merge's push to `main` starts the `release` job, whose `standing-pr publish` finds the merged standing PR still waiting for its tags, reads the release manifest from the bot's PR comment and publishes the packages. It does not re-run the version-bump computation, but it does **validate the manifest against the merged source** before publishing anything (see **Manifest integrity** below), so the publish reflects exactly what was reviewed and merged. The `reconcile` job then runs `standing-pr update --reconcile`, so prereleases that just shipped are offered for graduation without waiting for the next push.
 3. **Recurring re-evaluation:** The hourly `schedule` trigger re-runs `update`, which is essentially free when nothing has changed but advances the `minAge` countdown so the status check transitions from `pending` to `success` as time passes.
 
 Release notes go to the GitHub release only: `notes.releaseNotes.file` isn't supported in standing-PR mode.
@@ -346,9 +377,9 @@ Use `release:graduate` and `channel:prerelease` labels on **the standing PR itse
 ### Lifecycle and edge cases
 
 - **No releasable commits since last release:** the standing PR is closed with an explanatory comment. It reopens automatically when releasable commits land. While any package is on a prerelease line, it stays open with only graduation rows instead, and its status check stays `pending` until one is ticked.
-- **A release still publishing:** an update waits while `main` holds a release whose tags aren't on the remote yet, so it can't bump on top of the untagged versions. The releasing job's reconcile step rebuilds the standing PR once they exist. An update goes ahead anyway if that release's publish posted a failure report, or, with a warning, two hours after it landed.
+- **A release still publishing:** an update waits while `main` holds a release whose tags aren't on the remote yet, so it can't bump on top of the untagged versions. The `reconcile` job rebuilds the standing PR once they exist. An update goes ahead anyway if that release's publish posted a failure report, or, with a warning, two hours after it landed.
 - **Dependabot and other `chore` commits:** trigger the workflow. Under `conventionalcommits` (the default) they aren't releasable on their own: they join an existing standing PR, or the workflow no-ops. Under `angular`, which releases at least a patch for any commit, they open a standing PR proposing a patch.
-- **Coexistence with label-driven releases:** safe by design. The label-driven path publishes immediately and writes a `chore: release …` commit (with `[skip ci]`) which the standing PR's skip-pattern guard (`release.ci.skipPatterns`, default `["chore: release "]`) recognises, so that commit's push doesn't update the standing PR. The release job's `refresh-after-release` step reconciles it instead, and once the release is tagged, scheduled runs, label changes and checkbox edits update it as usual.
+- **Coexistence with label-driven releases:** safe by design. The label-driven path publishes immediately and writes a `chore: release …` commit, with a CI-skip marker, which the standing PR's skip-pattern guard (`release.ci.skipPatterns`, default `["chore: release "]`) recognises, so that commit's push doesn't update the standing PR. The `reconcile` job reconciles it instead, and once the release is tagged, scheduled runs, label changes and checkbox edits update it as usual.
 - **CI concurrency caveat:** if `ci.yml` uses `cancel-in-progress: true` on the `main` branch concurrency group, sequential merges will cancel each other's CI. Any release workflow gated on `workflow_run` completion will then silently skip for the cancelled run. Use a per-SHA group for push events:
 
   ```yaml
@@ -383,16 +414,16 @@ Skipping entirely is the recommended default — the merge to `main` re-runs CI 
 
 ### In-progress feedback
 
-Ticking a checkbox or changing a label on the standing PR re-runs `standing-pr update`, which takes a minute or two (checkout → install → rebuild). To avoid a silent wait, the example workflow passes `--ack`, so the update posts an **in-progress banner** to the top of the PR body as soon as it finds the standing PR:
+Ticking a checkbox or changing a label on the standing PR re-runs `standing-pr update`, which takes a minute or two (relay → checkout → install → rebuild). To avoid a silent wait, the example workflow passes `--ack`, so the update posts an **in-progress banner** to the top of the PR body as soon as it finds the standing PR:
 
 > 🔄 **Updating the release PR** to reflect your change… ([run details](#))
 
-- **Reactive events only.** The banner goes up on `labeled`, `unlabeled` and `edited` runs; push and schedule updates aren't interactive. It lands after checkout and install, not within seconds.
+- **Reactive events only.** The banner goes up on the relayed runs, which are `workflow_dispatch` runs; push and schedule updates aren't interactive. It lands after the relay, checkout and install, not within seconds.
 - **Self-clearing.** A successful rebuild regenerates the body without the banner. A run that fails or exits without rewriting the body removes its banner on the way out. A cancelled run can't: the run that cancelled it replaces the banner with its own and clears that.
 - **One per PR.** The banner's marker carries the run ID: a run replaces any banner already in the body, and only ever clears its own.
 - **Best-effort.** A failed banner read or write warns and never fails the update. The banner is still a body edit, so a tick saved between its read and write can be lost.
 
-Rapid checkbox toggles are also **collapsed**: a maintainer's edits share a per-PR `concurrency` group on the `update` job with `cancel-in-progress: true`, so only the latest selection is rebuilt.
+Rapid checkbox toggles are also **collapsed**: a checkbox edit's run cancels the rebuild in progress, so only the latest selection is rebuilt.
 
 ### Label semantics in standing-pr mode
 
@@ -404,7 +435,7 @@ Labels behave differently in standing-pr mode than in direct mode. There are two
 
 **2. The standing PR itself** — labels are the **canonical override surface**.
 
-A maintainer can edit labels directly on the standing PR (via the GitHub UI or `gh pr edit <n> --add-label bump:major`). Adding or removing a label re-runs `standing-pr update` immediately (the `pull_request` `labeled`/`unlabeled` trigger), so the recomputed version table and status check reflect the new labels within seconds — no waiting for the next push or the hourly cron. The update reads those labels and applies them as overrides:
+A maintainer can edit labels directly on the standing PR (via the GitHub UI or `gh pr edit <n> --add-label bump:major`). Adding or removing a label re-runs `standing-pr update` immediately (the relay dispatches it on `main`), so the recomputed version table and status check reflect the new labels within seconds — no waiting for the next push or the hourly cron. The update reads those labels and applies them as overrides:
 
 | Label on standing PR | Effect |
 |---|---|
@@ -418,7 +449,7 @@ Conflicts (e.g. both `bump:patch` and `bump:major`) surface as a `pending` `rele
 
 The `standing-pr update` workflow **preserves maintainer-added labels across runs** — labels you add stick until you remove them.
 
-**Ad-hoc package selection.** The standing PR body carries a **Packages to release** checklist — one ticked row per changed package. Untick a package to hold it back from the next release and save; the `edited` trigger re-runs `standing-pr update`, which excludes it from the version bump entirely (no orphan version lands on `main`) and records the held-back set in the manifest. The choice survives later pushes — a held-back package re-renders as an unticked row until you re-tick it. The package each row refers to is read from its `<!-- rk-sel:… -->` marker comment, so keep those intact. Unticking a member of an `independent` group, or a prerequisite still needed by a ticked target, surfaces a ⚠️ warning in the body; members of a lockstep (`fixed`/`linked`) group can't be held back individually and re-tick automatically. (Sync releases ship atomically and carry no checklist.) When a standing PR mixes maturities, the checklist splits into a **Stable** section (advancing on `latest`) and a **Prereleases** section (each row showing the pre-release dist-tag it advances on, e.g. `next`); a single-channel PR shows one flat list. Checkboxes are one of three release-coordination mechanisms — see the [release taxonomy](../../../docs/release-taxonomy.md) for how selection composes with groups and prerequisites.
+**Ad-hoc package selection.** The standing PR body carries a **Packages to release** checklist — one ticked row per changed package. Untick a package to hold it back from the next release and save; the relay re-runs `standing-pr update`, which excludes it from the version bump entirely (no orphan version lands on `main`) and records the held-back set in the manifest. The choice survives later pushes — a held-back package re-renders as an unticked row until you re-tick it. The package each row refers to is read from its `<!-- rk-sel:… -->` marker comment, so keep those intact. Unticking a member of an `independent` group, or a prerequisite still needed by a ticked target, surfaces a ⚠️ warning in the body; members of a lockstep (`fixed`/`linked`) group can't be held back individually and re-tick automatically. (Sync releases ship atomically and carry no checklist.) When a standing PR mixes maturities, the checklist splits into a **Stable** section (advancing on `latest`) and a **Prereleases** section (each row showing the pre-release dist-tag it advances on, e.g. `next`); a single-channel PR shows one flat list. Checkboxes are one of three release-coordination mechanisms — see the [release taxonomy](../../../docs/release-taxonomy.md) for how selection composes with groups and prerequisites.
 
 **Graduation rows.** A package on a prerelease line with nothing queued gets an unticked **graduate to stable** row, with or without `channelToggle`. Tick it and merge to publish its stable base version (`1.1.0-next.3` → `1.1.0`), with a changelog from the last stable tag.
 
@@ -451,22 +482,23 @@ To ship a single PR directly without queueing it, label it **`release:immediate`
 | `release:immediate` + `scope:foo` | Direct release of only the scoped packages. |
 | `release:immediate` + `channel:prerelease` | Direct prerelease. |
 
-The `immediate-release` job in `standing-pr.yml` handles this:
-1. Runs `releasekit release` (versioning + notes + publish).
-2. Runs `releasekit refresh-after-release` to reconcile the standing PR — released packages drop out of the queue, anything still queued stays. A plain `standing-pr update` would do nothing here, because HEAD is now a release commit.
+The merge's push starts the `release` job in `standing-pr.yml`:
+1. Its `releasekit release` step reads the merged PR and its labels for the pushed commit from GitHub, then versions, writes notes and publishes. No update can replace the queued job, and the push's own `update` is skipped.
+2. The `reconcile` job runs `standing-pr update --reconcile` — released packages drop out of the queue, anything still queued stays. A plain `standing-pr update` would do nothing here, because HEAD is now a release commit.
 
 #### Retrying a failed publish
 
-If a standing-PR publish fails partway through, add the **`release:retry`** label to the **merged** standing PR. The version commit is already on `main`. GitHub Releases are created only after every package succeeds. In per-package mode, tags for packages that published may already be on the remote — do not delete them. The example's `retry-publish` job:
+If a standing-PR publish fails partway through, add the **`release:retry`** label to the **merged** standing PR. The version commit is already on `main`. GitHub Releases are created only after every package succeeds. In per-package mode, tags for packages that published may already be on the remote — do not delete them. In the example:
 
-1. Validates via its `if` guard that the PR is a merged standing PR and the label is `release:retry` — note the guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard to match.
-2. Re-runs the manifest-driven publish for that PR (`standing-pr publish --pr <n>`) — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases.
-3. Runs `standing-pr update --reconcile`, rebuilding the standing PR now the release's tags exist.
-4. Removes the label, so each application is exactly one retry; re-apply it to retry again.
+1. The `relay` job checks that the PR is a merged standing PR and the label is `release:retry`, then dispatches the workflow on `main` with the PR's number. Its guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard to match.
+2. The `release` job re-runs the manifest-driven publish for that PR (`standing-pr publish --pr <n>`) — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases. It then removes the label, so each application is exactly one retry; re-apply it to retry again.
+3. The `reconcile` job runs `standing-pr update --reconcile`, rebuilding the standing PR now the release's tags exist.
+
+To retry without the label, run the workflow on `main` with the PR's number as its `pr` input.
 
 A publish that refused the manifest usually can't be retried this way; its failure report says whether it can, and otherwise to merge the next standing PR (see [A refused publish](../../../docs/troubleshooting.md#a-refused-publish)).
 
-Applying the label to a non-standing or unmerged PR simply doesn't match the job's guard — nothing runs. A successful retry resolves the partial-publish failure report and clears the supersede warning from the next standing PR. Full recovery walkthrough: [Recovering from a failed publish](../../../docs/troubleshooting.md#recovering-from-a-failed-publish). (For reference, releasekit's own repo implements the same flow as a standalone [`release-retry.yml`](../../../.github/workflows/release-retry.yml) that dispatches its release workflow — useful if your publish runs in a separate dispatchable workflow.)
+Applying the label to a non-standing or unmerged PR simply doesn't match the relay's guard — nothing runs. A successful retry resolves the partial-publish failure report and clears the supersede warning from the next standing PR. Full recovery walkthrough: [Recovering from a failed publish](../../../docs/troubleshooting.md#recovering-from-a-failed-publish). (For reference, releasekit's own repo implements the same flow as a standalone [`release-retry.yml`](../../../.github/workflows/release-retry.yml) that dispatches its release workflow — useful if your publish runs in a separate dispatchable workflow.)
 
 #### Previewing and editing release notes
 
@@ -488,7 +520,7 @@ This is a standing-pr-only feature — it needs a durable pre-publish artifact (
 | Symptom | Cause / fix |
 |---|---|
 | `403 — GitHub Actions is not permitted to create or approve pull requests` | Repo setting not enabled. See [Setup requirements](#setup-requirements). |
-| `OLLAMA_API_KEY is not set. … Returning entries ungrouped.` | LLM secret not passed to the job generating the notes: `publish`, `retry-publish` and `immediate-release`, or `update` for `release:preview-notes`. Add it to the job's `env:` block (or the equivalent for your provider). |
+| `OLLAMA_API_KEY is not set. … Returning entries ungrouped.` | LLM secret not passed to the job generating the notes: `release`, or `update` and `reconcile` for `release:preview-notes`. Add it to the job's `env:` block (or the equivalent for your provider). |
 | `error: too many arguments for 'preview'` | Pre-fix releasekit where `standing-pr` was missing from `cli.ts`. Upgrade `@releasekit/release`. |
 | Standing PR never appears despite merges | Check, in order: (1) the GitHub repo setting; (2) the head commit doesn't match `release.ci.skipPatterns`; (3) there are releasable conventional commits (`feat:`, `fix:`) since the last tag; (4) the `update` job logs — they print the dry-run version output. |
 | Standing PR keeps closing, or shows only graduation rows while changes are queued | `minPackages` is set higher than the current change count. Either lower the threshold or wait for more package changes to accumulate. |
@@ -498,6 +530,8 @@ This is a standing-pr-only feature — it needs a durable pre-publish artifact (
 | Added `release:preview-notes` but no notes appear | The region is written on the next `standing-pr update` (push to `main`, the hourly `schedule`, or a manual re-run) — not the instant the label is applied. Also confirm `notes.releaseNotes.llm` is set and the provider secret reaches the `update` job. |
 | Edited release notes didn't ship | Confirm you edited *inside* the `<!-- releasekit-notes:<package> -->` markers and left them intact — content outside the markers isn't read back. |
 | Force-push to `release/next` fails | Branch is protected. Remove protection on the release branch, or grant the bot bypass. |
+| A job fails with `Branch "…" is not allowed to deploy to release` | The workflow was dispatched on another branch. Run it on `main`. |
+| Publish refuses a manifest posted by the App, not by the bot that opened the PR | The App was added while a standing PR was open. Close it; the next update opens a new one. See [The release App](#the-release-app-optional). |
 | `minAge` never advances | The hourly `schedule` trigger isn't running. Confirm the workflow has a `schedule:` block and that the repo isn't paused (GitHub disables `schedule` on inactive repos after 60 days). |
 
 ---
@@ -509,7 +543,7 @@ Standing-pr mode handles both batched and one-off releases through a single work
 **How it works:**
 
 - A PR merged **without** `release:immediate` → `standing-pr update` accumulates the change into the standing PR. Any `bump:*` / `scope:*` / `channel:*` labels on the feeder PR are advisory only (see [Label semantics](#label-semantics-in-standing-pr-mode) above).
-- A PR merged **with** `release:immediate` → the `immediate-release` job in `standing-pr.yml` runs `releasekit release` directly (honouring companion `bump:*` / `scope:*` / `channel:*` labels), then `refresh-after-release` to reconcile the standing PR.
+- A PR merged **with** `release:immediate` → the `release` job in `standing-pr.yml` runs `releasekit release` directly (honouring companion `bump:*` / `scope:*` / `channel:*` labels), then the `reconcile` job reconciles the standing PR.
 - The standing PR itself only publishes when its own branch (`release/next`) is merged by a maintainer. `release:immediate` on it doesn't release it a second time: `releasekit release` fails instead.
 
 **Decision guide:**
@@ -534,7 +568,7 @@ With OIDC, no `NPM_TOKEN` secret is required. The workflow exchanges a GitHub-is
 
 **Requirements:**
 - npm `>=9.5.0`
-- Each package must have an **Automation policy** configured at npmjs.com (Settings → Automation policies → add a GitHub Actions OIDC publisher for your repo and workflow)
+- Each package must have an **Automation policy** configured at npmjs.com (Settings → Automation policies → add a GitHub Actions OIDC publisher for your repo and workflow, and, for the standing-PR example, the `release` environment)
 
 The workflow needs:
 

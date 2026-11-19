@@ -190,14 +190,14 @@ Manage the standing release PR (create/update or publish on merge). Pick a subco
 
 ### `releasekit standing-pr update`
 
-Calculate versions, commit to the release branch, and create/update the standing PR. Without the GitHub variables, it fails before touching the release branch.
+Calculate versions, commit to the release branch, and create/update the standing PR. Without the GitHub variables, it fails before touching the release branch. A run whose checkout is a release commit does nothing, unless `--reconcile` is set or a `labeled`, `unlabeled`, `edited` or `workflow_dispatch` event started it.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-t, --target <packages>` | string | labels | Ad-hoc override: release only these packages (comma-separated). Wins over label-derived targets |
 | `--include-prerequisites` | boolean | `false` | With `--target`, also release the changed internal dependencies (and group members) of the targets |
 | `--reconcile` | boolean | `false` | Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point), and analyse the latest `origin/<base>` rather than the checkout |
-| `--ack` | boolean | `false` | On a `labeled`, `unlabeled` or `edited` run, show an in-progress banner at the top of the standing PR body while the update runs. See [In-progress feedback](../packages/release/docs/ci-setup.md#in-progress-feedback) |
+| `--ack` | boolean | `false` | On a `labeled`, `unlabeled`, `edited` or `workflow_dispatch` run, show an in-progress banner at the top of the standing PR body while the update runs. See [In-progress feedback](../packages/release/docs/ci-setup.md#in-progress-feedback) |
 
 ```bash
 releasekit standing-pr update --reconcile
@@ -206,8 +206,8 @@ releasekit standing-pr update --reconcile
 While the base branch holds a release whose tags aren't on the remote yet, the update returns `noop` with a `reason` instead of bumping on top of it. [CI setup](../packages/release/docs/ci-setup.md#lifecycle-and-edge-cases) says when it goes ahead anyway.
 
 The standing PR body carries a **Packages to release** checklist — untick a changed package to hold
-it back from the next release (it is excluded from the version step, never bumped). Requires the
-`pull_request: edited` trigger; see the [release taxonomy](./release-taxonomy.md#selection--what-to-act-on-now)
+it back from the next release (it is excluded from the version step, never bumped). Requires an
+update on the standing PR's `edited` event, which the example workflow relays as a dispatch; see the [release taxonomy](./release-taxonomy.md#selection--what-to-act-on-now)
 for how this composes with groups and prerequisites, and [CI setup](../packages/release/docs/ci-setup.md)
 for the workflow.
 
@@ -217,7 +217,7 @@ Publish packages from a merged standing release PR (reads the manifest from the 
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--pr <number>` | integer | auto | PR number of the merged standing release PR. When omitted, falls back to the `pull_request` event payload, then to the most recently merged standing PR via the GitHub API |
+| `--pr <number>` | integer | auto | PR number of the merged standing release PR. When omitted, falls back to the `pull_request` event payload; on a `push`, to the merged standing PR still waiting for its tags, publishing nothing when there is none; otherwise to the most recently merged standing PR via the GitHub API |
 
 ```bash
 releasekit standing-pr publish --pr 123

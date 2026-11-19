@@ -435,6 +435,8 @@ describe('runStandingPRUpdate', () => {
     vi.resetAllMocks();
     process.env.GITHUB_REPOSITORY = 'owner/repo';
     process.env.GITHUB_TOKEN = 'test-token';
+    // The host CI's event would otherwise pick the run's path.
+    delete process.env.GITHUB_EVENT_NAME;
 
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue(defaultConfig as ReturnType<typeof loadConfig>);
@@ -680,6 +682,13 @@ describe('runStandingPRUpdate', () => {
         expect(fakeGit.pushed).toHaveLength(0);
       });
 
+      it('should update on a dispatched run, as the example relays a label or checkbox change', async () => {
+        await releaseCommitAtHead({ tagged: true });
+        await asRun('workflow_dispatch');
+
+        expect((await update()).action).toBe('updated');
+      });
+
       it("should skip the release commit's own push run", async () => {
         const forge = await releaseCommitAtHead({ tagged: true });
         process.env.GITHUB_EVENT_NAME = 'push';
@@ -728,6 +737,15 @@ describe('runStandingPRUpdate', () => {
       await expect(update(true)).rejects.toThrow('version step failed');
 
       expect(bodyWrites(forge)).toEqual([`${bannerOf(RUN_ID)}\n\n${LIVE_BODY}`, LIVE_BODY]);
+    });
+
+    it('should post its banner on a dispatched run', async () => {
+      const forge = await standingPRWithBody();
+      await asRun('workflow_dispatch');
+
+      expect((await update(true)).action).toBe('updated');
+
+      expect(bodyWrites(forge)[0]).toBe(`${bannerOf(RUN_ID)}\n\n${LIVE_BODY}`);
     });
 
     it("should replace another run's banner rather than stack its own", async () => {
@@ -4727,6 +4745,7 @@ describe('runStandingPRPublish', () => {
     process.env.GITHUB_REPOSITORY = 'owner/repo';
     process.env.GITHUB_TOKEN = 'test-token';
     process.env.GITHUB_EVENT_PATH = '/tmp/test-event.json';
+    delete process.env.GITHUB_EVENT_NAME;
 
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue({
@@ -5015,6 +5034,82 @@ describe('runStandingPRPublish', () => {
     expect(fakeGit.tagged.map((t) => t.name)).toEqual(baseManifest.versionOutput.tags);
     const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
     expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
+  });
+
+  describe('on a push', () => {
+    const MERGE_SHA = 'm'.repeat(40);
+    const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+
+    /** Merged standing PR #77, with a feeder pushed on top of its merge, so the checkout is a later commit. */
+    async function mergedStandingPR(
+      opts: { tagged?: boolean; failureReport?: boolean; mergedMinutesAgo?: number } = {},
+    ) {
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ ref: 'refs/heads/main', after: 'abc123' }));
+      process.env.GITHUB_EVENT_NAME = 'push';
+      setupGit({ remoteTags: { origin: opts.tagged ? { '@scope/core@v1.2.3': MERGE_SHA } : {} } });
+      const comments = [{ id: 1, prNumber: 77, body: serializeManifest(baseManifest) }];
+      if (opts.failureReport) {
+        comments.push({
+          id: 2,
+          prNumber: 77,
+          body: renderFailureReport({
+            versionOutput: baseManifest.versionOutput as unknown as Parameters<
+              typeof renderFailureReport
+            >[0]['versionOutput'],
+            failedStage: 'npm-publish',
+            errorMessage: 'npm 403',
+            recovery: { mode: 'standing-pr', standingPrNumber: 77 },
+          }),
+        });
+      }
+      await mockForge({
+        recentlyClosedPRs: [{ number: 77, mergedAt: minutesAgo(opts.mergedMinutesAgo ?? 5) }],
+        pullRequests: { 77: { body: '', labels: [], mergeCommitSha: MERGE_SHA } },
+        comments,
+      });
+      const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+        ReturnType<typeof runPublishStep>
+      >);
+      return runPublishStep;
+    }
+
+    const publish = () => runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    it('should publish the merged standing PR still waiting for its tags, tagging its merge commit', async () => {
+      const runPublishStep = await mergedStandingPR();
+
+      expect(await publish()).not.toBeNull();
+
+      expect(runPublishStep).toHaveBeenCalledOnce();
+      expect(fakeGit.tagged).toEqual([
+        { name: '@scope/core@v1.2.3', message: 'Release @scope/core@v1.2.3', commit: MERGE_SHA },
+      ]);
+    });
+
+    it.each([
+      { state: 'is tagged', opts: { tagged: true } },
+      { state: 'has a publish-failure report', opts: { failureReport: true } },
+      { state: 'landed past the backstop', opts: { mergedMinutesAgo: 150 } },
+    ])('should publish nothing when the release $state', async ({ opts }) => {
+      const runPublishStep = await mergedStandingPR(opts);
+
+      expect(await publish()).toBeNull();
+
+      expect(runPublishStep).not.toHaveBeenCalled();
+      expect(fakeGit.tagged).toEqual([]);
+    });
+
+    it('should publish nothing when no standing PR has merged', async () => {
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ ref: 'refs/heads/main' }));
+      process.env.GITHUB_EVENT_NAME = 'push';
+      await mockForge({ recentlyClosedPRs: [{ number: 80, mergedAt: null }] });
+
+      expect(await publish()).toBeNull();
+    });
   });
 
   it("should mark previews stale on the merged PR's base branch, not the configured one", async () => {

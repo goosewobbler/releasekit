@@ -68,7 +68,7 @@ It never invents coupling; it just narrows the set:
   is read back from the body (`<!-- rk-sel:… -->` markers, never the prose) and survives the PR
   being regenerated, so a held-back package stays held back until you re-tick it. A held-back
   package is excluded from the version step entirely — it is never bumped, so no orphaned version
-  lands on `main` with no tag. (Requires the `pull_request: edited` trigger — see the
+  lands on `main` with no tag. (Requires the `pull_request: edited` trigger and its relay — see the
   [setup checklist](#setup-checklist).)
 
 Selection composes with the other two: selecting one member of an atomic group still pulls in the
@@ -145,14 +145,14 @@ ad-hoc holds:
    creates `scope:*`, `release:with-prerequisites`, and the rest of the canonical set.
 
 4. **Enable standing-PR checkboxes** by adding the `edited` trigger and the bot-sender guard to your
-   standing-pr workflow (so a tick/untick re-runs the update, and the bot's own body rewrite doesn't
-   loop):
+   standing-pr workflow's relay job (so a tick/untick dispatches the update on `main`, and the bot's
+   own body rewrite doesn't loop):
 
    ```yaml
    on:
      pull_request:
-       types: [closed, labeled, unlabeled, edited]
-   # in the update job's `if:` …
+       types: [labeled, unlabeled, edited]
+   # in the relay job's `if:` …
    #   github.event.sender.type != 'Bot'
    ```
 

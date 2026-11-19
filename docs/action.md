@@ -16,7 +16,7 @@ uses: goosewobbler/releasekit@v0
 - `preview` (default): posts or updates the PR preview comment.
 - `gate`: evaluates merged-PR labels and emits should-release/bump/scope outputs.
 - `standing-pr-update`: creates or refreshes the standing release PR.
-- `standing-pr-publish`: publishes from a merged standing release PR's manifest. Resolution order for which PR: the `pr` input, then the `pull_request` event payload, then the most recently merged standing PR via the GitHub API. Pass `pr` explicitly in dispatch funnels (e.g. `workflow_dispatch` routing for npm OIDC trusted publishing) — re-runs of a stale dispatch can otherwise infer a newer standing PR.
+- `standing-pr-publish`: publishes from a merged standing release PR's manifest. Resolution order for which PR: the `pr` input, then the `pull_request` event payload, then, on a `push`, the merged standing PR still waiting for its tags (nothing to publish when there is none), and otherwise the most recently merged standing PR via the GitHub API. Pass `pr` explicitly in dispatch funnels (e.g. `workflow_dispatch` routing for npm OIDC trusted publishing) — re-runs of a stale dispatch can otherwise infer a newer standing PR.
 - `backfill`: regenerates release notes for already-released versions from git history, writing per-version files and/or updating GitHub release bodies. Dry-run unless `apply: true`. Best driven by `workflow_dispatch` for one-off backfills.
 - `refresh-after-release`: refreshes the standing release PR after a direct release on `main`.
 
@@ -110,7 +110,7 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 |---|---|---|
 | `pr` | - | Merged standing PR number (`standing-pr-publish`, when not triggered by a `pull_request` event) |
 | `reconcile` | `false` | `standing-pr-update` only: bypass the skip-pattern guard. Set this for a post-release reconcile run, where HEAD is the just-pushed release commit (which matches the skip pattern). Without it the reconcile run no-ops and the standing PR keeps holding the just-published versions. It also analyses the latest `origin/<base>` rather than the checkout. |
-| `ack` | `false` | `standing-pr-update` only: on a label or body edit, show an in-progress banner on the standing PR while the update runs. See [In-progress feedback](../packages/release/docs/ci-setup.md#in-progress-feedback). |
+| `ack` | `false` | `standing-pr-update` only: on a label or body edit, or a dispatched run, show an in-progress banner on the standing PR while the update runs. See [In-progress feedback](../packages/release/docs/ci-setup.md#in-progress-feedback). |
 
 ### Backfill mode inputs
 

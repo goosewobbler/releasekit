@@ -39,7 +39,7 @@ export function createStandingPRCommand(): Command {
       )
       .option(
         '--ack',
-        'On a label or body edit, show an in-progress banner on the standing PR while the update runs',
+        'On a label or body edit, or a dispatched run, show an in-progress banner on the standing PR while the update runs',
         false,
       ),
   ).action(async (opts) => {
@@ -72,7 +72,7 @@ export function createStandingPRCommand(): Command {
       .description('Publish packages from a merged standing release PR (reads manifest from PR comment)')
       .option(
         '--pr <number>',
-        'PR number of the merged standing release PR. When omitted, falls back to the pull_request event payload, then to the most recently merged standing PR via the GitHub API',
+        'PR number of the merged standing release PR. When omitted, falls back to the pull_request event payload; on a push, to the merged standing PR still waiting for its tags (none: nothing to publish); otherwise to the most recently merged standing PR via the GitHub API',
       ),
   ).action(async (opts) => {
     const options: StandingPROptions = {

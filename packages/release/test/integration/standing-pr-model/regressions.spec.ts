@@ -66,8 +66,10 @@ describe('standing-PR model regressions', () => {
     ]);
     expect(world.forge.openStandingPr(RELEASE_BRANCH)).toBeUndefined();
 
+    // The push run publishes from main's tip, above the feeder, but tags the merge.
     await runSequence(world, [new Publish(null)], model);
     expect([...model.publishedBy.keys()].sort()).toEqual(['rk-a@1.0.1', 'rk-b@1.0.1']);
+    expect(world.git(world.origin, 'rev-list', '-n', '1', 'v1.0.1')).toBe(model.releases[0]?.mergeSha);
     const next = parseManifest(world.forge.manifestWrites.at(-1)?.body ?? '');
     expect(new Set(next.versionOutput.updates.map((u) => u.newVersion))).toEqual(new Set(['1.0.2']));
   }, 120_000);

@@ -36,6 +36,11 @@ function isOutOfScopeApiStep(step: Step): boolean {
   return typeof step.run === 'string' && /\bgh\s+api\b/.test(step.run);
 }
 
+/** A step whose inputs are secrets, such as minting the standing-pr example's App token, needs real credentials. */
+function isCredentialStep(step: Step): boolean {
+  return Object.values(step.with ?? {}).some(isSecretReferencingEnvValue);
+}
+
 function isSecretReferencingEnvValue(value: unknown): boolean {
   return typeof value === 'string' && /\$\{\{\s*secrets\./.test(value);
 }
@@ -53,7 +58,7 @@ function extractSetupSteps(scenario: Scenario): Step[] {
   }
   const setup: Step[] = [];
   for (const step of job.steps.slice(0, releaseIndex)) {
-    if (isCheckout(step) || isOutOfScopeApiStep(step)) {
+    if (isCheckout(step) || isOutOfScopeApiStep(step) || isCredentialStep(step)) {
       continue;
     }
     // Strip only `secrets.*` references, which would fail or do harm in a dry

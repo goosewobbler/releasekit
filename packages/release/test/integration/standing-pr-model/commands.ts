@@ -35,19 +35,6 @@ async function attempt<T>(world: World, what: string, fn: () => Promise<T>): Pro
   }
 }
 
-function prPayload(world: World, pr: PullRequest): object {
-  return {
-    number: pr.number,
-    state: pr.state,
-    merged: pr.merged,
-    head: { ref: pr.head, sha: world.forge.headSha(pr) },
-    base: { ref: pr.base },
-    merge_commit_sha: pr.mergeCommitSha ?? null,
-    merged_by: pr.mergedBy ?? null,
-    labels: pr.labels.map((name) => ({ name })),
-  };
-}
-
 async function update(model: Model, world: World, trigger: Trigger, env: Omit<JobEnv, 'sha'>): Promise<void> {
   const run: UpdateRun = {
     trigger,
@@ -62,12 +49,9 @@ async function update(model: Model, world: World, trigger: Trigger, env: Omit<Jo
   );
 }
 
-function prEvent(world: World, pr: PullRequest, action: string, sender: Actor, extra: object = {}) {
-  return {
-    eventName: 'pull_request',
-    event: { action, sender, pull_request: prPayload(world, pr), ...extra },
-    ref: `refs/pull/${pr.number}/merge`,
-  };
+/** The relay job's dispatch of an update on `main`, for a label or checkbox change on the open standing PR. */
+function relayed(edited: boolean) {
+  return { eventName: 'workflow_dispatch', event: { inputs: { pr: '', edited } } };
 }
 
 async function publish(
@@ -178,8 +162,7 @@ export class Label extends Command {
       }
       model.approvedLabels.set(pr.number, approved);
     }
-    const action = this.add ? 'labeled' : 'unlabeled';
-    await update(model, world, action, prEvent(world, pr, action, this.actor, { label: { name: this.label } }));
+    await update(model, world, this.add ? 'labeled' : 'unlabeled', relayed(false));
   }
   toString(): string {
     return `${this.actor.login} ${this.add ? 'adds' : 'removes'} '${this.label}'`;
@@ -204,11 +187,10 @@ export class ToggleSelection extends Command {
     if (row === -1) {
       return;
     }
-    const from = pr.body;
     const line = lines[row] as string;
     lines[row] = line.includes('- [ ]') ? line.replace('- [ ]', '- [x]') : line.replace(/- \[[xX]\]/, '- [ ]');
     world.forge.editBody(pr.number, this.actor, lines.join('\n'));
-    await update(model, world, 'edited', prEvent(world, pr, 'edited', this.actor, { changes: { body: { from } } }));
+    await update(model, world, 'edited', relayed(true));
   }
   toString(): string {
     return `${this.actor.login} toggles ${this.pkg}'s selection row`;
@@ -264,7 +246,10 @@ export class MergeMidUpdate extends Command {
   }
 }
 
-/** The publish job of the oldest merged, unpublished standing PR, ending with its reconcile. */
+/**
+ * The release job a push to `main` starts, at `main`'s tip as when a newer push replaced the merge's own run, then
+ * the reconcile job after it. The push names no PR: the release still waiting for its tags is the latest merge's.
+ */
 export class Publish extends Command {
   constructor(private readonly failAfter: number | null) {
     super();
@@ -273,19 +258,21 @@ export class Publish extends Command {
     return pendingReleases(model).length > 0;
   }
   async apply(model: Model, world: World): Promise<void> {
-    const release = pendingReleases(model)[0] as Release;
-    const pr = world.forge.prs.get(release.prNumber) as PullRequest;
+    const release = pendingReleases(model).at(-1) as Release;
     world.registry.failAfter(this.failAfter);
-    const dir = world.checkout(release.mergeSha);
-    const env = { ...prEvent(world, pr, 'closed', pr.mergedBy ?? BOT), ref: 'refs/heads/main', sha: release.mergeSha };
-    const ok = await publish(model, world, pr.number, dir, env, false);
+    const sha = world.mainSha();
+    const push = { eventName: 'push', event: { ref: 'refs/heads/main', after: sha }, sha };
+    const ok = await publish(model, world, release.prNumber, world.checkout(sha), push, false);
     release.pending = false;
     release.failed = !ok;
     if (ok) {
       const run: UpdateRun = { trigger: 'reconcile', openPr: model.openPr, pending: pendingReleases(model) };
       model.updates.push(run);
+      const dir = world.checkout(world.mainSha());
       run.result = await attempt(world, 'reconcile', () =>
-        world.job(dir, env, () => runStandingPRUpdate({ ...options(dir), reconcile: true })),
+        world.job(dir, { ...push, sha: world.mainSha() }, () =>
+          runStandingPRUpdate({ ...options(dir), reconcile: true }),
+        ),
       );
     }
   }
@@ -294,7 +281,7 @@ export class Publish extends Command {
   }
 }
 
-/** `release:retry` on the latest failed release, which publishes from `main`'s tip. */
+/** `release:retry` on the latest failed release, which the relay dispatches as a publish of it on `main`. */
 export class Retry extends Command {
   constructor(private readonly failAfter: number | null) {
     super();
@@ -304,16 +291,15 @@ export class Retry extends Command {
   }
   async apply(model: Model, world: World): Promise<void> {
     const release = model.releases.filter((r) => r.failed).at(-1) as Release;
-    const pr = world.forge.prs.get(release.prNumber) as PullRequest;
     world.registry.failAfter(this.failAfter);
     const sha = world.mainSha();
     const dir = world.checkout(sha);
     const env = {
-      ...prEvent(world, pr, 'labeled', MAINTAINER, { label: { name: 'release:retry' } }),
-      ref: 'refs/heads/main',
+      eventName: 'workflow_dispatch',
+      event: { inputs: { pr: String(release.prNumber), edited: false } },
       sha,
     };
-    release.failed = !(await publish(model, world, pr.number, dir, env, true));
+    release.failed = !(await publish(model, world, release.prNumber, dir, env, true));
   }
   toString(): string {
     return this.failAfter === null ? 'retry' : `retry, failing after ${this.failAfter} package(s)`;

@@ -312,6 +312,10 @@ export class GitCli implements Git {
   async tag(name: string, opts: GitTagOptions = {}): Promise<void> {
     assertNotOption(name, 'tag name');
     const args = opts.message !== undefined ? ['tag', '-a', name, '-m', opts.message] : ['tag', name];
+    if (opts.commit !== undefined) {
+      assertNotOption(opts.commit, 'commit');
+      args.push(opts.commit);
+    }
     await this.exec(args, { cwd: this.cwd(opts.cwd) });
   }
 

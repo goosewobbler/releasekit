@@ -8,6 +8,12 @@
 # "≥ 1 approval" ruleset, see
 # https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#workflow-token-approvals
 #
+# One-time environment (REQUIRED): Settings -> Environments -> New environment
+# `release`, with deployment branches restricted to `main`. Every job that writes
+# runs in it, so registry secrets and the optional GitHub App's secrets reach
+# only runs on `main`. See
+# https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#the-release-environment
+#
 # Exempt the release branch (release/*) from your build/test CI, or every update
 # re-runs your whole matrix. See
 # https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#keeping-ci-off-the-standing-pr
@@ -17,53 +23,124 @@ on:
   push:
     branches: [main]
   pull_request:
-    # labeled/unlabeled/edited apply override labels and package (un)ticks on the
-    # OPEN standing PR immediately; labeled also drives release:retry on the merged PR.
-    types: [closed, labeled, unlabeled, edited]
+    # Only the relay job runs on these: it dispatches the work on main.
+    types: [labeled, unlabeled, edited]
     branches: [main]
   schedule:
     - cron: '0 * * * *' # advances the minAge status check as time passes
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'Merged standing PR to publish again, as release:retry does. Leave empty to update the standing PR.'
+        type: string
+        default: ''
+      edited:
+        description: 'Cancel an update in progress, as a checkbox edit does'
+        type: boolean
+        default: false
 
-# The publishing jobs restate these: job-level `permissions` replace the workflow's.
-permissions:
-  contents: write # push to release/next, create tags
-  pull-requests: write # create/update/close the standing PR and its comments
-  statuses: write # post the releasekit/standing-pr status check
+permissions: {}
 
 jobs:
-  update:
-    name: Update Release PR
-    # `sender.type != 'Bot'` is load-bearing: the update rewrites the PR body (an `edited` event), so
-    # the bot would otherwise re-trigger itself forever. Matching on type rather than the
-    # `github-actions[bot]` login also filters a custom GitHub App token. The `release/` prefix is
-    # hardcoded (workflow `if` can't read config) - in-step config is authoritative.
+  relay:
+    name: Relay to main
+    # Label and checkbox changes on the open standing PR, and `release:retry` on the merged one, run on main where the
+    # `release` environment's secrets are. `sender.type != 'Bot'` is load-bearing: the update rewrites the PR body (an
+    # `edited` event), so the bot would otherwise re-trigger itself forever. Matching on type rather than the
+    # `github-actions[bot]` login also filters the App. The `release/` prefix and the label name are hardcoded (workflow
+    # `if` can't read config) - in-step config is authoritative.
     if: >-
-      github.event_name == 'push' ||
-      github.event_name == 'schedule' ||
+      startsWith(github.event.pull_request.head.ref, 'release/') &&
       (
-        github.event_name == 'pull_request' &&
+        (github.event.pull_request.state == 'open' && github.event.sender.type != 'Bot') ||
         (
-          github.event.action == 'labeled' ||
-          github.event.action == 'unlabeled' ||
-          github.event.action == 'edited'
-        ) &&
-        github.event.pull_request.state == 'open' &&
-        startsWith(github.event.pull_request.head.ref, 'release/') &&
-        github.event.sender.type != 'Bot'
+          github.event.action == 'labeled' &&
+          github.event.label.name == 'release:retry' &&
+          github.event.pull_request.merged == true
+        )
       )
-    # GitHub keeps one pending job per concurrency group and replaces it with any newer one. Updates share
-    # a non-cancelling group with immediate-release; a maintainer's checkbox edits get a per-PR cancelling
-    # group, so rapid ticks collapse to one rebuild.
-    concurrency:
-      group: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' }}
+    permissions:
+      actions: write # start this workflow on main
     runs-on: ubuntu-latest
     steps:
+      - name: Dispatch on main
+        run: |
+          workflow="${GITHUB_WORKFLOW_REF%%@*}"
+          if [ "$MERGED" = true ]; then
+            gh workflow run "${workflow##*/}" --ref "$BASE_REF" -f pr="$PR"
+          else
+            gh workflow run "${workflow##*/}" --ref "$BASE_REF" -f edited="$EDITED"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR: ${{ github.event.pull_request.number }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          EDITED: ${{ github.event.action == 'edited' }}
+
+  detect:
+    name: Detect Release
+    # Coarse: only a release job can replace a queued release, so a feeder push mustn't start one. The release job's
+    # CLI steps decide what actually publishes.
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.merged.outputs.publish }}
+      immediate: ${{ steps.merged.outputs.immediate }}
+    steps:
+      - name: Read the PR merged as this commit
+        id: merged
+        run: |
+          prs=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq 'map(select(.merged_at != null))')
+          echo "publish=$(jq 'any(.[]; .head.ref | startswith("release/"))' <<<"$prs")" >> "$GITHUB_OUTPUT"
+          echo "immediate=$(jq 'any(.[]; (.head.ref | startswith("release/") | not) and any(.labels[]; .name == "release:immediate"))' <<<"$prs")" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  update:
+    name: Update Release PR
+    needs: detect
+    # An immediate release's push is left to the reconcile job, so the standing PR doesn't offer what it publishes.
+    if: >-
+      !cancelled() &&
+      needs.detect.outputs.immediate != 'true' &&
+      (
+        github.event_name == 'push' ||
+        github.event_name == 'schedule' ||
+        (github.event_name == 'workflow_dispatch' && inputs.pr == '')
+      )
+    environment: release
+    # GitHub keeps one pending job per concurrency group and replaces it with any newer one. Every rebuild shares this
+    # group, which an update gives the same result in whatever started it; a checkbox edit also cancels the one in
+    # progress, so rapid ticks collapse to one rebuild.
+    concurrency:
+      group: standing-release-pr
+      cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' && inputs.edited }}
+    permissions:
+      contents: write # push to release/next
+      pull-requests: write # create/update/close the standing PR and its comments
+      statuses: write # post the releasekit/standing-pr status check
+    env:
+      RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint App token
+        id: app-token
+        # Only once the App's secrets are in the release environment; every step falls back to GITHUB_TOKEN.
+        if: env.RELEASE_APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.base.ref }}
           fetch-depth: 0
-          token: ${{ github.token }}
+          token: ${{ steps.app-token.outputs.token || github.token }}
 
       - uses: pnpm/action-setup@v6
 
@@ -81,93 +158,50 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Update standing release PR
-        # --ack shows an in-progress banner on the standing PR while a label or checkbox change is applied.
+        # --ack shows an in-progress banner on the standing PR while a relayed label or checkbox change is applied.
         run: pnpm exec releasekit standing-pr update --ack
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           # LLM key only needed when using the release:preview-notes label (optional).
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
-  immediate-release:
-    name: Immediate Release (bypass standing PR)
-    if: >
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.head.ref != 'release/next' &&
-      contains(github.event.pull_request.labels.*.name, 'release:immediate')
-    concurrency: standing-release-pr
+  release:
+    name: Release
+    needs: detect
+    # The standing PR's merge, a merged `release:immediate` PR, or a relayed `release:retry`.
+    if: >-
+      !cancelled() &&
+      (
+        needs.detect.outputs.publish == 'true' ||
+        needs.detect.outputs.immediate == 'true' ||
+        (github.event_name == 'workflow_dispatch' && inputs.pr != '')
+      )
+    environment: release
+    # Shared by every release and joined by no update, so no update can replace a queued release.
+    concurrency: standing-release
     permissions:
       contents: write
       pull-requests: write
       statuses: write
       id-token: write # npm OIDC trusted publishing
+    env:
+      RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
     runs-on: ubuntu-latest
     steps:
+      - name: Mint App token
+        id: app-token
+        if: env.RELEASE_APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ github.token }}
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Direct release (bypassing standing PR)
-        run: pnpm exec releasekit release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-      - name: Reconcile standing PR
-        # Not `standing-pr update`: HEAD is now a `chore: release …` commit, which the skip-pattern
-        # guard matches, so a plain update no-ops.
-        run: pnpm exec releasekit refresh-after-release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # LLM key only needed when using the release:preview-notes label (optional).
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-  publish:
-    name: Publish Release
-    # action == 'closed' matters: with `labeled` also subscribed above, a label
-    # added to the already-merged PR must not re-match this job and publish again.
-    if: >
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.head.ref, 'release/')
-    # Per PR, shared only with retry-publish, so no other job can replace a queued publish.
-    concurrency: standing-release-pr-closed-${{ github.event.pull_request.number }}
-    permissions:
-      contents: write
-      pull-requests: write
-      statuses: write
-      id-token: write # npm OIDC trusted publishing
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          token: ${{ github.token }}
+          token: ${{ steps.app-token.outputs.token || github.token }}
 
       - uses: pnpm/action-setup@v6
 
@@ -185,48 +219,64 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Publish from standing release PR
-        run: pnpm exec releasekit standing-pr publish
+        # On a push, publishes the merged standing PR still waiting for its tags, so a run that replaced the merge's
+        # own still publishes it, and an immediate release doesn't bump on top of it. Otherwise a no-op.
+        run: pnpm exec releasekit standing-pr publish ${PR:+--pr "$PR"}
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
-      - name: Update standing release PR
-        # Opens the next standing PR straight away, e.g. to offer graduation of the prereleases that just shipped.
-        # `--reconcile` because HEAD is the release commit, which a plain update skips. The release has succeeded
-        # by now, so a failure here waits for the next push instead of failing the job.
-        continue-on-error: true
-        run: pnpm exec releasekit standing-pr update --reconcile
+      - name: Direct release (bypassing standing PR)
+        # The CLI reads the merged PR and its labels for the pushed commit from GitHub.
+        if: needs.detect.outputs.immediate == 'true'
+        run: pnpm exec releasekit release
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
-  retry-publish:
-    name: Retry Publish
-    # After a partial-publish failure, apply `release:retry` to the MERGED standing
-    # PR (label events fire on closed PRs). Publishing is idempotent, so the retry
-    # finishes whatever the failed run left undone. The label name is hardcoded
-    # (workflow `if` can't read config) - update it if you change ci.labels.retry.
-    if: >
-      github.event_name == 'pull_request' &&
-      github.event.action == 'labeled' &&
-      github.event.label.name == 'release:retry' &&
-      github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.head.ref, 'release/')
-    concurrency: standing-release-pr-closed-${{ github.event.pull_request.number }}
+      - name: Remove retry label
+        # Each application is exactly one retry; re-apply the label to retry again.
+        if: always() && inputs.pr != ''
+        run: gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$PR/labels/release%3Aretry" || true
+        env:
+          PR: ${{ inputs.pr }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+
+  reconcile:
+    name: Reconcile Release PR
+    needs: release
+    environment: release
+    # The rebuild group, so it queues with the updates rather than racing them.
+    concurrency:
+      group: standing-release-pr
+      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write
       statuses: write
-      id-token: write # npm OIDC trusted publishing
+    env:
+      RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
     runs-on: ubuntu-latest
     steps:
+      - name: Mint App token
+        id: app-token
+        if: env.RELEASE_APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ github.token }}
-          ref: main # the standing PR branch is deleted on merge
+          token: ${{ steps.app-token.outputs.token || github.token }}
 
       - uses: pnpm/action-setup@v6
 
@@ -243,25 +293,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Retry publish from standing release PR
-        run: pnpm exec releasekit standing-pr publish --pr ${{ github.event.pull_request.number }}
+      - name: Update standing release PR
+        # Rebuilds the standing PR once the release is tagged, e.g. to offer graduation of the prereleases that just
+        # shipped. `--reconcile` because main's tip is now a release commit, which a plain update skips.
+        run: pnpm exec releasekit standing-pr update --reconcile
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          # LLM key only needed when using the release:preview-notes label (optional).
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-      - name: Update standing release PR
-        # Rebuilds the standing PR now the retried release's tags exist. See the publish job.
-        continue-on-error: true
-        run: pnpm exec releasekit standing-pr update --reconcile
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-
-      - name: Remove retry label
-        # Each application is exactly one retry; re-apply the label to retry again.
-        if: always()
-        run: gh api -X DELETE "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels/release%3Aretry" || true
-        env:
-          GH_TOKEN: ${{ github.token }}
