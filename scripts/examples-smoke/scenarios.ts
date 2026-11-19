@@ -10,7 +10,7 @@ export interface Scenario {
   workflow: string;
   /** Job whose steps before `releaseStep` become the smoke job's setup. */
   job: string;
-  /** `name` of the job's releasekit step, which `releaseArgs` replace. */
+  /** `name` of the job's releasekit step. */
   releaseStep: string;
   /** Shipped config copied into the throwaway fixture. */
   config: string;
