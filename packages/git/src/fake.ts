@@ -51,6 +51,8 @@ export interface FakeGitSeed {
   /** Keyed by `<a>...<b>`, in either order. */
   mergeBases?: Record<string, string>;
   remoteBranches?: Record<string, string[]>;
+  /** Per remote, each tag mapped to its commit. */
+  remoteTags?: Record<string, Record<string, string>>;
   /** `git log` responses keyed by range; `'*'` is a catch-all when no range matches. */
   commits?: FakeLog;
   /** `readFileAt` contents keyed by `<ref>:<file>`. */
@@ -85,6 +87,7 @@ export class FakeGit implements Git {
   private readonly ancestors: FakeGitSeed['ancestors'];
   private readonly mergeBases: Record<string, string>;
   private readonly remoteBranches: Record<string, string[]>;
+  private readonly remoteTagCommits: Record<string, Record<string, string>>;
   private readonly commits: FakeLog;
   private readonly files: Record<string, string>;
   private readonly refLines: string[];
@@ -114,6 +117,7 @@ export class FakeGit implements Git {
     this.ancestors = seed.ancestors;
     this.mergeBases = seed.mergeBases ?? {};
     this.remoteBranches = seed.remoteBranches ?? {};
+    this.remoteTagCommits = seed.remoteTags ?? {};
     this.commits = seed.commits ?? {};
     this.files = seed.files ?? {};
     this.refLines = [...(seed.refLines ?? [])];
@@ -192,6 +196,10 @@ export class FakeGit implements Git {
     return (this.remoteBranches[remote] ?? []).includes(branch);
   }
 
+  async remoteTags(remote: string, _cwd?: string): Promise<Record<string, string>> {
+    return { ...this.remoteTagCommits[remote] };
+  }
+
   async hasStagedChanges(_cwd?: string): Promise<boolean> {
     return this.stagedChanges;
   }
@@ -215,8 +223,15 @@ export class FakeGit implements Git {
     }
   }
 
-  async fetch(remote: string, _opts: GitFetchOptions = {}): Promise<void> {
+  async fetch(remote: string, opts: GitFetchOptions = {}): Promise<void> {
     this.fetched.push(remote);
+    if (opts.tags) {
+      for (const name of Object.keys(this.remoteTagCommits[remote] ?? {})) {
+        if (!this.tagsList.includes(name)) {
+          this.tagsList.push(name);
+        }
+      }
+    }
   }
 
   async checkout(ref: string, opts: GitCheckoutOptions = {}): Promise<void> {

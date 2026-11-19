@@ -39,6 +39,8 @@ export interface GitTagOptions {
 
 export interface GitFetchOptions {
   cwd?: string;
+  /** `--tags --force`: every remote tag too, even one off the fetched branches, replacing a local tag that differs. */
+  tags?: boolean;
 }
 
 export interface GitCheckoutOptions {
@@ -111,6 +113,8 @@ export interface Git {
   isIgnored(file: string, cwd?: string): Promise<boolean>;
   forEachRef(opts: GitForEachRefOptions): Promise<string[]>;
   remoteBranchExists(remote: string, branch: string, cwd?: string): Promise<boolean>;
+  /** Each tag on `remote`, mapped to the commit it points at. */
+  remoteTags(remote: string, cwd?: string): Promise<Record<string, string>>;
   hasStagedChanges(cwd?: string): Promise<boolean>;
 
   /** To stage everything, use {@link Git.addAll}. */

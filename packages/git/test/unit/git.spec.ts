@@ -235,17 +235,27 @@ describe('GitCli queries', () => {
   it('should answer remoteBranchExists via ls-remote --exit-code exit code', async () => {
     const yes = makeRunner();
     expect(await new GitCli(yes.run).remoteBranchExists('origin', 'release/next', '/r')).toBe(true);
-    expect(yes.calls[0].args).toEqual([
-      'ls-remote',
-      '--exit-code',
-      '--heads',
-      '--end-of-options',
-      'origin',
-      'release/next',
-    ]);
+    expect(yes.calls[0].args).toEqual(['ls-remote', '--exit-code', '--heads', '--', 'origin', 'release/next']);
 
     const no = makeRunner({ reject: exitError(2) });
     expect(await new GitCli(no.run).remoteBranchExists('origin', 'absent')).toBe(false);
+  });
+
+  it('should map each remote tag to its commit, peeling annotated tags', async () => {
+    const { run, calls } = makeRunner({
+      stdout: [
+        'aaa\trefs/tags/v1.0.0',
+        'ttt\trefs/tags/v2.0.0',
+        'bbb\trefs/tags/v2.0.0^{}',
+        'ccc\trefs/tags/@scope/pkg@v1.0.0',
+      ].join('\n'),
+    });
+    expect(await new GitCli(run).remoteTags('origin', '/r')).toEqual({
+      'v1.0.0': 'aaa',
+      'v2.0.0': 'bbb',
+      '@scope/pkg@v1.0.0': 'ccc',
+    });
+    expect(calls[0].args).toEqual(['ls-remote', '--tags', '--', 'origin']);
   });
 
   it('should answer hasStagedChanges via diff --cached --quiet exit code', async () => {
@@ -319,7 +329,13 @@ describe('GitCli mutations', () => {
   it('should fetch from the named remote', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).fetch('origin', { cwd: '/r' });
-    expect(calls[0].args).toEqual(['fetch', '--end-of-options', 'origin']);
+    expect(calls[0].args).toEqual(['fetch', '--', 'origin']);
+  });
+
+  it('should force-fetch every tag when tags is set', async () => {
+    const { run, calls } = makeRunner();
+    await new GitCli(run).fetch('origin', { tags: true });
+    expect(calls[0].args).toEqual(['fetch', '--tags', '--force', '--', 'origin']);
   });
 
   it('should checkout a ref, using -B when create is set', async () => {
@@ -462,7 +478,7 @@ describe('GitCli option-injection guard', () => {
   it('should still run a normal value through the guard unharmed', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).fetch('origin');
-    expect(calls[0].args).toEqual(['fetch', '--end-of-options', 'origin']);
+    expect(calls[0].args).toEqual(['fetch', '--', 'origin']);
   });
 });
 
