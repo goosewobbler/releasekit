@@ -223,8 +223,15 @@ export class FakeGit implements Git {
     }
   }
 
-  async fetch(remote: string, _opts: GitFetchOptions = {}): Promise<void> {
+  async fetch(remote: string, opts: GitFetchOptions = {}): Promise<void> {
     this.fetched.push(remote);
+    if (opts.tags) {
+      for (const name of Object.keys(this.remoteTagCommits[remote] ?? {})) {
+        if (!this.tagsList.includes(name)) {
+          this.tagsList.push(name);
+        }
+      }
+    }
   }
 
   async checkout(ref: string, opts: GitCheckoutOptions = {}): Promise<void> {

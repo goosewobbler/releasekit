@@ -317,7 +317,8 @@ export class GitCli implements Git {
 
   async fetch(remote: string, opts: GitFetchOptions = {}): Promise<void> {
     assertNotOption(remote, 'remote');
-    await this.exec(['fetch', '--end-of-options', remote], { cwd: this.cwd(opts.cwd) });
+    const tags = opts.tags ? ['--tags', '--force'] : [];
+    await this.exec(['fetch', ...tags, '--end-of-options', remote], { cwd: this.cwd(opts.cwd) });
   }
 
   async checkout(ref: string, opts: GitCheckoutOptions = {}): Promise<void> {

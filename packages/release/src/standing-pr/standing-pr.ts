@@ -242,7 +242,9 @@ function eventPullRequest(prNumber: number): EventPullRequest | undefined {
 
 async function resetReleaseBranch(branch: string, base: string, cwd: string): Promise<void> {
   const git = createGitCli();
-  await git.fetch('origin', { cwd });
+  // The version analysis reads local tags, and a plain fetch skips a standing PR's tags when they sit on a notes
+  // commit off the base branch.
+  await git.fetch('origin', { tags: true, cwd });
 
   // `checkout -B` creates or resets the branch, so this works whether or not it already exists.
   await git.checkout(branch, { create: true, cwd });
@@ -1105,7 +1107,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         includePrerequisites,
       };
 
-  const waitForReleaseInFlight = async (): Promise<StandingPRResult | null> => {
+  const resetAndCheckReleaseInFlight = async (): Promise<StandingPRResult | null> => {
+    info(`Resetting release branch '${branch}' to origin/${base}...`);
+    await resetReleaseBranch(branch, base, cwd);
     const inFlight = await findReleaseInFlight({ forge, cwd, base, branch, skipPatterns });
     if (!inFlight) {
       return null;
@@ -1116,9 +1120,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   // A reconcile runs in a publishing job, whose checkout can predate a newer merge, so it analyses the latest base.
   if (options.reconcile) {
-    info(`Resetting release branch '${branch}' to origin/${base}...`);
-    await resetReleaseBranch(branch, base, cwd);
-    const waiting = await waitForReleaseInFlight();
+    const waiting = await resetAndCheckReleaseInFlight();
     if (waiting) {
       return waiting;
     }
@@ -1201,9 +1203,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   }
 
   if (!options.reconcile) {
-    info(`Resetting release branch '${branch}' to origin/${base}...`);
-    await resetReleaseBranch(branch, base, cwd);
-    const waiting = await waitForReleaseInFlight();
+    const waiting = await resetAndCheckReleaseInFlight();
     if (waiting) {
       return waiting;
     }

@@ -109,7 +109,7 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 | Input | Default | Description |
 |---|---|---|
 | `pr` | - | Merged standing PR number (`standing-pr-publish`, when not triggered by a `pull_request` event) |
-| `reconcile` | `false` | `standing-pr-update` only: bypass the skip-pattern guard. Set this for a post-release reconcile run, where HEAD is the just-pushed release commit (which matches the skip pattern). Without it the reconcile run no-ops and the standing PR keeps holding the just-published versions. |
+| `reconcile` | `false` | `standing-pr-update` only: bypass the skip-pattern guard. Set this for a post-release reconcile run, where HEAD is the just-pushed release commit (which matches the skip pattern). Without it the reconcile run no-ops and the standing PR keeps holding the just-published versions. It also analyses the latest `origin/<base>` rather than the checkout. |
 
 ### Backfill mode inputs
 

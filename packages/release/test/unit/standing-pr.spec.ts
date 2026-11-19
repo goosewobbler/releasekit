@@ -491,6 +491,8 @@ describe('runStandingPRUpdate', () => {
       await mergedStandingPR({ tagged: true });
 
       expect((await update()).action).toBe('updated');
+      // Its tags sit on a notes commit off the base branch, which only a tags fetch brings in for the analysis.
+      expect(await fakeGit.listTags()).toContain('@scope/core@v0.29.0');
     });
 
     it('should update when the untagged release has a publish-failure report', async () => {

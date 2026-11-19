@@ -339,6 +339,12 @@ describe('GitCli mutations', () => {
     expect(calls[0].args).toEqual(['fetch', '--end-of-options', 'origin']);
   });
 
+  it('should force-fetch every tag when tags is set', async () => {
+    const { run, calls } = makeRunner();
+    await new GitCli(run).fetch('origin', { tags: true });
+    expect(calls[0].args).toEqual(['fetch', '--tags', '--force', '--end-of-options', 'origin']);
+  });
+
   it('should checkout a ref, using -B when create is set', async () => {
     const plain = makeRunner();
     await new GitCli(plain.run).checkout('main');

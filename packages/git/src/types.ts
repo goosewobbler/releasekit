@@ -39,6 +39,8 @@ export interface GitTagOptions {
 
 export interface GitFetchOptions {
   cwd?: string;
+  /** `--tags --force`: every remote tag too, even one off the fetched branches, replacing a local tag that differs. */
+  tags?: boolean;
 }
 
 export interface GitCheckoutOptions {

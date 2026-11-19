@@ -102,7 +102,7 @@ inputs:
     required: false
 
   reconcile:
-    description: 'Bypass the skip-pattern guard in standing-pr-update mode (for post-release reconcile runs, where HEAD is a release commit)'
+    description: 'Bypass the skip-pattern guard in standing-pr-update mode (for post-release reconcile runs, where HEAD is a release commit), and analyse the latest origin/<base> rather than the checkout'
     required: false
     default: 'false'
 
