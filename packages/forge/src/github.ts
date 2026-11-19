@@ -121,6 +121,7 @@ export class GitHubForge implements Forge {
       title: data.title,
       labels: labelNames(data.labels),
       isPullRequest: Boolean(data.pull_request),
+      state: data.state === 'closed' ? 'closed' : 'open',
     };
   }
 

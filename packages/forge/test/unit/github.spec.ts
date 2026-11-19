@@ -190,24 +190,26 @@ describe('GitHubForge', () => {
     it('should map body/title/labels and detect a pull request', async () => {
       const { octokit, fns } = makeOctokit();
       fns.issuesGet.mockResolvedValue({
-        data: { body: 'b', title: 't', labels: ['x', { name: 'y' }], pull_request: {} },
+        data: { body: 'b', title: 't', labels: ['x', { name: 'y' }], pull_request: {}, state: 'closed' },
       });
       expect(await new GitHubForge(octokit, 'o', 'r').getIssue(3)).toEqual({
         body: 'b',
         title: 't',
         labels: ['x', 'y'],
         isPullRequest: true,
+        state: 'closed',
       });
     });
 
     it('should default a null body to empty and report a plain issue as not a PR', async () => {
       const { octokit, fns } = makeOctokit();
-      fns.issuesGet.mockResolvedValue({ data: { body: null, title: 't', labels: [] } });
+      fns.issuesGet.mockResolvedValue({ data: { body: null, title: 't', labels: [], state: 'open' } });
       expect(await new GitHubForge(octokit, 'o', 'r').getIssue(3)).toEqual({
         body: '',
         title: 't',
         labels: [],
         isPullRequest: false,
+        state: 'open',
       });
     });
   });

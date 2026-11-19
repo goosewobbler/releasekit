@@ -103,22 +103,9 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
   }
 
   const { versionOutput, releaseNotes } = result;
-  const baseSha = await createGitCli().headSha(options.projectDir);
-  const manifest: StandingPRManifest = {
-    schemaVersion: 2,
-    versionOutput,
-    // The reviewed baseline: a package whose editable region gets mangled falls back to these, not fresh notes.
-    releaseNotes: releaseNotes ?? {},
-    notesFiles: [],
-    createdAt: nowIso(),
-    baseSha,
-  };
-
   const forge = forgeFor(context);
   const display = syncVersionDisplay(versionOutput);
   const title = display ? `Release draft: ${display}` : 'Release draft';
-  const body = renderDraftBody(versionOutput, releaseNotes ?? {});
-  const manifestComment = serializeManifest(manifest, DRAFT_MANIFEST_MARKER);
 
   // Never adopt a hand-labelled issue or a hand-written manifest.
   const existing = await forge.findOpenIssueByLabel(DRAFT_LABEL);
@@ -127,6 +114,26 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
     existing && existingManifest && isBotComment(existingManifest) && isReleaseManifestComment(existingManifest.body)
       ? existing
       : null;
+  if (options.dryRun) {
+    info(
+      reusable
+        ? `Dry run: would update release draft issue #${reusable.number} as "${title}".`
+        : `Dry run: would open a new release draft issue "${title}".`,
+    );
+    return result;
+  }
+
+  const manifest: StandingPRManifest = {
+    schemaVersion: 2,
+    versionOutput,
+    // The reviewed baseline: a package whose editable region gets mangled falls back to these, not fresh notes.
+    releaseNotes: releaseNotes ?? {},
+    notesFiles: [],
+    createdAt: nowIso(),
+    baseSha: await createGitCli().headSha(options.projectDir),
+  };
+  const body = renderDraftBody(versionOutput, releaseNotes ?? {});
+  const manifestComment = serializeManifest(manifest, DRAFT_MANIFEST_MARKER);
   let issueNumber: number;
   if (reusable) {
     await forge.updateIssue(reusable.number, { title, body });
@@ -170,6 +177,13 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
     );
   }
 
+  if ((await forge.getIssue(issueNumber)).state === 'closed') {
+    throw new Error(
+      `Release draft #${issueNumber} is closed. Reopen it to publish it, or run 'releasekit release --draft' ` +
+        'for a new draft.',
+    );
+  }
+
   // A different HEAD could publish something other than what was reviewed.
   const currentSha = await createGitCli().headSha(options.projectDir);
   if (currentSha !== manifest.baseSha) {
@@ -188,6 +202,7 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
     );
   }
 
+  // Re-read after the preview so notes edited while it ran are published.
   const issue = await forge.getIssue(issueNumber);
   const draftedNotes = manifest.releaseNotes ?? {};
   const extracted = extractNotesRegions(issue.body, manifest.versionOutput);

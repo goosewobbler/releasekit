@@ -93,9 +93,15 @@ describe('FakeForge', () => {
       issues: { 7: { body: 'ib', title: 'it', labels: ['l'], isPullRequest: true } },
       pullRequests: { 7: { body: 'pb', labels: ['p'], headRef: 'release/next' } },
     });
-    expect(await forge.getIssue(7)).toEqual({ body: 'ib', title: 'it', labels: ['l'], isPullRequest: true });
+    expect(await forge.getIssue(7)).toEqual({
+      body: 'ib',
+      title: 'it',
+      labels: ['l'],
+      isPullRequest: true,
+      state: 'open',
+    });
     expect(await forge.getPullRequest(7)).toEqual({ body: 'pb', labels: ['p'], headRef: 'release/next' });
-    expect(await forge.getIssue(404)).toEqual({ body: '', title: '', labels: [], isPullRequest: true });
+    expect(await forge.getIssue(404)).toEqual({ body: '', title: '', labels: [], isPullRequest: true, state: 'open' });
     expect(await forge.getPullRequest(404)).toEqual({ body: '', labels: [] });
   });
 
@@ -156,6 +162,7 @@ describe('FakeForge', () => {
       title: 'Release draft',
       labels: ['release:draft'],
       isPullRequest: false,
+      state: 'open',
     });
     expect(await forge.findOpenIssueByLabel('release:draft')).toEqual({ number: 42, url: ref.url });
     expect(await forge.findOpenIssueByLabel('nope')).toBeNull();
@@ -171,6 +178,7 @@ describe('FakeForge', () => {
 
     await forge.updateIssue(ref.number, { state: 'closed' });
     expect(await forge.findOpenIssueByLabel('release:draft')).toBeNull();
+    expect(await forge.getIssue(ref.number)).toMatchObject({ state: 'closed' });
   });
 
   it('should discover a pre-seeded open issue by label', async () => {
@@ -193,6 +201,10 @@ describe('FakeForge', () => {
       issues: { 8: { body: 'b', title: 't', labels: ['release:draft'], isPullRequest: true } },
     });
     expect(await withPr.findOpenIssueByLabel('release:draft')).toBeNull();
+    const closed = createFakeForge({
+      issues: { 9: { body: 'b', title: 't', labels: ['release:draft'], isPullRequest: false, state: 'closed' } },
+    });
+    expect(await closed.findOpenIssueByLabel('release:draft')).toBeNull();
   });
 
   it('should return the newest (highest-numbered) matching open issue', async () => {

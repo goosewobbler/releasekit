@@ -166,6 +166,40 @@ describe('runReleaseDraft', () => {
     expect(seeded.upsertedComments.map((c) => c.prNumber)).not.toContain(7);
   });
 
+  it('should write nothing to GitHub on --dry-run, reporting the issue it would open', async () => {
+    const { info } = await import('@releasekit/core');
+
+    const result = await runReleaseDraft({ ...baseOptions, dryRun: true });
+
+    expect(result?.versionOutput).toEqual(versionOutput);
+    expect(forge.createdIssues).toHaveLength(0);
+    expect(forge.updatedIssues).toHaveLength(0);
+    expect(forge.upsertedComments).toHaveLength(0);
+    expect(forge.createdComments).toHaveLength(0);
+    expect(vi.mocked(info)).toHaveBeenCalledWith(
+      'Dry run: would open a new release draft issue "Release draft: v1.2.0".',
+    );
+  });
+
+  it('should leave the existing draft untouched on --dry-run, reporting that it would update it', async () => {
+    const { info } = await import('@releasekit/core');
+    const seeded = createFakeForge({
+      openIssues: [{ number: 7, url: 'u', labels: [DRAFT_LABEL] }],
+      comments: [{ id: 1, body: validManifestComment, prNumber: 7, user: botAuthor }],
+    });
+    mockForgeFor.mockReturnValue(seeded);
+
+    await runReleaseDraft({ ...baseOptions, dryRun: true });
+
+    expect(seeded.createdIssues).toHaveLength(0);
+    expect(seeded.updatedIssues).toHaveLength(0);
+    expect(seeded.upsertedComments).toHaveLength(0);
+    expect(seeded.updatedComments).toHaveLength(0);
+    expect(vi.mocked(info)).toHaveBeenCalledWith(
+      expect.stringMatching(/^Dry run: would update release draft issue #7 /),
+    );
+  });
+
   it.each(['ghp_', 'github_pat_', 'gho_', 'ghu_'])(
     'should refuse a %s token before computing the release',
     async (prefix) => {
@@ -233,6 +267,27 @@ describe('publishFromDraft', () => {
     await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(
       /posted by 'attacker', not a bot account\. Re-run 'releasekit release --draft' with/,
     );
+    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(forge.updatedIssues).toHaveLength(0);
+  });
+
+  it('should refuse a closed draft before checking HEAD or computing the release', async () => {
+    headSha = 'sha-moved';
+    const forge = createFakeForge({
+      issues: {
+        9: {
+          body: '## Release Notes',
+          title: 'Release draft',
+          labels: ['release:draft'],
+          isPullRequest: false,
+          state: 'closed',
+        },
+      },
+      comments: [{ id: 1, body: serializeManifest(manifest, draftMarker), prNumber: 9, user: botAuthor }],
+    });
+    mockForgeFor.mockReturnValue(forge);
+
+    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/Release draft #9 is closed\. Reopen it/);
     expect(mockRunRelease).not.toHaveBeenCalled();
     expect(forge.updatedIssues).toHaveLength(0);
   });
