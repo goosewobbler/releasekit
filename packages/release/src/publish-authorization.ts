@@ -51,7 +51,6 @@ export interface DraftPublishRequest {
   cwd: string;
   /** The release recomputed at HEAD with this run's flags and config. */
   recomputePlan: () => Promise<VersionOutput | undefined>;
-  /** A dry run refuses without posting the report. */
   dryRun?: boolean;
 }
 
@@ -61,14 +60,15 @@ export interface DraftPublishAuthorization {
 
 export interface DirectReleaseRequest {
   phase: 'direct';
-  /** The gate's verdict on the pushed commit's merged PRs. */
   verdict: GateOutput;
   config: ReleaseKitConfig;
-  /** A dry run refuses without posting the report. */
   dryRun?: boolean;
 }
 
-/** A refusal of the release on the PR or issue it names, so the refusal report goes there. */
+/**
+ * A refusal of the release on the PR or issue it names, so the refusal report goes there. Naming the wrong kind of PR
+ * or issue throws a plain error instead, since a report on it would read as that PR's own failed release.
+ */
 class Refusal extends Error {
   constructor(
     message: string,
@@ -78,11 +78,6 @@ class Refusal extends Error {
   }
 }
 
-/**
- * Asks whether this phase may publish. Returns what the publish needs, or throws. A refusal of the release on the named
- * PR or issue posts the refusal report there; naming the wrong kind of PR or issue throws without one, since a report
- * on it would read as that PR's own failed release.
- */
 export function authorizePublish(
   forge: Forge,
   request: StandingPRPublishRequest & { phase: 'pre-merge' },
@@ -109,7 +104,6 @@ export async function authorizePublish(
   }
 }
 
-/** What a refusal report can show of the release it refused. */
 interface Refused {
   versionOutput?: VersionOutput;
 }

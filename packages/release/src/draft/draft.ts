@@ -2,6 +2,7 @@ import type { VersionOutput } from '@releasekit/core';
 import { hasUnterminatedNotesRegion, info, success, warn } from '@releasekit/core';
 import { type Forge, isBotComment } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
+import { resolveFailureReportIfPresent } from '../failure-report/post.js';
 import { requireGitHubContext } from '../git.js';
 import { forgeFor } from '../github.js';
 import { authorizePublish, DRAFT_LABEL, DRAFT_MANIFEST_MARKER } from '../publish-authorization.js';
@@ -166,6 +167,7 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   const result = await runRelease({ ...options, dryRun: options.dryRun, editedNotes, skipGate: true });
 
   if (result && !options.dryRun && !options.skipPublish) {
+    await resolveFailureReportIfPresent(forge, issueNumber, result.versionOutput);
     await forge.updateIssue(issueNumber, { state: 'closed' });
     success(`Published from draft #${issueNumber}; closed the draft issue.`);
   }

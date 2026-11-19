@@ -417,6 +417,18 @@ describe('publishFromDraft', () => {
       expect(reportOn(forge)).toContain('differs from the reviewed draft #9');
     });
 
+    it('should mark it resolved once a later dispatch publishes the draft', async () => {
+      headSha = 'sha-moved';
+      const forge = forgeWithDraft('## Release Notes');
+      mockForgeFor.mockReturnValue(forge);
+      await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/HEAD is sha-moved/);
+
+      headSha = 'sha-draft';
+      await publishFromDraft(9, baseOptions);
+
+      expect(reportOn(forge)).toContain('## ✅ Release of v1.2.0 recovered');
+    });
+
     it('should post none on --dry-run', async () => {
       headSha = 'sha-moved';
       const forge = forgeWithDraft('## Release Notes');

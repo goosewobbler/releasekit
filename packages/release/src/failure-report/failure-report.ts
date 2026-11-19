@@ -352,7 +352,6 @@ function untrusted(text: string): string {
   return escapeChangelogMentions(escapeCommentOpeners(text));
 }
 
-/** What the refusal left undone, by phase. */
 function refusedState(phase: PublishPhase, prNumber: number, manifestRead: boolean): string {
   switch (phase) {
     case 'pre-merge':
@@ -368,7 +367,7 @@ function refusedState(phase: PublishPhase, prNumber: number, manifestRead: boole
     case 'post-merge':
       return manifestRead
         ? 'The publish refused the release manifest before creating any tag or publishing anything. The merge put the version bumps on `main`.'
-        : `**Nothing was published.** The release manifest on #${prNumber} could not be read or trusted, so the publish stopped before creating any tag or publishing anything.`;
+        : `**Nothing was published.** The publish stopped before it could trust the release manifest on #${prNumber}, so it created no tag and published nothing.`;
   }
 }
 

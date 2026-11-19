@@ -271,9 +271,9 @@ Before it creates a tag or publishes anything, `standing-pr publish` checks the 
 
 The refusal posts the failure report on the PR, with 0 packages published and the reason, unless the PR already has a report from an earlier publish attempt. Retrying won't help, because a retry reads the same manifest and merged commit. The exceptions are a PR that couldn't be read from the GitHub API, or whose merge commit is unknown; retry those once the API is reachable. The report says which applies.
 
-`standing-pr merge`, `release --from-draft` and a `release` refused under `enforceMergeAuthor` post the same report on the standing PR, the draft issue or the merged PR, with the recovery for that path. A refused merge put nothing on `main`, so it raises no supersede warning.
-
 To recover, merge the next standing PR. It supersedes the refused release as described in [Recovery path 2](#recovery-path-2--supersede-let-the-next-release-self-heal): the refused versions are skipped. Don't delete tags or revert the release commit.
+
+`standing-pr merge`, `release --from-draft` and a `release` refused under `enforceMergeAuthor` post the same report on the standing PR, the draft issue or the merged PR, with the recovery for that path. A refused merge put nothing on `main`, so it raises no supersede warning.
 
 ---
 
