@@ -1060,6 +1060,7 @@ async function updateStandingPR(options: StandingPROptions, banner: ProgressBann
   const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
 
   const bypassSkipGuard = options.reconcile || isStandingPrEventRun();
+  let scheduledAtRelease = false;
 
   if (bypassSkipGuard) {
     info(
@@ -1071,12 +1072,33 @@ async function updateStandingPR(options: StandingPROptions, banner: ProgressBann
     // A release's own commit on HEAD must not trigger an update.
     const headSubject = await getHeadCommitMessage(cwd);
     if (headSubject && matchesSkipPattern(headSubject, skipPatterns)) {
-      info(`Skipping standing PR update: commit matches skip pattern`);
-      return { action: 'noop' };
+      // A scheduled run keeps the minAge check advancing once that release is tagged.
+      if (process.env.GITHUB_EVENT_NAME !== 'schedule') {
+        info(`Skipping standing PR update: commit matches skip pattern`);
+        return { action: 'noop' };
+      }
+      scheduledAtRelease = true;
     }
   }
 
   const forge = forgeFor(requireGitHubContext('the standing PR cannot be updated'));
+
+  const waitForReleaseInFlight = async (): Promise<StandingPRResult | null> => {
+    const inFlight = await findReleaseInFlight({ forge, cwd, base, branch, skipPatterns });
+    if (!inFlight) {
+      return null;
+    }
+    info(`Skipping standing PR update: ${inFlight.reason}`);
+    return { action: 'noop', reason: inFlight.reason };
+  };
+
+  // Ahead of the dry run, which would analyse the untagged release's bumps.
+  if (scheduledAtRelease) {
+    const waiting = await waitForReleaseInFlight();
+    if (waiting) {
+      return waiting;
+    }
+  }
 
   let existingStandingPr: StandingPullRequest | null = null;
   try {
@@ -1243,12 +1265,7 @@ async function updateStandingPR(options: StandingPROptions, banner: ProgressBann
   const resetAndCheckReleaseInFlight = async (): Promise<StandingPRResult | null> => {
     info(`Resetting release branch '${branch}' to origin/${base}...`);
     await resetReleaseBranch(branch, base, cwd);
-    const inFlight = await findReleaseInFlight({ forge, cwd, base, branch, skipPatterns });
-    if (!inFlight) {
-      return null;
-    }
-    info(`Skipping standing PR update: ${inFlight.reason}`);
-    return { action: 'noop', reason: inFlight.reason };
+    return waitForReleaseInFlight();
   };
 
   // A reconcile runs in a publishing job, whose checkout can predate a newer merge, so it analyses the latest base.
