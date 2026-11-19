@@ -50,10 +50,6 @@ export function renderEntries(entries: ChangelogEntry[]): string {
   return entries.map((e, i) => renderEntry(e, i)).join('\n');
 }
 
-/**
- * Puts the model's output in input order by the `index` each element echoes; a missing, duplicate or
- * unknown index is an error.
- */
 export function orderByIndex<T extends { index: number }>(
   llmEntries: T[],
   expectedCount: number,
