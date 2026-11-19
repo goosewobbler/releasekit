@@ -1,6 +1,8 @@
 import {
   type AssociatedPullRequest,
+  type AuthoredBody,
   FakeForge,
+  type ForgeComment,
   type MergeMethod,
   type NewPullRequest,
   type OpenPullRequest,
@@ -27,6 +29,8 @@ export interface PullRequest {
   number: number;
   title: string;
   body: string;
+  /** Who wrote each body revision, newest first. */
+  bodyEditors: Actor[];
   head: string;
   base: string;
   labels: string[];
@@ -55,6 +59,8 @@ export class StatefulForge extends FakeForge {
   readonly manifestWrites: Array<{ prNumber: number; body: string }> = [];
   /** One-shot fault injection. */
   beforeManifestUpsert?: (prNumber: number) => Promise<void>;
+  /** Without the timeline, an update falls back to the manifest's labels. */
+  labelEventsUnreadable = false;
   private nextPrNumber = 100;
   private clock = 0;
 
@@ -81,8 +87,27 @@ export class StatefulForge extends FakeForge {
   override async findStandingPR(branch: string): Promise<StandingPullRequest | null> {
     const pr = this.openStandingPr(branch);
     return pr
-      ? { number: pr.number, url: `https://github.com/owner/repo/pull/${pr.number}`, labels: [...pr.labels] }
+      ? {
+          number: pr.number,
+          url: `https://github.com/owner/repo/pull/${pr.number}`,
+          labels: [...pr.labels],
+          nodeId: `PR_${pr.number}`,
+        }
       : null;
+  }
+
+  override async getAuthoredBody(nodeId: string): Promise<AuthoredBody> {
+    const pr = this.prs.get(Number(/^PR_(\d+)$/.exec(nodeId)?.[1]));
+    if (!pr) {
+      return super.getAuthoredBody(nodeId);
+    }
+    return { body: pr.body, author: BOT, editor: pr.bodyEditors[0], editors: [...pr.bodyEditors] };
+  }
+
+  editBody(prNumber: number, actor: Actor, body: string): void {
+    const pr = this.pr(prNumber);
+    pr.body = body;
+    pr.bodyEditors.unshift(actor);
   }
 
   override async listRecentlyClosedPullRequests(branch: string, limit: number): Promise<AssociatedPullRequest[]> {
@@ -106,6 +131,23 @@ export class StatefulForge extends FakeForge {
       .map((pr) => ({ number: pr.number, mergedAt: pr.mergedAt ?? null }));
   }
 
+  override async listLabelEvents(issueNumber: number) {
+    if (this.labelEventsUnreadable) {
+      throw Object.assign(new Error('Server Error'), { status: 502 });
+    }
+    return super.listLabelEvents(issueNumber);
+  }
+
+  /** An edit in the UI, which GitHub records against `actor`. */
+  editCommentAs(commentId: number, body: string, actor: Actor): void {
+    const comment = this.comments.find((c) => c.id === commentId);
+    if (!comment) {
+      throw Object.assign(new Error(`Not Found: comment ${commentId}`), { status: 404 });
+    }
+    comment.body = body;
+    comment.editors = [actor, ...(comment.editors.length > 0 ? comment.editors : [comment.user])];
+  }
+
   override async getPullRequest(prNumber: number): Promise<PullRequestDetails> {
     const pr = this.pr(prNumber);
     return {
@@ -127,6 +169,7 @@ export class StatefulForge extends FakeForge {
       number,
       title: request.title,
       body: request.body,
+      bodyEditors: [BOT],
       head: request.head,
       base: request.base,
       labels: [],
@@ -144,7 +187,7 @@ export class StatefulForge extends FakeForge {
       pr.title = changes.title;
     }
     if (changes.body !== undefined) {
-      pr.body = changes.body;
+      this.editBody(prNumber, BOT, changes.body);
     }
     if (changes.state === 'closed' && pr.state === 'open') {
       pr.closedHeadSha = this.headSha(pr);
@@ -195,6 +238,7 @@ export class StatefulForge extends FakeForge {
       number,
       title,
       body: '',
+      bodyEditors: [MAINTAINER],
       head: `feature/${number}`,
       base: 'main',
       labels,
@@ -210,26 +254,26 @@ export class StatefulForge extends FakeForge {
     return pr;
   }
 
-  override async createComment(prNumber: number, body: string): Promise<void> {
+  override async createComment(prNumber: number, body: string): Promise<ForgeComment> {
     this.recordManifest(prNumber, body);
-    await super.createComment(prNumber, body);
+    return super.createComment(prNumber, body);
   }
 
-  override async updateComment(commentId: number, body: string): Promise<void> {
+  override async updateComment(commentId: number, body: string): Promise<ForgeComment> {
     const comment = this.comments.find((c) => c.id === commentId);
     if (comment?.prNumber !== undefined) {
       this.recordManifest(comment.prNumber, body);
     }
-    await super.updateComment(commentId, body);
+    return super.updateComment(commentId, body);
   }
 
-  override async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<void> {
+  override async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<ForgeComment> {
     const hook = this.beforeManifestUpsert;
     if (marker === MANIFEST_MARKER && hook) {
       this.beforeManifestUpsert = undefined;
       await hook(prNumber);
     }
-    await super.upsertMarkerComment(prNumber, marker, body);
+    return super.upsertMarkerComment(prNumber, marker, body);
   }
 
   private recordManifest(prNumber: number, body: string): void {

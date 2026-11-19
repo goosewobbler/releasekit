@@ -15,7 +15,7 @@ const RUNS = Number(process.env.RELEASEKIT_MODEL_RUNS ?? 5);
 const SEED = process.env.RELEASEKIT_MODEL_SEED;
 const PATH = process.env.RELEASEKIT_MODEL_PATH;
 const REPLAY = process.env.RELEASEKIT_MODEL_REPLAY;
-/** Comma-separated `knownBug` ids to run anyway, such as `#799`. */
+/** Comma-separated `knownBug` ids to run anyway, such as `#841`. */
 const KNOWN_BUGS = new Set((process.env.RELEASEKIT_MODEL_KNOWN_BUGS ?? '').split(',').filter(Boolean));
 const BUDGET_MS = Math.max(RUNS, 5) * 60_000;
 
