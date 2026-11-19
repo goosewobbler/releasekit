@@ -248,8 +248,8 @@ export class GitCli implements Git {
   async remoteBranchExists(remote: string, branch: string, cwd?: string): Promise<boolean> {
     assertNotOption(remote, 'remote');
     assertNotOption(branch, 'branch');
-    // `--end-of-options` is belt-and-suspenders with assertNotOption.
-    return this.execSoft(['ls-remote', '--exit-code', '--heads', '--end-of-options', remote, branch], {
+    // `--` is belt-and-suspenders with assertNotOption.
+    return this.execSoft(['ls-remote', '--exit-code', '--heads', '--', remote, branch], {
       cwd: this.cwd(cwd),
       ignoreOutput: true,
     });
@@ -257,7 +257,7 @@ export class GitCli implements Git {
 
   async remoteTags(remote: string, cwd?: string): Promise<Record<string, string>> {
     assertNotOption(remote, 'remote');
-    const { stdout } = await this.exec(['ls-remote', '--tags', '--end-of-options', remote], { cwd: this.cwd(cwd) });
+    const { stdout } = await this.exec(['ls-remote', '--tags', '--', remote], { cwd: this.cwd(cwd) });
     const tags: Record<string, string> = {};
     for (const line of splitLines(stdout)) {
       const [sha, ref] = line.split('\t');
@@ -318,7 +318,7 @@ export class GitCli implements Git {
   async fetch(remote: string, opts: GitFetchOptions = {}): Promise<void> {
     assertNotOption(remote, 'remote');
     const tags = opts.tags ? ['--tags', '--force'] : [];
-    await this.exec(['fetch', ...tags, '--end-of-options', remote], { cwd: this.cwd(opts.cwd) });
+    await this.exec(['fetch', ...tags, '--', remote], { cwd: this.cwd(opts.cwd) });
   }
 
   async checkout(ref: string, opts: GitCheckoutOptions = {}): Promise<void> {
