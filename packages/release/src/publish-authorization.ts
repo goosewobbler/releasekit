@@ -66,8 +66,8 @@ export interface DirectReleaseRequest {
 }
 
 /**
- * A refusal of the release on the PR or issue it names, so the refusal report goes there. Naming the wrong kind of PR
- * or issue throws a plain error instead, since a report on it would read as that PR's own failed release.
+ * Refuses the release and posts the refusal report on the PR or issue it names. Naming the wrong kind of PR or issue
+ * throws a plain error instead: a report there would read as that PR's own failed release.
  */
 class Refusal extends Error {
   constructor(

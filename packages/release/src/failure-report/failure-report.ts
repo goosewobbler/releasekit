@@ -338,7 +338,7 @@ export function renderFailureReport(input: FailureReportInput): string {
 
 export interface RefusalReportInput {
   phase: PublishPhase;
-  /** The PR or issue the refused release is on. */
+  /** A PR, or the draft's issue. */
   prNumber: number;
   /** Absent when the manifest couldn't be read or trusted. */
   versionOutput?: VersionOutput;
