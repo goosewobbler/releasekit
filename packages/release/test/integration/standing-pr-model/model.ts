@@ -173,7 +173,7 @@ export function assertInvariants(model: Model, world: World): void {
       }
     }
     if (run.openPr !== undefined && run.pending.length === 0 && !['push', 'reconcile'].includes(run.trigger)) {
-      expect(run.result?.action, `a ${run.trigger} run on open #${run.openPr} did nothing`).not.toBe('noop');
+      expect(run.result?.action ?? 'noop', `a ${run.trigger} run on open #${run.openPr} did nothing`).not.toBe('noop');
     }
   }
   model.updates = [];

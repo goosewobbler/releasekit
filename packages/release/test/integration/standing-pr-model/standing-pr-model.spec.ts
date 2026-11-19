@@ -80,7 +80,7 @@ describe('standing-PR lifecycle model', () => {
           `${fc.defaultReportMessage(details)}\n\n${details.errorInstance}\n\nReplay with ` +
           `RELEASEKIT_MODEL_RUNS=${RUNS} RELEASEKIT_MODEL_SEED=${details.seed} ` +
           `RELEASEKIT_MODEL_PATH=${details.counterexamplePath} RELEASEKIT_MODEL_REPLAY='${replay}' ` +
-          `RELEASEKIT_MODEL_KNOWN_BUGS='${[...KNOWN_BUGS].join(',')}' pnpm --filter @releasekit/release test:integration`;
+          `RELEASEKIT_MODEL_KNOWN_BUGS='${[...KNOWN_BUGS].join(',')}' pnpm --filter @releasekit/release test:integration\n`;
       }
       expect(report).toBeUndefined();
     },
