@@ -121,7 +121,7 @@ export class FakeForge implements Forge {
       Object.entries(seed.issues ?? {}).map(([n, issue]) => [n, { ...issue, state: issue.state ?? 'open' }]),
     );
     this.openIssues = [...(seed.openIssues ?? [])];
-    // Issues seeded for getIssue are also discoverable by findOpenIssueByLabel, as on GitHub.
+    // Issues seeded for getIssue are also discoverable by listOpenIssuesByLabel, as on GitHub.
     for (const [num, details] of Object.entries(this.issues)) {
       const n = Number(num);
       if (!details.isPullRequest && details.state === 'open' && !this.openIssues.some((i) => i.number === n)) {

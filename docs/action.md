@@ -30,7 +30,7 @@ uses: goosewobbler/releasekit@v0
 
 The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN` and `GH_TOKEN`, overriding either in your `env`. In a run that pushes, the action's checkout also persists it for git pushes, unless you set `ssh-key` or `skip-checkout`. Runs that push are `release`, the standing-PR modes, `refresh-after-release` and an applied `backfill`, never a dry run.
 
-To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a GitHub App token. It expires after an hour, so a release that runs longer can fail at its final push. Don't use a PAT: ReleaseKit recognises its own comments by bot authorship, so with a PAT `standing-pr-publish` refuses the release manifest, comments are re-posted on every run, and the standing-PR workflow can retrigger itself. Give every standing-PR mode the same token: ReleaseKit trusts a release manifest or failure report only from the bot that opened the standing PR.
+To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a GitHub App token. It expires after an hour, so a release that runs longer can fail at its final push. Don't use a PAT: ReleaseKit recognises its own comments by bot authorship, so with a PAT `standing-pr-publish` refuses the release manifest, comments are re-posted on every run, and the standing-PR workflow can retrigger itself. Give the standing-PR modes and `refresh-after-release` the same token: ReleaseKit trusts a release manifest or failure report only from the bot that opened the standing PR.
 
 ### Release mode
 
