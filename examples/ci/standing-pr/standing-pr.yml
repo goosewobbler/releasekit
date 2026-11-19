@@ -9,9 +9,9 @@
 # https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#workflow-token-approvals
 #
 # One-time environment (REQUIRED): Settings -> Environments -> New environment
-# `release`, with deployment branches restricted to `main`. Every job that writes
-# runs in it, so registry secrets and the optional GitHub App's secrets reach
-# only runs on `main`. See
+# `release`, with deployment branches restricted to `main` and no required
+# reviewers. Every job that writes runs in it, updates included, so registry
+# secrets and the optional GitHub App's secrets reach only runs on `main`. See
 # https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#the-release-environment
 #
 # Exempt the release branch (release/*) from your build/test CI, or every update
@@ -82,7 +82,7 @@ jobs:
   detect:
     name: Detect Release
     # Coarse: only a release job can replace a queued release, so a feeder push mustn't start one. The release job's
-    # CLI steps decide what actually publishes.
+    # CLI steps decide what actually publishes. The `release/` prefix and the label name are hardcoded, as in the relay.
     if: github.event_name == 'push'
     permissions:
       contents: read
@@ -115,8 +115,8 @@ jobs:
       )
     environment: release
     # GitHub keeps one pending job per concurrency group and replaces it with any newer one. Every rebuild shares this
-    # group, which an update gives the same result in whatever started it; a checkbox edit also cancels the one in
-    # progress, so rapid ticks collapse to one rebuild.
+    # group, which is safe because an update gives the same result whatever started it; a checkbox edit also cancels
+    # the one in progress, so rapid ticks collapse to one rebuild.
     concurrency:
       group: standing-release-pr
       cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' && inputs.edited }}
@@ -219,8 +219,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Publish from standing release PR
-        # On a push, publishes the merged standing PR still waiting for its tags, so a run that replaced the merge's
-        # own still publishes it, and an immediate release doesn't bump on top of it. Otherwise a no-op.
+        # On a push, publishes the merged standing PR still waiting for its tags, if any, so a run that replaced the
+        # merge's own still publishes it, and an immediate release doesn't bump on top of it.
         run: pnpm exec releasekit standing-pr publish ${PR:+--pr "$PR"}
         env:
           PR: ${{ inputs.pr }}

@@ -2019,10 +2019,7 @@ export async function findLatestMergedStandingPR(forge: Forge, branch: string): 
   return (await latestMergedStandingPR(forge, branch))?.number ?? null;
 }
 
-async function latestMergedStandingPR(
-  forge: Forge,
-  branch: string,
-): Promise<{ number: number; mergedAt: string } | null> {
+async function latestMergedStandingPR(forge: Forge, branch: string): Promise<MergedStandingPR | null> {
   const prs = await forge.listRecentlyClosedPullRequests(branch, 10);
 
   // 'updated' ordering only guarantees the newest merge is in the page; late activity on an older merged PR can
@@ -2057,22 +2054,28 @@ interface UntaggedRelease {
   hasFailureReport: () => Promise<boolean>;
 }
 
-/** The latest merged standing PR when its manifest's tags aren't all on the remote. */
-async function untaggedStandingRelease(
-  forge: Forge,
-  merged: { number: number; mergedAt: string },
-  remoteTags: Record<string, string>,
-): Promise<UntaggedRelease | null> {
-  const manifest = await findTrustedManifest(forge, merged.number);
-  const missing = (manifest?.versionOutput.tags ?? []).filter((tag) => !Object.hasOwn(remoteTags, tag));
-  if (missing.length === 0) {
-    return null;
-  }
+interface MergedStandingPR {
+  number: number;
+  mergedAt: string;
+}
+
+function mergedStandingRelease(forge: Forge, merged: MergedStandingPR, why: string): UntaggedRelease {
   return {
-    label: `standing PR #${merged.number} (${missing.join(', ')} not on the remote)`,
+    label: `standing PR #${merged.number} (${why})`,
     landedAt: Date.parse(merged.mergedAt),
     hasFailureReport: async () => (await detectUnresolvedFailure(forge, merged.number)) !== null,
   };
+}
+
+/** The latest merged standing PR when its manifest's tags aren't all on the remote. */
+function untaggedStandingRelease(
+  forge: Forge,
+  merged: MergedStandingPR,
+  manifest: StandingPRManifest | null,
+  remoteTags: Record<string, string>,
+): UntaggedRelease | null {
+  const missing = (manifest?.versionOutput.tags ?? []).filter((tag) => !Object.hasOwn(remoteTags, tag));
+  return missing.length === 0 ? null : mergedStandingRelease(forge, merged, `${missing.join(', ')} not on the remote`);
 }
 
 /**
@@ -2098,7 +2101,8 @@ export async function findReleaseInFlight(options: FindReleaseInFlightOptions): 
   const untagged: UntaggedRelease[] = [];
 
   const merged = await latestMergedStandingPR(forge, branch);
-  const standing = merged && (await untaggedStandingRelease(forge, merged, remoteTags));
+  const standing =
+    merged && untaggedStandingRelease(forge, merged, await findTrustedManifest(forge, merged.number), remoteTags);
   if (standing) {
     untagged.push(standing);
   }
@@ -2152,8 +2156,13 @@ async function standingReleaseToPublish(
   cwd: string,
 ): Promise<number | null> {
   const merged = await latestMergedStandingPR(forge, branch);
-  const remoteTags = await createGitCli().remoteTags('origin', cwd);
-  const release = merged && (await untaggedStandingRelease(forge, merged, remoteTags));
+  const manifest = merged && (await findTrustedManifest(forge, merged.number));
+  // An untrusted manifest names no tags to check, so publish it anyway: the refusal is reported on the PR.
+  const release =
+    merged &&
+    (manifest
+      ? untaggedStandingRelease(forge, merged, manifest, await createGitCli().remoteTags('origin', cwd))
+      : mergedStandingRelease(forge, merged, "its release manifest can't be trusted"));
   if (!merged || !release) {
     info('Nothing to publish: no merged standing PR is waiting for its tags');
     return null;

@@ -362,8 +362,8 @@ If your workflow is a copy of the old one, with `publish`, `retry-publish` and `
 `pull_request: closed` and `labeled`, it keeps working, but replace it to get the layout in
 [CI setup](../packages/release/docs/ci-setup.md#workflow):
 
-1. Create a `release` environment restricted to `main`, and move registry secrets such as `NPM_TOKEN` into it. See
-   [The release environment](../packages/release/docs/ci-setup.md#the-release-environment).
+1. Create a `release` environment restricted to `main`, with no required reviewers, and move registry secrets such as
+   `NPM_TOKEN` into it. See [The release environment](../packages/release/docs/ci-setup.md#the-release-environment).
 2. Replace `standing-pr.yml` with the new example, carrying over your LLM keys and any edited label names or branch
    prefixes. Its `pull_request` trigger drops `closed`, and it adds `workflow_dispatch`.
 3. Add the `release` environment to each registry's trusted-publisher settings.

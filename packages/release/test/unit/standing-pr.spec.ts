@@ -5042,13 +5042,20 @@ describe('runStandingPRPublish', () => {
 
     /** Merged standing PR #77, with a feeder pushed on top of its merge, so the checkout is a later commit. */
     async function mergedStandingPR(
-      opts: { tagged?: boolean; failureReport?: boolean; mergedMinutesAgo?: number } = {},
+      opts: { tagged?: boolean; failureReport?: boolean; mergedMinutesAgo?: number; forged?: boolean } = {},
     ) {
       const { readFileSync } = await import('node:fs');
       vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ ref: 'refs/heads/main', after: 'abc123' }));
       process.env.GITHUB_EVENT_NAME = 'push';
       setupGit({ remoteTags: { origin: opts.tagged ? { '@scope/core@v1.2.3': MERGE_SHA } : {} } });
-      const comments = [{ id: 1, prNumber: 77, body: serializeManifest(baseManifest) }];
+      const comments = [
+        {
+          id: 1,
+          prNumber: 77,
+          body: serializeManifest(baseManifest),
+          ...(opts.forged ? { user: { login: 'attacker', type: 'User' } } : {}),
+        },
+      ];
       if (opts.failureReport) {
         comments.push({
           id: 2,
@@ -5100,6 +5107,14 @@ describe('runStandingPRPublish', () => {
 
       expect(runPublishStep).not.toHaveBeenCalled();
       expect(fakeGit.tagged).toEqual([]);
+    });
+
+    it("should refuse, not skip, a merged standing PR whose manifest it can't trust", async () => {
+      const runPublishStep = await mergedStandingPR({ forged: true });
+
+      await expect(publish()).rejects.toThrow(/posted by 'attacker', not by the bot account that opened #77/);
+
+      expect(runPublishStep).not.toHaveBeenCalled();
     });
 
     it('should publish nothing when no standing PR has merged', async () => {

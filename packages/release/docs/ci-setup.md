@@ -338,7 +338,7 @@ The registry credentials sit in [the release environment](#the-release-environme
 
 ### Workflow
 
-Copy `standing-pr.yml` from [`examples/ci/standing-pr`](../../../examples/ci/standing-pr/standing-pr.yml); [its README](../../../examples/ci/standing-pr/README.md) lists the jobs and what fires each. The triggers:
+Copy `standing-pr.yml` from [`examples/ci/standing-pr`](../../../examples/ci/standing-pr/standing-pr.yml). The triggers:
 
 ```yaml
 on:
@@ -362,7 +362,7 @@ Every job that writes runs on `main`, in [the release environment](#the-release-
 - **`release:retry` on the merged standing PR:** the relay dispatches `release` on `main` with the PR's number.
 - **Schedule:** `update`, to advance `minAge`.
 
-The jobs share two concurrency groups, and GitHub replaces a queued job with a newer one in its group. Every rebuild (`update` and `reconcile`) shares one, which is safe because an update gives the same result whatever started it; a checkbox edit also cancels the rebuild in progress. Every release shares the other, which no update joins, so no update can replace a queued release. A release run that a newer one replaces still publishes: the newer run publishes the merged standing PR still waiting for its tags.
+The jobs share two concurrency groups, and GitHub replaces a queued job with a newer one in its group. Every rebuild (`update` and `reconcile`) shares one, which is safe because an update gives the same result whatever started it; a checkbox edit also cancels the rebuild in progress. Every release shares the other, which no update joins, so no update can replace a queued release. A push's release run publishes the merged standing PR still waiting for its tags, so a newer push that replaces the merge's run still publishes it.
 
 ### How it works
 

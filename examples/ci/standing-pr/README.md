@@ -43,8 +43,8 @@ Needs `notes.releaseNotes.llm` configured and the matching LLM secret uncommente
   — this toggle is separate. It also lets any workflow token approve pull
   requests: see [Workflow token approvals](../../../packages/release/docs/ci-setup.md#workflow-token-approvals).
 - **Environment (required):** a `release` environment whose deployment branches
-  are restricted to `main`, holding the registry secrets (none with npm OIDC) and,
-  optionally, the App's.
+  are restricted to `main`, with no required reviewers, holding the registry
+  secrets (none with npm OIDC) and, optionally, the App's.
 - `release/next` is **not** branch-protected (the bot force-pushes it), or the
   bot has bypass.
 - Squash merge produces a single `chore: release ...` commit on `main`, which
@@ -57,5 +57,5 @@ Needs `notes.releaseNotes.llm` configured and the matching LLM secret uncommente
 Shared [correctness rules](../../README.md#cross-cutting-correctness-rules) apply (each job lists its own `permissions`; only `release` adds `id-token: write`). Scenario-specific:
 
 - `release` and `reconcile` start from the push of the merge to `main`, not from `pull_request: closed`, so the `release` environment's secrets never reach a run on another ref.
-- A queued `release` can be replaced only by another release push's, which publishes whatever standing release is still untagged. Updates and `reconcile` share a group of their own; a checkbox edit cancels the update in progress.
+- Only another release run can replace a queued `release`. A push's run publishes whatever standing release is still untagged; a retry's publishes only its PR. Updates and `reconcile` share a group of their own; a checkbox edit cancels the update in progress.
 - The relayed `release:retry` publishes on `main` with `--pr`, then removes the label so each application is exactly one retry.
