@@ -118,8 +118,8 @@ describe('renderExamplesBlock()', () => {
       },
     ];
     const result = renderExamplesBlock(examples);
-    expect(result).toContain('(auth)');
-    expect(result).toContain('**BREAKING**');
+    expect(result).toContain('  - (auth): Remove legacy auth **BREAKING**');
+    expect(result).not.toContain('[Breaking]');
   });
 
   it('should render multiple examples', () => {

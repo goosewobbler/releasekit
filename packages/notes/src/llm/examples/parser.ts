@@ -60,10 +60,13 @@ export function renderExamplesBlock(examples: Example[]): string {
   const blocks = examples.map((ex) => {
     const entryLines = ex.entries
       .map((e) => {
+        // Breaking isn't a category the model may pick, so showing it as one would invite a corrective retry.
+        const category = e.category === BREAKING_SECTION ? '' : `[${escBody(e.category)}]`;
+        const scope = e.scope ? `(${escBody(e.scope)})` : '';
+        const tags = [category, scope].filter(Boolean).join(' ');
         const leadIn = e.leadIn ? `**${escBody(e.leadIn)}**: ` : '';
-        const scope = e.scope ? ` (${escBody(e.scope)})` : '';
         const breaking = e.breaking ? ' **BREAKING**' : '';
-        return `  - [${escBody(e.category)}]${scope}: ${leadIn}${escBody(e.description)}${breaking}`;
+        return `  - ${tags ? `${tags}: ` : ''}${leadIn}${escBody(e.description)}${breaking}`;
       })
       .join('\n');
     return `<example version="${escAttr(ex.version)}">\n${entryLines}\n</example>`;
