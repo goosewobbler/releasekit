@@ -105,6 +105,10 @@ inputs:
     description: 'Bypass the skip-pattern guard in standing-pr-update mode (for post-release reconcile runs, where HEAD is a release commit), and analyse the latest origin/<base> rather than the checkout'
     required: false
     default: 'false'
+  ack:
+    description: 'On a label or body edit in standing-pr-update mode, show an in-progress banner on the standing PR while the update runs'
+    required: false
+    default: 'false'
 
   pr:
     description: Pull request number (preview mode; standing-pr-publish mode when not triggered by a pull_request event)
@@ -375,6 +379,7 @@ runs:
         INPUT_SKIP_GITHUB_RELEASE: ${{ inputs.skip-github-release }}
         INPUT_SKIP_VERIFICATION: ${{ inputs.skip-verification }}
         INPUT_RECONCILE: ${{ inputs.reconcile }}
+        INPUT_ACK: ${{ inputs.ack }}
         INPUT_PR: ${{ inputs.pr }}
         INPUT_REPO: ${{ inputs.repo }}
         INPUT_PREVIEW_PRERELEASE: ${{ inputs.preview-prerelease }}
