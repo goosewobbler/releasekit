@@ -31,7 +31,6 @@ export interface IssueDetails {
   /** The issues endpoint also returns PRs. */
   isPullRequest: boolean;
   state: IssueState;
-  /** The account that opened the issue or PR. */
   author?: CommentAuthor;
 }
 
@@ -80,8 +79,7 @@ export interface ForgeComment {
 
 /**
  * A machine-state marker comment (the release manifest, previews, failure reports) is only trustworthy when a bot
- * wrote it; a human-authored comment carrying the same marker is a forgery and must not be adopted. An unknown author
- * is untrusted, since GitHub's API can report none.
+ * wrote it. An unknown author is untrusted, since GitHub's API can report none.
  */
 export function isBotComment(comment: Pick<ForgeComment, 'user'>): boolean {
   const user = comment.user;

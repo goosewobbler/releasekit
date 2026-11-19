@@ -7,9 +7,8 @@ export interface TrustedCommentLookup {
 }
 
 /**
- * Looks up a marker comment holding machine state a release acts on (a manifest, a standing PR's failure report). It's
- * trusted only when the bot that opened the issue or PR wrote it: any other account, bot or not, can post a comment
- * starting with the same marker.
+ * A marker comment is trusted only when the bot that opened the issue or PR wrote it: any other account, bot or not,
+ * can post one starting with the same marker.
  */
 export async function findTrustedComment(
   forge: Forge,
