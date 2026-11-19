@@ -3,10 +3,10 @@ import type { JSONSchema, LLMCategory } from '../core/types.js';
 
 // Zod validators (post-decode, source of truth for structure)
 export const EntryOutputSchema = z.object({
+  index: z.number().int(),
   description: z.string(),
   category: z.string(),
   scope: z.string().nullable(),
-  breaking: z.boolean().nullable(),
   leadIn: z.string().nullable(),
 });
 
@@ -15,6 +15,7 @@ export const EnhanceAndCategorizeOutputSchema = z.object({
 });
 
 export const CategorizeEntryOutputSchema = z.object({
+  index: z.number().int(),
   category: z.string(),
   scope: z.string().nullable(),
 });
@@ -27,10 +28,6 @@ export const CategorizeOutputSchema = z.object({
 // OpenAI strict mode requires optional fields to be in `required` with nullable types.
 function nullableString(): JSONSchema {
   return { anyOf: [{ type: 'string' }, { type: 'null' }] };
-}
-
-function nullableBoolean(): JSONSchema {
-  return { anyOf: [{ type: 'boolean' }, { type: 'null' }] };
 }
 
 export function buildEnhanceAndCategorizeSchema(categories: LLMCategory[]): JSONSchema {
@@ -46,13 +43,13 @@ export function buildEnhanceAndCategorizeSchema(categories: LLMCategory[]): JSON
         items: {
           type: 'object',
           properties: {
+            index: { type: 'integer' },
             description: { type: 'string' },
             category: categoryField,
             scope: nullableString(),
-            breaking: nullableBoolean(),
             leadIn: nullableString(),
           },
-          required: ['description', 'category', 'scope', 'breaking', 'leadIn'],
+          required: ['index', 'description', 'category', 'scope', 'leadIn'],
           additionalProperties: false,
         },
       },
@@ -75,10 +72,11 @@ export function buildCategorizeSchema(categories: LLMCategory[]): JSONSchema {
         items: {
           type: 'object',
           properties: {
+            index: { type: 'integer' },
             category: categoryField,
             scope: nullableString(),
           },
-          required: ['category', 'scope'],
+          required: ['index', 'category', 'scope'],
           additionalProperties: false,
         },
       },

@@ -11,6 +11,7 @@ import {
   checkCategoryNames,
   groupByCategory,
   INSTRUCTION_HIERARCHY,
+  orderByIndex,
   parseLLMResult,
   renderEntries,
   renderScopeInstruction,
@@ -36,7 +37,8 @@ ${INSTRUCTION_HIERARCHY}
 
 ${categorySection}${scopeInstruction}
 
-Output a JSON object with an "entries" array. Each element (same order as input) must have:
+Output a JSON object with an "entries" array holding one element per input entry. Each element must have:
+- "index": the index of the input entry it describes
 - "category": category name from the list above
 - "scope": subcategory label or null`;
 }
@@ -63,15 +65,14 @@ export function createCategorizeValidator(
       return { valid: false, error: `Schema error: ${zodResult.error.message}` };
     }
 
-    if (zodResult.data.entries.length !== entries.length) {
-      return {
-        valid: false,
-        error: `Expected ${entries.length} entries, got ${zodResult.data.entries.length}`,
-      };
+    const ordered = orderByIndex(zodResult.data.entries, entries.length);
+    if (!ordered.ok) {
+      return { valid: false, error: ordered.error };
     }
+    const llmEntries = ordered.entries;
 
     const categoryError = checkCategoryNames(
-      zodResult.data.entries,
+      llmEntries,
       context.categories?.map((c) => c.name),
     );
     if (categoryError) {
@@ -79,8 +80,7 @@ export function createCategorizeValidator(
     }
 
     const withScopes: ChangelogEntry[] = cleanEntries.map((entry, i) => {
-      const llmEntry = zodResult.data.entries[i];
-      const scope = llmEntry?.scope ?? undefined;
+      const scope = llmEntries[i]?.scope ?? undefined;
       return scope ? { ...entry, scope } : entry;
     });
 
@@ -92,7 +92,7 @@ export function createCategorizeValidator(
       );
     }
 
-    return { valid: true, value: groupByCategory(zodResult.data.entries, scopeResult.entries) };
+    return { valid: true, value: groupByCategory(llmEntries, scopeResult.entries) };
   };
 }
 

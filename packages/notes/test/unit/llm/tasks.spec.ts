@@ -28,9 +28,9 @@ describe('createCategorizeValidator()', () => {
     const result = validate(
       structured({
         entries: [
-          { category: 'New Features', scope: null },
-          { category: 'Bug Fixes', scope: null },
-          { category: 'Bug Fixes', scope: null },
+          { index: 0, category: 'New Features', scope: null },
+          { index: 1, category: 'Bug Fixes', scope: null },
+          { index: 2, category: 'Bug Fixes', scope: null },
         ],
       }),
     );
@@ -55,15 +55,25 @@ describe('createCategorizeValidator()', () => {
     expect(result.error).toContain('Invalid JSON');
   });
 
-  it('should reject a response whose entry count does not match the input', () => {
+  it('should reject a response with missing, duplicate or unknown indexes', () => {
     const validate = createCategorizeValidator(entries, ctx);
-    const result = validate(structured({ entries: [{ category: 'New', scope: null }] }));
+    const result = validate(
+      structured({
+        entries: [
+          { index: 0, category: 'New', scope: null },
+          { index: 0, category: 'New', scope: null },
+          { index: 3, category: 'New', scope: null },
+        ],
+      }),
+    );
 
     expect(result.valid).toBe(false);
     if (result.valid) {
       return;
     }
-    expect(result.error).toBe('Expected 3 entries, got 1');
+    expect(result.error).toBe(
+      'Expected one entry for each input index 0-2: unknown index 3; duplicate index 0; missing index 1, 2',
+    );
   });
 
   it('should reject categories outside the configured list', () => {
@@ -77,9 +87,9 @@ describe('createCategorizeValidator()', () => {
     const result = validate(
       structured({
         entries: [
-          { category: 'New Features', scope: null },
-          { category: 'Mystery', scope: null },
-          { category: 'Bug Fixes', scope: null },
+          { index: 0, category: 'New Features', scope: null },
+          { index: 1, category: 'Mystery', scope: null },
+          { index: 2, category: 'Bug Fixes', scope: null },
         ],
       }),
     );
@@ -105,8 +115,8 @@ describe('createCategorizeValidator()', () => {
     const result = validate(
       structured({
         entries: [
-          { category: 'Developer', scope: 'Dependencies' },
-          { category: 'Developer', scope: null },
+          { index: 0, category: 'Developer', scope: 'Dependencies' },
+          { index: 1, category: 'Developer', scope: null },
         ],
       }),
     );
@@ -122,8 +132,8 @@ describe('createCategorizeValidator()', () => {
 });
 
 describe('createEnhanceAndCategorizeValidator()', () => {
-  function fullEntry(description: string, category: string, scope: string | null = null) {
-    return { description, category, scope, breaking: null, leadIn: null };
+  function fullEntry(index: number, description: string, category: string, scope: string | null = null) {
+    return { index, description, category, scope, leadIn: null };
   }
 
   it('should validate a well-formed response into enhanced entries and categories', () => {
@@ -131,15 +141,9 @@ describe('createEnhanceAndCategorizeValidator()', () => {
     const result = validate(
       structured({
         entries: [
-          fullEntry('Added real-time streaming to the API', 'New'),
-          fullEntry('Fixed null pointer in parser', 'Fixed'),
-          {
-            description: 'Refactored config loading',
-            category: 'Developer',
-            scope: 'Code Quality',
-            breaking: null,
-            leadIn: null,
-          },
+          fullEntry(0, 'Added real-time streaming to the API', 'New'),
+          fullEntry(1, 'Fixed null pointer in parser', 'Fixed'),
+          fullEntry(2, 'Refactored config loading', 'Developer', 'Code Quality'),
         ],
       }),
     );
@@ -167,35 +171,33 @@ describe('createEnhanceAndCategorizeValidator()', () => {
 
   it('should reject a response with fewer entries than the input', () => {
     const validate = createEnhanceAndCategorizeValidator(entries, ctx);
-    const result = validate(structured({ entries: [fullEntry('Only first', 'New')] }));
+    const result = validate(structured({ entries: [fullEntry(0, 'Only first', 'New')] }));
 
     expect(result.valid).toBe(false);
     if (result.valid) {
       return;
     }
-    expect(result.error).toBe('Expected 3 entries, got 1 (entries missing — cannot proceed)');
+    expect(result.error).toBe('Expected one entry for each input index 0-2: missing index 1, 2');
   });
 
-  it('should truncate and still validate when the response has more entries than the input', () => {
+  it('should reject a response with an extra entry instead of truncating it', () => {
     const validate = createEnhanceAndCategorizeValidator(entries, ctx);
     const result = validate(
       structured({
         entries: [
-          fullEntry('Enhanced A', 'New'),
-          fullEntry('Enhanced B', 'Fixed'),
-          fullEntry('Enhanced C', 'Changed'),
-          fullEntry('Spurious extra', 'New'),
-          fullEntry('Another extra', 'Fixed'),
+          fullEntry(0, 'Enhanced A', 'New'),
+          fullEntry(1, 'Enhanced B', 'Fixed'),
+          fullEntry(2, 'Enhanced C', 'Changed'),
+          fullEntry(3, 'Spurious extra', 'New'),
         ],
       }),
     );
 
-    expect(result.valid).toBe(true);
-    if (!result.valid) {
+    expect(result.valid).toBe(false);
+    if (result.valid) {
       return;
     }
-    expect(result.value.enhancedEntries).toHaveLength(3);
-    expect(result.value.enhancedEntries[2]?.description).toBe('Enhanced C');
+    expect(result.error).toBe('Expected one entry for each input index 0-2: unknown index 3');
   });
 
   it('should reject categories outside the configured list', () => {
@@ -209,7 +211,7 @@ describe('createEnhanceAndCategorizeValidator()', () => {
     });
     const result = validate(
       structured({
-        entries: [fullEntry('a', 'New'), fullEntry('b', 'Mystery'), fullEntry('c', 'Changed')],
+        entries: [fullEntry(0, 'a', 'New'), fullEntry(1, 'b', 'Mystery'), fullEntry(2, 'c', 'Changed')],
       }),
     );
 
@@ -225,28 +227,13 @@ describe('createEnhanceAndCategorizeValidator()', () => {
       [{ type: 'changed', description: 'Rename preset', prNumber: '608' }],
       ctx,
     );
-    const result = validate(structured({ entries: [fullEntry('Renamed the preset (#608)', 'Changed')] }));
+    const result = validate(structured({ entries: [fullEntry(0, 'Renamed the preset (#608)', 'Changed')] }));
 
     expect(result.valid).toBe(true);
     if (!result.valid) {
       return;
     }
     expect(result.value.enhancedEntries[0]?.description).toBe('Renamed the preset');
-  });
-
-  it.each([
-    ['keep a breaking change breaking when the model says it is not', true, false],
-    ['mark an entry breaking when the model says it is', undefined, true],
-  ])('should %s', (_label, sourceBreaking, modelBreaking) => {
-    const validate = createEnhanceAndCategorizeValidator(
-      [{ type: 'changed', description: 'Rename the preset', breaking: sourceBreaking }],
-      ctx,
-    );
-    const result = validate(
-      structured({ entries: [{ ...fullEntry('Renamed the preset', 'Changed'), breaking: modelBreaking }] }),
-    );
-
-    expect(result.valid && result.value.enhancedEntries[0]?.breaking).toBe(true);
   });
 });
 

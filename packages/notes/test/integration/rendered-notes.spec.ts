@@ -51,8 +51,8 @@ function stubProvider(prose = 'LLM prose'): LLMProvider {
       if (system.startsWith('You are categorizing')) {
         const content = JSON.stringify({
           entries: [
-            { category: 'Highlights', scope: null },
-            { category: 'Fixes', scope: null },
+            { index: 0, category: 'Highlights', scope: null },
+            { index: 1, category: 'Fixes', scope: null },
           ],
         });
         return { content, structured: JSON.parse(content) };

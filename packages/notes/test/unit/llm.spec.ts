@@ -164,9 +164,9 @@ describe('categorizeEntries()', () => {
   it('should parse valid JSON response into categories', async () => {
     const jsonResponse = JSON.stringify({
       entries: [
-        { category: 'New Features', scope: null },
-        { category: 'Bug Fixes', scope: null },
-        { category: 'Bug Fixes', scope: null },
+        { index: 0, category: 'New Features', scope: null },
+        { index: 1, category: 'Bug Fixes', scope: null },
+        { index: 2, category: 'Bug Fixes', scope: null },
       ],
     });
     const provider = makeMockProvider(jsonResponse);
@@ -196,8 +196,8 @@ describe('categorizeEntries()', () => {
     const provider = makeMockProvider(
       JSON.stringify({
         entries: [
-          { category: 'General', scope: null },
-          { category: 'General', scope: null },
+          { index: 0, category: 'General', scope: null },
+          { index: 1, category: 'General', scope: null },
         ],
       }),
     );
@@ -221,8 +221,8 @@ describe('categorizeEntries()', () => {
         callCount++;
         const content = JSON.stringify({
           entries: [
-            { category: 'Developer', scope: 'CI' },
-            { category: 'Developer', scope: 'InvalidScope' },
+            { index: 0, category: 'Developer', scope: 'CI' },
+            { index: 1, category: 'Developer', scope: 'InvalidScope' },
           ],
         });
         return { content, structured: JSON.parse(content) };
@@ -244,7 +244,7 @@ describe('categorizeEntries()', () => {
   it('should strip all scopes when scope mode is none', async () => {
     const entries: ChangelogEntry[] = [{ type: 'added', description: 'Update CI' }];
 
-    const provider = makeMockProvider(JSON.stringify({ entries: [{ category: 'Developer', scope: null }] }));
+    const provider = makeMockProvider(JSON.stringify({ entries: [{ index: 0, category: 'Developer', scope: null }] }));
 
     const result = await categorizeEntries(provider, entries, {
       ...llmContext,
@@ -262,7 +262,7 @@ describe('categorizeEntries()', () => {
       capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
       async complete(messages: LLMMessage[]): Promise<CompleteResult> {
         capturedMessages = messages;
-        const content = JSON.stringify({ entries: [{ category: 'General', scope: null }] });
+        const content = JSON.stringify({ entries: [{ index: 0, category: 'General', scope: null }] });
         return { content, structured: JSON.parse(content) };
       },
     };
@@ -284,8 +284,8 @@ describe('categorizeEntries()', () => {
     const provider = makeMockProvider(
       JSON.stringify({
         entries: [
-          { category: 'Developer', scope: 'Dependencies' },
-          { category: 'Fixed', scope: null },
+          { index: 0, category: 'Developer', scope: 'Dependencies' },
+          { index: 1, category: 'Fixed', scope: null },
         ],
       }),
     );
@@ -322,7 +322,7 @@ describe('categorizeEntries()', () => {
       capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
       async complete(messages: LLMMessage[]): Promise<CompleteResult> {
         capturedMessages = messages;
-        const content = JSON.stringify({ entries: [{ category: 'New Features', scope: null }] });
+        const content = JSON.stringify({ entries: [{ index: 0, category: 'New Features', scope: null }] });
         return { content };
       },
     };
@@ -343,18 +343,18 @@ describe('enhanceAndCategorize()', () => {
     const response = JSON.stringify({
       entries: [
         {
+          index: 0,
           description: 'Added real-time streaming to the API',
           category: 'New',
           scope: null,
-          breaking: null,
           leadIn: null,
         },
-        { description: 'Fixed null pointer in parser', category: 'Fixed', scope: null, breaking: null, leadIn: null },
+        { index: 1, description: 'Fixed null pointer in parser', category: 'Fixed', scope: null, leadIn: null },
         {
+          index: 2,
           description: 'Refactored config loading',
           category: 'Developer',
           scope: 'Code Quality',
-          breaking: null,
           leadIn: null,
         },
       ],
@@ -375,9 +375,9 @@ describe('enhanceAndCategorize()', () => {
   it('should make exactly one provider call for valid response', async () => {
     const response = JSON.stringify({
       entries: [
-        { description: 'a', category: 'General', scope: null, breaking: null, leadIn: null },
-        { description: 'b', category: 'General', scope: null, breaking: null, leadIn: null },
-        { description: 'c', category: 'General', scope: null, breaking: null, leadIn: null },
+        { index: 0, description: 'a', category: 'General', scope: null, leadIn: null },
+        { index: 1, description: 'b', category: 'General', scope: null, leadIn: null },
+        { index: 2, description: 'c', category: 'General', scope: null, leadIn: null },
       ],
     });
     const provider = makeMockProvider(response);
@@ -388,9 +388,9 @@ describe('enhanceAndCategorize()', () => {
   it('should preserve original entry fields (type, issueIds)', async () => {
     const response = JSON.stringify({
       entries: [
-        { description: 'New desc', category: 'New', scope: null, breaking: null, leadIn: null },
-        { description: 'Fixed desc', category: 'Fixed', scope: null, breaking: null, leadIn: null },
-        { description: 'Changed desc', category: 'Changed', scope: null, breaking: null, leadIn: null },
+        { index: 0, description: 'New desc', category: 'New', scope: null, leadIn: null },
+        { index: 1, description: 'Fixed desc', category: 'Fixed', scope: null, leadIn: null },
+        { index: 2, description: 'Changed desc', category: 'Changed', scope: null, leadIn: null },
       ],
     });
     const provider = makeMockProvider(response);
@@ -404,9 +404,9 @@ describe('enhanceAndCategorize()', () => {
   it('should clear scope when LLM returns null scope', async () => {
     const response = JSON.stringify({
       entries: [
-        { description: 'New desc', category: 'New', scope: null, breaking: null, leadIn: null },
-        { description: 'Fixed desc', category: 'Fixed', scope: null, breaking: null, leadIn: null },
-        { description: 'Changed desc', category: 'Changed', scope: null, breaking: null, leadIn: null },
+        { index: 0, description: 'New desc', category: 'New', scope: null, leadIn: null },
+        { index: 1, description: 'Fixed desc', category: 'Fixed', scope: null, leadIn: null },
+        { index: 2, description: 'Changed desc', category: 'Changed', scope: null, leadIn: null },
       ],
     });
     const provider = makeMockProvider(response);
@@ -419,14 +419,14 @@ describe('enhanceAndCategorize()', () => {
     const response = JSON.stringify({
       entries: [
         {
+          index: 0,
           description: 'Real-time streaming to the API',
           category: 'New',
           scope: null,
-          breaking: null,
           leadIn: 'Streaming API',
         },
-        { description: 'Fixed null pointer', category: 'Fixed', scope: null, breaking: null, leadIn: null },
-        { description: 'Refactored config', category: 'Changed', scope: null, breaking: null, leadIn: null },
+        { index: 1, description: 'Fixed null pointer', category: 'Fixed', scope: null, leadIn: null },
+        { index: 2, description: 'Refactored config', category: 'Changed', scope: null, leadIn: null },
       ],
     });
     const provider = makeMockProvider(response);
@@ -448,9 +448,9 @@ describe('enhanceAndCategorize()', () => {
     let callCount = 0;
     const validResponse = JSON.stringify({
       entries: [
-        { description: 'Success after retry', category: 'New', scope: null, breaking: null, leadIn: null },
-        { description: 'Fixed', category: 'Fixed', scope: null, breaking: null, leadIn: null },
-        { description: 'Changed', category: 'Changed', scope: null, breaking: null, leadIn: null },
+        { index: 0, description: 'Success after retry', category: 'New', scope: null, leadIn: null },
+        { index: 1, description: 'Fixed', category: 'Fixed', scope: null, leadIn: null },
+        { index: 2, description: 'Changed', category: 'Changed', scope: null, leadIn: null },
       ],
     });
     const provider: LLMProvider & { callCount: number } = {
@@ -486,23 +486,36 @@ describe('enhanceAndCategorize()', () => {
     expect(provider.callCount).toBe(3); // 1 initial + 2 corrective
   });
 
-  it('should truncate and warn when LLM returns more entries than expected', async () => {
-    const response = JSON.stringify({
-      entries: [
-        { description: 'Enhanced A', category: 'New', scope: null, breaking: null, leadIn: null },
-        { description: 'Enhanced B', category: 'Fixed', scope: null, breaking: null, leadIn: null },
-        { description: 'Enhanced C', category: 'Changed', scope: null, breaking: null, leadIn: null },
-        { description: 'Spurious extra', category: 'New', scope: null, breaking: null, leadIn: null },
-        { description: 'Another extra', category: 'Fixed', scope: null, breaking: null, leadIn: null },
+  it('should send a response with an extra entry back for correction instead of truncating it', async () => {
+    const valid = [
+      { index: 0, description: 'Enhanced A', category: 'New', scope: null, leadIn: null },
+      { index: 1, description: 'Enhanced B', category: 'Fixed', scope: null, leadIn: null },
+      { index: 2, description: 'Enhanced C', category: 'Changed', scope: null, leadIn: null },
+    ];
+    const responses = [
+      [
+        valid[0],
+        { index: 3, description: 'Spurious extra', category: 'New', scope: null, leadIn: null },
+        ...valid.slice(1),
       ],
-    });
-    const provider = makeMockProvider(response);
+      valid,
+    ];
+    const messagesSeen: LLMMessage[][] = [];
+    const provider: LLMProvider = {
+      name: 'mock',
+      capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
+      async complete(messages: LLMMessage[]): Promise<CompleteResult> {
+        messagesSeen.push(messages);
+        const content = JSON.stringify({ entries: responses[messagesSeen.length - 1] });
+        return { content, structured: JSON.parse(content) };
+      },
+    };
+
     const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
 
-    expect(provider.callCount).toBe(1);
-    expect(result.enhancedEntries).toHaveLength(3);
-    expect(result.enhancedEntries[0]?.description).toBe('Enhanced A');
-    expect(result.enhancedEntries[2]?.description).toBe('Enhanced C');
+    expect(messagesSeen).toHaveLength(2);
+    expect(messagesSeen[1]?.at(-1)?.content).toContain('unknown index 3');
+    expect(result.enhancedEntries.map((e) => e.description)).toEqual(['Enhanced A', 'Enhanced B', 'Enhanced C']);
   });
 
   it('should throw when provider errors on all attempts', async () => {
@@ -526,11 +539,11 @@ describe('enhanceAndCategorize()', () => {
         const userMsg = messages.find((m) => m.role === 'user')?.content ?? '';
         const count = (userMsg.match(/<entry /g) ?? []).length;
         chunkSizes.push(count);
-        const entries = Array.from({ length: count }, () => ({
+        const entries = Array.from({ length: count }, (_, index) => ({
+          index,
           description: 'ok',
           category: 'General',
           scope: null,
-          breaking: null,
           leadIn: null,
         }));
         const content = JSON.stringify({ entries });
@@ -563,11 +576,11 @@ describe('enhanceAndCategorize()', () => {
         const count = (userMsg.match(/<entry /g) ?? []).length;
         // First chunk (30 entries) succeeds; the small tail chunk (5) never validates → its fallback.
         if (count === 30) {
-          const entries = Array.from({ length: 30 }, () => ({
+          const entries = Array.from({ length: 30 }, (_, index) => ({
+            index,
             description: 'ok',
             category: 'New',
             scope: null,
-            breaking: null,
             leadIn: null,
           }));
           const content = JSON.stringify({ entries });
@@ -596,11 +609,11 @@ describe('enhanceAndCategorize()', () => {
       async complete(messages: LLMMessage[]): Promise<CompleteResult> {
         const userMsg = messages.find((m) => m.role === 'user')?.content ?? '';
         const count = (userMsg.match(/<entry /g) ?? []).length;
-        const entries = Array.from({ length: count }, () => ({
+        const entries = Array.from({ length: count }, (_, index) => ({
+          index,
           description: `enhanced-${emitted++}`,
           category: 'General',
           scope: null,
-          breaking: null,
           leadIn: null,
         }));
         const content = JSON.stringify({ entries });
@@ -618,9 +631,9 @@ describe('enhanceAndCategorize()', () => {
   it('should apply invalidScopeAction to disallowed scopes without retrying the LLM', async () => {
     const response = JSON.stringify({
       entries: [
-        { description: 'Updated CI', category: 'Developer', scope: 'CI', breaking: null, leadIn: null },
-        { description: 'Fixed bug', category: 'Fixed', scope: 'InvalidScope', breaking: null, leadIn: null },
-        { description: 'Refactored', category: 'Developer', scope: 'Code Quality', breaking: null, leadIn: null },
+        { index: 0, description: 'Updated CI', category: 'Developer', scope: 'CI', leadIn: null },
+        { index: 1, description: 'Fixed bug', category: 'Fixed', scope: 'InvalidScope', leadIn: null },
+        { index: 2, description: 'Refactored', category: 'Developer', scope: 'Code Quality', leadIn: null },
       ],
     });
 
@@ -659,9 +672,9 @@ describe('enhanceAndCategorize()', () => {
         capturedMessages = messages;
         const content = JSON.stringify({
           entries: [
-            { description: 'a', category: 'General', scope: null, breaking: null, leadIn: null },
-            { description: 'b', category: 'General', scope: null, breaking: null, leadIn: null },
-            { description: 'c', category: 'General', scope: null, breaking: null, leadIn: null },
+            { index: 0, description: 'a', category: 'General', scope: null, leadIn: null },
+            { index: 1, description: 'b', category: 'General', scope: null, leadIn: null },
+            { index: 2, description: 'c', category: 'General', scope: null, leadIn: null },
           ],
         });
         return { content, structured: JSON.parse(content) };
@@ -678,9 +691,9 @@ describe('enhanceAndCategorize()', () => {
   });
 
   it('should return General fallback when response has fewer entries than input', async () => {
-    // Count mismatch exhausts corrective retries → fallback.
+    // Missing indexes exhaust corrective retries → fallback.
     const response = JSON.stringify({
-      entries: [{ description: 'Only first', category: 'New', scope: null, breaking: null, leadIn: null }],
+      entries: [{ index: 0, description: 'Only first', category: 'New', scope: null, leadIn: null }],
     });
 
     const provider = makeMockProvider(response);
@@ -698,7 +711,7 @@ describe('enhanceAndCategorize()', () => {
       async complete(messages: LLMMessage[]): Promise<CompleteResult> {
         capturedMessages = messages;
         const content = JSON.stringify({
-          entries: [{ description: 'Added feature', category: 'New', scope: null, breaking: null, leadIn: null }],
+          entries: [{ index: 0, description: 'Added feature', category: 'New', scope: null, leadIn: null }],
         });
         return { content };
       },
@@ -734,17 +747,17 @@ describe('generateReleaseNotes()', () => {
 describe('capabilities: schema options gating', () => {
   const threeEntryResponse = JSON.stringify({
     entries: [
-      { description: 'a', category: 'General', scope: null, breaking: null, leadIn: null },
-      { description: 'b', category: 'General', scope: null, breaking: null, leadIn: null },
-      { description: 'c', category: 'General', scope: null, breaking: null, leadIn: null },
+      { index: 0, description: 'a', category: 'General', scope: null, leadIn: null },
+      { index: 1, description: 'b', category: 'General', scope: null, leadIn: null },
+      { index: 2, description: 'c', category: 'General', scope: null, leadIn: null },
     ],
   });
 
   const threeEntryCategorizeResponse = JSON.stringify({
     entries: [
-      { category: 'General', scope: null },
-      { category: 'General', scope: null },
-      { category: 'General', scope: null },
+      { index: 0, category: 'General', scope: null },
+      { index: 1, category: 'General', scope: null },
+      { index: 2, category: 'General', scope: null },
     ],
   });
 

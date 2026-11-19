@@ -32,9 +32,9 @@ const input: ChangelogInput = {
 
 const categorized = JSON.stringify({
   entries: [
-    { description: 'Add deep link support', category: 'New', scope: null, breaking: null, leadIn: 'Deeplinks' },
-    { description: 'Rename connect()', category: 'New', scope: null, breaking: true, leadIn: null },
-    { description: 'Fix leak for @acme/app', category: 'Fixed', scope: 'ipc', breaking: null, leadIn: null },
+    { index: 0, description: 'Add deep link support', category: 'New', scope: null, leadIn: 'Deeplinks' },
+    { index: 1, description: 'Rename connect()', category: 'New', scope: null, leadIn: null },
+    { index: 2, description: 'Fix leak for @acme/app', category: 'Fixed', scope: 'ipc', leadIn: null },
   ],
 });
 

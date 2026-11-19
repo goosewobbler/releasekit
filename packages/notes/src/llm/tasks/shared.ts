@@ -30,8 +30,8 @@ export const INSTRUCTION_HIERARCHY =
 
 /**
  * The type/scope/description come from commit subjects (attacker-influenceable), so they are HTML-escaped
- * and fenced so a description can't forge prompt structure or smuggle instructions. The `index` fixes
- * input↔output ordering.
+ * and fenced so a description can't forge prompt structure or smuggle instructions. The model echoes the
+ * `index` back so its output maps to entries by it, not by position ({@link orderByIndex}).
  */
 export function renderEntry(entry: ChangelogEntry, index: number): string {
   const attrs = [`index="${index}"`, `type="${escAttr(entry.type)}"`];
@@ -50,7 +50,43 @@ export function renderEntries(entries: ChangelogEntry[]): string {
   return entries.map((e, i) => renderEntry(e, i)).join('\n');
 }
 
-/** Callers must validate that llmEntries.length === entries.length before calling. */
+/**
+ * Puts the model's output in input order by the `index` each element echoes; a missing, duplicate or
+ * unknown index is an error.
+ */
+export function orderByIndex<T extends { index: number }>(
+  llmEntries: T[],
+  expectedCount: number,
+): { ok: true; entries: T[] } | { ok: false; error: string } {
+  const ordered: Array<T | undefined> = new Array(expectedCount);
+  const unknown: number[] = [];
+  const duplicate: number[] = [];
+  for (const entry of llmEntries) {
+    if (entry.index < 0 || entry.index >= expectedCount) {
+      unknown.push(entry.index);
+    } else if (ordered[entry.index]) {
+      duplicate.push(entry.index);
+    } else {
+      ordered[entry.index] = entry;
+    }
+  }
+  const missing = [...ordered.keys()].filter((i) => !ordered[i]);
+
+  const problems = [
+    unknown.length > 0 ? `unknown index ${unknown.join(', ')}` : '',
+    duplicate.length > 0 ? `duplicate index ${duplicate.join(', ')}` : '',
+    missing.length > 0 ? `missing index ${missing.join(', ')}` : '',
+  ].filter(Boolean);
+  if (problems.length > 0) {
+    return {
+      ok: false,
+      error: `Expected one entry for each input index 0-${expectedCount - 1}: ${problems.join('; ')}`,
+    };
+  }
+  return { ok: true, entries: ordered as T[] };
+}
+
+/** `llmEntries` must be in input order ({@link orderByIndex}). */
 export function groupByCategory(
   llmEntries: Array<{ category: string }>,
   entries: ChangelogEntry[],

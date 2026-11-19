@@ -48,9 +48,9 @@ describe('Pipeline: config.llm.options passthrough', () => {
         capturedOpts = opts;
         const content = JSON.stringify({
           entries: [
-            { category: 'New Features', scope: null },
-            { category: 'Bug Fixes', scope: null },
-            { category: 'Bug Fixes', scope: null },
+            { index: 0, category: 'New Features', scope: null },
+            { index: 1, category: 'Bug Fixes', scope: null },
+            { index: 2, category: 'Bug Fixes', scope: null },
           ],
         });
         return { content, structured: JSON.parse(content) };

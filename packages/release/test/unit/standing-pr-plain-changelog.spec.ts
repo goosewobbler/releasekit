@@ -48,8 +48,8 @@ const versionOutput: VersionOutput = {
 
 const CATEGORIZED = JSON.stringify({
   entries: [
-    { category: 'New', scope: null },
-    { category: 'New', scope: null },
+    { index: 0, category: 'New', scope: null },
+    { index: 1, category: 'New', scope: null },
   ],
 });
 
