@@ -764,6 +764,91 @@ describe('runStandingPRUpdate', () => {
     expect(writeCall.exclude?.slice().sort()).toEqual(['@wdio/tauri-plugin', '@wdio/tauri-service']);
   });
 
+  describe('streamlined primaries with a prerequisite and an orphan', () => {
+    // `@app/x` has no group but a prerequisite, `@app/y` anchors a group, and `@app/z` sits outside both units.
+    const run = async (ticked: { x: boolean; y: boolean; z: boolean }) => {
+      const { loadConfig } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, selection: 'streamlined' } },
+        git: { branch: 'main' },
+        release: { ci: { skipPatterns: ['chore: release '] } },
+        version: {
+          sync: false,
+          groups: { y: { sync: 'linked', packages: ['@app/y', '@app/y-plugin'] } },
+          primaryPackages: ['@app/x', '@app/y'],
+        },
+      } as unknown as ReturnType<typeof loadConfig>);
+      mockGetWorkspacePackageNames.mockResolvedValue(['@app/x', '@app/x-core', '@app/y', '@app/y-plugin', '@app/z']);
+
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      vi.mocked(runVersionStep).mockResolvedValue({
+        dryRun: false,
+        strategy: 'async',
+        updates: [
+          { packageName: '@app/x', newVersion: '1.1.0', filePath: 'packages/x/package.json', role: 'target' },
+          {
+            packageName: '@app/x-core',
+            newVersion: '0.3.0',
+            filePath: 'packages/x-core/package.json',
+            role: 'prerequisite',
+            prerequisiteOf: ['@app/x'],
+          },
+          { packageName: '@app/y', newVersion: '2.1.0', filePath: 'packages/y/package.json', group: 'y' },
+          { packageName: '@app/y-plugin', newVersion: '2.1.0', filePath: 'packages/y-plugin/package.json', group: 'y' },
+          { packageName: '@app/z', newVersion: '0.5.1', filePath: 'packages/z/package.json' },
+        ],
+        changelogs: [],
+        tags: [],
+        commitMessage: 'chore: release',
+        sharedEntries: [],
+      } as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+      const box = (on: boolean) => (on ? '[x]' : '[ ]');
+      const priorBody = [
+        '<!-- releasekit-selection -->',
+        '',
+        `- ${box(ticked.x)} **\`@app/x\`** → 1.1.0 <!-- rk-sel:@app/x -->`,
+        `- ${box(ticked.y)} **\`@app/y\`** → 2.1.0 <!-- rk-sel:@app/y -->`,
+        `- ${box(ticked.z)} \`@app/z\` → 0.5.1 <!-- rk-sel:@app/z -->`,
+        '',
+        '<!-- releasekit-selection-end -->',
+      ].join('\n');
+      const forge = await mockForge({
+        standingPR: openStandingPR(99),
+        pullRequests: { 99: { body: priorBody, labels: [] } },
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
+      return {
+        exclude: writeCall.exclude?.slice().sort(),
+        body: forge.updatedPullRequests[0]?.changes.body ?? '',
+      };
+    };
+
+    it('should give the orphan its own row and ship it while a primary is held back', async () => {
+      const { exclude, body } = await run({ x: true, y: false, z: true });
+
+      expect(body).toContain('- [x] `@app/z` → 0.5.1 <!-- rk-sel:@app/z -->');
+      expect(body).not.toContain('  - `@app/z`');
+      expect(exclude).toEqual(['@app/y', '@app/y-plugin']);
+    });
+
+    it('should hold back only the orphan when it is unticked', async () => {
+      const { exclude } = await run({ x: true, y: true, z: false });
+
+      expect(exclude).toEqual(['@app/z']);
+    });
+
+    it("should hold back a primary's prerequisite with it while another primary ships", async () => {
+      const { exclude } = await run({ x: false, y: true, z: true });
+
+      expect(exclude).toEqual(['@app/x', '@app/x-core']);
+    });
+  });
+
   const selectionBody = (untickedB = true) =>
     [
       '<!-- releasekit-selection -->',
