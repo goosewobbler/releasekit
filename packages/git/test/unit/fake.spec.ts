@@ -101,6 +101,12 @@ describe('FakeGit queries', () => {
     expect(await git.remoteBranchExists('origin', 'main')).toBe(false);
     expect(await git.remoteBranchExists('upstream', 'release/next')).toBe(false);
   });
+
+  it('should report seeded remote tags per remote', async () => {
+    const git = createFakeGit({ remoteTags: { origin: { 'v1.0.0': 'sha1' } } });
+    expect(await git.remoteTags('origin')).toEqual({ 'v1.0.0': 'sha1' });
+    expect(await git.remoteTags('upstream')).toEqual({});
+  });
 });
 
 describe('FakeGit mutations', () => {

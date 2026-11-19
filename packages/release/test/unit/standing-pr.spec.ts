@@ -59,6 +59,8 @@ function setupGit(
     ancestors?: FakeGitSeed['ancestors'];
     status?: string;
     files?: FakeGitSeed['files'];
+    remoteTags?: FakeGitSeed['remoteTags'];
+    commits?: FakeGitSeed['commits'];
   } = {},
 ) {
   fakeGit = new ControllableGit({
@@ -66,6 +68,8 @@ function setupGit(
     remoteBranches: seed.remoteBranches,
     status: seed.status,
     files: seed.files,
+    remoteTags: seed.remoteTags,
+    commits: seed.commits,
     // Default to "is an ancestor" so the manifest baseSha ancestry guard passes on the common publish path.
     ancestors: seed.ancestors ?? (() => true),
   });
@@ -419,23 +423,143 @@ describe('runStandingPRUpdate', () => {
     expect(result.action).toBe('noop');
   });
 
-  it('should return noop when a release commit lands on the base branch during the run', async () => {
-    // The top guard reads a normal commit, the post-reset recheck a release commit that merged mid-run; the recheck
-    // must bow out so the standing PR doesn't double-bump off the just-merged-but-untagged version.
-    fakeGit.subjects = ['feat: something (#320)', 'chore: release v0.29.0 (#318)'];
+  describe('a release landing on the base branch', () => {
+    const RELEASED = { packageName: '@scope/core', newVersion: '0.29.0' };
+    const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000);
 
-    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
-    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.29.0' }]);
-    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
-    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    async function mockQueuedUpdate() {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.30.0' }]);
+      vi.mocked(runVersionStep).mockResolvedValue(
+        versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    }
 
-    const forge = await mockForge({ standingPR: openStandingPR(99) });
+    /** Standing PR #318 merged `mergedMinutesAgo` ago; a feeder sits on top, so HEAD is no release commit. */
+    async function mergedStandingPR(
+      opts: { mergedMinutesAgo?: number; tagged?: boolean; failureReport?: boolean } = {},
+    ) {
+      setupGit({ remoteTags: { origin: opts.tagged ? { '@scope/core@v0.29.0': 'notes-commit' } : {} } });
+      const manifest = { ...baseManifest, versionOutput: withPackageChangelogs(createMockVersionOutput([RELEASED])) };
+      const comments = [{ id: 1, prNumber: 318, body: serializeManifest(manifest) }];
+      if (opts.failureReport) {
+        comments.push({
+          id: 2,
+          prNumber: 318,
+          body: renderFailureReport({
+            versionOutput: manifest.versionOutput as unknown as Parameters<
+              typeof renderFailureReport
+            >[0]['versionOutput'],
+            failedStage: 'npm-publish',
+            errorMessage: 'npm 403',
+            recovery: { mode: 'standing-pr', standingPrNumber: 318 },
+          }),
+        });
+      }
+      return mockForge({
+        standingPR: openStandingPR(99),
+        recentlyClosedPRs: [
+          { number: 318, mergedAt: minutesAgo(opts.mergedMinutesAgo ?? 5).toISOString() },
+          { number: 300, mergedAt: minutesAgo(600).toISOString() },
+        ],
+        comments,
+      });
+    }
 
-    const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+    const update = () => runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    expect(result.action).toBe('noop');
-    expect(forge.updatedPullRequests).toHaveLength(0);
-    expect(forge.createdPullRequests).toHaveLength(0);
+    it('should wait, with the reason, while a merged standing PR is untagged under a feeder commit', async () => {
+      await mockQueuedUpdate();
+      const forge = await mergedStandingPR();
+
+      const result = await update();
+
+      expect(result).toEqual({
+        action: 'noop',
+        reason: expect.stringMatching(
+          /still publishing: standing PR #318 \(@scope\/core@v0\.29\.0 not on the remote\)/,
+        ),
+      });
+      expect(forge.updatedPullRequests).toHaveLength(0);
+      expect(forge.createdPullRequests).toHaveLength(0);
+      expect(fakeGit.pushed).toHaveLength(0);
+    });
+
+    it('should update once the release is tagged', async () => {
+      await mockQueuedUpdate();
+      await mergedStandingPR({ tagged: true });
+
+      expect((await update()).action).toBe('updated');
+    });
+
+    it('should update when the untagged release has a publish-failure report', async () => {
+      await mockQueuedUpdate();
+      await mergedStandingPR({ failureReport: true });
+
+      expect((await update()).action).toBe('updated');
+    });
+
+    it('should update with a warning once the untagged release is past the backstop', async () => {
+      await mockQueuedUpdate();
+      await mergedStandingPR({ mergedMinutesAgo: 150 });
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      onTestFinished(() => logged.mockRestore());
+
+      expect((await update()).action).toBe('updated');
+      expect(logged.mock.calls.map(([line]) => String(line))).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('standing PR #318 (@scope/core@v0.29.0 not on the remote) is still untagged 2h 30m'),
+        ]),
+      );
+    });
+
+    it('should analyse the latest base in a reconcile, rebuilding a standing PR that holds a newer feeder', async () => {
+      // The publish job's checkout is the release's merge commit, with nothing queued; origin/main has a feeder on top.
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const feeder = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.30.0' }]);
+      vi.mocked(runVersionStep).mockImplementation(
+        async () =>
+          (fakeGit.resetTo.includes('origin/main') ? feeder : createMockVersionOutput([])) as unknown as Awaited<
+            ReturnType<typeof runVersionStep>
+          >,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      const forge = await mergedStandingPR({ tagged: true });
+      fakeGit.subjects = ['chore: release v0.29.0 (#318)'];
+
+      const result = await runStandingPRUpdate({
+        projectDir: '/test',
+        verbose: false,
+        quiet: false,
+        json: false,
+        reconcile: true,
+      });
+
+      expect(result.action).toBe('updated');
+      expect(forge.updatedPullRequests.some((u) => u.changes.state === 'closed')).toBe(false);
+    });
+
+    it('should wait while a direct release commit has none of its tags', async () => {
+      await mockQueuedUpdate();
+      const releaseSha = 'd'.repeat(40);
+      const committedAt = Math.floor(minutesAgo(5).getTime() / 1000);
+      setupGit({
+        remoteTags: { origin: { 'v0.28.0': 'old-release' } },
+        commits: {
+          'origin/main': [
+            `${'f'.repeat(40)}\t${releaseSha}\t${committedAt + 60}\tfeat: a feeder (#321)`,
+            `${releaseSha}\t${'e'.repeat(40)}\t${committedAt}\tchore: release v0.29.0`,
+          ].join('\n'),
+        },
+      });
+      await mockForge({ standingPR: openStandingPR(99) });
+
+      expect(await update()).toEqual({
+        action: 'noop',
+        reason: expect.stringContaining(`release commit ${releaseSha.slice(0, 7)} (no tags on the remote)`),
+      });
+    });
   });
 
   it('should bypass the skip-pattern guard when reconcile is set', async () => {

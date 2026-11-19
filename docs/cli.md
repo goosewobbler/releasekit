@@ -194,11 +194,13 @@ Calculate versions, commit to the release branch, and create/update the standing
 |---|---|---|---|
 | `-t, --target <packages>` | string | labels | Ad-hoc override: release only these packages (comma-separated). Wins over label-derived targets |
 | `--include-prerequisites` | boolean | `false` | With `--target`, also release the changed internal dependencies (and group members) of the targets |
-| `--reconcile` | boolean | `false` | Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point) |
+| `--reconcile` | boolean | `false` | Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point), and analyse the latest `origin/<base>` rather than the checkout |
 
 ```bash
 releasekit standing-pr update --reconcile
 ```
+
+While the base branch holds a release whose tags aren't on the remote yet, the update waits and returns `noop` with a `reason`. It goes ahead if that release has a publish-failure report, or with a warning once it landed over two hours ago.
 
 The standing PR body carries a **Packages to release** checklist — untick a changed package to hold
 it back from the next release (it is excluded from the version step, never bumped). Requires the

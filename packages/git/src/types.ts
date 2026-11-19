@@ -111,6 +111,8 @@ export interface Git {
   isIgnored(file: string, cwd?: string): Promise<boolean>;
   forEachRef(opts: GitForEachRefOptions): Promise<string[]>;
   remoteBranchExists(remote: string, branch: string, cwd?: string): Promise<boolean>;
+  /** Each tag on `remote`, mapped to the commit it points at. */
+  remoteTags(remote: string, cwd?: string): Promise<Record<string, string>>;
   hasStagedChanges(cwd?: string): Promise<boolean>;
 
   /** To stage everything, use {@link Git.addAll}. */

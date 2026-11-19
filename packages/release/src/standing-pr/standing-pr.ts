@@ -28,7 +28,7 @@ import {
   resolveFailureReportIfPresent,
 } from '../failure-report/post.js';
 import { getHeadCommitMessage, matchesSkipPattern, requireGitHubContext } from '../git.js';
-import { forgeFor } from '../github.js';
+import { findMergedPRsForCommit, forgeFor } from '../github.js';
 import { readGitHubEvent } from '../github-event.js';
 import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS, graduatedPackageFromLabel, isGraduatePackageLabel } from '../label-utils.js';
@@ -153,6 +153,8 @@ export interface StandingPROptions {
 
 export interface StandingPRResult {
   action: 'created' | 'updated' | 'closed' | 'noop';
+  /** Why the update waited for a release still publishing. */
+  reason?: string;
   prNumber?: number;
   prUrl?: string;
   versionOutput?: VersionOutput;
@@ -1109,6 +1111,25 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     .filter(([, version]) => deriveReleaseChannel(version) === 'prerelease')
     .map(([name]) => name);
 
+  const waitForReleaseInFlight = async (): Promise<StandingPRResult | null> => {
+    const inFlight = await findReleaseInFlight({ forge, cwd, base, branch, skipPatterns });
+    if (!inFlight) {
+      return null;
+    }
+    info(`Skipping standing PR update: ${inFlight.reason}`);
+    return { action: 'noop', reason: inFlight.reason };
+  };
+
+  // A reconcile runs in a publishing job, whose checkout can predate a newer merge, so it analyses the latest base.
+  if (options.reconcile) {
+    info(`Resetting release branch '${branch}' to origin/${base}...`);
+    await resetReleaseBranch(branch, base, cwd);
+    const waiting = await waitForReleaseInFlight();
+    if (waiting) {
+      return waiting;
+    }
+  }
+
   info('Running version analysis (dry run)...');
   // Run without label graduation, so the dry run is just the queue. Otherwise an unchanged prerelease that a label
   // graduates would look like a queued change instead of getting a graduation row.
@@ -1179,20 +1200,15 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     );
   }
 
-  info(`Resetting release branch '${branch}' to origin/${base}...`);
-  await resetReleaseBranch(branch, base, cwd);
-  const baseSha = await getHeadSha(cwd);
-
-  // A release merge can land on `base` mid-run; the reset pulls in its untagged version bump, and recomputing from it
-  // would double-bump (package.json ahead of the last tag under `mismatchStrategy: prefer-package`). Bow out and let
-  // the post-release reconcile rebuild the PR once the release has tagged.
   if (!options.reconcile) {
-    const resetHeadSubject = await getHeadCommitMessage(cwd);
-    if (resetHeadSubject && matchesSkipPattern(resetHeadSubject, skipPatterns)) {
-      info('Skipping standing PR update: a release commit landed on the base branch during this run');
-      return { action: 'noop' };
+    info(`Resetting release branch '${branch}' to origin/${base}...`);
+    await resetReleaseBranch(branch, base, cwd);
+    const waiting = await waitForReleaseInFlight();
+    if (waiting) {
+      return waiting;
     }
   }
+  const baseSha = await getHeadSha(cwd);
 
   const dryUpdates = belowMinPackages
     ? []
@@ -1385,9 +1401,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   });
   const versionOutput = await runVersionStep(writeOptions);
 
-  // The write can come back empty when a release landed on `base` mid-run (a reconcile race the skip-pattern bail
-  // exempts), which would render a degenerate body. Publishable-only so a sync root-only bump is caught too. Offered
-  // graduations keep the PR open with nothing ticked.
+  // The write can come back empty when a release landed on `base` and tagged after the dry run, which would render a
+  // degenerate body. Publishable-only so a sync root-only bump is caught too. Offered graduations keep the PR open
+  // with nothing ticked.
   const graduationOffered = graduationUpdates.length > 0 || syncGraduationOffered;
   if (publishableUpdates(versionOutput).length === 0 && !graduationOffered) {
     return closeEmptyQueue(existingStandingPr, forge);
@@ -2199,14 +2215,139 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
  * after a newer standing PR has merged.
  */
 export async function findLatestMergedStandingPR(forge: Forge, branch: string): Promise<number | null> {
+  return (await latestMergedStandingPR(forge, branch))?.number ?? null;
+}
+
+async function latestMergedStandingPR(
+  forge: Forge,
+  branch: string,
+): Promise<{ number: number; mergedAt: string } | null> {
   const prs = await forge.listRecentlyClosedPullRequests(branch, 10);
 
   // 'updated' ordering only guarantees the newest merge is in the page; late activity on an older merged PR can
   // sort it above a newer merge, so pick by mergedAt.
   const merged = prs
-    .filter((pr) => pr.mergedAt != null)
-    .sort((a, b) => new Date(b.mergedAt as string).getTime() - new Date(a.mergedAt as string).getTime());
-  return merged[0]?.number ?? null;
+    .flatMap((pr) => (pr.mergedAt != null ? [{ number: pr.number, mergedAt: pr.mergedAt }] : []))
+    .sort((a, b) => new Date(b.mergedAt).getTime() - new Date(a.mergedAt).getTime());
+  return merged[0] ?? null;
+}
+
+// Long enough for a slow publish, short enough that one which crashed without reporting can't hold updates for good.
+const RELEASE_IN_FLIGHT_BACKSTOP_MS = 2 * 3_600_000;
+const RELEASE_COMMIT_SCAN_DEPTH = 50;
+
+export interface FindReleaseInFlightOptions {
+  forge: Forge;
+  cwd: string;
+  /** Read as `origin/<base>`, so fetch first. */
+  base: string;
+  /** The standing PR's head branch. */
+  branch: string;
+  skipPatterns: string[];
+}
+
+export interface ReleaseInFlight {
+  reason: string;
+}
+
+interface UntaggedRelease {
+  label: string;
+  landedAt: number;
+  hasFailureReport: () => Promise<boolean>;
+}
+
+/**
+ * A release on `origin/<base>` whose tags aren't on the remote yet: a merged standing PR missing any of its manifest's
+ * tags, or a direct release commit with none. Recomputing from its bumped manifests would double-bump. One whose
+ * publish reported a failure, or that landed longer ago than the backstop, doesn't count: the next release supersedes
+ * it.
+ */
+export async function findReleaseInFlight(options: FindReleaseInFlightOptions): Promise<ReleaseInFlight | null> {
+  const { forge, cwd, base, branch, skipPatterns } = options;
+  const remoteTags = await createGitCli().remoteTags('origin', cwd);
+  const untagged: UntaggedRelease[] = [];
+
+  const merged = await latestMergedStandingPR(forge, branch);
+  if (merged) {
+    const manifest = await readMergedManifest(forge, merged.number);
+    const missing = (manifest?.versionOutput.tags ?? []).filter((tag) => !Object.hasOwn(remoteTags, tag));
+    if (missing.length > 0) {
+      untagged.push({
+        label: `standing PR #${merged.number} (${missing.join(', ')} not on the remote)`,
+        landedAt: Date.parse(merged.mergedAt),
+        hasFailureReport: async () => (await detectUnresolvedFailure(forge, merged.number)) !== null,
+      });
+    }
+  }
+
+  const commit = await latestReleaseCommit(base, skipPatterns, cwd);
+  if (commit && !Object.values(remoteTags).includes(commit.sha)) {
+    // A standing PR's tags can sit on a notes commit off the base branch, so its merge commit is covered above.
+    const standingMerge = merged ? (await forge.getPullRequest(merged.number)).mergeCommitSha : undefined;
+    if (commit.sha !== standingMerge) {
+      untagged.push({
+        label: `release commit ${commit.sha.slice(0, 7)} (no tags on the remote)`,
+        landedAt: commit.committedAt,
+        hasFailureReport: async () => {
+          // A direct release reports on the PR that triggered it, which merged as the commit's parent.
+          for (const prNumber of commit.parent ? await findMergedPRsForCommit(forge, commit.parent) : []) {
+            if (await detectUnresolvedFailure(forge, prNumber)) {
+              return true;
+            }
+          }
+          return false;
+        },
+      });
+    }
+  }
+
+  for (const release of untagged) {
+    if (await release.hasFailureReport()) {
+      info(`${release.label} has a publish-failure report, so the next release supersedes it`);
+      continue;
+    }
+    const age = Date.now() - release.landedAt;
+    if (age > RELEASE_IN_FLIGHT_BACKSTOP_MS) {
+      warn(
+        `${release.label} is still untagged ${formatDuration(age)} after it landed, with no publish-failure report; ` +
+          'updating anyway, so check that its publish finished',
+      );
+      continue;
+    }
+    return { reason: `a release is still publishing: ${release.label}` };
+  }
+  return null;
+}
+
+async function readMergedManifest(forge: Forge, prNumber: number): Promise<StandingPRManifest | null> {
+  try {
+    return await readTrustedManifest(forge, prNumber, 'publish');
+  } catch (err) {
+    if (err instanceof ManifestRefusal) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+async function latestReleaseCommit(
+  base: string,
+  skipPatterns: string[],
+  cwd: string,
+): Promise<{ sha: string; parent?: string; committedAt: number } | null> {
+  const log = await createGitCli().log({
+    range: `origin/${base}`,
+    format: '%H%x09%P%x09%ct%x09%s',
+    extraArgs: ['--first-parent', `--max-count=${RELEASE_COMMIT_SCAN_DEPTH}`],
+    cwd,
+  });
+  for (const line of log.split('\n')) {
+    const [sha, parents, committedAt, ...subject] = line.split('\t');
+    if (sha && matchesSkipPattern(subject.join('\t'), skipPatterns)) {
+      return { sha, parent: parents?.split(' ')[0] || undefined, committedAt: Number(committedAt) * 1000 };
+    }
+  }
+  return null;
 }
 
 /**

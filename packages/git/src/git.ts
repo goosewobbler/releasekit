@@ -255,6 +255,26 @@ export class GitCli implements Git {
     });
   }
 
+  async remoteTags(remote: string, cwd?: string): Promise<Record<string, string>> {
+    assertNotOption(remote, 'remote');
+    const { stdout } = await this.exec(['ls-remote', '--tags', '--end-of-options', remote], { cwd: this.cwd(cwd) });
+    const tags: Record<string, string> = {};
+    for (const line of splitLines(stdout)) {
+      const [sha, ref] = line.split('\t');
+      if (!sha || !ref?.startsWith('refs/tags/')) {
+        continue;
+      }
+      const name = ref.slice('refs/tags/'.length);
+      // An annotated tag's peeled `^{}` line names its commit; the plain line names the tag object.
+      if (name.endsWith('^{}')) {
+        tags[name.slice(0, -'^{}'.length)] = sha;
+      } else {
+        tags[name] ??= sha;
+      }
+    }
+    return tags;
+  }
+
   async hasStagedChanges(cwd?: string): Promise<boolean> {
     try {
       await this.exec(['diff', '--cached', '--quiet'], { cwd: this.cwd(cwd), ignoreOutput: true });

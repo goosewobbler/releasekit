@@ -335,6 +335,7 @@ Use `release:graduate` and `channel:prerelease` labels on **the standing PR itse
 ### Lifecycle and edge cases
 
 - **No releasable commits since last release:** the standing PR is closed with an explanatory comment. It reopens automatically when releasable commits land. While any package is on a prerelease line, it stays open with only graduation rows instead, and its status check stays `pending` until one is ticked.
+- **A release still publishing:** an update waits while `main` holds a release whose tags aren't on the remote yet, so it can't bump on top of the untagged versions. The publish job's `--reconcile` step rebuilds the standing PR once they exist. An update goes ahead anyway if that release's publish posted a failure report, or, with a warning, two hours after it landed.
 - **Dependabot and other `chore` commits:** trigger the workflow. Under `conventionalcommits` (the default) they aren't releasable on their own: they join an existing standing PR, or the workflow no-ops. Under `angular`, which releases at least a patch for any commit, they open a standing PR proposing a patch.
 - **Coexistence with label-driven releases:** safe by design. The label-driven path publishes immediately and writes a `chore: release …` commit (with `[skip ci]`) which the standing PR's skip-pattern guard (`release.ci.skipPatterns`, default `["chore: release "]`) recognises and skips. The standing PR resets fresh from `main` on the next non-release commit.
 - **CI concurrency caveat:** if `ci.yml` uses `cancel-in-progress: true` on the `main` branch concurrency group, sequential merges will cancel each other's CI. Any release workflow gated on `workflow_run` completion will then silently skip for the cancelled run. Use a per-SHA group for push events:
@@ -450,7 +451,8 @@ If a standing-PR publish fails partway through, add the **`release:retry`** labe
 
 1. Validates via its `if` guard that the PR is a merged standing PR and the label is `release:retry` — note the guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard and the `concurrency` group to match.
 2. Re-runs the manifest-driven publish for that PR (`standing-pr publish --pr <n>`) — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases.
-3. Removes the label, so each application is exactly one retry; re-apply it to retry again.
+3. Runs `standing-pr update --reconcile`, rebuilding the standing PR now the release's tags exist.
+4. Removes the label, so each application is exactly one retry; re-apply it to retry again.
 
 A publish that refused the manifest usually can't be retried this way; its failure report says whether it can, and otherwise to merge the next standing PR (see [A refused publish](../../../docs/troubleshooting.md#a-refused-publish)).
 

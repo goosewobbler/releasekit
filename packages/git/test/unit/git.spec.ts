@@ -248,6 +248,23 @@ describe('GitCli queries', () => {
     expect(await new GitCli(no.run).remoteBranchExists('origin', 'absent')).toBe(false);
   });
 
+  it('should map each remote tag to its commit, peeling annotated tags', async () => {
+    const { run, calls } = makeRunner({
+      stdout: [
+        'aaa\trefs/tags/v1.0.0',
+        'ttt\trefs/tags/v2.0.0',
+        'bbb\trefs/tags/v2.0.0^{}',
+        'ccc\trefs/tags/@scope/pkg@v1.0.0',
+      ].join('\n'),
+    });
+    expect(await new GitCli(run).remoteTags('origin', '/r')).toEqual({
+      'v1.0.0': 'aaa',
+      'v2.0.0': 'bbb',
+      '@scope/pkg@v1.0.0': 'ccc',
+    });
+    expect(calls[0].args).toEqual(['ls-remote', '--tags', '--end-of-options', 'origin']);
+  });
+
   it('should answer hasStagedChanges via diff --cached --quiet exit code', async () => {
     const clean = makeRunner();
     expect(await new GitCli(clean.run).hasStagedChanges('/r')).toBe(false);
