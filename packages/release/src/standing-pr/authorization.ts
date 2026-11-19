@@ -1,6 +1,5 @@
 import type { StandingPrConfig } from '@releasekit/config';
 import type { Forge, RepoPermission } from '@releasekit/forge';
-import { readGitHubEvent } from '../github-event.js';
 
 export type StandingPrAuthorization = NonNullable<StandingPrConfig['authorization']>;
 
@@ -12,27 +11,6 @@ const PERMISSION_RANK: Record<RepoPermission, number> = {
   read: 1,
   none: 0,
 };
-
-export interface EventActor {
-  action?: string;
-  login?: string;
-  type?: string;
-}
-
-export function getEventActor(): EventActor {
-  const event = readGitHubEvent<{
-    action?: string;
-    sender?: { login?: string; type?: string };
-  }>();
-  if (!event) {
-    return {};
-  }
-  return {
-    action: event.action,
-    login: event.sender?.login,
-    type: event.sender?.type,
-  };
-}
 
 function isBot(login: string | undefined, type: string | undefined): boolean {
   return type === 'Bot' || login?.endsWith('[bot]') === true;

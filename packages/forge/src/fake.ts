@@ -1,5 +1,6 @@
 import type {
   AssociatedPullRequest,
+  AuthoredBody,
   CommentAuthor,
   CommitStatus,
   CreateLabelResult,
@@ -8,6 +9,7 @@ import type {
   IssueDetails,
   IssueRef,
   IssueState,
+  LabelEvent,
   MergeMethod,
   NewIssue,
   NewLabel,
@@ -37,8 +39,13 @@ interface FakeComment {
 /** Left undefined, a seeded issue is open. */
 type FakeIssue = Omit<IssueDetails, 'state'> & { state?: IssueState };
 
+/** `nodeId` defaults to `PR_<number>`. */
+export type FakeStandingPullRequest = Omit<StandingPullRequest, 'nodeId'> & { nodeId?: string };
+
+const BOT: CommentAuthor = { login: 'github-actions[bot]', type: 'Bot' };
+
 export interface FakeForgeSeed {
-  standingPR?: StandingPullRequest | null;
+  standingPR?: FakeStandingPullRequest | null;
   recentlyClosedPRs?: AssociatedPullRequest[];
   openPullRequests?: OpenPullRequest[];
   pullRequestsForCommit?: Record<string, AssociatedPullRequest[]>;
@@ -52,10 +59,17 @@ export interface FakeForgeSeed {
   actorPermissions?: Record<string, RepoPermission>;
   /** Keyed by `org/team-slug`. */
   teamMemberships?: Record<string, string[]>;
+  /**
+   * Keyed by node ID. A PR's node (`PR_<number>`) defaults to its `pullRequests` body, opened by the bot and never
+   * edited.
+   */
+  authoredBodies?: Record<string, AuthoredBody>;
+  /** Unseeded, the standing PR's labels read as applied by the bot. */
+  labelEvents?: Record<number, LabelEvent[]>;
 }
 
 export class FakeForge implements Forge {
-  standingPR: StandingPullRequest | null;
+  standingPR: FakeStandingPullRequest | null;
   private readonly recentlyClosedPRs: AssociatedPullRequest[];
   private readonly openPullRequests: OpenPullRequest[];
   private readonly pullRequestsForCommit: Record<string, AssociatedPullRequest[]>;
@@ -68,6 +82,8 @@ export class FakeForge implements Forge {
   private readonly releasesByTag: Record<string, ReleaseRef>;
   private readonly actorPermissions: Record<string, RepoPermission>;
   private readonly teamMemberships: Record<string, string[]>;
+  private readonly authoredBodies: Record<string, AuthoredBody>;
+  private readonly labelEvents: Record<number, LabelEvent[]>;
 
   // Recorded writes, for assertions.
   readonly createdComments: Array<{ prNumber: number; body: string }> = [];
@@ -112,6 +128,8 @@ export class FakeForge implements Forge {
     this.releasesByTag = seed.releasesByTag ?? {};
     this.actorPermissions = seed.actorPermissions ?? {};
     this.teamMemberships = seed.teamMemberships ?? {};
+    this.authoredBodies = seed.authoredBodies ?? {};
+    this.labelEvents = seed.labelEvents ?? {};
     this.nextCommentId = Math.max(0, ...this.comments.map((c) => c.id)) + 1;
   }
 
@@ -134,7 +152,7 @@ export class FakeForge implements Forge {
   }
 
   async findStandingPR(_branch: string): Promise<StandingPullRequest | null> {
-    return this.standingPR;
+    return this.standingPR && { nodeId: `PR_${this.standingPR.number}`, ...this.standingPR };
   }
 
   async listRecentlyClosedPullRequests(_branch: string, limit: number): Promise<AssociatedPullRequest[]> {
@@ -151,6 +169,18 @@ export class FakeForge implements Forge {
 
   async getPullRequest(prNumber: number): Promise<PullRequestDetails> {
     return this.pullRequestDetails[prNumber] ?? { body: '', labels: [] };
+  }
+
+  async getAuthoredBody(nodeId: string): Promise<AuthoredBody> {
+    const seeded = this.authoredBodies[nodeId];
+    if (seeded) {
+      return seeded;
+    }
+    const prNumber = /^PR_(\d+)$/.exec(nodeId)?.[1];
+    if (prNumber === undefined) {
+      throw new Error(`No PR, issue or comment with node ID ${nodeId}`);
+    }
+    return { body: (await this.getPullRequest(Number(prNumber))).body, author: BOT, editors: [] };
   }
 
   async createPullRequest(pr: NewPullRequest): Promise<PullRequestRef> {
@@ -253,6 +283,15 @@ export class FakeForge implements Forge {
 
   async setLabels(issueNumber: number, labels: string[]): Promise<void> {
     this.setLabelsCalls.push({ issueNumber, labels });
+  }
+
+  async listLabelEvents(issueNumber: number): Promise<LabelEvent[]> {
+    const seeded = this.labelEvents[issueNumber];
+    if (seeded) {
+      return seeded;
+    }
+    const labels = this.standingPR?.number === issueNumber ? this.standingPR.labels : [];
+    return labels.map((label) => ({ action: 'labeled', label, actor: BOT }));
   }
 
   async setCommitStatus(status: CommitStatus): Promise<void> {

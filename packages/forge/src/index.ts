@@ -3,6 +3,7 @@ export { createFakeForge, FakeForge, type FakeForgeSeed } from './fake.js';
 export { createGitHubForge, GitHubForge } from './github.js';
 export type {
   AssociatedPullRequest,
+  AuthoredBody,
   CommentAuthor,
   CommitStatus,
   CommitStatusState,
@@ -13,6 +14,7 @@ export type {
   IssueDetails,
   IssueRef,
   IssueState,
+  LabelEvent,
   MergeMethod,
   NewIssue,
   NewLabel,

@@ -9,6 +9,8 @@ export interface PullRequestRef {
 
 export interface StandingPullRequest extends PullRequestRef {
   labels: string[];
+  /** Identifies the PR to `getAuthoredBody`. */
+  nodeId: string;
 }
 
 export interface AssociatedPullRequest {
@@ -89,6 +91,26 @@ export function isBotComment(comment: Pick<ForgeComment, 'user'>): boolean {
   return user.type === 'Bot' || user.login?.endsWith('[bot]') === true;
 }
 
+/** A PR's, issue's or comment's body with who wrote it and who last edited it, read together. */
+export interface AuthoredBody {
+  body: string;
+  author?: CommentAuthor;
+  /** Unset when the body was never edited. */
+  editor?: CommentAuthor;
+  lastEditedAt?: string;
+  /**
+   * Who made each of the latest 100 revisions, newest first, ending with the original if it's among them. `undefined`
+   * for an account that no longer exists.
+   */
+  editors: Array<CommentAuthor | undefined>;
+}
+
+export interface LabelEvent {
+  action: 'labeled' | 'unlabeled';
+  label: string;
+  actor?: CommentAuthor;
+}
+
 export interface NewPullRequest {
   title: string;
   body: string;
@@ -164,6 +186,8 @@ export interface Forge {
   listOpenPullRequests(base: string, limit: number): Promise<OpenPullRequest[]>;
   getIssue(issueNumber: number): Promise<IssueDetails>;
   getPullRequest(prNumber: number): Promise<PullRequestDetails>;
+  /** The body, author and editors of the PR, issue or comment `nodeId` identifies. */
+  getAuthoredBody(nodeId: string): Promise<AuthoredBody>;
   createPullRequest(pr: NewPullRequest): Promise<PullRequestRef>;
   updatePullRequest(prNumber: number, changes: PullRequestChanges): Promise<void>;
   /** With `sha`, the merge fails unless the PR's head is still that commit. */
@@ -184,6 +208,8 @@ export interface Forge {
   /** Resolves to 'exists' rather than throwing when the label is already present. */
   createLabel(label: NewLabel): Promise<CreateLabelResult>;
   setLabels(issueNumber: number, labels: string[]): Promise<void>;
+  /** Every label added to or removed from an issue or PR, oldest first. */
+  listLabelEvents(issueNumber: number): Promise<LabelEvent[]>;
 
   /** Returns 'none' for an unknown/outside actor rather than throwing. */
   getActorPermission(username: string): Promise<RepoPermission>;

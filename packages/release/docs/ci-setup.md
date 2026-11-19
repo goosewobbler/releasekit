@@ -252,7 +252,7 @@ The standing PR is a **release-control surface**, not just a PR. Its release lab
 
 So control is enforced in two places:
 
-- **Selection + release labels** — enforced *in code* by ReleaseKit, because GitHub can't. The manifest comment is authoritative; an unauthorized edit to the checkboxes or release labels is ignored and reconciled back to the manifest on the next update (the box re-ticks, the rogue label is removed, a notice is posted). This is opt-in hardening for teams that delegate triage.
+- **Selection + release labels** — enforced *in code* by ReleaseKit, because GitHub can't. The next update, whatever triggers it, reverts an unauthorized edit to the checkboxes or release labels and posts a notice; [Who can change what](../../../docs/standing-pr-body.md#who-can-change-what) has the rules. This is opt-in hardening for teams that delegate triage.
 - **Merge (= publish)** — enforced by a **GitHub branch ruleset** (the primary gate, since merge is the privileged action) plus a publish-time **author check** (`enforceMergeAuthor`, defense-in-depth behind the ruleset).
 
 #### The `authorization` config
@@ -281,7 +281,7 @@ With `authorization` configured (threshold `admin` shown):
 
 | Action | GitHub requires | With `authorization` configured |
 |---|---|---|
-| Tick/untick a selection checkbox | Triage (edit PR body) | Honored only if the editor is authorized; otherwise reverted to the manifest, with a notice. |
+| Tick/untick a selection checkbox | Triage (edit PR body) | Honored only while the body's last human editor is authorized; otherwise reverted to the manifest, with a notice. |
 | Add/remove a release label (`bump:*`, `scope:*`, `channel:*`, `release:with-prerequisites`) | Triage | Same — unauthorized changes are reverted and a notice posted. |
 | Add/remove a non-release label (`area:*`, …) | Triage | Unaffected — ReleaseKit only reconciles release-control labels. |
 | Merge the standing PR (**= publish**) | Write | Refused at publish if the merger isn't authorized or can't be determined (`enforceMergeAuthor`); the branch ruleset below is the primary gate. |
