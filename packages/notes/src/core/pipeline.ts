@@ -416,6 +416,8 @@ export interface PipelineOptions {
    * release-notes file layout.
    */
   releaseNotesFor?: string[];
+  /** Skip only the per-version release-notes files; the release notes are still generated. */
+  skipReleaseNotesFiles?: boolean;
 }
 
 export async function runPipeline(
@@ -583,7 +585,7 @@ export async function runPipeline(
     }
   }
 
-  if (!pipelineOptions?.skipReleaseNotes && releaseNotesConfig?.file?.dir) {
+  if (!pipelineOptions?.skipReleaseNotes && !pipelineOptions?.skipReleaseNotesFiles && releaseNotesConfig?.file?.dir) {
     const dir = releaseNotesConfig.file.dir;
     info(`Generating release notes → ${dir}`);
 

@@ -69,6 +69,7 @@ export async function runNotesStep(versionOutput: VersionOutput, options: Releas
     skipReleaseNotes: options.skipReleaseNotes,
     skipChangelogs: options.skipChangelogs,
     releaseNotesFor: options.releaseNotesFor,
+    skipReleaseNotesFiles: options.skipReleaseNotesFiles,
   });
 
   return { packageNotes: result.packageNotes, releaseNotes: result.releaseNotes, files: result.files };

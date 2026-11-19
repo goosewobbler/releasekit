@@ -3797,11 +3797,20 @@ describe('runStandingPRUpdate', () => {
           return { packageNotes: {}, files: [] };
         }
         generatedFor.push(changelogs.map((cl) => cl.packageName));
-        return {
-          packageNotes: {},
-          releaseNotes: Object.fromEntries(changelogs.map((cl) => [cl.packageName, notesFor(cl)])),
-          files: [],
-        };
+        const releaseNotes = Object.fromEntries(changelogs.map((cl) => [cl.packageName, notesFor(cl)]));
+        // As the notes pipeline does: each generated key's per-version file, under `file.dir` and unless skipped.
+        const { loadConfig } = await import('@releasekit/config');
+        const notesConfig = loadConfig({ cwd: '/test' }).notes?.releaseNotes;
+        const dir = notesConfig ? notesConfig.file?.dir : undefined;
+        const files: string[] = [];
+        if (dir && !opts.skipReleaseNotesFiles) {
+          const { writeFileSync } = await import('node:fs');
+          for (const [key, text] of Object.entries(releaseNotes)) {
+            files.push(`${dir}/${key}/1.1.0.md`);
+            writeFileSync(`${dir}/${key}/1.1.0.md`, text, 'utf-8');
+          }
+        }
+        return { packageNotes: {}, releaseNotes, files };
       });
     }
 
@@ -3853,6 +3862,25 @@ describe('runStandingPRUpdate', () => {
     const failingLlm = (): string => {
       throw new Error('llm.model is not set');
     };
+
+    async function useNotesDir() {
+      const { loadConfig } = await import('@releasekit/config');
+      const config = loadConfig({ cwd: '/test' });
+      vi.mocked(loadConfig).mockReturnValue({
+        ...config,
+        notes: { releaseNotes: { file: { dir: 'release-notes' } } },
+      } as ReturnType<typeof loadConfig>);
+    }
+
+    async function writtenNotesFiles(): Promise<Record<string, unknown>> {
+      const { writeFileSync } = await import('node:fs');
+      return Object.fromEntries(
+        vi
+          .mocked(writeFileSync)
+          .mock.calls.filter(([file]) => String(file).startsWith('release-notes/'))
+          .map(([file, text]) => [file, text]),
+      );
+    }
 
     const initial = { 'pkg-a': ['fix a'], 'pkg-b': ['fix b'] };
     const newCommitForB = { 'pkg-a': ['fix a'], 'pkg-b': ['fix b', 'fix b again'] };
@@ -3979,6 +4007,19 @@ describe('runStandingPRUpdate', () => {
       expect(generatedFor).toEqual([['pkg-a', 'pkg-b']]);
     });
 
+    it('should write no per-version notes file when it seeds or regenerates regions', async () => {
+      await useNotesDir();
+
+      const seeded = await update(output(initial));
+      expect(generatedFor).toEqual([['pkg-a', 'pkg-b']]);
+      const next = await update(output(newCommitForB), seeded);
+      expect(generatedFor).toEqual([['pkg-b']]);
+
+      expect(await writtenNotesFiles()).toEqual({});
+      expect(parseManifest(seeded.manifest).notesFiles).toEqual([]);
+      expect(parseManifest(next.manifest).notesFiles).toEqual([]);
+    });
+
     describe('at publish', () => {
       it('should ship an unedited region as written, with no LLM call for its key', async () => {
         const seeded = await update(output(initial));
@@ -4032,12 +4073,7 @@ describe('runStandingPRUpdate', () => {
       });
 
       it('should write each shipped region, edited or not, to its per-version notes file', async () => {
-        const { loadConfig } = await import('@releasekit/config');
-        const config = loadConfig({ cwd: '/test' });
-        vi.mocked(loadConfig).mockReturnValue({
-          ...config,
-          notes: { releaseNotes: { file: { dir: 'release-notes' } } },
-        } as ReturnType<typeof loadConfig>);
+        await useNotesDir();
         const seeded = await update(output(initial));
         const body = editRegion(seeded.body, 'Notes for pkg-a: fix a', 'HAND-WRITTEN A');
         setupGit({ status: '?? release-notes/' });
@@ -4057,13 +4093,26 @@ describe('runStandingPRUpdate', () => {
         ]);
       });
 
+      it("should write every releasing package's notes file with the text that ships", async () => {
+        await useNotesDir();
+        const seeded = await update(output(initial));
+        const body = seeded.body.slice(0, seeded.body.indexOf('### `pkg-b`'));
+        setupGit({ status: '?? release-notes/' });
+
+        const notes = await publish(output(initial), { ...seeded, body }, () => 'REGENERATED');
+
+        expect(notes).toEqual({ 'pkg-a': 'Notes for pkg-a: fix a', 'pkg-b': 'REGENERATED' });
+        expect(await writtenNotesFiles()).toEqual({
+          'release-notes/pkg-a/1.1.0.md': 'Notes for pkg-a: fix a',
+          'release-notes/pkg-b/1.1.0.md': 'REGENERATED',
+        });
+        expect(fakeGit.committed.at(-1)?.paths).toEqual(
+          expect.arrayContaining(['release-notes/pkg-a/1.1.0.md', 'release-notes/pkg-b/1.1.0.md']),
+        );
+      });
+
       it('should ship and write a region the web editor saved with CRLF line endings with LF ones', async () => {
-        const { loadConfig } = await import('@releasekit/config');
-        const config = loadConfig({ cwd: '/test' });
-        vi.mocked(loadConfig).mockReturnValue({
-          ...config,
-          notes: { releaseNotes: { file: { dir: 'release-notes' } } },
-        } as ReturnType<typeof loadConfig>);
+        await useNotesDir();
         const seeded = await update(output(initial), undefined, (cl) => `Notes for ${cl.packageName}\n\n- line`);
         const { writeFileSync } = await import('node:fs');
 

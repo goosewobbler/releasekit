@@ -302,6 +302,24 @@ describe('Pipeline: skipReleaseNotes / skipChangelogs flags', () => {
     expect(Object.keys(result.releaseNotes ?? {})).toEqual(['other-pkg']);
   });
 
+  it('should return release notes but write no release-notes file when skipReleaseNotesFiles:true', async () => {
+    vi.mocked(fs.writeFileSync).mockClear();
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+    const config: Config = {
+      changelog: { mode: 'root', file: 'CHANGELOG.md' },
+      releaseNotes: { file: { dir: 'release-notes' } },
+    };
+
+    const result = await runPipeline(sampleInput, config, false, {
+      releaseNotesFor: ['test-pkg'],
+      skipReleaseNotesFiles: true,
+    });
+
+    expect(result.files).toEqual([]);
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+    expect(Object.keys(result.releaseNotes ?? {})).toEqual(['test-pkg']);
+  });
+
   it('should preserve existing behaviour with both flags omitted (changelog + release notes both written)', async () => {
     const { runPipeline } = await import('../../src/core/pipeline.js');
     const config: Config = {

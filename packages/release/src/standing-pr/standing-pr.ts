@@ -1505,7 +1505,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     count > 0
       ? await runNotesStep(versionOutput, { ...writeOptions, skipNotes: false, skipReleaseNotes: true })
       : { packageNotes: {}, files: [] };
-  const notesFiles = [...notesResult.files];
   const generatedNotes: Record<string, string> = {};
   if (count > 0 && notesPlan.generate.length > 0) {
     info(`Generating release notes for ${notesPlan.generate.length} package(s)...`);
@@ -1515,8 +1514,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         skipNotes: false,
         skipReleaseNotes: false,
         releaseNotesFor: notesPlan.generate,
+        // Publish writes these with the text that ships; written here, they'd come and go in the PR's diff.
+        skipReleaseNotesFiles: true,
       });
-      notesFiles.push(...generated.files);
       for (const key of notesPlan.generate) {
         const notes = generated.releaseNotes?.[key];
         if (notes) {
@@ -1603,7 +1603,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     versionOutput,
     // Publish reads the notes from the body.
     releaseNotes: {},
-    notesFiles,
+    notesFiles: notesResult.files,
     createdAt: new Date().toISOString(),
     baseSha,
     // Stands in for the release branch's head, which has the same length, until the push below.
@@ -2200,7 +2200,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   }
   const notesFiles = [...new Set([...manifest.notesFiles, ...newFiles])];
 
-  // So main matches the GitHub release body. The update may have written some of these files with other text.
+  // So main matches the GitHub release body.
   if (newFiles.length > 0) {
     const formatCommand = releaseKitConfig.publish?.git?.formatCommand ?? releaseKitConfig.git?.formatCommand;
     if (formatCommand) {

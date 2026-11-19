@@ -28,6 +28,8 @@ export interface ReleaseOptions {
   skipChangelogs?: boolean;
   /** Generate release notes only for these packages, and no changelogs. */
   releaseNotesFor?: string[];
+  /** Per-version notes files only; release notes are still generated. */
+  skipReleaseNotesFiles?: boolean;
   skipPublish: boolean;
   skipGit: boolean;
   skipGitCommit?: boolean;
