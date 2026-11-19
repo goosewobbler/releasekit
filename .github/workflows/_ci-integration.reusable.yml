@@ -42,3 +42,6 @@ jobs:
 
       - name: Run version integration tests
         run: pnpm --filter @releasekit/version test:integration
+
+      - name: Run the standing-PR lifecycle model
+        run: pnpm --filter @releasekit/release test:integration

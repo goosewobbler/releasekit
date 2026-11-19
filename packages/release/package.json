@@ -21,9 +21,10 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "clean": "rm -rf dist coverage .turbo",
-    "test": "vitest run",
-    "test:unit": "vitest run --coverage",
-    "test:coverage": "vitest run --coverage",
+    "test": "vitest run --dir test/unit",
+    "test:integration": "vitest run --dir test/integration",
+    "test:unit": "vitest run --coverage --dir test/unit",
+    "test:coverage": "vitest run --coverage --dir test/unit",
     "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
@@ -78,6 +79,7 @@
     "@types/node": "catalog:",
     "@types/semver": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "fast-check": "^4.10.1",
     "tsup": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
