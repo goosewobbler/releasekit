@@ -195,6 +195,7 @@ export class FakeForge implements Forge {
   async createPullRequest(pr: NewPullRequest): Promise<PullRequestRef> {
     this.createdPullRequests.push(pr);
     const number = this.nextNumber++;
+    this.issues[number] = { body: pr.body, title: pr.title, labels: [], isPullRequest: true, author: this.actor };
     return { number, url: `https://github.com/fake/fake/pull/${number}` };
   }
 

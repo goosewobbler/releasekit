@@ -80,6 +80,8 @@ describe('FakeForge', () => {
     expect(await forge.upsertMarkerComment(1, 'SEEDED', 'SEEDED edited')).toMatchObject({ id: 1, user: FAKE_BOT });
     const issue = await forge.createIssue({ title: 't', body: 'b' });
     expect(await forge.getIssue(issue.number)).toMatchObject({ author: human });
+    const pr = await forge.createPullRequest({ title: 't', body: 'b', head: 'h', base: 'main' });
+    expect(await forge.getIssue(pr.number)).toMatchObject({ isPullRequest: true, author: human });
   });
 
   it('should make createLabel idempotent against seeded labels', async () => {
