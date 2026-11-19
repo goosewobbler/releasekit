@@ -228,6 +228,7 @@ interface EventPullRequest {
   number?: number;
   head?: { sha?: string };
   base?: { ref?: string };
+  merged?: boolean;
   merge_commit_sha?: string | null;
   merged_by?: { login?: string; type?: string } | null;
 }
@@ -1938,9 +1939,8 @@ async function assertMergeAuthorized(
   if (!merger) {
     throw new ManifestRefusal(
       livePr
-        ? `Refusing to publish PR #${prNumber}: enforceMergeAuthor is set but GitHub reports no merger for it, so it ` +
-            `may not be merged. Check that the PR is a merged standing PR; to publish without the merge-author check, ` +
-            `set ci.standingPr.authorization.enforceMergeAuthor: false.`
+        ? `Refusing to publish PR #${prNumber}: enforceMergeAuthor is set but GitHub reports no merger for it. To ` +
+            `publish without the merge-author check, set ci.standingPr.authorization.enforceMergeAuthor: false.`
         : `Refusing to publish PR #${prNumber}: enforceMergeAuthor is set but the merger is unknown - the PR could ` +
             `not be read from GitHub.`,
       !livePr,
@@ -2033,6 +2033,9 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   }
 
   const eventPr = eventPullRequest(prNumber);
+  if (livePr?.merged === false || eventPr?.merged === false) {
+    throw new Error(`Refusing to publish PR #${prNumber}: it has not merged. Merge it first, then publish.`);
+  }
   const mergedHead = livePr?.headSha ?? eventPr?.head?.sha;
   const mergeCommitSha = livePr?.mergeCommitSha ?? eventPr?.merge_commit_sha ?? undefined;
   const manifest = await verifyManifestForPublish(

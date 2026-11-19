@@ -383,7 +383,7 @@ describe('GitHubForge', () => {
       expect(fns.pullsList).toHaveBeenCalledTimes(2);
     });
 
-    it('should map a pull request to {body,labels,headSha,headRef,baseRef,mergeCommitSha,mergedBy}', async () => {
+    it('should map a pull request to {body,labels,headSha,headRef,baseRef,merged,mergeCommitSha,mergedBy}', async () => {
       const { octokit, fns } = makeOctokit();
       fns.pullsGet.mockResolvedValue({
         data: {
@@ -391,6 +391,7 @@ describe('GitHubForge', () => {
           labels: [{ name: 'x' }],
           head: { sha: 'abc', ref: 'release/next' },
           base: { ref: 'main' },
+          merged: true,
           merge_commit_sha: 'def',
           merged_by: { login: 'maintainer', type: 'User', id: 1 },
         },
@@ -401,6 +402,7 @@ describe('GitHubForge', () => {
         headSha: 'abc',
         headRef: 'release/next',
         baseRef: 'main',
+        merged: true,
         mergeCommitSha: 'def',
         mergedBy: { login: 'maintainer', type: 'User' },
       });

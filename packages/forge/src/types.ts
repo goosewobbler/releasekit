@@ -55,6 +55,7 @@ export interface PullRequestDetails {
   headSha?: string;
   headRef?: string;
   baseRef?: string;
+  merged?: boolean;
   /** For a merged PR, the commit the merge put on the base branch. */
   mergeCommitSha?: string;
   mergedBy?: { login: string; type?: string };
