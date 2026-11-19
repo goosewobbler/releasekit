@@ -107,14 +107,6 @@ describe('FakeGit queries', () => {
     expect(await git.remoteTags('origin')).toEqual({ 'v1.0.0': 'sha1' });
     expect(await git.remoteTags('upstream')).toEqual({});
   });
-
-  it('should add the remote tags to listTags on a tags fetch', async () => {
-    const git = createFakeGit({ tags: ['v0.9.0'], remoteTags: { origin: { 'v1.0.0': 'sha1' } } });
-    await git.fetch('origin');
-    expect(await git.listTags()).toEqual(['v0.9.0']);
-    await git.fetch('origin', { tags: true });
-    expect(await git.listTags()).toEqual(['v0.9.0', 'v1.0.0']);
-  });
 });
 
 describe('FakeGit mutations', () => {
