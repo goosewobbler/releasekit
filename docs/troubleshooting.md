@@ -149,7 +149,7 @@ Paths are resolved relative to the project root (the directory containing `relea
 - **OIDC:** the job lacks `id-token: write`, or the package has no trusted publisher on npmjs.com for this workflow.
 - **Token:** `NODE_AUTH_TOKEN` or `NPM_TOKEN` is not set, or the secret is not passed to the publish step.
 
-**Fix:** For OIDC trusted publishing (recommended), ensure `id-token: write` is in workflow permissions and that each package has an Automation policy configured at npmjs.com. See [ci-setup.md — npm OIDC Trusted Publishing](../packages/release/docs/ci-setup.md#npm-oidc-trusted-publishing-recommended) for the full setup. For token-based publishing, set:
+**Fix:** For OIDC trusted publishing (recommended), ensure `id-token: write` is in workflow permissions and that each package has a trusted publisher configured at npmjs.com. See [ci-setup.md — npm OIDC Trusted Publishing](../packages/release/docs/ci-setup.md#npm-oidc-trusted-publishing-recommended) for the full setup. For token-based publishing, set:
 
 ```yaml
 env:
