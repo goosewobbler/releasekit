@@ -5,9 +5,13 @@ import {
   loadConfig as loadReleaseKitConfig,
   runFormatCommand,
 } from '@releasekit/config';
-import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
+import type { VersionChangelogEntry, VersionOutput, VersionPackageUpdate } from '@releasekit/core';
 import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
-import { VersionOutputSchema, VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
+import {
+  VersionChangelogEntrySchema,
+  VersionOutputSchema,
+  VersionPackageChangelogSchema,
+} from '@releasekit/core/version-output-schema';
 import {
   type Forge,
   type ForgeComment,
@@ -101,7 +105,11 @@ const ManifestVersionOutputSchema = z
         })
         .passthrough(),
     ),
-    changelogs: z.array(VersionPackageChangelogSchema),
+    changelogs: z.array(
+      VersionPackageChangelogSchema.extend({
+        sharedPackageEntryRefs: z.array(z.number().int().nonnegative()).optional(),
+      }),
+    ),
     sharedEntries: VersionOutputSchema.shape.sharedEntries,
     bundledReleases: VersionOutputSchema.shape.bundledReleases,
     tags: z.array(z.string()),
@@ -130,6 +138,7 @@ const ManifestSchema = z
         z.object({ inputHash: z.string(), renderedHash: z.string(), truncated: z.boolean().optional() }),
       )
       .optional(),
+    sharedPackageEntryPool: z.array(VersionChangelogEntrySchema).optional(),
   })
   .passthrough();
 
@@ -570,8 +579,93 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
   return shed(undefined);
 }
 
+const GITHUB_COMMENT_LIMIT = 65_536;
+
+interface PooledManifest {
+  versionOutput: { changelogs: Record<string, unknown>[] } & Record<string, unknown>;
+  sharedPackageEntryPool?: VersionChangelogEntry[];
+  [key: string]: unknown;
+}
+
+function replaceKey(record: object, from: string, to: string, value: unknown): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(record).map(([key, v]) => (key === from ? [to, value] : [key, v])));
+}
+
+// Changelogs share most of their sharedPackageEntries, so the manifest stores each entry once and the changelogs
+// refer to it by index.
+function poolSharedPackageEntries(m: StandingPRManifest): PooledManifest {
+  if (!m.versionOutput.changelogs.some((changelog) => changelog.sharedPackageEntries)) {
+    return m as unknown as PooledManifest;
+  }
+  const pool: VersionChangelogEntry[] = [];
+  const indexOf = new Map<string, number>();
+  const changelogs = m.versionOutput.changelogs.map((changelog) => {
+    if (!changelog.sharedPackageEntries) {
+      return { ...changelog };
+    }
+    const refs = changelog.sharedPackageEntries.map((entry) => {
+      const key = JSON.stringify(entry);
+      let index = indexOf.get(key);
+      if (index === undefined) {
+        index = pool.push(entry) - 1;
+        indexOf.set(key, index);
+      }
+      return index;
+    });
+    return replaceKey(changelog, 'sharedPackageEntries', 'sharedPackageEntryRefs', refs);
+  });
+  return { ...m, versionOutput: { ...m.versionOutput, changelogs }, sharedPackageEntryPool: pool };
+}
+
+function expandSharedPackageEntries(pooled: PooledManifest): StandingPRManifest {
+  const { sharedPackageEntryPool: pool = [], ...manifest } = pooled;
+  const changelogs = pooled.versionOutput.changelogs.map((changelog, n) => {
+    const refs = changelog.sharedPackageEntryRefs as number[] | undefined;
+    if (refs === undefined) {
+      return changelog;
+    }
+    const entries = refs.map((index) => {
+      const entry = pool[index];
+      if (!entry) {
+        throw new Error(
+          `Release manifest failed validation: versionOutput.changelogs.${n}.sharedPackageEntryRefs: ${index} is not in sharedPackageEntryPool`,
+        );
+      }
+      return structuredClone(entry);
+    });
+    return replaceKey(changelog, 'sharedPackageEntryRefs', 'sharedPackageEntries', entries);
+  });
+  return { ...manifest, versionOutput: { ...pooled.versionOutput, changelogs } } as unknown as StandingPRManifest;
+}
+
+function largestManifestParts(pooled: PooledManifest, count: number): string {
+  const { versionOutput, ...rest } = pooled;
+  const { changelogs, ...versionRest } = versionOutput;
+  const parts: [string, unknown][] = [
+    ...Object.entries(rest),
+    ...Object.entries(versionRest).map(([key, value]): [string, unknown] => [`versionOutput.${key}`, value]),
+    ...changelogs.map((changelog): [string, unknown] => [`changelog ${String(changelog.packageName)}`, changelog]),
+  ];
+  return parts
+    .map(([name, value]) => ({ name, size: JSON.stringify(value)?.length ?? 0 }))
+    .sort((a, b) => b.size - a.size)
+    .slice(0, count)
+    .map(({ name, size }) => `${name} (${size})`)
+    .join(', ');
+}
+
+function assertManifestCommentFits(m: StandingPRManifest): void {
+  const { length } = serializeManifest(m);
+  if (length > GITHUB_COMMENT_LIMIT) {
+    throw new Error(
+      `Release manifest comment is ${length} characters, over GitHub's ${GITHUB_COMMENT_LIMIT}-character ` +
+        `comment limit. Largest parts, in characters of JSON before base64: ${largestManifestParts(poolSharedPackageEntries(m), 5)}`,
+    );
+  }
+}
+
 export function serializeManifest(m: StandingPRManifest, marker = MANIFEST_MARKER): string {
-  const encoded = Buffer.from(JSON.stringify(m)).toString('base64');
+  const encoded = Buffer.from(JSON.stringify(poolSharedPackageEntries(m))).toString('base64');
   return [
     marker,
     '<details><summary>Release manifest (do not edit)</summary>',
@@ -623,7 +717,7 @@ export function parseManifest(commentBody: string): StandingPRManifest {
   }
 
   // The validated input, not zod's copy: zod lists schema keys first, which breaks order-sensitive comparisons.
-  return parsed as StandingPRManifest;
+  return expandSharedPackageEntries(parsed as PooledManifest);
 }
 
 export async function findManifestComment(forge: Forge, prNumber: number): Promise<ForgeComment | null> {
@@ -1450,6 +1544,81 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       : FALLBACK_TITLE;
 
   const title = safeStandingPrTitle(renderedTitle, skipPatterns);
+  // Accepted race: a human edit landing between the body read above and the update below is overwritten; updates
+  // are infrequent enough not to warrant optimistic concurrency.
+  let notesRegion: string | undefined;
+  const notesRegionStates: NotesRegionStates = { ...notesPlan.owned };
+  if (previewNotesEnabled) {
+    for (const [key, notes] of Object.entries(generatedNotes)) {
+      notesRegionStates[key] = notesRegionState(key, notes, notesInputHashes[key] ?? '');
+    }
+    // A region that wasn't regenerated, as when the LLM call failed, stays with its old state.
+    const regions = { ...liveNotes, ...generatedNotes };
+    if (Object.keys(regions).length > 0) {
+      notesRegion = renderNotesRegion(regions);
+    }
+  }
+
+  let firstUpdatedAt = new Date().toISOString();
+  // A PR holding only unticked graduation rows had nothing to release, so its minAge wait hasn't started.
+  if (existingManifest && publishableUpdates(existingManifest.versionOutput).length > 0) {
+    firstUpdatedAt = existingManifest.firstUpdatedAt ?? existingManifest.createdAt;
+  }
+
+  const graduatedPackages = graduatedPackageNames(versionOutput, workspaceVersions);
+  const rowGraduated =
+    sync && syncGraduated && !queued
+      ? graduatedPackages
+      : graduatedPackages.filter((name) => graduationRowsTicked.has(name));
+
+  const queuedEntries = new Map(versionOutputDry.changelogs.map((cl) => [cl.packageName, cl.entries]));
+  // A sync release records its changes once, in its shared changelog, and graduates as one.
+  const graduationChecks = sync
+    ? graduatedPackages.slice(0, 1).map((name) => ({
+        subject: 'The release',
+        entries: versionOutputDry.changelogs.flatMap((cl) => cl.entries),
+        current: workspaceVersions[name],
+      }))
+    : graduatedPackages.map((name) => ({
+        subject: `\`${name}\``,
+        entries: queuedEntries.get(name),
+        current: workspaceVersions[name],
+      }));
+  const graduationHolds: string[] = [];
+  for (const { subject, entries, current } of graduationChecks) {
+    const needed =
+      entries && current ? graduationOvershoot(entries, current, releaseKitConfig.version?.zeroMajor) : undefined;
+    if (needed) {
+      const bumpLabel = needed === 'major' ? overrideLabelNames.major : overrideLabelNames.minor;
+      const hold =
+        `${subject} can't graduate: its queued changes need a ${needed} bump. Start a new line with ` +
+        `\`${bumpLabel}\` + \`${overrideLabelNames.prerelease}\``;
+      warn(hold);
+      graduationHolds.push(hold);
+    }
+  }
+
+  const manifest: StandingPRManifest = {
+    schemaVersion: 2,
+    versionOutput,
+    // Publish reads the notes from the body.
+    releaseNotes: {},
+    notesFiles,
+    createdAt: new Date().toISOString(),
+    baseSha,
+    // Stands in for the release branch's head, which has the same length, until the push below.
+    headSha: baseSha,
+    firstUpdatedAt,
+    overrideLabels: extractOverrideLabels(effectiveLabels, ciConfig),
+    deselected: effectiveDeselected.size > 0 ? [...effectiveDeselected].sort() : undefined,
+    graduated: graduatedPackages.length > 0 ? graduatedPackages : undefined,
+    graduationRows: rowGraduated.length > 0 ? rowGraduated : undefined,
+    graduationHolds: graduationHolds.length > 0 ? graduationHolds : undefined,
+    prereleased: writePrereleaseScope.length > 0 ? [...writePrereleaseScope].sort() : undefined,
+    notesRegions: Object.keys(notesRegionStates).length > 0 ? notesRegionStates : undefined,
+  };
+  assertManifestCommentFits(manifest);
+
   info(`Committing and pushing '${branch}'...`);
   // With nothing ticked there's nothing to commit, and GitHub won't open a PR with no commits.
   await commitAndForcePush(
@@ -1488,21 +1657,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   } catch (err) {
     warn(`Could not check for unresolved publish failures: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  // Accepted race: a human edit landing between the body read above and the update below is overwritten; updates
-  // are infrequent enough not to warrant optimistic concurrency.
-  let notesRegion: string | undefined;
-  const notesRegionStates: NotesRegionStates = { ...notesPlan.owned };
-  if (previewNotesEnabled) {
-    for (const [key, notes] of Object.entries(generatedNotes)) {
-      notesRegionStates[key] = notesRegionState(key, notes, notesInputHashes[key] ?? '');
-    }
-    // A region that wasn't regenerated, as when the LLM call failed, stays with its old state.
-    const regions = { ...liveNotes, ...generatedNotes };
-    if (Object.keys(regions).length > 0) {
-      notesRegion = renderNotesRegion(regions);
-    }
   }
 
   // Rendered from the dry run's full changed set so a held-back package still shows as an unticked row with its
@@ -1604,64 +1758,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  let firstUpdatedAt = new Date().toISOString();
-  // A PR holding only unticked graduation rows had nothing to release, so its minAge wait hasn't started.
-  if (existingManifest && publishableUpdates(existingManifest.versionOutput).length > 0) {
-    firstUpdatedAt = existingManifest.firstUpdatedAt ?? existingManifest.createdAt;
-  }
-
-  const graduatedPackages = graduatedPackageNames(versionOutput, workspaceVersions);
-  const rowGraduated =
-    sync && syncGraduated && !queued
-      ? graduatedPackages
-      : graduatedPackages.filter((name) => graduationRowsTicked.has(name));
-
-  const queuedEntries = new Map(versionOutputDry.changelogs.map((cl) => [cl.packageName, cl.entries]));
-  // A sync release records its changes once, in its shared changelog, and graduates as one.
-  const graduationChecks = sync
-    ? graduatedPackages.slice(0, 1).map((name) => ({
-        subject: 'The release',
-        entries: versionOutputDry.changelogs.flatMap((cl) => cl.entries),
-        current: workspaceVersions[name],
-      }))
-    : graduatedPackages.map((name) => ({
-        subject: `\`${name}\``,
-        entries: queuedEntries.get(name),
-        current: workspaceVersions[name],
-      }));
-  const graduationHolds: string[] = [];
-  for (const { subject, entries, current } of graduationChecks) {
-    const needed =
-      entries && current ? graduationOvershoot(entries, current, releaseKitConfig.version?.zeroMajor) : undefined;
-    if (needed) {
-      const bumpLabel = needed === 'major' ? overrideLabelNames.major : overrideLabelNames.minor;
-      const hold =
-        `${subject} can't graduate: its queued changes need a ${needed} bump. Start a new line with ` +
-        `\`${bumpLabel}\` + \`${overrideLabelNames.prerelease}\``;
-      warn(hold);
-      graduationHolds.push(hold);
-    }
-  }
-
-  const manifest: StandingPRManifest = {
-    schemaVersion: 2,
-    versionOutput,
-    // Publish reads the notes from the body.
-    releaseNotes: {},
-    notesFiles,
-    createdAt: new Date().toISOString(),
-    baseSha,
-    headSha: releaseBranchSha,
-    firstUpdatedAt,
-    overrideLabels: extractOverrideLabels(effectiveLabels, ciConfig),
-    deselected: effectiveDeselected.size > 0 ? [...effectiveDeselected].sort() : undefined,
-    graduated: graduatedPackages.length > 0 ? graduatedPackages : undefined,
-    graduationRows: rowGraduated.length > 0 ? rowGraduated : undefined,
-    graduationHolds: graduationHolds.length > 0 ? graduationHolds : undefined,
-    prereleased: writePrereleaseScope.length > 0 ? [...writePrereleaseScope].sort() : undefined,
-    notesRegions: Object.keys(notesRegionStates).length > 0 ? notesRegionStates : undefined,
-  };
-
+  manifest.headSha = releaseBranchSha;
   await forge.upsertMarkerComment(prNumber, MANIFEST_MARKER, serializeManifest(manifest));
   success(`Manifest written to PR #${prNumber}`);
 
