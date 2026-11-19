@@ -235,4 +235,10 @@ describe('createStandingPRCommand', () => {
     await parseCommand(['update']);
     expect(runStandingPRUpdate).toHaveBeenCalledWith(expect.objectContaining({ reconcile: false }));
   });
+
+  it('should pass --ack through as ack: true', async () => {
+    const { runStandingPRUpdate } = await import('../../src/standing-pr/standing-pr.js');
+    await parseCommand(['update', '--ack']);
+    expect(runStandingPRUpdate).toHaveBeenCalledWith(expect.objectContaining({ ack: true }));
+  });
 });

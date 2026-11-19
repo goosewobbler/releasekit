@@ -195,6 +195,7 @@ Calculate versions, commit to the release branch, and create/update the standing
 | `-t, --target <packages>` | string | labels | Ad-hoc override: release only these packages (comma-separated). Wins over label-derived targets |
 | `--include-prerequisites` | boolean | `false` | With `--target`, also release the changed internal dependencies (and group members) of the targets |
 | `--reconcile` | boolean | `false` | Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point), and analyse the latest `origin/<base>` rather than the checkout |
+| `--ack` | boolean | `false` | On a `labeled`, `unlabeled` or `edited` run, show an in-progress banner at the top of the standing PR body while the update runs. See [In-progress feedback](../packages/release/docs/ci-setup.md#in-progress-feedback) |
 
 ```bash
 releasekit standing-pr update --reconcile

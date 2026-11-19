@@ -459,6 +459,23 @@ describe('runStandingPRUpdate', () => {
     expect(result.action).toBe('noop');
   });
 
+  const RUN_ID = '1001';
+  const bannerOf = (runId: string) =>
+    [
+      `<!-- releasekit-processing:${runId} -->`,
+      `> 🔄 **Updating the release PR** to reflect your change… ([run details](https://github.com/owner/repo/actions/runs/${runId}))`,
+      '<!-- releasekit-processing-end -->',
+    ].join('\n');
+
+  async function asRun(eventName: string, action?: string) {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ action, sender: { login: 'maintainer', type: 'User' } }));
+    process.env.GITHUB_EVENT_NAME = eventName;
+    process.env.GITHUB_EVENT_PATH = '/event.json';
+    process.env.GITHUB_SERVER_URL = 'https://github.com';
+    process.env.GITHUB_RUN_ID = RUN_ID;
+  }
+
   describe('a release landing on the base branch', () => {
     const RELEASED = { packageName: '@scope/core', newVersion: '0.29.0' };
     const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000);
@@ -503,7 +520,8 @@ describe('runStandingPRUpdate', () => {
       });
     }
 
-    const update = () => runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+    const update = (ack?: boolean) =>
+      runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false, ack });
 
     it('should wait, with the reason, while a merged standing PR is untagged under a feeder commit', async () => {
       await mockQueuedUpdate();
@@ -597,6 +615,103 @@ describe('runStandingPRUpdate', () => {
         action: 'noop',
         reason: expect.stringContaining(`release commit ${releaseSha.slice(0, 7)} (no tags on the remote)`),
       });
+    });
+
+    it('should clear its in-progress banner when it waits', async () => {
+      await mockQueuedUpdate();
+      const forge = await mergedStandingPR();
+      await asRun('pull_request', 'edited');
+
+      const result = await update(true);
+
+      expect(result.reason).toMatch(/still publishing/);
+      expect(forge.updatedPullRequests.map((u) => u.changes.body)).toEqual([`${bannerOf(RUN_ID)}\n\n`, '']);
+    });
+  });
+
+  describe('the in-progress banner', () => {
+    const LIVE_BODY = 'the live body';
+
+    async function standingPRWithBody(body = LIVE_BODY) {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+      vi.mocked(runVersionStep).mockResolvedValue(
+        versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      return mockForge({ standingPR: openStandingPR(99), pullRequests: { 99: { body, labels: [] } } });
+    }
+
+    const update = (ack: boolean) =>
+      runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false, ack });
+    const bodyWrites = (forge: FakeForge) => forge.updatedPullRequests.flatMap((u) => u.changes.body ?? []);
+
+    it('should post its banner before the rebuild, which leaves a body without one', async () => {
+      const forge = await standingPRWithBody();
+      await asRun('pull_request', 'edited');
+
+      expect((await update(true)).action).toBe('updated');
+
+      const writes = bodyWrites(forge);
+      expect(writes).toHaveLength(2);
+      expect(writes[0]).toBe(`${bannerOf(RUN_ID)}\n\n${LIVE_BODY}`);
+      expect(writes[1]).not.toContain('releasekit-processing');
+    });
+
+    it('should remove its banner when the update fails', async () => {
+      const forge = await standingPRWithBody();
+      const { runVersionStep } = await import('../../src/steps.js');
+      vi.mocked(runVersionStep).mockRejectedValue(new Error('version step failed'));
+      await asRun('pull_request', 'labeled');
+
+      await expect(update(true)).rejects.toThrow('version step failed');
+
+      expect(bodyWrites(forge)).toEqual([`${bannerOf(RUN_ID)}\n\n${LIVE_BODY}`, LIVE_BODY]);
+    });
+
+    it("should replace another run's banner rather than stack its own", async () => {
+      const forge = await standingPRWithBody(`${bannerOf('999')}\n\n${LIVE_BODY}`);
+      await asRun('pull_request', 'unlabeled');
+
+      await update(true);
+
+      expect(bodyWrites(forge)[0]).toBe(`${bannerOf(RUN_ID)}\n\n${LIVE_BODY}`);
+    });
+
+    it("should leave another run's banner in place when it clears its own", async () => {
+      const forge = await standingPRWithBody();
+      const { runVersionStep } = await import('../../src/steps.js');
+      vi.mocked(runVersionStep).mockImplementation(async () => {
+        // A newer run replaces this run's banner with its own.
+        await forge.updatePullRequest(99, { body: `${bannerOf('1002')}\n\n${LIVE_BODY}` });
+        throw new Error('version step failed');
+      });
+      await asRun('pull_request', 'edited');
+
+      await expect(update(true)).rejects.toThrow('version step failed');
+
+      expect((await forge.getPullRequest(99)).body).toBe(`${bannerOf('1002')}\n\n${LIVE_BODY}`);
+    });
+
+    it('should still update when the banner write fails', async () => {
+      const forge = await standingPRWithBody();
+      vi.spyOn(forge, 'updatePullRequest').mockRejectedValueOnce(new Error('HTTP 502'));
+      await asRun('pull_request', 'edited');
+
+      expect((await update(true)).action).toBe('updated');
+    });
+
+    it.each([
+      { run: 'a push', event: 'push', action: undefined, ack: true },
+      { run: 'a schedule', event: 'schedule', action: undefined, ack: true },
+      { run: 'an edit without --ack', event: 'pull_request', action: 'edited', ack: false },
+    ])('should post no banner on $run run', async ({ event, action, ack }) => {
+      const forge = await standingPRWithBody();
+      await asRun(event, action);
+
+      expect((await update(ack)).action).toBe('updated');
+
+      expect(bodyWrites(forge).some((body) => body.includes('releasekit-processing'))).toBe(false);
     });
   });
 

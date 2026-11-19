@@ -150,6 +150,14 @@ describe('FakeForge', () => {
     expect(await forge.getPullRequest(404)).toEqual({ body: '', labels: [] });
   });
 
+  it('should return the latest body written to a PR', async () => {
+    const forge = createFakeForge({ pullRequests: { 7: { body: 'old', labels: ['p'] } } });
+    await forge.updatePullRequest(7, { body: 'new' });
+    await forge.updatePullRequest(8, { body: 'fresh' });
+    expect(await forge.getPullRequest(7)).toEqual({ body: 'new', labels: ['p'] });
+    expect(await forge.getPullRequest(8)).toEqual({ body: 'fresh', labels: [] });
+  });
+
   it('should record label and release writes and return release refs', async () => {
     const forge = createFakeForge();
     await forge.setLabels(7, ['a', 'b']);

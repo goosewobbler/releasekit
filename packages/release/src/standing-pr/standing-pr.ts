@@ -55,6 +55,7 @@ import {
   publishableNotesRegions,
   releaseNotesInputHashes,
 } from './notes-state.js';
+import { ProgressBanner } from './progress-banner.js';
 import {
   type ChannelSelection,
   type ChannelToggleConfig,
@@ -160,6 +161,8 @@ export interface StandingPROptions {
   target?: string;
   /** Ad-hoc CLI override: also release the changed prerequisites (and group members) of the targets. */
   includePrerequisites?: boolean;
+  /** Show an in-progress banner on the standing PR while a label or body edit's update runs. */
+  ack?: boolean;
 }
 
 export interface StandingPRResult {
@@ -1036,6 +1039,15 @@ async function authorizedReleaseLabels(
 }
 
 export async function runStandingPRUpdate(options: StandingPROptions): Promise<StandingPRResult> {
+  const banner = new ProgressBanner();
+  try {
+    return await updateStandingPR(options, banner);
+  } finally {
+    await banner.clear();
+  }
+}
+
+async function updateStandingPR(options: StandingPROptions, banner: ProgressBanner): Promise<StandingPRResult> {
   const cwd = options.projectDir;
 
   const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
@@ -1071,6 +1083,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     existingStandingPr = await forge.findStandingPR(branch);
   } catch (err) {
     warn(`Could not look up standing PR for label overrides: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (options.ack && existingStandingPr && isStandingPrEventRun()) {
+    await banner.post(forge, existingStandingPr.number);
   }
 
   let existingManifest: StandingPRManifest | undefined;
@@ -1763,6 +1778,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   if (existing) {
     await forge.updatePullRequest(existing.number, { title, body });
+    banner.markRewritten();
     prNumber = existing.number;
     prUrl = existing.url;
     action = 'updated';

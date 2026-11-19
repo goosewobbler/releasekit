@@ -383,15 +383,14 @@ Skipping entirely is the recommended default — the merge to `main` re-runs CI 
 
 ### In-progress feedback
 
-Ticking a checkbox or changing a label on the standing PR re-runs `standing-pr update`, which takes a minute or two (checkout → install → rebuild). To avoid a silent wait, the example workflow posts an **in-progress banner** to the top of the PR body within seconds of the change:
+Ticking a checkbox or changing a label on the standing PR re-runs `standing-pr update`, which takes a minute or two (checkout → install → rebuild). To avoid a silent wait, the example workflow passes `--ack`, so the update posts an **in-progress banner** to the top of the PR body as soon as it finds the standing PR:
 
 > 🔄 **Updating the release PR** to reflect your change… ([run details](#))
 
-Mechanics (all in `standing-pr.yml`, no config):
-
-- **Fast.** The banner is a plain `gh api` step that runs *before* checkout/install, so it lands ~10–15s after the runner starts (the spin-up floor — an Actions job can't react instantly the way a native GitHub App can). It's on reactive events only; push/schedule updates aren't interactive.
-- **Self-clearing.** A successful rebuild regenerates the body, which drops the banner. A final `if: always()` step strips it from any run that didn't rewrite the body (a failure, a cancel or an early exit).
-- **Idempotent.** The step skips if the body already starts with a banner, so rapid re-triggers don't stack it.
+- **Reactive events only.** The banner goes up on `labeled`, `unlabeled` and `edited` runs; push and schedule updates aren't interactive. It lands after checkout and install, not within seconds.
+- **Self-clearing.** A successful rebuild regenerates the body without the banner. A run that fails or exits without rewriting the body removes its banner on the way out. A cancelled run can't: the run that cancelled it replaces the banner with its own and clears that.
+- **One per PR.** The banner's marker carries the run ID: a run replaces any banner already in the body, and only ever clears its own.
+- **Best-effort.** A failed banner read or write warns and never fails the update. The banner is still a body edit, so a tick saved between its read and write can be lost.
 
 Rapid checkbox toggles are also **collapsed**: a maintainer's edits share a per-PR `concurrency` group on the `update` job with `cancel-in-progress: true`, so only the latest selection is rebuilt.
 

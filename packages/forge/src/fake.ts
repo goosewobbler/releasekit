@@ -134,7 +134,7 @@ export class FakeForge implements Forge {
         this.openIssues.push({ number: n, url: `https://github.com/fake/fake/issues/${n}`, labels: details.labels });
       }
     }
-    this.pullRequestDetails = seed.pullRequests ?? {};
+    this.pullRequestDetails = { ...seed.pullRequests };
     this.comments = (seed.comments ?? []).map(({ editor, ...c }) => {
       const user = c.user ?? FAKE_BOT;
       return { ...c, nodeId: commentNodeId(c.id), user, editors: editor ? [editor, user] : [] };
@@ -213,6 +213,12 @@ export class FakeForge implements Forge {
 
   async updatePullRequest(prNumber: number, changes: PullRequestChanges): Promise<void> {
     this.updatedPullRequests.push({ prNumber, changes });
+    if (changes.body !== undefined) {
+      this.pullRequestDetails[prNumber] = {
+        ...(this.pullRequestDetails[prNumber] ?? { labels: [] }),
+        body: changes.body,
+      };
+    }
   }
 
   async mergePullRequest(prNumber: number, method: MergeMethod, sha?: string): Promise<void> {

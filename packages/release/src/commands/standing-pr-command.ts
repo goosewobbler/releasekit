@@ -36,6 +36,11 @@ export function createStandingPRCommand(): Command {
         '--reconcile',
         'Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point), and analyse the latest origin/<base> rather than the checkout',
         false,
+      )
+      .option(
+        '--ack',
+        'On a label or body edit, show an in-progress banner on the standing PR while the update runs',
+        false,
       ),
   ).action(async (opts) => {
     const options: StandingPROptions = {
@@ -46,6 +51,7 @@ export function createStandingPRCommand(): Command {
       verbose: opts.verbose,
       quiet: opts.quiet,
       reconcile: opts.reconcile,
+      ack: opts.ack,
       target: opts.target,
       includePrerequisites: opts.includePrerequisites,
     };
