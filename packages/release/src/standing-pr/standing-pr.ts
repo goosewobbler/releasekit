@@ -13,11 +13,13 @@ import {
   VersionPackageChangelogSchema,
 } from '@releasekit/core/version-output-schema';
 import {
+  type CommentAuthor,
   type Forge,
   type ForgeComment,
   forgeErrorStatus,
   isBotComment,
   type PullRequestDetails,
+  type StandingPullRequest,
 } from '@releasekit/forge';
 import { createGitCli, isCommitSha } from '@releasekit/git';
 import { PipelineError } from '@releasekit/publish';
@@ -40,7 +42,7 @@ import { markFeederPreviewsStale } from '../preview/stale.js';
 import { type NotesStepResult, runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
-import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
+import { isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
 import { makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
 import { graduationOvershoot, lockstepGroupOf } from './graduation.js';
 import { extractNotesRegions, notesRegionKeys, renderNotesRegion } from './notes-region.js';
@@ -1013,18 +1015,49 @@ function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
 }
 
 /**
- * Fails closed: a permission-lookup error (rate limit, network, mis-scoped token) reverts the standing PR to its
- * authoritative manifest state rather than crashing the update.
+ * Fails closed: a permission-lookup error (rate limit, network, mis-scoped token) treats the actor as unauthorized
+ * rather than crashing the update. Memoized per actor.
  */
-async function authorizedOrWarn(forge: Forge, actor: EventActor, authz: StandingPrAuthorization): Promise<boolean> {
-  try {
-    return await isAuthorizedActor(forge, actor.login, actor.type, authz);
-  } catch (err) {
-    warn(
-      `Could not verify permission for '${actor.login ?? 'unknown'}' — treating as unauthorized: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    return false;
+function actorAuthorizer(
+  forge: Forge,
+  authz: StandingPrAuthorization,
+): (actor: CommentAuthor | undefined) => Promise<boolean> {
+  const checked = new Map<string, Promise<boolean>>();
+  return (actor) => {
+    const key = `${actor?.type}:${actor?.login}`;
+    let result = checked.get(key);
+    if (!result) {
+      result = isAuthorizedActor(forge, actor?.login, actor?.type, authz).catch((err) => {
+        warn(
+          `Could not verify permission for '${actor?.login ?? 'unknown'}' — treating as unauthorized: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return false;
+      });
+      checked.set(key, result);
+    }
+    return result;
+  };
+}
+
+/** Each release label stands as its latest event by an authorized actor left it, whoever changed it since. */
+async function authorizedReleaseLabels(
+  forge: Forge,
+  prNumber: number,
+  isRelevant: (label: string) => boolean,
+  isAuthorized: (actor: CommentAuthor | undefined) => Promise<boolean>,
+): Promise<string[]> {
+  const settled = new Set<string>();
+  const applied: string[] = [];
+  for (const event of [...(await forge.listLabelEvents(prNumber))].reverse()) {
+    if (!isRelevant(event.label) || settled.has(event.label) || !(await isAuthorized(event.actor))) {
+      continue;
+    }
+    settled.add(event.label);
+    if (event.action === 'labeled') {
+      applied.push(event.label);
+    }
   }
+  return applied;
 }
 
 export async function runStandingPRUpdate(options: StandingPROptions): Promise<StandingPRResult> {
@@ -1058,7 +1091,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const forge = forgeFor(requireGitHubContext('the standing PR cannot be updated'));
 
-  let existingStandingPr: { number: number; url: string; labels: string[] } | null = null;
+  let existingStandingPr: StandingPullRequest | null = null;
   try {
     existingStandingPr = await forge.findStandingPR(branch);
   } catch (err) {
@@ -1082,12 +1115,23 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
+  const authz = standingPrConfig?.authorization;
+  const isAuthorized = authz && actorAuthorizer(forge, authz);
+
   // Maintainer ticks and note edits live in the body; read them back so they survive this run's regenerate &
   // force-push.
   let liveBody: string | undefined;
+  let bodyAuthorized = false;
   if (existingStandingPr) {
     try {
-      liveBody = (await forge.getPullRequest(existingStandingPr.number)).body;
+      if (isAuthorized) {
+        // Read together, so an edit landing between two reads can't pass under the previous editor.
+        const authored = await forge.getAuthoredBody(existingStandingPr.nodeId);
+        liveBody = authored.body;
+        bodyAuthorized = await isAuthorized(authored.editor ?? authored.author);
+      } else {
+        liveBody = (await forge.getPullRequest(existingStandingPr.number)).body;
+      }
     } catch (err) {
       warn(`Could not read current PR body to preserve selection: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -1100,21 +1144,13 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     ? extractChannelSelection(liveBody)
     : { prereleased: [], graduated: [], graduationRows: [] };
   const bodySyncGraduation = !!liveBody && extractSyncGraduation(liveBody);
-  const authz = standingPrConfig?.authorization;
-  // Resolved once so the selection gate and the channel-toggle gate share one permission lookup.
-  let eventActor: EventActor | undefined;
-  let authorizedBodyEdit = false;
-  if (authz && existingStandingPr) {
-    eventActor = getEventActor();
-    authorizedBodyEdit = eventActor.action === 'edited' && (await authorizedOrWarn(forge, eventActor, authz));
-  }
-  // With an authorization policy the manifest's selection is authoritative: the body is trusted only after an
-  // authorized `edited` event, and otherwise the re-render reverts it.
+  // With an authorization policy the manifest's selection is authoritative unless an authorized actor last edited
+  // the body, so the result doesn't depend on which event started this run.
   let priorDeselected = bodyDeselected;
-  if (authz && existingStandingPr && eventActor && !authorizedBodyEdit) {
+  if (authz && existingStandingPr && !bodyAuthorized) {
     const manifestDeselected = new Set<string>(existingManifest?.deselected ?? []);
     priorDeselected = manifestDeselected;
-    if (eventActor.action === 'edited' && !setsEqual(bodyDeselected, manifestDeselected)) {
+    if (liveBody !== undefined && !setsEqual(bodyDeselected, manifestDeselected)) {
       const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
       await forge
         .upsertMarkerComment(
@@ -1128,31 +1164,35 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  // GitHub can't restrict who applies a label, so with an authorization policy the manifest's `overrideLabels` are
-  // authoritative: an unauthorized label event's release labels are reset to them (other labels kept). Everything
-  // below reads `effectiveLabels`, so the bot's own re-apply can't restore the rogue label.
+  // GitHub can't restrict who applies a label, so with an authorization policy the release labels are reset to the
+  // ones authorized actors applied (other labels kept). Everything below reads `effectiveLabels`, so the bot's own
+  // re-apply can't restore a rogue label.
   let effectiveLabels = existingStandingPr?.labels ?? [];
-  if (authz && existingStandingPr && eventActor) {
-    // `authorizedBodyEdit` is false for any non-`edited` trigger, so label events need their own lookup.
-    const isLabelEvent = eventActor.action === 'labeled' || eventActor.action === 'unlabeled';
-    if (isLabelEvent && !(await authorizedOrWarn(forge, eventActor, authz))) {
-      const isRelevant = (l: string) => isRelevantOverrideLabel(l, ciConfig);
-      const authorizedOverrides = (existingManifest?.overrideLabels ?? []).filter(isRelevant);
-      const reconciled = [...new Set([...effectiveLabels.filter((l) => !isRelevant(l)), ...authorizedOverrides])];
-      if (!setsEqual(new Set(effectiveLabels), new Set(reconciled))) {
-        const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
-        await forge
-          .upsertMarkerComment(
-            existingStandingPr.number,
-            LABEL_DENIED_MARKER,
-            `${LABEL_DENIED_MARKER}\n\n> ⚠️ **Release-label change ignored.** Only authorized maintainers (\`${authz.requiredPermission}\`+${allowClause}) can change the standing PR's release labels (\`bump:\`/\`scope:\`/\`channel:\`/…). The labels have been reset to the approved set.`,
-          )
-          .catch((err) =>
-            warn(`Could not post label-denied notice: ${err instanceof Error ? err.message : String(err)}`),
-          );
-      }
-      effectiveLabels = reconciled;
+  if (authz && isAuthorized && existingStandingPr) {
+    const isRelevant = (l: string) => isRelevantOverrideLabel(l, ciConfig);
+    let authorizedLabels: string[];
+    try {
+      authorizedLabels = await authorizedReleaseLabels(forge, existingStandingPr.number, isRelevant, isAuthorized);
+    } catch (err) {
+      warn(
+        `Could not read who applied the release labels — resetting them to the manifest's: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      authorizedLabels = (existingManifest?.overrideLabels ?? []).filter(isRelevant);
     }
+    const reconciled = [...new Set([...effectiveLabels.filter((l) => !isRelevant(l)), ...authorizedLabels])];
+    if (!setsEqual(new Set(effectiveLabels), new Set(reconciled))) {
+      const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
+      await forge
+        .upsertMarkerComment(
+          existingStandingPr.number,
+          LABEL_DENIED_MARKER,
+          `${LABEL_DENIED_MARKER}\n\n> ⚠️ **Release-label change ignored.** Only authorized maintainers (\`${authz.requiredPermission}\`+${allowClause}) can change the standing PR's release labels (\`bump:\`/\`scope:\`/\`channel:\`/…). The labels have been reset to the approved set.`,
+        )
+        .catch((err) =>
+          warn(`Could not post label-denied notice: ${err instanceof Error ? err.message : String(err)}`),
+        );
+    }
+    effectiveLabels = reconciled;
   }
 
   // Opt-in so the default path stays LLM-free.
@@ -1402,10 +1442,10 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   graduationRowTicks = graduationRowTicks.filter((name) => !ungraduated.has(name));
   let syncGraduationTick = bodySyncGraduation && !priorSyncForced && !priorSyncLapsed;
 
-  // As with the selection gate, only an authorized edit may change channels; otherwise reset to the manifest's.
+  // As with the selection gate, only an authorized editor's body may change channels; otherwise reset to the manifest's.
   // The manifest stores group-expanded sets but the body holds raw ticks, so expand the body before comparing or
   // untoggled group-mates misfire the notice.
-  if (authz && existingStandingPr && eventActor && !authorizedBodyEdit) {
+  if (authz && existingStandingPr && !bodyAuthorized) {
     const manifestPrereleased = channelToggleEnabled ? (existingManifest?.prereleased ?? []) : [];
     const manifestGraduated = existingManifest?.graduated ?? [];
     const manifestRowTicks = new Set(existingManifest?.graduationRows ?? []);
@@ -1428,7 +1468,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     channelGraduatedTicks = manifestNested;
     graduationRowTicks = manifestRows;
     syncGraduationTick = manifestSync;
-    if (eventActor.action === 'edited' && (prereleaseChanged || graduateAdded || rowsChanged || syncChanged)) {
+    if (liveBody !== undefined && (prereleaseChanged || graduateAdded || rowsChanged || syncChanged)) {
       const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
       await forge
         .upsertMarkerComment(

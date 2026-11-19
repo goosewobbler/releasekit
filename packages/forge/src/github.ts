@@ -2,6 +2,8 @@ import { Octokit } from '@octokit/rest';
 import { forgeErrorStatus } from './errors.js';
 import type {
   AssociatedPullRequest,
+  AuthoredBody,
+  CommentAuthor,
   CommitStatus,
   CreateLabelResult,
   Forge,
@@ -9,6 +11,7 @@ import type {
   IssueChanges,
   IssueDetails,
   IssueRef,
+  LabelEvent,
   MergeMethod,
   NewIssue,
   NewLabel,
@@ -31,6 +34,30 @@ const REPO_PERMISSIONS: readonly RepoPermission[] = ['admin', 'maintain', 'write
 const MAX_RELEASE_PAGES = 3;
 
 type LabelLike = string | { name?: string | null };
+
+interface GraphQLActor {
+  login: string;
+  __typename: string;
+}
+
+// `Comment` covers PRs, issues and issue comments.
+const AUTHORED_BODY_QUERY = `
+  query ($id: ID!) {
+    node(id: $id) {
+      ... on Comment {
+        body
+        lastEditedAt
+        author { login __typename }
+        editor { login __typename }
+      }
+    }
+  }
+`;
+
+// GraphQL reports a bot's login without the `[bot]` suffix REST uses, so `type` is what identifies it.
+function graphQLActor(actor: GraphQLActor | null | undefined): CommentAuthor | undefined {
+  return actor ? { login: actor.login, type: actor.__typename } : undefined;
+}
 
 function labelNames(labels: LabelLike[] | undefined): string[] {
   return (labels ?? []).map((label) => (typeof label === 'string' ? label : (label.name ?? '')));
@@ -76,7 +103,9 @@ export class GitHubForge implements Forge {
       per_page: 1,
     });
     const pr = data[0];
-    return pr ? { number: pr.number, url: pr.html_url, labels: labelNames(pr.labels).filter(Boolean) } : null;
+    return pr
+      ? { number: pr.number, url: pr.html_url, labels: labelNames(pr.labels).filter(Boolean), nodeId: pr.node_id }
+      : null;
   }
 
   async listRecentlyClosedPullRequests(branch: string, limit: number): Promise<AssociatedPullRequest[]> {
@@ -136,6 +165,26 @@ export class GitHubForge implements Forge {
       merged: data.merged,
       mergeCommitSha: data.merge_commit_sha ?? undefined,
       mergedBy: data.merged_by ? { login: data.merged_by.login, type: data.merged_by.type } : undefined,
+    };
+  }
+
+  async getAuthoredBody(nodeId: string): Promise<AuthoredBody> {
+    const { node } = await this.octokit.graphql<{
+      node: {
+        body?: string;
+        lastEditedAt?: string | null;
+        author?: GraphQLActor | null;
+        editor?: GraphQLActor | null;
+      } | null;
+    }>(AUTHORED_BODY_QUERY, { id: nodeId });
+    if (node?.body === undefined) {
+      throw new Error(`No PR, issue or comment with node ID ${nodeId}`);
+    }
+    return {
+      body: node.body,
+      author: graphQLActor(node.author),
+      editor: graphQLActor(node.editor),
+      lastEditedAt: node.lastEditedAt ?? undefined,
     };
   }
 
@@ -288,6 +337,27 @@ export class GitHubForge implements Forge {
 
   async setLabels(issueNumber: number, labels: string[]): Promise<void> {
     await this.octokit.rest.issues.setLabels({ ...this.base, issue_number: issueNumber, labels });
+  }
+
+  async listLabelEvents(issueNumber: number): Promise<LabelEvent[]> {
+    const events: LabelEvent[] = [];
+    const iterator = this.octokit.paginate.iterator(this.octokit.rest.issues.listEvents, {
+      ...this.base,
+      issue_number: issueNumber,
+      per_page: 100,
+    });
+    for await (const response of iterator) {
+      for (const event of response.data) {
+        if ((event.event === 'labeled' || event.event === 'unlabeled') && 'label' in event && event.label.name) {
+          events.push({
+            action: event.event,
+            label: event.label.name,
+            actor: event.actor ? { login: event.actor.login, type: event.actor.type } : undefined,
+          });
+        }
+      }
+    }
+    return events;
   }
 
   async setCommitStatus(status: CommitStatus): Promise<void> {

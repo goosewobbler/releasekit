@@ -203,6 +203,18 @@ function openStandingPR(number: number, labels: string[] = []) {
   return { number, url: `https://github.com/owner/repo/pull/${number}`, labels };
 }
 
+const BOT = { login: 'github-actions[bot]', type: 'Bot' };
+const actor = (login: string) => (login === BOT.login ? BOT : { login, type: 'User' });
+
+/** Standing PR #99's body, opened by the bot and last edited by `login`. */
+function editedBy(login: string, body: string): FakeForgeSeed['authoredBodies'] {
+  return { PR_99: { body, author: BOT, editor: actor(login) } };
+}
+
+function labelEvent(action: 'labeled' | 'unlabeled', label: string, login: string) {
+  return { action, label, actor: actor(login) };
+}
+
 const baseManifest: StandingPRManifest = {
   schemaVersion: 1,
   versionOutput: withPackageChangelogs(createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }])),
@@ -921,17 +933,8 @@ describe('runStandingPRUpdate', () => {
       '<!-- releasekit-selection-end -->',
     ].join('\n');
 
-  const asActionBy = async (action: string, login: string) => {
-    const { readFileSync } = await import('node:fs');
-    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ action, sender: { login, type: 'User' } }));
-    process.env.GITHUB_EVENT_NAME = 'pull_request';
-    process.env.GITHUB_EVENT_PATH = '/event.json';
-  };
-  const asEditedBy = (login: string) => asActionBy('edited', login);
-
   it('should honour an authorized actor’s checkbox untick', async () => {
     await withAuthz();
-    await asEditedBy('admin-user');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
       ...createMockVersionOutput([
@@ -946,6 +949,7 @@ describe('runStandingPRUpdate', () => {
     await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: selectionBody(), labels: [] } },
+      authoredBodies: editedBy('admin-user', selectionBody()),
       actorPermissions: { 'admin-user': 'admin' },
     });
 
@@ -957,7 +961,6 @@ describe('runStandingPRUpdate', () => {
 
   it('should ignore an unauthorized actor’s untick (manifest stays authoritative) and post a notice', async () => {
     await withAuthz();
-    await asEditedBy('rando');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
       ...createMockVersionOutput([
@@ -973,6 +976,7 @@ describe('runStandingPRUpdate', () => {
     const forge = await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: selectionBody(), labels: [] } },
+      authoredBodies: editedBy('rando', selectionBody()),
       actorPermissions: { rando: 'write' }, // below the 'admin' threshold
       comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, deselected: ['@scope/a'] }) }],
     });
@@ -986,7 +990,6 @@ describe('runStandingPRUpdate', () => {
 
   it('should not crash the run when the permission check throws — fails closed to the manifest', async () => {
     await withAuthz();
-    await asEditedBy('rando');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
       ...createMockVersionOutput([
@@ -1001,6 +1004,7 @@ describe('runStandingPRUpdate', () => {
     const forge = await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: selectionBody(), labels: [] } },
+      authoredBodies: editedBy('rando', selectionBody()),
       comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, deselected: [] }) }],
     });
     vi.spyOn(forge, 'getActorPermission').mockRejectedValue(Object.assign(new Error('429'), { status: 429 }));
@@ -1014,7 +1018,6 @@ describe('runStandingPRUpdate', () => {
 
   it('should ignore + remove an unauthorized actor’s release label, preserving non-release labels', async () => {
     await withAuthz();
-    await asActionBy('labeled', 'rando');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
       ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
@@ -1023,11 +1026,12 @@ describe('runStandingPRUpdate', () => {
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    // rando (below admin) added bump:major; the manifest has no override.
+    // rando (below admin) added bump:major.
     const forge = await mockForge({
       standingPR: openStandingPR(99, ['release', 'bump:major', 'area:ci']),
       pullRequests: { 99: { body: '', labels: [] } },
       actorPermissions: { rando: 'write' },
+      labelEvents: { 99: [labelEvent('labeled', 'bump:major', 'rando')] },
       comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, overrideLabels: [] }) }],
     });
 
@@ -1044,7 +1048,6 @@ describe('runStandingPRUpdate', () => {
 
   it('should ignore a human-authored manifest and post its own', async () => {
     await withAuthz();
-    await asActionBy('labeled', 'rando');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
       ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
@@ -1059,6 +1062,7 @@ describe('runStandingPRUpdate', () => {
       standingPR: openStandingPR(99, ['release', 'bump:major']),
       pullRequests: { 99: { body: '', labels: [] } },
       actorPermissions: { rando: 'write' },
+      labelEvents: { 99: [labelEvent('labeled', 'bump:major', 'rando')] },
       comments: [{ id: 5, prNumber: 99, body: forged, user: { login: 'rando', type: 'User' } }],
     });
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -1081,7 +1085,6 @@ describe('runStandingPRUpdate', () => {
 
   it('should restore an authorized label that an unauthorized actor removed (unlabeled)', async () => {
     await withAuthz();
-    await asActionBy('unlabeled', 'rando');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
       ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
@@ -1090,11 +1093,14 @@ describe('runStandingPRUpdate', () => {
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    // rando (below admin) removed bump:major; the manifest still has it.
+    // rando (below admin) removed the bump:major an admin applied.
     const forge = await mockForge({
       standingPR: openStandingPR(99, ['release', 'area:ci']),
       pullRequests: { 99: { body: '', labels: [] } },
-      actorPermissions: { rando: 'write' },
+      actorPermissions: { 'admin-user': 'admin', rando: 'write' },
+      labelEvents: {
+        99: [labelEvent('labeled', 'bump:major', 'admin-user'), labelEvent('unlabeled', 'bump:major', 'rando')],
+      },
       comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, overrideLabels: ['bump:major'] }) }],
     });
 
@@ -1110,7 +1116,6 @@ describe('runStandingPRUpdate', () => {
 
   it('should honour an authorized actor’s release label', async () => {
     await withAuthz();
-    await asActionBy('labeled', 'admin-user');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
       ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
@@ -1123,6 +1128,7 @@ describe('runStandingPRUpdate', () => {
       standingPR: openStandingPR(99, ['release', 'bump:major']),
       pullRequests: { 99: { body: '', labels: [] } },
       actorPermissions: { 'admin-user': 'admin' },
+      labelEvents: { 99: [labelEvent('labeled', 'bump:major', 'admin-user')] },
     });
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
@@ -1146,13 +1152,13 @@ describe('runStandingPRUpdate', () => {
 
   it('should honour an authorized actor’s channel toggle', async () => {
     await withAuthzChannel();
-    await asEditedBy('admin-user');
     await channelWriteOutput();
     const { runVersionStep } = await import('../../src/steps.js');
 
     const forge = await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: channelBody(true), labels: [] } }, // rk-pre ticked on @scope/b
+      authoredBodies: editedBy('admin-user', channelBody(true)),
       actorPermissions: { 'admin-user': 'admin' },
     });
 
@@ -1165,7 +1171,6 @@ describe('runStandingPRUpdate', () => {
 
   it('should ignore an unauthorized actor’s channel toggle (manifest stays authoritative) and post a notice', async () => {
     await withAuthzChannel();
-    await asEditedBy('rando');
     await channelWriteOutput();
     const { runVersionStep } = await import('../../src/steps.js');
 
@@ -1173,6 +1178,7 @@ describe('runStandingPRUpdate', () => {
     const forge = await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: channelBody(true), labels: [] } },
+      authoredBodies: editedBy('rando', channelBody(true)),
       actorPermissions: { rando: 'write' },
       comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, schemaVersion: 2 }) }],
     });
@@ -1186,7 +1192,6 @@ describe('runStandingPRUpdate', () => {
 
   it('should re-apply the manifest’s approved channel for an unauthorized actor', async () => {
     await withAuthzChannel();
-    await asEditedBy('rando');
     await channelWriteOutput();
     const { runVersionStep } = await import('../../src/steps.js');
 
@@ -1194,6 +1199,7 @@ describe('runStandingPRUpdate', () => {
     const forge = await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: channelBody(false), labels: [] } },
+      authoredBodies: editedBy('rando', channelBody(false)),
       actorPermissions: { rando: 'write' },
       comments: [
         {
@@ -1213,7 +1219,6 @@ describe('runStandingPRUpdate', () => {
 
   it('should not post a channel-denied notice when an unauthorized edit leaves the toggles unchanged', async () => {
     await withAuthzChannel();
-    await asEditedBy('rando');
     await channelWriteOutput();
     const { runVersionStep } = await import('../../src/steps.js');
 
@@ -1221,6 +1226,7 @@ describe('runStandingPRUpdate', () => {
     const forge = await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: channelBody(true), labels: [] } },
+      authoredBodies: editedBy('rando', channelBody(true)),
       actorPermissions: { rando: 'write' },
       comments: [
         {
@@ -1241,13 +1247,13 @@ describe('runStandingPRUpdate', () => {
   it('should leave channel toggles unreconciled when the feature is disabled', async () => {
     // Authorization set but channelToggle off: a body toggle can't drive the write regardless of actor.
     await withAuthz();
-    await asEditedBy('rando');
     await channelWriteOutput();
     const { runVersionStep } = await import('../../src/steps.js');
 
     const forge = await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: channelBody(true), labels: [] } },
+      authoredBodies: editedBy('rando', channelBody(true)),
       actorPermissions: { rando: 'write' },
       comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, schemaVersion: 2 }) }],
     });
@@ -1259,32 +1265,68 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false);
   });
 
-  it('should re-apply the manifest’s channel on a push run and post no notice', async () => {
-    await withAuthzChannel();
-    await asActionBy('synchronize', 'rando'); // a push/synchronize run - not a body edit
-    await channelWriteOutput();
-    const { runVersionStep } = await import('../../src/steps.js');
+  describe.each([
+    ['a push', 'push', {}],
+    ['a schedule', 'schedule', {}],
+    ['an authorized actor’s label', 'pull_request', { action: 'labeled', sender: actor('admin-user') }],
+    ['an authorized actor’s edit', 'pull_request', { action: 'edited', sender: actor('admin-user') }],
+  ])('in a run started by %s', (_trigger, eventName, payload) => {
+    const run = async (seed: FakeForgeSeed) => {
+      await withAuthz();
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify(payload));
+      process.env.GITHUB_EVENT_NAME = eventName;
+      process.env.GITHUB_EVENT_PATH = '/event.json';
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = {
+        ...createMockVersionOutput([
+          { packageName: '@scope/a', newVersion: '1.1.0' },
+          { packageName: '@scope/b', newVersion: '2.0.0' },
+        ]),
+        strategy: 'async' as const,
+      };
+      vi.mocked(runVersionStep).mockResolvedValue(
+        versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      const forge = await mockForge({
+        standingPR: openStandingPR(99, ['release', 'bump:major']),
+        pullRequests: { 99: { body: selectionBody(), labels: [] } },
+        actorPermissions: { 'admin-user': 'admin', rando: 'write' },
+        comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, deselected: [] }) }],
+        ...seed,
+      });
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+      const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string; exclude?: string[] };
+      const notices = forge.upsertedComments.map((c) => c.marker);
+      return { forge, writeCall, notices };
+    };
 
-    // A non-edit trigger is never an authorized edit, so the gate resets to the manifest; the actor didn't `edit`
-    // anything, so the reset is silent.
-    const forge = await mockForge({
-      standingPR: openStandingPR(99),
-      pullRequests: { 99: { body: channelBody(false), labels: [] } },
-      actorPermissions: { rando: 'write' },
-      comments: [
-        {
-          id: 5,
-          prNumber: 99,
-          body: serializeManifest({ ...baseManifest, schemaVersion: 2, prereleased: ['@scope/b'] }),
-        },
-      ],
+    it('should revert an unauthorized actor’s untick and release label, with notices', async () => {
+      const { forge, writeCall, notices } = await run({
+        authoredBodies: editedBy('rando', selectionBody()),
+        labelEvents: { 99: [labelEvent('labeled', 'bump:major', 'rando')] },
+      });
+
+      expect(writeCall.exclude).toEqual([]);
+      expect(writeCall.bump).toBeUndefined();
+      expect(forge.setLabelsCalls.at(-1)?.labels).not.toContain('bump:major');
+      expect(notices).toEqual(
+        expect.arrayContaining(['<!-- releasekit-selection-denied -->', '<!-- releasekit-label-denied -->']),
+      );
     });
 
-    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+    it('should honour an authorized actor’s untick and release label', async () => {
+      const { writeCall, notices } = await run({
+        authoredBodies: editedBy('admin-user', selectionBody()),
+        labelEvents: { 99: [labelEvent('labeled', 'bump:major', 'admin-user')] },
+      });
 
-    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
-    expect(writeCall.prereleaseScope).toEqual(['@scope/b']);
-    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false);
+      expect(writeCall.exclude).toEqual(['@scope/b']);
+      expect(writeCall.bump).toBe('major');
+      expect(notices).not.toContain('<!-- releasekit-selection-denied -->');
+      expect(notices).not.toContain('<!-- releasekit-label-denied -->');
+    });
   });
 
   it('should never honour a residual selection region in a sync release', async () => {
@@ -2952,6 +2994,8 @@ describe('runStandingPRUpdate', () => {
       body?: string;
       manifest?: Partial<StandingPRManifest>;
       actorPermissions?: Record<string, 'admin' | 'write'>;
+      /** Who last edited the body; the bot when unset. */
+      bodyEditor?: string;
       open?: boolean;
     }) {
       const { loadConfig } = await import('@releasekit/config');
@@ -2981,6 +3025,7 @@ describe('runStandingPRUpdate', () => {
           ? [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, schemaVersion: 2, ...opts.manifest }) }]
           : [],
         actorPermissions: opts.actorPermissions,
+        authoredBodies: opts.bodyEditor ? editedBy(opts.bodyEditor, opts.body ?? '') : undefined,
       });
       const writeCall = () => vi.mocked(runVersionStep).mock.calls.at(-1)?.[0] as ReleaseOptions;
       const body = () =>
@@ -3241,11 +3286,12 @@ describe('runStandingPRUpdate', () => {
       expect(body()).not.toContain('<!-- rk-grad:d -->');
     });
 
-    it('should keep the approved graduation across a push-triggered update under authorization', async () => {
+    it('should keep the approved graduation when an unauthorized actor unticks it', async () => {
       const { writeCall, body, manifest } = await setup({
         versions: { c: '2.1.0-next.3' },
         standingPr: { authorization: { requiredPermission: 'admin' } },
         body: graduationBody({ c: false }),
+        bodyEditor: 'rando',
         manifest: { graduated: ['c'] },
       });
 
@@ -3271,16 +3317,11 @@ describe('runStandingPRUpdate', () => {
     });
 
     it('should revert an unauthorized graduation tick and post a notice', async () => {
-      const { readFileSync } = await import('node:fs');
-      vi.mocked(readFileSync).mockReturnValue(
-        JSON.stringify({ action: 'edited', sender: { login: 'rando', type: 'User' } }),
-      );
-      process.env.GITHUB_EVENT_NAME = 'pull_request';
-      process.env.GITHUB_EVENT_PATH = '/event.json';
       const { forge, writeCall, body } = await setup({
         versions: { c: '2.1.0-next.3' },
         standingPr: { authorization: { requiredPermission: 'admin' } },
         body: graduationBody({ c: true }),
+        bodyEditor: 'rando',
         manifest: {},
         actorPermissions: { rando: 'write' },
       });
@@ -3513,7 +3554,7 @@ describe('runStandingPRUpdate', () => {
           expect(body()).toContain('- [ ] graduate to stable → v1.1.0 <!-- rk-grad-sync -->');
         });
 
-        it('should keep an approved tick across a later update under authorization', async () => {
+        it('should keep an approved tick when an unauthorized actor unticks it', async () => {
           const ticked = await firstRelease({
             versions: syncVersions,
             sync: true,
@@ -3528,6 +3569,7 @@ describe('runStandingPRUpdate', () => {
             sync: true,
             standingPr: { authorization: { requiredPermission: 'admin' } },
             body: '- [ ] graduate to stable → v1.1.0 <!-- rk-grad-sync -->',
+            bodyEditor: 'rando',
             manifest: { graduated: approved.graduated, graduationRows: approved.graduationRows },
           });
           await run();

@@ -1,7 +1,6 @@
-import * as fs from 'node:fs';
 import { createFakeForge } from '@releasekit/forge';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getEventActor, isAuthorizedActor, type StandingPrAuthorization } from '../../src/standing-pr/authorization.js';
+import { describe, expect, it, vi } from 'vitest';
+import { isAuthorizedActor, type StandingPrAuthorization } from '../../src/standing-pr/authorization.js';
 
 const authz = (overrides: Partial<StandingPrAuthorization> = {}): StandingPrAuthorization => ({
   requiredPermission: 'admin',
@@ -56,46 +55,5 @@ describe('isAuthorizedActor', () => {
     const teamSpy = vi.spyOn(forge, 'isTeamMember');
     expect(await isAuthorizedActor(forge, 'alice', 'User', authz({ allowedActors: ['@acme/releasers'] }))).toBe(true);
     expect(teamSpy).not.toHaveBeenCalled();
-  });
-});
-
-describe('getEventActor', () => {
-  const ORIG = process.env.GITHUB_EVENT_PATH;
-  let tmpFile: string;
-
-  beforeEach(() => {
-    tmpFile = `${process.env.TMPDIR ?? '/tmp'}/rk-event-${process.pid}.json`;
-  });
-  afterEach(() => {
-    if (ORIG === undefined) {
-      delete process.env.GITHUB_EVENT_PATH;
-    } else {
-      process.env.GITHUB_EVENT_PATH = ORIG;
-    }
-    try {
-      fs.unlinkSync(tmpFile);
-    } catch {}
-  });
-
-  it('should read action and sender from the event payload', () => {
-    fs.writeFileSync(
-      tmpFile,
-      JSON.stringify({
-        action: 'edited',
-        sender: { login: 'alice', type: 'User' },
-      }),
-    );
-    process.env.GITHUB_EVENT_PATH = tmpFile;
-
-    expect(getEventActor()).toEqual({
-      action: 'edited',
-      login: 'alice',
-      type: 'User',
-    });
-  });
-
-  it('should return an empty actor when no event path is set', () => {
-    delete process.env.GITHUB_EVENT_PATH;
-    expect(getEventActor()).toEqual({});
   });
 });

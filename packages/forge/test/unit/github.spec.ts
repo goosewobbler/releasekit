@@ -27,6 +27,7 @@ function makeOctokit() {
     createLabel: vi.fn().mockResolvedValue({}),
     setLabels: vi.fn().mockResolvedValue({}),
     iterator: vi.fn(),
+    graphql: vi.fn(),
   };
   const octokit = {
     rest: {
@@ -58,11 +59,13 @@ function makeOctokit() {
         updateComment: fns.updateComment,
         listComments: { __ref: 'listComments' },
         listLabelsForRepo: { __ref: 'listLabelsForRepo' },
+        listEvents: { __ref: 'listEvents' },
         createLabel: fns.createLabel,
         setLabels: fns.setLabels,
       },
     },
     paginate: { iterator: fns.iterator },
+    graphql: fns.graphql,
   } as unknown as Octokit;
   return { octokit, fns };
 }
@@ -141,10 +144,17 @@ describe('GitHubForge', () => {
     it('should map the open PR, drop empty label names, and query the head branch', async () => {
       const { octokit, fns } = makeOctokit();
       fns.pullsList.mockResolvedValue({
-        data: [{ number: 5, html_url: 'u', labels: ['a', { name: 'b' }, { name: '' }, { name: null }] }],
+        data: [
+          { number: 5, html_url: 'u', node_id: 'PR_n', labels: ['a', { name: 'b' }, { name: '' }, { name: null }] },
+        ],
       });
       const forge = new GitHubForge(octokit, 'o', 'r');
-      expect(await forge.findStandingPR('release/next')).toEqual({ number: 5, url: 'u', labels: ['a', 'b'] });
+      expect(await forge.findStandingPR('release/next')).toEqual({
+        number: 5,
+        url: 'u',
+        labels: ['a', 'b'],
+        nodeId: 'PR_n',
+      });
       expect(fns.pullsList).toHaveBeenCalledWith(
         expect.objectContaining({ owner: 'o', repo: 'r', head: 'o:release/next', state: 'open', per_page: 1 }),
       );
@@ -154,6 +164,71 @@ describe('GitHubForge', () => {
       const { octokit, fns } = makeOctokit();
       fns.pullsList.mockResolvedValue({ data: [] });
       expect(await new GitHubForge(octokit, 'o', 'r').findStandingPR('b')).toBeNull();
+    });
+  });
+
+  describe('getAuthoredBody', () => {
+    it('should read the body with its author and last editor, typing bots by GraphQL typename', async () => {
+      const { octokit, fns } = makeOctokit();
+      fns.graphql.mockResolvedValue({
+        node: {
+          body: 'b',
+          lastEditedAt: '2026-01-01T00:00:00Z',
+          author: { login: 'github-actions', __typename: 'Bot' },
+          editor: { login: 'rando', __typename: 'User' },
+        },
+      });
+
+      expect(await new GitHubForge(octokit, 'o', 'r').getAuthoredBody('PR_n')).toEqual({
+        body: 'b',
+        lastEditedAt: '2026-01-01T00:00:00Z',
+        author: { login: 'github-actions', type: 'Bot' },
+        editor: { login: 'rando', type: 'User' },
+      });
+      expect(fns.graphql).toHaveBeenCalledWith(expect.stringContaining('... on Comment'), { id: 'PR_n' });
+    });
+
+    it('should leave the editor unset for a body never edited', async () => {
+      const { octokit, fns } = makeOctokit();
+      fns.graphql.mockResolvedValue({
+        node: { body: 'b', lastEditedAt: null, author: { login: 'a', __typename: 'User' }, editor: null },
+      });
+
+      const authored = await new GitHubForge(octokit, 'o', 'r').getAuthoredBody('PR_n');
+
+      expect(authored.editor).toBeUndefined();
+      expect(authored.lastEditedAt).toBeUndefined();
+    });
+
+    it('should throw when the node has no body', async () => {
+      const { octokit, fns } = makeOctokit();
+      fns.graphql.mockResolvedValue({ node: null });
+
+      await expect(new GitHubForge(octokit, 'o', 'r').getAuthoredBody('X')).rejects.toThrow('X');
+    });
+  });
+
+  describe('listLabelEvents', () => {
+    it('should keep only label events, in order, across pages', async () => {
+      const { octokit, fns } = makeOctokit();
+      fns.iterator.mockReturnValue(
+        pages(
+          [
+            { event: 'labeled', label: { name: 'bump:major' }, actor: { login: 'rando', type: 'User' } },
+            { event: 'renamed', actor: { login: 'rando', type: 'User' } },
+          ],
+          [{ event: 'unlabeled', label: { name: 'bump:major' }, actor: { login: 'github-actions[bot]', type: 'Bot' } }],
+        ),
+      );
+
+      expect(await new GitHubForge(octokit, 'o', 'r').listLabelEvents(7)).toEqual([
+        { action: 'labeled', label: 'bump:major', actor: { login: 'rando', type: 'User' } },
+        { action: 'unlabeled', label: 'bump:major', actor: { login: 'github-actions[bot]', type: 'Bot' } },
+      ]);
+      expect(fns.iterator).toHaveBeenCalledWith(
+        { __ref: 'listEvents' },
+        expect.objectContaining({ owner: 'o', repo: 'r', issue_number: 7 }),
+      );
     });
   });
 

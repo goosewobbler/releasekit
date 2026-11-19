@@ -9,7 +9,12 @@ describe('FakeForge', () => {
       releasesByTag: { v1: { id: 9, url: 'r', tagName: 'v1' } },
     });
 
-    expect(await forge.findStandingPR('release/next')).toEqual({ number: 3, url: 'u', labels: ['release'] });
+    expect(await forge.findStandingPR('release/next')).toEqual({
+      number: 3,
+      url: 'u',
+      labels: ['release'],
+      nodeId: 'PR_3',
+    });
     expect(await forge.listPullRequestsForCommit('abc')).toEqual([{ number: 5, mergedAt: '2026-01-01' }]);
     expect(await forge.listPullRequestsForCommit('missing')).toEqual([]);
     expect(await forge.getReleaseByTag('v1')).toEqual({ id: 9, url: 'r', tagName: 'v1' });
@@ -222,5 +227,25 @@ describe('FakeForge', () => {
     const pr = await forge.createPullRequest({ title: 't', body: 'b', head: 'h', base: 'm' });
     const issue = await forge.createIssue({ title: 't', body: 'b' });
     expect(issue.number).toBe(pr.number + 1);
+  });
+
+  it('should default to a standing PR the bot opened and labelled, and return seeded authorship instead', async () => {
+    const bot = { login: 'github-actions[bot]', type: 'Bot' };
+    const rando = { login: 'rando', type: 'User' };
+    const defaults = createFakeForge({
+      standingPR: { number: 3, url: 'u', labels: ['bump:major'] },
+      pullRequests: { 3: { body: 'b', labels: [] } },
+    });
+    expect(await defaults.getAuthoredBody('PR_3')).toEqual({ body: 'b', author: bot });
+    expect(await defaults.listLabelEvents(3)).toEqual([{ action: 'labeled', label: 'bump:major', actor: bot }]);
+    await expect(defaults.getAuthoredBody('IC_1')).rejects.toThrow('IC_1');
+
+    const events = [{ action: 'labeled' as const, label: 'bump:major', actor: rando }];
+    const seeded = createFakeForge({
+      authoredBodies: { PR_3: { body: 'edited', author: bot, editor: rando } },
+      labelEvents: { 3: events },
+    });
+    expect(await seeded.getAuthoredBody('PR_3')).toEqual({ body: 'edited', author: bot, editor: rando });
+    expect(await seeded.listLabelEvents(3)).toEqual(events);
   });
 });
