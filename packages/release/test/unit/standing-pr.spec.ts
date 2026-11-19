@@ -4165,6 +4165,41 @@ describe('runStandingPRPublish', () => {
     expect(result).toBeNull();
   });
 
+  describe('with --pr naming an unmerged PR', () => {
+    const options = { projectDir: '/test', verbose: false, quiet: false, json: false };
+    const refusal = 'Refusing to publish PR #42: it has not merged. Merge it first, then publish.';
+
+    async function expectNothingPublished(forge: FakeForge) {
+      const { runPublishStep } = await import('../../src/steps.js');
+      expect(runPublishStep).not.toHaveBeenCalled();
+      expect(fakeGit.tagged).toEqual([]);
+      expect(forge.comments.filter((c) => c.body.startsWith(FAILURE_MARKER))).toEqual([]);
+    }
+
+    it('should refuse a dispatch naming a PR the forge reports as open', async () => {
+      delete process.env.GITHUB_EVENT_PATH;
+      const forge = await mockForge({
+        comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+        pullRequests: { 42: { body: '', labels: [], merged: false } },
+      });
+
+      await expect(runStandingPRPublish(options, 42)).rejects.toThrow(refusal);
+      await expectNothingPublished(forge);
+    });
+
+    it('should refuse when the event reports the PR as not merged', async () => {
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: false } }),
+      );
+      const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+      vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+
+      await expect(runStandingPRPublish(options, 42)).rejects.toThrow(refusal);
+      await expectNothingPublished(forge);
+    });
+  });
+
   it('should throw when manifest comment is missing from merged PR', async () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(

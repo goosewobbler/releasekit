@@ -228,6 +228,7 @@ interface EventPullRequest {
   number?: number;
   head?: { sha?: string };
   base?: { ref?: string };
+  merged?: boolean;
   merge_commit_sha?: string | null;
   merged_by?: { login?: string; type?: string } | null;
 }
@@ -2033,6 +2034,9 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   }
 
   const eventPr = eventPullRequest(prNumber);
+  if (livePr?.merged === false || eventPr?.merged === false) {
+    throw new Error(`Refusing to publish PR #${prNumber}: it has not merged. Merge it first, then publish.`);
+  }
   const mergedHead = livePr?.headSha ?? eventPr?.head?.sha;
   const mergeCommitSha = livePr?.mergeCommitSha ?? eventPr?.merge_commit_sha ?? undefined;
   const manifest = await verifyManifestForPublish(
