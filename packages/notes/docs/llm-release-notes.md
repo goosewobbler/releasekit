@@ -83,7 +83,7 @@ Four tasks are available. Any combination can be enabled simultaneously.
 | `summarize` | Generates a 2–3 sentence release summary | `enhanced.summary` in template context |
 | `releaseNotes` | Writes full prose markdown release notes | `enhanced.releaseNotes` / pipeline result |
 
-**Recommended starting point:** Enable `enhance` and `categorize` together. This is the most impactful combination — rewriting and grouping both happen in a single LLM call, and it also unlocks `leadIn` phrases in the built-in renderer. Add `summarize` or `releaseNotes` when you want prose output for GitHub releases.
+**Recommended starting point:** Enable `enhance` and `categorize` together. This is the most impactful combination - rewriting and grouping both happen in a single LLM call, and it also unlocks `leadIn` phrases in the built-in renderer. Add `summarize` or `releaseNotes` when you want prose output for GitHub releases.
 
 > **Efficiency tip:** When both `enhance` and `categorize` are enabled, the pipeline makes a **single combined LLM call** (`enhanceAndCategorize`) instead of two sequential calls. This combined path also produces `leadIn` phrases and scope assignments, which are not available when running `enhance` alone.
 
@@ -102,7 +102,7 @@ Entries are processed in parallel. Control the batch size with `concurrency` (de
 { "concurrency": 3 }
 ```
 
-> **Note:** `leadIn` phrases and scope assignments are only generated when `enhance` is combined with `categorize` (the combined `enhanceAndCategorize` path). Running `enhance` alone rewrites descriptions only — see [Combined enhance + categorize](#combined-enhance--categorize).
+> **Note:** Running `enhance` alone rewrites descriptions only. `leadIn` phrases and scope assignments need `categorize` too - see [Combined enhance + categorize](#combined-enhance--categorize).
 
 ---
 
@@ -211,9 +211,9 @@ This is more efficient than two sequential calls and produces richer output. Use
 
 ## Breaking change handling
 
-Any entry where `breaking: true` is set is automatically moved to a `Breaking` category by the built-in markdown renderer at render time, regardless of which category the LLM assigned it to. The `Breaking` category comes first unless `categoryOrder` places it.
+Any entry with `breaking: true`, which only its commit can set, is moved to a `Breaking` category by the built-in markdown renderer at render time, regardless of which category the LLM assigned it to. The `Breaking` category comes first unless `categoryOrder` places it.
 
-The flag comes from the commit alone; the LLM can't set it. The move happens in the renderer, not during the LLM call, so custom templates receive the raw data and must implement breaking-change handling themselves if needed.
+This happens in the renderer, not during the LLM call, so custom templates receive the raw data and must implement breaking-change handling themselves if needed.
 
 The section marks an entry as breaking, so its line has no prefix: `- **API rename**: Rename connect() to initialize()`.
 

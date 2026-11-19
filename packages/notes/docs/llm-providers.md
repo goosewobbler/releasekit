@@ -143,7 +143,7 @@ Entry descriptions are processed in parallel (default concurrency: `5`). Adjust 
 { "concurrency": 3 }
 ```
 
-When `enhance` and `categorize` are both enabled, the pipeline runs a single combined `enhanceAndCategorize` call — see [Combined enhance + categorize](#combined-enhance--categorize). The combined call also generates `leadIn` phrases and scope assignments. The `leadIn` phrases drive `**leadIn**: description` formatting in the built-in renderer, which isn't available when running `enhance` alone. Routine fixes and bumps receive no `leadIn`.
+When `enhance` and `categorize` are both enabled, the pipeline runs a single combined `enhanceAndCategorize` call - see [Combined enhance + categorize](#combined-enhance--categorize). The combined call also generates scope assignments and the `leadIn` phrases behind the built-in renderer's `**leadIn**: description` formatting; `enhance` alone produces neither. Routine fixes and bumps receive no `leadIn`.
 
 ### `summarize`
 
