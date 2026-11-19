@@ -99,8 +99,8 @@ export interface AuthoredBody {
   editor?: CommentAuthor;
   lastEditedAt?: string;
   /**
-   * Who made each of the latest 100 revisions, newest first, ending with the original once the body has been edited.
-   * `undefined` for an account that no longer exists.
+   * Who made each of the latest 100 revisions, newest first, ending with the original if it's among them. `undefined`
+   * for an account that no longer exists.
    */
   editors: Array<CommentAuthor | undefined>;
 }
@@ -186,7 +186,7 @@ export interface Forge {
   listOpenPullRequests(base: string, limit: number): Promise<OpenPullRequest[]>;
   getIssue(issueNumber: number): Promise<IssueDetails>;
   getPullRequest(prNumber: number): Promise<PullRequestDetails>;
-  /** The body and its authorship of the PR, issue or comment that `nodeId` identifies. */
+  /** The body, author and editors of the PR, issue or comment `nodeId` identifies. */
   getAuthoredBody(nodeId: string): Promise<AuthoredBody>;
   createPullRequest(pr: NewPullRequest): Promise<PullRequestRef>;
   updatePullRequest(prNumber: number, changes: PullRequestChanges): Promise<void>;
