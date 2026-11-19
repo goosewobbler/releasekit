@@ -287,6 +287,26 @@ describe('action runner', () => {
     expect(parsed.reconcile).toBe('true');
   });
 
+  it.each([
+    ['true', true],
+    ['false', false],
+  ])(
+    'should pass --ack to standing-pr update only when the ack input is true (INPUT_ACK=%s)',
+    async (ack, expected) => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
+      tempDirs.push(tempDir);
+      const cliPath = path.join(tempDir, 'fake-cli.mjs');
+      fs.writeFileSync(cliPath, 'console.log(JSON.stringify(process.argv.slice(2)))\n', 'utf-8');
+
+      const result = await runAction(parseInputs({ INPUT_MODE: 'standing-pr-update', INPUT_ACK: ack }), { cliPath });
+
+      expect(result.status).toBe(0);
+      const cliArgs = JSON.parse(result.stdout.trim());
+      expect(cliArgs.slice(0, 2)).toEqual(['standing-pr', 'update']);
+      expect(cliArgs.includes('--ack')).toBe(expected);
+    },
+  );
+
   it('should parse action env inputs', () => {
     const parsed = parseInputs({
       INPUT_MODE: 'preview',
