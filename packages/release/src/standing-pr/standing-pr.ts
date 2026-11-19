@@ -1939,9 +1939,8 @@ async function assertMergeAuthorized(
   if (!merger) {
     throw new ManifestRefusal(
       livePr
-        ? `Refusing to publish PR #${prNumber}: enforceMergeAuthor is set but GitHub reports no merger for it, so it ` +
-            `may not be merged. Check that the PR is a merged standing PR; to publish without the merge-author check, ` +
-            `set ci.standingPr.authorization.enforceMergeAuthor: false.`
+        ? `Refusing to publish PR #${prNumber}: enforceMergeAuthor is set but GitHub reports no merger for it. To ` +
+            `publish without the merge-author check, set ci.standingPr.authorization.enforceMergeAuthor: false.`
         : `Refusing to publish PR #${prNumber}: enforceMergeAuthor is set but the merger is unknown - the PR could ` +
             `not be read from GitHub.`,
       !livePr,
