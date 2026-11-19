@@ -5,7 +5,7 @@ export default mergeConfig(
   baseConfig,
   defineConfig({
     test: {
-      include: ['test/**/*.spec.ts'],
+      include: ['**/*.spec.ts'],
       coverage: {
         thresholds: { lines: 89, functions: 93, branches: 83, statements: 89 },
       },
