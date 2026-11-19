@@ -7,8 +7,8 @@ Shared *domain* vocabulary for releasekit. (Architecture terms — module / seam
 Conflating these is the historical source of the `fix(version)` bug cluster (#330/#334/#339/#348). They are not one concept.
 
 - **Version source (A)** — the semver a package is bumped *from*: its own tag → manifest version → `0.1.0`, with tag/manifest mismatch detection. Owned by `getBestVersionSource`. Answers *"bump from what?"*.
-- **Changelog floor / per-package floor (B)** — the `<tag>..HEAD` revision range a package's *own* changelog entries are collected from. On prerelease→stable **graduation** the floor is the last *stable* tag (aggregate since last stable), which can differ from the version source's tag.
-- **Shared floor / repo-level floor (C)** — the range bounding *project-wide* ("shared") entries (CI, infra, shared-package changes) so an untagged package doesn't flood them with full history. Computed once per run from the nearest reachable tag.
+- **Changelog floor / per-package floor (B)** — the `<tag>..HEAD` revision range a package's *own* changelog entries, and the shared-package entries its notes list, are collected from. On prerelease→stable **graduation** the floor is the last *stable* tag (aggregate since last stable), which can differ from the version source's tag.
+- **Shared floor / repo-level floor (C)** — the range bounding the run's *project-wide* ("shared") entries (CI, infra, shared-package changes) in the standing PR and the root changelog, so an untagged package doesn't flood them with full history. Computed once per run from the nearest reachable tag.
 
 **BaselineResolver** — per-run module owning **B + C** (not A): reachability, graduation-aware floor, dual-tag handling, and the shared-floor cache. Receives already-discovered tag facts; returns `{ revisionRange, sharedRevisionRange, previousVersion, baselineUnreachable }` per package.
 

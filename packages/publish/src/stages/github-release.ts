@@ -8,7 +8,7 @@ import {
   renderChangelogBlock,
   renderChangelogSections,
   sanitizePackageName,
-  sharedPackageEntriesFor,
+  sharedPackageEntriesOf,
   success,
   warn,
   writeReleaseNotesFile,
@@ -232,7 +232,7 @@ function formatChangelogForTag(
     return undefined;
   }
 
-  const shared = sharedPackageEntriesFor(release.input.sharedEntries ?? [], target.entries);
+  const shared = sharedPackageEntriesOf(target, release.input.sharedEntries ?? []);
   const repoUrl = target.repoUrl ?? repoUrlFallback(release.input);
   const blocks = renderChangelogSections(target.entries, 3, refs, repoUrl);
   if (shared.length > 0) {

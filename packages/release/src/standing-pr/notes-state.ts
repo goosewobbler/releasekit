@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { NotesConfig } from '@releasekit/config';
 import {
-  sharedPackageEntriesFor,
+  sharedPackageEntriesOf,
   type VersionChangelogEntry,
   type VersionOutput,
   type VersionPackageChangelog,
@@ -49,7 +49,7 @@ export function releaseNotesInputHashes(
   return Object.fromEntries(
     versionOutput.changelogs.map((cl) => [
       cl.packageName,
-      changelogInputHash(cl, config, sharedPackageEntriesFor(shared, cl.entries)),
+      changelogInputHash(cl, config, sharedPackageEntriesOf(cl, shared)),
     ]),
   );
 }

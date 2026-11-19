@@ -12,7 +12,7 @@ export {
   PROJECT_WIDE_HEADING,
   renderChangelogBlock,
   renderChangelogSections,
-  sharedPackageEntriesFor,
+  sharedPackageEntriesOf,
   unlistedEntries,
 } from './changelogBlock.js';
 export {

@@ -79,6 +79,17 @@ describe('Shared entries in notes output', () => {
     }
   });
 
+  it("should list a package's recorded shared-package entries, not the run's", async () => {
+    const output = JSON.parse(versionOutput([SHARED_PACKAGE]));
+    output.changelogs[0].sharedPackageEntries = [SHARED_PACKAGE];
+    output.changelogs[1].sharedPackageEntries = [];
+
+    await processInput(JSON.stringify(output), { changelog: { mode: 'packages' } }, false);
+
+    expect(packageChangelog('a')).toContain(PACKAGE_BLOCK);
+    expect(packageChangelog('b')).not.toContain('Fix the bundled core');
+  });
+
   it("should not repeat a shared-package entry in the shared package's own notes", async () => {
     const result = await processInput(
       versionOutput([SHARED_PACKAGE], { a: [{ type: 'fix', description: 'Fix the bundled core' }] }),

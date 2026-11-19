@@ -139,7 +139,7 @@ const VersionConfigBaseSchema = z.strictObject({
     .array(z.string())
     .optional()
     .describe(
-      'Foundational packages whose changes belong in every package’s notes, as exact names or globs. A commit touching only a shared package goes under "Project-wide changes" in every released package’s changelog, release notes and release body, and once per run in a root changelog, alongside commits that touch no package. Default: none.',
+      'Foundational packages whose changes belong in every package’s notes, as exact names or globs. A commit touching only a shared package goes under "Project-wide changes" in every released package’s changelog, release notes and release body since that package’s previous release, and once per run in a root changelog, alongside commits that touch no package. Default: none.',
     ),
   primaryPackages: z
     .array(z.string())
@@ -151,7 +151,7 @@ const VersionConfigBaseSchema = z.strictObject({
     .enum(['union', 'sinceLastRelease'])
     .default('union')
     .describe(
-      'How project-wide entries are bounded in package-specific-tag mode. "union" (default): repo-level commits accrue from the union of the releasing packages\' ranges, floored by the OLDEST unreleased baseline — so a genuinely-global commit recurs in every release until the oldest-baselined package is released past it. "sinceLastRelease": floor the block by the single nearest tag reachable across the repo, so global commits already shown by the most recent release don\'t recur (recommended for per-package-tag monorepos). No effect in sync mode, where one shared tag already consumes repo-level commits on each release.',
+      'How project-wide entries in the standing PR and the root changelog are bounded in package-specific-tag mode; each package\'s own notes list the shared-package entries since its previous release. "union" (default): repo-level commits accrue from the union of the releasing packages\' ranges, floored by the OLDEST unreleased baseline — so a genuinely-global commit recurs in every release until the oldest-baselined package is released past it. "sinceLastRelease": floor the block by the single nearest tag reachable across the repo, so global commits already shown by the most recent release don\'t recur (recommended for per-package-tag monorepos). No effect in sync mode, where one shared tag already consumes repo-level commits on each release.',
     ),
   mainPackage: z
     .string()

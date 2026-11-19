@@ -224,6 +224,7 @@ export class PackageProcessor {
       const baselineTagPrefix = deriveBaselineTagPrefix(this.fullConfig.baselineTagTemplate, formattedPrefix, name);
 
       let changelogEntries: ChangelogEntry[] = [];
+      let sharedPackageEntries: ChangelogEntry[] | undefined;
       let revisionRange = 'HEAD';
       let previousVersion: string | null = null;
 
@@ -283,6 +284,22 @@ export class PackageProcessor {
           for (const entry of repoLevelEntries) {
             sharedEntriesMap.set(`${entry.type}${entry.breaking ? '!' : ''}:${entry.description}`, entry);
           }
+        }
+
+        // The package's own range, so a shared-package change its previous release listed doesn't come back. A shared
+        // package's own dirs are left out too: its changelog already lists those commits.
+        if (sharedPackageDirs.length > 0) {
+          const ownDirs = resolveCommitScope(pkgPath, this.fullConfig, { repoRoot, releasableDirs: [] }).scope.filter(
+            (dir) => dir !== workspaceRoot,
+          );
+          const entries = await extractRepoLevelChangelogEntries(
+            pkgPath,
+            revisionRange,
+            this.fullConfig.preset,
+            [...packageOwnedDirs, ...ownDirs],
+            sharedPackageDirs,
+          );
+          sharedPackageEntries = entries.filter((e) => e.sharedPackage);
         }
 
         if (changelogEntries.length === 0) {
@@ -356,6 +373,7 @@ export class PackageProcessor {
         repoUrl: repoUrl || null,
         entries: changelogEntries,
         tag: packageTag,
+        ...(sharedPackageEntries ? { sharedPackageEntries } : {}),
       });
       addTag(packageTag);
       setPackageUpdateTag(name, packageTag);

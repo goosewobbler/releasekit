@@ -6,7 +6,7 @@ import {
   info,
   parseGitHubOwnerRepo,
   renderChangelogEntryLine,
-  sharedPackageEntriesFor,
+  sharedPackageEntriesOf,
   unlistedEntries,
   warn,
 } from '@releasekit/core';
@@ -488,10 +488,10 @@ export async function runPipeline(
   }
 
   const sharedEntries = input.sharedEntries ?? [];
-  // Matched against the commit-derived entries: `enhance` rewrites the release-notes ones.
-  const ownEntries = new Map(changelogContexts.map((ctx) => [ctx.packageName, ctx.entries]));
+  const packages = new Map(input.packages.map((pkg) => [pkg.packageName, pkg]));
   const withShared = (ctx: TemplateContext): TemplateContext => {
-    const shared = sharedPackageEntriesFor(sharedEntries, ownEntries.get(ctx.packageName) ?? []);
+    const pkg = packages.get(ctx.packageName);
+    const shared = pkg ? sharedPackageEntriesOf(pkg, sharedEntries) : [];
     return shared.length > 0 ? { ...ctx, sharedEntries: shared } : ctx;
   };
   releaseNotesContexts = releaseNotesContexts.map(withShared);
