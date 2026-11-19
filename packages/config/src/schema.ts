@@ -622,7 +622,7 @@ const LLMConfigBaseSchema = z.strictObject({
       pullRequests: z
         .boolean()
         .default(true)
-        .describe("Fetch the title and body of each entry's linked PR as LLM context. Needs GITHUB_TOKEN or GH_TOKEN."),
+        .describe("Fetch the title and body of each entry's own PR as LLM context. Needs GITHUB_TOKEN or GH_TOKEN."),
     })
     .default({ pullRequests: true })
     .describe('Additional context sources for the LLM.'),
@@ -676,7 +676,7 @@ export const ReleaseNotesConfigSchema = z
           .string()
           .optional()
           .describe(
-            'Also collect links from linked PR bodies: each line starting with this marker adds its markdown link or bare URL, skipping URLs already listed. Needs llm.context.pullRequests.',
+            "Also collect links from each entry's own PR body: each line starting with this marker adds its markdown link or bare URL, skipping URLs already listed. Needs llm.context.pullRequests.",
           ),
         title: z.string().optional().describe('Heading for the links section. Default: Links.'),
       })

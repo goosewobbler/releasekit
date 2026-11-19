@@ -316,7 +316,7 @@ Links section the built-in renderer appends to each version. Rendered only when 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `items` | `object[]` | — | Static links, each { label, url }, listed first. |
-| `fromPRBodyMarker` | string | — | Also collect links from linked PR bodies: each line starting with this marker adds its markdown link or bare URL, skipping URLs already listed. Needs llm.context.pullRequests. |
+| `fromPRBodyMarker` | string | — | Also collect links from each entry's own PR body: each line starting with this marker adds its markdown link or bare URL, skipping URLs already listed. Needs llm.context.pullRequests. |
 | `title` | string | — | Heading for the links section. Default: Links. |
 
 #### `notes.releaseNotes.firstRelease`
@@ -416,7 +416,7 @@ Additional context sources for the LLM.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `pullRequests` | boolean | `true` | Fetch the title and body of each entry's linked PR as LLM context. Needs GITHUB_TOKEN or GH_TOKEN. |
+| `pullRequests` | boolean | `true` | Fetch the title and body of each entry's own PR as LLM context. Needs GITHUB_TOKEN or GH_TOKEN. |
 
 #### `notes.releaseNotes.llm.categories`
 

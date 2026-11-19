@@ -103,6 +103,16 @@ describe('Commit Parser', () => {
     expect(entries[0].issueIds).toEqual(['#503', '#500', '#499', '#498', '#497']);
   });
 
+  it('should ignore closing keywords inside inline code and fenced blocks', async () => {
+    const mockGitOutput = [
+      'fix(notes): respect refs (#995)\n\nThe body still had `(PR #5 · closes #3)`.\n\n```\nfixes #4\n```\n\n```npm i x```\nCloses #992',
+    ].join('---COMMIT_DELIMITER---');
+
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, PRESET, ['.'], gitWithLog(mockGitOutput));
+
+    expect(entries[0].issueIds).toEqual(['#995', '#992']);
+  });
+
   it('should treat a trailing (#N) on the subject as the PR and strip it from the description', async () => {
     const mockGitOutput = ['feat(release): hierarchical selection (#471)'].join('---COMMIT_DELIMITER---');
 
