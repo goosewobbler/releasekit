@@ -121,8 +121,6 @@ When `categories` is not configured, the following defaults are used:
 | `Fixed` | Bug fixes |
 | `Developer` | Internal changes: CI, tooling, dependencies, refactoring |
 
-`Breaking` isn't offered to the model, even when `categories` lists it: entries whose commit is marked breaking lead under it.
-
 The LLM is constrained to these exact names. If the model returns an invalid category, the pipeline sends a follow-up message pointing out the error and asking it to revise — this is called a corrective retry. If all retries are exhausted, all entries are placed in a single `"General"` fallback category.
 
 ### Custom categories
@@ -212,7 +210,7 @@ This is more efficient than two sequential calls and produces richer output. Use
 
 ## Breaking change handling
 
-Any entry with `breaking: true`, which only its commit can set, is moved to a `Breaking` category by the built-in markdown renderer at render time, regardless of which category the LLM assigned it to. The `Breaking` category comes first unless `categoryOrder` places it.
+Any entry with `breaking: true`, which only its commit can set, is moved to a `Breaking` category by the built-in markdown renderer at render time, regardless of which category the LLM assigned it to. The model is never offered `Breaking` as a category, even if `categories` lists it. The `Breaking` category comes first unless `categoryOrder` places it.
 
 Templates get the same grouping in [`sections`](templates.md#sections).
 

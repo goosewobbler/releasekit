@@ -595,7 +595,7 @@ const LLMConfigBaseSchema = z.strictObject({
       { name: 'Developer', description: 'Internal changes: CI, tooling, dependencies, refactoring' },
     ])
     .describe(
-      'Categories the categorize task sorts entries into. Breaking is never offered to the model, even when listed: it holds the entries whose commit is marked breaking. Default: New, Changed, Fixed and Developer, each with a built-in description.',
+      'Categories the categorize task sorts entries into. Default: New, Changed, Fixed and Developer, each with a built-in description. Breaking is never offered to the model, even if listed: only a commit marked breaking puts an entry there.',
     ),
   style: z
     .string()

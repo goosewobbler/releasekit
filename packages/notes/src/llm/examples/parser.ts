@@ -60,7 +60,7 @@ export function renderExamplesBlock(examples: Example[]): string {
   const blocks = examples.map((ex) => {
     const entryLines = ex.entries
       .map((e) => {
-        // Breaking isn't a category the model may pick, so showing it as one would invite a corrective retry.
+        // The model can't pick Breaking, so showing it as a category would only invite a corrective retry.
         const category = e.category === BREAKING_SECTION ? '' : `[${escBody(e.category)}]`;
         const scope = e.scope ? `(${escBody(e.scope)})` : '';
         const tags = [category, scope].filter(Boolean).join(' ');
