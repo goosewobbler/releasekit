@@ -1042,8 +1042,8 @@ function lastHumanWriter(authored: AuthoredBody): CommentAuthor | undefined {
 }
 
 /**
- * Each release label stands as its latest event by an authorized actor left it, whoever changed it since. A label whose
- * actor's permission can't be looked up keeps its state in the manifest.
+ * Each release label stays as an authorized actor's latest event left it, whoever changed it since. A label whose
+ * actor's permission lookup fails keeps the manifest's state.
  */
 async function authorizedReleaseLabels(
   forge: Forge,
@@ -1147,8 +1147,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         const authored = await forge.getAuthoredBody(existingStandingPr.nodeId);
         liveBody = authored.body;
         const writer = lastHumanWriter(authored);
-        // Fails closed: a permission-lookup error (rate limit, network, mis-scoped token) resets the body to the
-        // manifest rather than crashing the update.
+        // Fails closed: a failed permission lookup resets the body to the manifest.
         bodyAuthorized = await isAuthorized(writer).catch((err) => {
           warn(
             `Could not verify permission for '${writer?.login ?? 'unknown'}' — treating as unauthorized: ${err instanceof Error ? err.message : String(err)}`,
@@ -1171,8 +1170,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     ? extractChannelSelection(liveBody)
     : { prereleased: [], graduated: [], graduationRows: [] };
   const bodySyncGraduation = !!liveBody && extractSyncGraduation(liveBody);
-  // With an authorization policy the manifest's selection is authoritative unless an authorized actor is the body's
-  // last human writer, so the result doesn't depend on which event started this run.
   let priorDeselected = bodyDeselected;
   if (authz && existingStandingPr && !bodyAuthorized) {
     const manifestDeselected = new Set<string>(existingManifest?.deselected ?? []);
@@ -1194,9 +1191,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  // GitHub can't restrict who applies a label, so with an authorization policy the release labels are reset to the
-  // ones authorized actors applied (other labels kept). Everything below reads `effectiveLabels`, so the bot's own
-  // re-apply can't restore a rogue label.
+  // GitHub can't restrict who applies a label, so with an authorization policy only authorized actors' release labels
+  // stand. Everything below reads `effectiveLabels`, so the bot's own re-apply can't restore a rogue label.
   let effectiveLabels = existingStandingPr?.labels ?? [];
   if (authz && isAuthorized && existingStandingPr) {
     const isRelevant = (l: string) => isRelevantOverrideLabel(l, ciConfig);
@@ -1479,7 +1475,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   graduationRowTicks = graduationRowTicks.filter((name) => !ungraduated.has(name));
   let syncGraduationTick = bodySyncGraduation && !priorSyncForced && !priorSyncLapsed;
 
-  // As with the selection gate, only an authorized editor's body may change channels; otherwise reset to the manifest's.
+  // As with the selection, channels reset to the manifest's unless an authorized actor last wrote the body.
   // The manifest stores group-expanded sets but the body holds raw ticks, so expand the body before comparing or
   // untoggled group-mates misfire the notice.
   if (authz && existingStandingPr && !bodyAuthorized) {

@@ -252,7 +252,7 @@ The standing PR is a **release-control surface**, not just a PR. Its release lab
 
 So control is enforced in two places:
 
-- **Selection + release labels** — enforced *in code* by ReleaseKit, because GitHub can't. An unauthorized edit to the checkboxes or release labels is reverted by the next update, whatever triggers it: unless the body's last human editor is authorized, the checkboxes reset to the manifest's selection, and each release label goes back to how an authorized actor last left it. A notice is posted. This is opt-in hardening for teams that delegate triage.
+- **Selection + release labels** — enforced *in code* by ReleaseKit, because GitHub can't. The next update, whatever triggers it, reverts an unauthorized edit to the checkboxes or release labels and posts a notice; [Who can change what](../../../docs/standing-pr-body.md#who-can-change-what) has the rules. This is opt-in hardening for teams that delegate triage.
 - **Merge (= publish)** — enforced by a **GitHub branch ruleset** (the primary gate, since merge is the privileged action) plus a publish-time **author check** (`enforceMergeAuthor`, defense-in-depth behind the ruleset).
 
 #### The `authorization` config

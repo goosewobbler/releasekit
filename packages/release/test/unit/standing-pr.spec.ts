@@ -1129,7 +1129,6 @@ describe('runStandingPRUpdate', () => {
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    // rando (below admin) added bump:major.
     const forge = await mockForge({
       standingPR: openStandingPR(99, ['release', 'bump:major', 'area:ci']),
       pullRequests: { 99: { body: '', labels: [] } },
@@ -1196,7 +1195,6 @@ describe('runStandingPRUpdate', () => {
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    // rando (below admin) removed the bump:major an admin applied.
     const forge = await mockForge({
       standingPR: openStandingPR(99, ['release', 'area:ci']),
       pullRequests: { 99: { body: '', labels: [] } },
