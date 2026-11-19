@@ -165,11 +165,12 @@ Groups entries into user-friendly categories rather than conventional commit typ
 
 | Name | Description |
 |------|-------------|
-| `Breaking` | Breaking changes that require user action to upgrade |
 | `New` | New features and capabilities |
 | `Changed` | Changes to existing functionality |
 | `Fixed` | Bug fixes |
 | `Developer` | Internal changes: CI, tooling, dependencies, refactoring |
+
+`Breaking` isn't offered to the model, even when `categories` lists it: entries whose commit is marked breaking lead under it.
 
 Provide a custom list to override the defaults:
 

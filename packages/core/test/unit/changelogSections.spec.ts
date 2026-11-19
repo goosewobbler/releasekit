@@ -98,15 +98,6 @@ describe('groupChangelogSections', () => {
       ]);
     });
 
-    it("should put rerouted entries ahead of the LLM's own Breaking category and move it first", () => {
-      expect(
-        categorized([
-          { name: 'Features', entries: [{ type: 'feat', description: 'Rename option', breaking: true }] },
-          { name: 'Breaking', entries: [{ type: 'feat', description: 'Drop node 18' }] },
-        ]),
-      ).toEqual([['Breaking', ['Rename option', 'Drop node 18']]]);
-    });
-
     it('should order categories by the given order, unnamed ones after, Breaking first unless named', () => {
       const categories = ['Fixes', 'Docs', 'Features', 'Other'].map((name) => ({
         name,

@@ -1,3 +1,4 @@
+import { BREAKING_SECTION } from '@releasekit/core';
 import type { ChangelogEntry, JSONSchema, LLMCategory } from '../../core/types.js';
 import { extractJsonFromResponse } from '../../utils/json.js';
 import type { ValidationResult } from '../correctiveRetry.js';
@@ -158,15 +159,18 @@ export function checkCategoryNames(
   llmEntries: Array<{ category: string }>,
   categoryNames: string[] | undefined,
 ): string | null {
-  if (!categoryNames?.length) {
-    return null;
-  }
-  const invalid = llmEntries.filter((e) => !categoryNames.includes(e.category)).map((e) => e.category);
+  const listed = categoryNames?.length ? categoryNames : undefined;
+  const invalid = llmEntries
+    .map((e) => e.category)
+    .filter((category) => category === BREAKING_SECTION || (listed && !listed.includes(category)));
   if (invalid.length === 0) {
     return null;
   }
   const unique = [...new Set(invalid)];
-  return `Unknown categories: ${unique.join(', ')}. Valid categories: ${categoryNames.join(', ')}`;
+  const valid = listed
+    ? `Valid categories: ${listed.join(', ')}`
+    : `${BREAKING_SECTION} is reserved; use another category.`;
+  return `Unknown categories: ${unique.join(', ')}. ${valid}`;
 }
 
 export type TaskValidator<T> = (result: CompleteResult) => ValidationResult<T>;

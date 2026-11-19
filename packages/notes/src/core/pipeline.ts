@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import { assertLlmModel, configuredRefsMode, runsLlmTasks } from '@releasekit/config';
 import {
+  BREAKING_SECTION,
   debug,
   groupChangelogSections,
   info,
@@ -247,7 +248,8 @@ async function processWithLLM(
     version: context.version,
     previousVersion: context.previousVersion ?? undefined,
     date: context.date,
-    categories: llmConfig.categories,
+    // The commit's breaking flag, not the model, puts an entry under Breaking.
+    categories: llmConfig.categories?.filter((c) => c.name !== BREAKING_SECTION),
     style: llmConfig.style,
     scopes: llmConfig.scopes,
     prompts: llmConfig.prompts,
