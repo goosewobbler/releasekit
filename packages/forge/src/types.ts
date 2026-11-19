@@ -31,6 +31,8 @@ export interface IssueDetails {
   /** The issues endpoint also returns PRs. */
   isPullRequest: boolean;
   state: IssueState;
+  /** The account that opened the issue or PR. */
+  author?: CommentAuthor;
 }
 
 export interface IssueRef {
@@ -77,18 +79,13 @@ export interface ForgeComment {
 }
 
 /**
- * A machine-state marker comment (the release manifest, previews, failure reports) is only trustworthy when the bot
- * wrote it; a human-authored comment carrying the same marker is a forgery and must not be adopted.
- *
- * Fails open on an unknown author - the GitHub adapter always reports one, so `user` is only absent on the fake/legacy
- * paths.
+ * A machine-state marker comment (the release manifest, previews, failure reports) is only trustworthy when a bot
+ * wrote it; a human-authored comment carrying the same marker is a forgery and must not be adopted. An unknown author
+ * is untrusted, since GitHub's API can report none.
  */
 export function isBotComment(comment: Pick<ForgeComment, 'user'>): boolean {
   const user = comment.user;
-  if (!user) {
-    return true;
-  }
-  return user.type === 'Bot' || user.login?.endsWith('[bot]') === true;
+  return user?.type === 'Bot' || user?.login?.endsWith('[bot]') === true;
 }
 
 /** A PR's, issue's or comment's body with who wrote it and who last edited it, read together. */
@@ -195,14 +192,14 @@ export interface Forge {
 
   createIssue(issue: NewIssue): Promise<IssueRef>;
   updateIssue(issueNumber: number, changes: IssueChanges): Promise<void>;
-  /** The most-recent open issue (not a PR) carrying `label`. */
-  findOpenIssueByLabel(label: string): Promise<IssueRef | null>;
+  /** Open issues (not PRs) carrying `label`, most-recent first. */
+  listOpenIssuesByLabel(label: string): Promise<IssueRef[]>;
 
-  /** The first comment whose body starts with `marker`. */
+  /** The first bot comment whose body starts with `marker`, else the first such comment by anyone. */
   findComment(prNumber: number, marker: string): Promise<ForgeComment | null>;
-  createComment(prNumber: number, body: string): Promise<void>;
-  updateComment(commentId: number, body: string): Promise<void>;
-  upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<void>;
+  createComment(prNumber: number, body: string): Promise<ForgeComment>;
+  updateComment(commentId: number, body: string): Promise<ForgeComment>;
+  upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<ForgeComment>;
 
   listLabelNames(): Promise<string[]>;
   /** Resolves to 'exists' rather than throwing when the label is already present. */

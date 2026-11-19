@@ -16,7 +16,6 @@ import {
   type AuthoredBody,
   type CommentAuthor,
   type Forge,
-  type ForgeComment,
   forgeErrorStatus,
   isBotComment,
   type PullRequestDetails,
@@ -41,6 +40,7 @@ import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS, graduatedPackageFromLabel, isGraduatePackageLabel } from '../label-utils.js';
 import { markFeederPreviewsStale } from '../preview/stale.js';
 import { type NotesStepResult, runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
+import { findTrustedComment, type TrustedCommentLookup } from '../trusted-comment.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
@@ -723,8 +723,8 @@ export function parseManifest(commentBody: string): StandingPRManifest {
   return expandSharedPackageEntries(parsed as PooledManifest);
 }
 
-export async function findManifestComment(forge: Forge, prNumber: number): Promise<ForgeComment | null> {
-  return forge.findComment(prNumber, MANIFEST_MARKER);
+function findManifestComment(forge: Forge, prNumber: number): Promise<TrustedCommentLookup> {
+  return findTrustedComment(forge, prNumber, MANIFEST_MARKER, 'release manifest');
 }
 
 export interface StandingPRSnapshot {
@@ -747,12 +747,8 @@ export async function fetchStandingPRSnapshot(
     return null;
   }
 
-  const comment = await findManifestComment(forge, pr.number);
+  const { comment } = await findManifestComment(forge, pr.number);
   if (!comment) {
-    return null;
-  }
-  // As at publish, refuse a human-authored (possibly forged) manifest.
-  if (!isBotComment(comment)) {
     return null;
   }
 
@@ -1119,12 +1115,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   let existingManifest: StandingPRManifest | undefined;
   if (existingStandingPr) {
     try {
-      const comment = await findManifestComment(forge, existingStandingPr.number);
-      if (comment && !isBotComment(comment)) {
-        warn(
-          `Ignoring the release manifest comment on PR #${existingStandingPr.number}: it was authored by ` +
-            `'${comment.user?.login}', not the release bot. Posting a new one.`,
-        );
+      const { comment, refusal } = await findManifestComment(forge, existingStandingPr.number);
+      if (refusal) {
+        warn(`${refusal} Ignoring it.`);
       } else if (comment) {
         existingManifest = parseManifest(comment.body);
       }
@@ -2037,18 +2030,12 @@ async function readTrustedManifest(
   prNumber: number,
   action: 'merge' | 'publish',
 ): Promise<StandingPRManifest> {
-  const manifestComment = await findManifestComment(forge, prNumber);
+  const { comment: manifestComment, refusal } = await findManifestComment(forge, prNumber);
+  if (refusal) {
+    throw new ManifestRefusal(`Refusing to ${action} PR #${prNumber}. ${refusal}`);
+  }
   if (!manifestComment) {
     throw new ManifestRefusal(`Release manifest not found on PR #${prNumber}.`);
-  }
-
-  // `findComment` prefers a bot-authored match but falls back to a human comment carrying the marker; refuse that.
-  if (!isBotComment(manifestComment)) {
-    throw new ManifestRefusal(
-      `Refusing to ${action} PR #${prNumber}: the release manifest comment was authored by ` +
-        `'${manifestComment.user?.login ?? 'an unknown user'}', not the release bot. A manifest that did not come ` +
-        `from 'standing-pr update' cannot be trusted.`,
-    );
   }
 
   try {

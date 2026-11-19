@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFakeForge } from '../../src/fake.js';
+import { createFakeForge, FAKE_BOT } from '../../src/fake.js';
 
 describe('FakeForge', () => {
   it('should return seeded reads and null for unseeded ones', async () => {
@@ -71,6 +71,17 @@ describe('FakeForge', () => {
     expect(await forge.findComment(6, 'PR5')).toBeNull();
   });
 
+  it('should attribute seeded comments to the fake bot and its own writes to the actor', async () => {
+    const human = { login: 'alice', type: 'User' };
+    const forge = createFakeForge({ comments: [{ id: 1, body: 'SEEDED' }], actor: human });
+
+    expect(await forge.findComment(1, 'SEEDED')).toMatchObject({ user: FAKE_BOT });
+    expect(await forge.createComment(1, 'MINE')).toMatchObject({ body: 'MINE', user: human });
+    expect(await forge.upsertMarkerComment(1, 'SEEDED', 'SEEDED edited')).toMatchObject({ id: 1, user: FAKE_BOT });
+    const issue = await forge.createIssue({ title: 't', body: 'b' });
+    expect(await forge.getIssue(issue.number)).toMatchObject({ author: human });
+  });
+
   it('should make createLabel idempotent against seeded labels', async () => {
     const forge = createFakeForge({ labelNames: ['existing'] });
 
@@ -104,9 +115,17 @@ describe('FakeForge', () => {
       labels: ['l'],
       isPullRequest: true,
       state: 'open',
+      author: FAKE_BOT,
     });
     expect(await forge.getPullRequest(7)).toEqual({ body: 'pb', labels: ['p'], headRef: 'release/next' });
-    expect(await forge.getIssue(404)).toEqual({ body: '', title: '', labels: [], isPullRequest: true, state: 'open' });
+    expect(await forge.getIssue(404)).toEqual({
+      body: '',
+      title: '',
+      labels: [],
+      isPullRequest: true,
+      state: 'open',
+      author: FAKE_BOT,
+    });
     expect(await forge.getPullRequest(404)).toEqual({ body: '', labels: [] });
   });
 
@@ -155,7 +174,7 @@ describe('FakeForge', () => {
     expect(await forge.isTeamMember('acme', 'other', 'alice')).toBe(false);
   });
 
-  it('should create an issue, record it, and reflect it in getIssue and findOpenIssueByLabel', async () => {
+  it('should create an issue, record it, and reflect it in getIssue and listOpenIssuesByLabel', async () => {
     const forge = createFakeForge();
 
     const ref = await forge.createIssue({ title: 'Release draft', body: 'notes', labels: ['release:draft'] });
@@ -168,9 +187,10 @@ describe('FakeForge', () => {
       labels: ['release:draft'],
       isPullRequest: false,
       state: 'open',
+      author: FAKE_BOT,
     });
-    expect(await forge.findOpenIssueByLabel('release:draft')).toEqual({ number: 42, url: ref.url });
-    expect(await forge.findOpenIssueByLabel('nope')).toBeNull();
+    expect(await forge.listOpenIssuesByLabel('release:draft')).toEqual([{ number: 42, url: ref.url }]);
+    expect(await forge.listOpenIssuesByLabel('nope')).toEqual([]);
   });
 
   it('should update an issue body and close it (dropping it from open-issue discovery)', async () => {
@@ -182,7 +202,7 @@ describe('FakeForge', () => {
     expect(forge.updatedIssues).toEqual([{ issueNumber: 42, changes: { body: 'edited' } }]);
 
     await forge.updateIssue(ref.number, { state: 'closed' });
-    expect(await forge.findOpenIssueByLabel('release:draft')).toBeNull();
+    expect(await forge.listOpenIssuesByLabel('release:draft')).toEqual([]);
     expect(await forge.getIssue(ref.number)).toMatchObject({ state: 'closed' });
   });
 
@@ -190,36 +210,38 @@ describe('FakeForge', () => {
     const forge = createFakeForge({
       openIssues: [{ number: 7, url: 'https://example/issues/7', labels: ['release:draft'] }],
     });
-    expect(await forge.findOpenIssueByLabel('release:draft')).toEqual({
-      number: 7,
-      url: 'https://example/issues/7',
-    });
+    expect(await forge.listOpenIssuesByLabel('release:draft')).toEqual([
+      { number: 7, url: 'https://example/issues/7' },
+    ]);
   });
 
   it('should discover an issue seeded only via the issues map', async () => {
     const forge = createFakeForge({
       issues: { 7: { body: 'b', title: 't', labels: ['release:draft'], isPullRequest: false } },
     });
-    expect(await forge.findOpenIssueByLabel('release:draft')).toMatchObject({ number: 7 });
+    expect(await forge.listOpenIssuesByLabel('release:draft')).toMatchObject([{ number: 7 }]);
     // A seeded PR carrying the label must NOT be discoverable as an issue.
     const withPr = createFakeForge({
       issues: { 8: { body: 'b', title: 't', labels: ['release:draft'], isPullRequest: true } },
     });
-    expect(await withPr.findOpenIssueByLabel('release:draft')).toBeNull();
+    expect(await withPr.listOpenIssuesByLabel('release:draft')).toEqual([]);
     const closed = createFakeForge({
       issues: { 9: { body: 'b', title: 't', labels: ['release:draft'], isPullRequest: false, state: 'closed' } },
     });
-    expect(await closed.findOpenIssueByLabel('release:draft')).toBeNull();
+    expect(await closed.listOpenIssuesByLabel('release:draft')).toEqual([]);
   });
 
-  it('should return the newest (highest-numbered) matching open issue', async () => {
+  it('should list matching open issues newest (highest-numbered) first', async () => {
     const forge = createFakeForge({
       openIssues: [
         { number: 3, url: 'u3', labels: ['release:draft'] },
         { number: 9, url: 'u9', labels: ['release:draft'] },
       ],
     });
-    expect(await forge.findOpenIssueByLabel('release:draft')).toEqual({ number: 9, url: 'u9' });
+    expect(await forge.listOpenIssuesByLabel('release:draft')).toEqual([
+      { number: 9, url: 'u9' },
+      { number: 3, url: 'u3' },
+    ]);
   });
 
   it('should share the number space between issues and PRs', async () => {

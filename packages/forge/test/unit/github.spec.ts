@@ -22,8 +22,8 @@ function makeOctokit() {
     issuesCreate: vi.fn(),
     issuesUpdate: vi.fn().mockResolvedValue({}),
     issuesListForRepo: vi.fn(),
-    createComment: vi.fn().mockResolvedValue({}),
-    updateComment: vi.fn().mockResolvedValue({}),
+    createComment: vi.fn().mockResolvedValue({ data: { id: 1, body: 'b', user: null } }),
+    updateComment: vi.fn().mockResolvedValue({ data: { id: 1, body: 'b', user: null } }),
     createLabel: vi.fn().mockResolvedValue({}),
     setLabels: vi.fn().mockResolvedValue({}),
     iterator: vi.fn(),
@@ -249,6 +249,8 @@ describe('GitHubForge', () => {
   });
 
   describe('marker comments', () => {
+    const bot = { login: 'github-actions[bot]', type: 'Bot' };
+
     it('should return the first comment whose body starts with the marker', async () => {
       const { octokit, fns } = makeOctokit();
       fns.iterator.mockReturnValue(
@@ -262,10 +264,21 @@ describe('GitHubForge', () => {
 
     it('should update the existing marker comment on upsert (never stack a second)', async () => {
       const { octokit, fns } = makeOctokit();
-      fns.iterator.mockReturnValue(pages([{ id: 2, body: 'MARK old' }]));
-      await new GitHubForge(octokit, 'o', 'r').upsertMarkerComment(9, 'MARK', 'MARK new');
+      fns.iterator.mockReturnValue(pages([{ id: 2, body: 'MARK old', user: bot }]));
+      fns.updateComment.mockResolvedValue({ data: { id: 2, body: 'MARK new', user: bot } });
+      const written = await new GitHubForge(octokit, 'o', 'r').upsertMarkerComment(9, 'MARK', 'MARK new');
       expect(fns.updateComment).toHaveBeenCalledWith({ owner: 'o', repo: 'r', comment_id: 2, body: 'MARK new' });
       expect(fns.createComment).not.toHaveBeenCalled();
+      expect(written).toEqual({ id: 2, body: 'MARK new', user: bot });
+    });
+
+    it('should not adopt a marker comment with no recorded author on upsert', async () => {
+      const { octokit, fns } = makeOctokit();
+      fns.iterator.mockReturnValue(pages([{ id: 2, body: 'MARK old', user: null }]));
+      fns.createComment.mockResolvedValue({ data: { id: 3, body: 'MARK new', user: null } });
+      const written = await new GitHubForge(octokit, 'o', 'r').upsertMarkerComment(9, 'MARK', 'MARK new');
+      expect(fns.updateComment).not.toHaveBeenCalled();
+      expect(written).toEqual({ id: 3, body: 'MARK new', user: undefined });
     });
 
     it('should create a new comment on upsert when none matches the marker', async () => {
@@ -281,7 +294,14 @@ describe('GitHubForge', () => {
     it('should map body/title/labels and detect a pull request', async () => {
       const { octokit, fns } = makeOctokit();
       fns.issuesGet.mockResolvedValue({
-        data: { body: 'b', title: 't', labels: ['x', { name: 'y' }], pull_request: {}, state: 'closed' },
+        data: {
+          body: 'b',
+          title: 't',
+          labels: ['x', { name: 'y' }],
+          pull_request: {},
+          state: 'closed',
+          user: { login: 'github-actions[bot]', type: 'Bot', id: 1 },
+        },
       });
       expect(await new GitHubForge(octokit, 'o', 'r').getIssue(3)).toEqual({
         body: 'b',
@@ -289,6 +309,7 @@ describe('GitHubForge', () => {
         labels: ['x', 'y'],
         isPullRequest: true,
         state: 'closed',
+        author: { login: 'github-actions[bot]', type: 'Bot' },
       });
     });
 
@@ -370,14 +391,22 @@ describe('GitHubForge', () => {
       });
     });
 
-    it('should find the first open issue by label across pages, skipping PRs', async () => {
+    it('should list open issues by label across pages, skipping PRs', async () => {
       const { octokit, fns } = makeOctokit();
-      // A first page full of label-carrying PRs must not hide the issue on a later page.
       fns.iterator.mockReturnValue(
-        pages([{ number: 5, html_url: 'pr-url', pull_request: {} }], [{ number: 8, html_url: 'issue-url' }]),
+        pages(
+          [
+            { number: 9, html_url: 'newest-url' },
+            { number: 5, html_url: 'pr-url', pull_request: {} },
+          ],
+          [{ number: 8, html_url: 'issue-url' }],
+        ),
       );
-      const ref = await new GitHubForge(octokit, 'o', 'r').findOpenIssueByLabel('release:draft');
-      expect(ref).toEqual({ number: 8, url: 'issue-url' });
+      const refs = await new GitHubForge(octokit, 'o', 'r').listOpenIssuesByLabel('release:draft');
+      expect(refs).toEqual([
+        { number: 9, url: 'newest-url' },
+        { number: 8, url: 'issue-url' },
+      ]);
       expect(fns.iterator).toHaveBeenCalledWith(fns.issuesListForRepo, {
         owner: 'o',
         repo: 'r',
@@ -387,10 +416,10 @@ describe('GitHubForge', () => {
       });
     });
 
-    it('should return null when no open issue carries the label', async () => {
+    it('should return no issues when none carries the label', async () => {
       const { octokit, fns } = makeOctokit();
       fns.iterator.mockReturnValue(pages([{ number: 5, html_url: 'pr-url', pull_request: {} }]));
-      expect(await new GitHubForge(octokit, 'o', 'r').findOpenIssueByLabel('release:draft')).toBeNull();
+      expect(await new GitHubForge(octokit, 'o', 'r').listOpenIssuesByLabel('release:draft')).toEqual([]);
     });
   });
 

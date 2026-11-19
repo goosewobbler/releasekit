@@ -97,7 +97,7 @@ describe('standing-pr merge', () => {
     [
       'a human wrote the manifest',
       { comments: [{ id: 1, body: serializeManifest(manifest), user: { login: 'mallory', type: 'User' } }] },
-      /Refusing to merge PR #42: .*'mallory', not the release bot/,
+      /Refusing to merge PR #42\. .*'mallory', not by the bot account that opened #42/,
     ],
     [
       'the manifest is invalid',

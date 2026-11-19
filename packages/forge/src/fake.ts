@@ -5,6 +5,7 @@ import type {
   CommitStatus,
   CreateLabelResult,
   Forge,
+  ForgeComment,
   IssueChanges,
   IssueDetails,
   IssueRef,
@@ -27,12 +28,15 @@ import type {
 } from './types.js';
 import { isBotComment } from './types.js';
 
+/** The default author of seeded comments and issues, and of the fake's own writes. */
+export const FAKE_BOT: CommentAuthor = { login: 'github-actions[bot]', type: 'Bot' };
+
 interface FakeComment {
   id: number;
   body: string;
   /** Left undefined, a seeded comment is visible from any PR's `findComment`. */
   prNumber?: number;
-  /** Left undefined, a seeded comment reads as bot-authored. */
+  /** Left undefined, a seeded comment reads as written by {@link FAKE_BOT}. */
   user?: CommentAuthor;
 }
 
@@ -66,6 +70,8 @@ export interface FakeForgeSeed {
   authoredBodies?: Record<string, AuthoredBody>;
   /** Unseeded, the standing PR's labels read as applied by the bot. */
   labelEvents?: Record<number, LabelEvent[]>;
+  /** Who the fake's comment and issue writes are attributed to: the token's account. Defaults to {@link FAKE_BOT}. */
+  actor?: CommentAuthor;
 }
 
 export class FakeForge implements Forge {
@@ -84,6 +90,7 @@ export class FakeForge implements Forge {
   private readonly teamMemberships: Record<string, string[]>;
   private readonly authoredBodies: Record<string, AuthoredBody>;
   private readonly labelEvents: Record<number, LabelEvent[]>;
+  private readonly actor: CommentAuthor;
 
   // Recorded writes, for assertions.
   readonly createdComments: Array<{ prNumber: number; body: string }> = [];
@@ -122,7 +129,7 @@ export class FakeForge implements Forge {
       }
     }
     this.pullRequestDetails = seed.pullRequests ?? {};
-    this.comments = [...(seed.comments ?? [])];
+    this.comments = (seed.comments ?? []).map((c) => ({ ...c, user: c.user ?? FAKE_BOT }));
     this.labelNames = [...(seed.labelNames ?? [])];
     this.releases = seed.releases ?? [];
     this.releasesByTag = seed.releasesByTag ?? {};
@@ -130,6 +137,7 @@ export class FakeForge implements Forge {
     this.teamMemberships = seed.teamMemberships ?? {};
     this.authoredBodies = seed.authoredBodies ?? {};
     this.labelEvents = seed.labelEvents ?? {};
+    this.actor = seed.actor ?? FAKE_BOT;
     this.nextCommentId = Math.max(0, ...this.comments.map((c) => c.id)) + 1;
   }
 
@@ -164,7 +172,8 @@ export class FakeForge implements Forge {
   }
 
   async getIssue(issueNumber: number): Promise<IssueDetails> {
-    return this.issues[issueNumber] ?? { body: '', title: '', labels: [], isPullRequest: true, state: 'open' };
+    const issue = this.issues[issueNumber] ?? { body: '', title: '', labels: [], isPullRequest: true, state: 'open' };
+    return { author: FAKE_BOT, ...issue };
   }
 
   async getPullRequest(prNumber: number): Promise<PullRequestDetails> {
@@ -208,7 +217,14 @@ export class FakeForge implements Forge {
     const url = `https://github.com/fake/fake/issues/${number}`;
     const labels = issue.labels ?? [];
     this.openIssues.push({ number, url, labels });
-    this.issues[number] = { body: issue.body, title: issue.title, labels, isPullRequest: false, state: 'open' };
+    this.issues[number] = {
+      body: issue.body,
+      title: issue.title,
+      labels,
+      isPullRequest: false,
+      state: 'open',
+      author: this.actor,
+    };
     return { number, url };
   }
 
@@ -231,10 +247,12 @@ export class FakeForge implements Forge {
     }
   }
 
-  async findOpenIssueByLabel(label: string): Promise<IssueRef | null> {
+  async listOpenIssuesByLabel(label: string): Promise<IssueRef[]> {
     // GitHub returns newest-first; the highest number approximates newest.
-    const matches = this.openIssues.filter((i) => i.labels.includes(label)).sort((a, b) => b.number - a.number);
-    return matches[0] ? { number: matches[0].number, url: matches[0].url } : null;
+    return this.openIssues
+      .filter((i) => i.labels.includes(label))
+      .sort((a, b) => b.number - a.number)
+      .map(({ number, url }) => ({ number, url }));
   }
 
   async findComment(prNumber: number, marker: string): Promise<FakeComment | null> {
@@ -245,27 +263,29 @@ export class FakeForge implements Forge {
     return matches.find((c) => isBotComment(c)) ?? matches[0] ?? null;
   }
 
-  async createComment(prNumber: number, body: string): Promise<void> {
+  async createComment(prNumber: number, body: string): Promise<ForgeComment> {
     this.createdComments.push({ prNumber, body });
-    this.comments.push({ id: this.nextCommentId++, body, prNumber });
+    const comment = { id: this.nextCommentId++, body, prNumber, user: this.actor };
+    this.comments.push(comment);
+    return { id: comment.id, body, user: comment.user };
   }
 
-  async updateComment(commentId: number, body: string): Promise<void> {
+  async updateComment(commentId: number, body: string): Promise<ForgeComment> {
     this.updatedComments.push({ commentId, body });
     const comment = this.comments.find((c) => c.id === commentId);
     if (comment) {
       comment.body = body;
     }
+    // An edit keeps the comment's original author.
+    return { id: commentId, body, user: comment?.user };
   }
 
-  async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<void> {
+  async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<ForgeComment> {
     this.upsertedComments.push({ prNumber, marker, body });
     const existing = await this.findComment(prNumber, marker);
-    if (existing && isBotComment(existing)) {
-      await this.updateComment(existing.id, body);
-    } else {
-      await this.createComment(prNumber, body);
-    }
+    return existing && isBotComment(existing)
+      ? this.updateComment(existing.id, body)
+      : this.createComment(prNumber, body);
   }
 
   async listLabelNames(): Promise<string[]> {

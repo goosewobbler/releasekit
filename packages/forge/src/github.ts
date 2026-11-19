@@ -74,6 +74,14 @@ function labelNames(labels: LabelLike[] | undefined): string[] {
   return (labels ?? []).map((label) => (typeof label === 'string' ? label : (label.name ?? '')));
 }
 
+function toAuthor(user: { login: string; type: string } | null | undefined): CommentAuthor | undefined {
+  return user ? { login: user.login, type: user.type } : undefined;
+}
+
+function toComment(comment: { id: number; body?: string; user: { login: string; type: string } | null }): ForgeComment {
+  return { id: comment.id, body: comment.body ?? '', user: toAuthor(comment.user) };
+}
+
 function isAlreadyExistsError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) {
     return false;
@@ -162,6 +170,7 @@ export class GitHubForge implements Forge {
       labels: labelNames(data.labels),
       isPullRequest: Boolean(data.pull_request),
       state: data.state === 'closed' ? 'closed' : 'open',
+      author: toAuthor(data.user),
     };
   }
 
@@ -217,9 +226,9 @@ export class GitHubForge implements Forge {
     await this.octokit.rest.issues.update({ ...this.base, issue_number: issueNumber, ...changes });
   }
 
-  async findOpenIssueByLabel(label: string): Promise<IssueRef | null> {
-    // listForRepo returns PRs too. Paginate so a page full of label-carrying PRs can't hide the issue and leave the
-    // caller stacking a duplicate. Default sort is newest-first, so the first issue reached is the most recent.
+  async listOpenIssuesByLabel(label: string): Promise<IssueRef[]> {
+    // listForRepo returns PRs too. Default sort is newest-first.
+    const issues: IssueRef[] = [];
     const iterator = this.octokit.paginate.iterator(this.octokit.rest.issues.listForRepo, {
       ...this.base,
       state: 'open',
@@ -229,11 +238,11 @@ export class GitHubForge implements Forge {
     for await (const response of iterator) {
       for (const issue of response.data) {
         if (!issue.pull_request) {
-          return { number: issue.number, url: issue.html_url };
+          issues.push({ number: issue.number, url: issue.html_url });
         }
       }
     }
-    return null;
+    return issues;
   }
 
   async getActorPermission(username: string): Promise<RepoPermission> {
@@ -285,11 +294,7 @@ export class GitHubForge implements Forge {
         if (!comment.body?.startsWith(marker)) {
           continue;
         }
-        const found: ForgeComment = {
-          id: comment.id,
-          body: comment.body,
-          user: comment.user ? { login: comment.user.login, type: comment.user.type } : undefined,
-        };
+        const found = toComment(comment);
         if (isBotComment(found)) {
           return found;
         }
@@ -299,21 +304,21 @@ export class GitHubForge implements Forge {
     return humanMatch;
   }
 
-  async createComment(prNumber: number, body: string): Promise<void> {
-    await this.octokit.rest.issues.createComment({ ...this.base, issue_number: prNumber, body });
+  async createComment(prNumber: number, body: string): Promise<ForgeComment> {
+    const { data } = await this.octokit.rest.issues.createComment({ ...this.base, issue_number: prNumber, body });
+    return toComment(data);
   }
 
-  async updateComment(commentId: number, body: string): Promise<void> {
-    await this.octokit.rest.issues.updateComment({ ...this.base, comment_id: commentId, body });
+  async updateComment(commentId: number, body: string): Promise<ForgeComment> {
+    const { data } = await this.octokit.rest.issues.updateComment({ ...this.base, comment_id: commentId, body });
+    return toComment(data);
   }
 
-  async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<void> {
+  async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<ForgeComment> {
     const existing = await this.findComment(prNumber, marker);
-    if (existing && isBotComment(existing)) {
-      await this.updateComment(existing.id, body);
-    } else {
-      await this.createComment(prNumber, body);
-    }
+    return existing && isBotComment(existing)
+      ? this.updateComment(existing.id, body)
+      : this.createComment(prNumber, body);
   }
 
   async listLabelNames(): Promise<string[]> {

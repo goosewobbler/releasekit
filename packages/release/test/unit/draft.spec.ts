@@ -1,5 +1,5 @@
 import type { VersionOutput } from '@releasekit/core';
-import { type CommentAuthor, createFakeForge, type FakeForge } from '@releasekit/forge';
+import { type CommentAuthor, createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { serializeManifest } from '../../src/standing-pr/standing-pr.js';
 
@@ -125,6 +125,36 @@ describe('runReleaseDraft', () => {
 
     expect(seeded.createdIssues).toHaveLength(0);
     expect(seeded.updatedIssues.map((u) => u.issueNumber)).toContain(7);
+  });
+
+  it('should reuse the bot draft when a newer issue was labelled by hand', async () => {
+    const seeded = createFakeForge({
+      openIssues: [
+        { number: 7, url: 'u7', labels: [DRAFT_LABEL] },
+        { number: 8, url: 'u8', labels: [DRAFT_LABEL] },
+      ],
+      issues: {
+        8: { body: 'hand-written', title: 'mine', labels: [DRAFT_LABEL], isPullRequest: false, author: humanAuthor },
+      },
+      comments: [{ id: 1, body: validManifestComment, prNumber: 7, user: botAuthor }],
+    });
+    mockForgeFor.mockReturnValue(seeded);
+
+    await runReleaseDraft(baseOptions);
+
+    expect(seeded.createdIssues).toHaveLength(0);
+    expect(seeded.updatedIssues.map((u) => u.issueNumber)).toEqual([7]);
+    expect(seeded.upsertedComments.map((c) => c.prNumber)).toEqual([7]);
+  });
+
+  it('should fail when the manifest it posted is not bot-authored, whatever the token format', async () => {
+    vi.stubEnv('GITHUB_TOKEN', '0123456789abcdef0123456789abcdef01234567');
+    const seeded = createFakeForge({ actor: humanAuthor });
+    mockForgeFor.mockReturnValue(seeded);
+
+    await expect(runReleaseDraft(baseOptions)).rejects.toThrow(
+      /manifest on issue #42 was posted by 'attacker', not a bot, so '--from-draft' would refuse it/,
+    );
   });
 
   it('should NOT overwrite a human-labelled issue that lacks a manifest comment', async () => {
@@ -265,7 +295,7 @@ describe('publishFromDraft', () => {
     mockForgeFor.mockReturnValue(forge);
 
     await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(
-      /posted by 'attacker', not a bot account\. Re-run 'releasekit release --draft' with/,
+      /posted by 'attacker', not by the bot account that opened #9.* Re-run 'releasekit release --draft' with/,
     );
     expect(mockRunRelease).not.toHaveBeenCalled();
     expect(forge.updatedIssues).toHaveLength(0);
@@ -290,6 +320,28 @@ describe('publishFromDraft', () => {
     await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/Release draft #9 is closed\. Reopen it/);
     expect(mockRunRelease).not.toHaveBeenCalled();
     expect(forge.updatedIssues).toHaveLength(0);
+  });
+
+  it.each<[string, FakeForgeSeed]>([
+    [
+      'a bot other than the one that opened the issue',
+      { comments: [{ id: 1, body: validManifestComment, prNumber: 9, user: { login: 'echo-app[bot]', type: 'Bot' } }] },
+    ],
+    [
+      'a bot, on an issue a human opened',
+      {
+        issues: {
+          9: { body: '', title: 'mine', labels: ['release:draft'], isPullRequest: false, author: humanAuthor },
+        },
+        comments: [{ id: 1, body: validManifestComment, prNumber: 9, user: botAuthor }],
+      },
+    ],
+  ])('should refuse a manifest posted by %s', async (_who, seed) => {
+    const forge = createFakeForge(seed);
+    mockForgeFor.mockReturnValue(forge);
+
+    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/not by the bot account that opened #9/);
+    expect(mockRunRelease).not.toHaveBeenCalled();
   });
 
   it("should refuse the standing PR's number: its bot-written manifest is not a draft manifest", async () => {

@@ -4,6 +4,7 @@ import { info, warn } from '@releasekit/core';
 import { type Forge, type ForgeComment, isBotComment } from '@releasekit/forge';
 import type { PipelineError } from '@releasekit/publish';
 import { postOrUpdateComment } from '../github.js';
+import { findTrustedComment, type TrustedCommentLookup } from '../trusted-comment.js';
 import {
   FAILURE_MARKER,
   type FailureReportMode,
@@ -54,11 +55,16 @@ export async function postFailureReport(
   }
 }
 
+/** For the standing PR only: a direct release's report sits on a PR a human opened, so the opener can't vouch for it. */
+function findFailureReport(forge: Forge, prNumber: number): Promise<TrustedCommentLookup> {
+  return findTrustedComment(forge, prNumber, FAILURE_MARKER, 'publish-failure report');
+}
+
 export async function postRefusalReport(forge: Forge, input: RefusalReportInput): Promise<void> {
   try {
     // A report from an earlier publish attempt holds the real ledger, which a refused retry must not replace.
-    const existing = await forge.findComment(input.prNumber, FAILURE_MARKER);
-    if (existing && isBotComment(existing) && !parseFailureReportData(existing.body)?.refused) {
+    const { comment: existing } = await findFailureReport(forge, input.prNumber);
+    if (existing && !parseFailureReportData(existing.body)?.refused) {
       warn(`Kept the publish-failure report from an earlier attempt on PR #${input.prNumber}`);
       return;
     }
@@ -112,13 +118,12 @@ export interface UnresolvedFailure {
 export async function detectUnresolvedFailure(forge: Forge, prNumber: number): Promise<UnresolvedFailure | null> {
   let comment: ForgeComment | null;
   try {
-    comment = await forge.findComment(prNumber, FAILURE_MARKER);
+    ({ comment } = await findFailureReport(forge, prNumber));
   } catch {
     return null;
   }
 
-  // `findComment` falls back to a human comment carrying the marker, and its numbers could be anything.
-  if (!comment?.body || !isBotComment(comment)) {
+  if (!comment?.body) {
     return null;
   }
   const body = comment.body;
