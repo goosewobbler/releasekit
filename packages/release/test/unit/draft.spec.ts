@@ -271,7 +271,7 @@ describe('publishFromDraft', () => {
     expect(forge.updatedIssues).toHaveLength(0);
   });
 
-  it('should refuse a closed draft before computing the release', async () => {
+  it('should refuse a closed draft without publishing', async () => {
     const forge = createFakeForge({
       issues: {
         9: {
@@ -287,7 +287,8 @@ describe('publishFromDraft', () => {
     mockForgeFor.mockReturnValue(forge);
 
     await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/Release draft #9 is closed\. Reopen it/);
-    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(mockRunRelease).toHaveBeenCalledTimes(1);
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true }));
     expect(forge.updatedIssues).toHaveLength(0);
   });
 

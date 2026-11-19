@@ -103,22 +103,9 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
   }
 
   const { versionOutput, releaseNotes } = result;
-  const baseSha = await createGitCli().headSha(options.projectDir);
-  const manifest: StandingPRManifest = {
-    schemaVersion: 2,
-    versionOutput,
-    // The reviewed baseline: a package whose editable region gets mangled falls back to these, not fresh notes.
-    releaseNotes: releaseNotes ?? {},
-    notesFiles: [],
-    createdAt: nowIso(),
-    baseSha,
-  };
-
   const forge = forgeFor(context);
   const display = syncVersionDisplay(versionOutput);
   const title = display ? `Release draft: ${display}` : 'Release draft';
-  const body = renderDraftBody(versionOutput, releaseNotes ?? {});
-  const manifestComment = serializeManifest(manifest, DRAFT_MANIFEST_MARKER);
 
   // Never adopt a hand-labelled issue or a hand-written manifest.
   const existing = await forge.findOpenIssueByLabel(DRAFT_LABEL);
@@ -135,6 +122,18 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
     );
     return result;
   }
+
+  const manifest: StandingPRManifest = {
+    schemaVersion: 2,
+    versionOutput,
+    // The reviewed baseline: a package whose editable region gets mangled falls back to these, not fresh notes.
+    releaseNotes: releaseNotes ?? {},
+    notesFiles: [],
+    createdAt: nowIso(),
+    baseSha: await createGitCli().headSha(options.projectDir),
+  };
+  const body = renderDraftBody(versionOutput, releaseNotes ?? {});
+  const manifestComment = serializeManifest(manifest, DRAFT_MANIFEST_MARKER);
   let issueNumber: number;
   if (reusable) {
     await forge.updateIssue(reusable.number, { title, body });
@@ -153,13 +152,6 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   const context = requireGitHubContext(`release draft #${issueNumber} cannot be published`);
 
   const forge = forgeFor(context);
-  const issue = await forge.getIssue(issueNumber);
-  if (issue.state === 'closed') {
-    throw new Error(
-      `Release draft #${issueNumber} is closed. Reopen it to publish it, or run 'releasekit release --draft' ` +
-        'for a new draft.',
-    );
-  }
   const manifestComment = await forge.findComment(issueNumber, DRAFT_MANIFEST_MARKER);
   if (!manifestComment) {
     throw new Error(
@@ -203,6 +195,13 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
     );
   }
 
+  const issue = await forge.getIssue(issueNumber);
+  if (issue.state === 'closed') {
+    throw new Error(
+      `Release draft #${issueNumber} is closed. Reopen it to publish it, or run 'releasekit release --draft' ` +
+        'for a new draft.',
+    );
+  }
   const draftedNotes = manifest.releaseNotes ?? {};
   const extracted = extractNotesRegions(issue.body, manifest.versionOutput);
   // An untouched region may hold the truncated render, so the full drafted text wins unless the region was edited.
