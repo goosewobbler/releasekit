@@ -3798,7 +3798,6 @@ describe('runStandingPRUpdate', () => {
         }
         generatedFor.push(changelogs.map((cl) => cl.packageName));
         const releaseNotes = Object.fromEntries(changelogs.map((cl) => [cl.packageName, notesFor(cl)]));
-        // As the notes pipeline does: each generated key's per-version file, under `file.dir` and unless skipped.
         const { loadConfig } = await import('@releasekit/config');
         const notesConfig = loadConfig({ cwd: '/test' }).notes?.releaseNotes;
         const dir = notesConfig ? notesConfig.file?.dir : undefined;
