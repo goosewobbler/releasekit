@@ -97,12 +97,12 @@ describe('selection-region', () => {
       ];
       const body = `## Release\n\n${renderSelectionRegion(updates, new Set(['@scope/b']))}\n\nchangelog`;
 
-      expect(extractSelection(body)).toEqual({ deselected: ['@scope/b'] });
+      expect(extractSelection(body)).toEqual({ deselected: ['@scope/b'], rows: ['@scope/a', '@scope/b'] });
     });
 
     it('should take package identity from the marker, not the edited display text', () => {
       const body = `<!-- releasekit-selection -->\n\n- [ ] \`whatever the human typed\` <!-- rk-sel:@scope/real -->\n\n<!-- releasekit-selection-end -->`;
-      expect(extractSelection(body)).toEqual({ deselected: ['@scope/real'] });
+      expect(extractSelection(body)).toEqual({ deselected: ['@scope/real'], rows: ['@scope/real'] });
     });
 
     it('should round-trip a deselection through render → extract → render (merge-preserve)', () => {
@@ -502,7 +502,7 @@ describe('selection-region', () => {
       ];
       const body = `## Release\n\n${renderSelectionRegion(updates, new Set(['@scope/b']))}\n\nfooter`;
       // The prerelease row's dist-tag suffix sits before the marker, so identity round-trips unchanged.
-      expect(extractSelection(body)).toEqual({ deselected: ['@scope/b'] });
+      expect(extractSelection(body)).toEqual({ deselected: ['@scope/b'], rows: ['@scope/a', '@scope/b'] });
     });
 
     describe('hierarchical (release units)', () => {

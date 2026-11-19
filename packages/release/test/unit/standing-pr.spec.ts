@@ -712,7 +712,7 @@ describe('runStandingPRUpdate', () => {
   });
 
   // The workspace resolver returns both packages so the primary anchors the plugin as its child.
-  const withPrimaries = async () => {
+  const withPrimaries = async (standingPr: Record<string, unknown> = {}) => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue({
       ci: {
@@ -720,6 +720,7 @@ describe('runStandingPRUpdate', () => {
           branch: 'release/next',
           deleteBranchOnMerge: true,
           selection: 'streamlined',
+          ...standingPr,
         },
       },
       git: { branch: 'main' },
@@ -885,6 +886,46 @@ describe('runStandingPRUpdate', () => {
     });
   });
 
+  it('should not post a selection notice for a held-back primary’s children under authorization', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    await withPrimaries({ authorization: { requiredPermission: 'admin' } });
+    vi.mocked(runVersionStep).mockResolvedValue(
+      tauriVersionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+    );
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const body = [
+      '<!-- releasekit-selection -->',
+      '',
+      '- [ ] **`@wdio/tauri-service`** → 1.4.0 <!-- rk-sel:@wdio/tauri-service -->',
+      '  <details><summary>ships 1 coupled</summary>',
+      '',
+      '  - `@wdio/tauri-plugin` → 1.4.0 · coupled',
+      '  </details>',
+      '',
+      '<!-- releasekit-selection-end -->',
+    ].join('\n');
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body, labels: [] } },
+      authoredBodies: editedBy('rando', body),
+      actorPermissions: { rando: 'write' },
+      comments: [
+        {
+          id: 5,
+          prNumber: 99,
+          body: serializeManifest({ ...baseManifest, deselected: ['@wdio/tauri-plugin', '@wdio/tauri-service'] }),
+        },
+      ],
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
+    expect(writeCall.exclude?.slice().sort()).toEqual(['@wdio/tauri-plugin', '@wdio/tauri-service']);
+    expect(forge.upsertedComments.map((c) => c.marker)).not.toContain('<!-- releasekit-selection-denied -->');
+  });
+
   const selectionBody = (untickedB = true) =>
     [
       '<!-- releasekit-selection -->',
@@ -1041,6 +1082,41 @@ describe('runStandingPRUpdate', () => {
     expect(writeCall.bump).toBe('major');
     expect(forge.setLabelsCalls.at(-1)?.labels).toContain('bump:major');
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-label-denied -->')).toBe(false);
+  });
+
+  it('should honour an authorized actor’s release label when another actor’s permission check throws', async () => {
+    await withAuthz();
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      strategy: 'async' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({
+      standingPR: openStandingPR(99, ['release', 'bump:minor', 'release:with-prerequisites']),
+      pullRequests: { 99: { body: '', labels: [] } },
+      actorPermissions: { 'admin-user': 'admin' },
+      labelEvents: {
+        99: [
+          labelEvent('labeled', 'release:with-prerequisites', 'rando'),
+          labelEvent('labeled', 'bump:minor', 'admin-user'),
+        ],
+      },
+      comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, overrideLabels: [] }) }],
+    });
+    const lookup = forge.getActorPermission.bind(forge);
+    vi.spyOn(forge, 'getActorPermission').mockImplementation(async (login) =>
+      login === 'rando' ? Promise.reject(new Error('403')) : lookup(login),
+    );
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string };
+    expect(writeCall.bump).toBe('minor');
+    expect(forge.setLabelsCalls.at(-1)?.labels).toContain('bump:minor');
+    expect(forge.setLabelsCalls.at(-1)?.labels).not.toContain('release:with-prerequisites');
   });
 
   it('should ignore + remove an unauthorized actor’s release label, preserving non-release labels', async () => {

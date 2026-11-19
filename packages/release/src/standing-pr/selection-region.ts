@@ -563,16 +563,19 @@ function markerHits(region: string, marker: string): Array<{ name: string; ticke
   return hits;
 }
 
-/** `undefined` when the body has no selection region (a sync release, or a body predating the feature). */
-export function extractSelection(body: string): { deselected: string[] } | undefined {
+/**
+ * `undefined` when the body has no selection region (a sync release, or a body predating the feature). `rows` names
+ * every package with a toggle; a streamlined child has none.
+ */
+export function extractSelection(body: string): { deselected: string[]; rows: string[] } | undefined {
   const region = extractSelectionRegion(body);
   if (region === undefined) {
     return undefined;
   }
+  const hits = markerHits(region, 'rk-sel');
   return {
-    deselected: markerHits(region, 'rk-sel')
-      .filter((h) => !h.ticked)
-      .map((h) => h.name),
+    deselected: hits.filter((h) => !h.ticked).map((h) => h.name),
+    rows: hits.map((h) => h.name),
   };
 }
 

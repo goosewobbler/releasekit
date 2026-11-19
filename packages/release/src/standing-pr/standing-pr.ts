@@ -1041,21 +1041,37 @@ function lastHumanWriter(authored: AuthoredBody): CommentAuthor | undefined {
   return index === -1 ? authored.author : authored.editors[index];
 }
 
-/** Each release label stands as its latest event by an authorized actor left it, whoever changed it since. */
+/**
+ * Each release label stands as its latest event by an authorized actor left it, whoever changed it since. A label whose
+ * actor's permission can't be looked up keeps its state in the manifest.
+ */
 async function authorizedReleaseLabels(
   forge: Forge,
   prNumber: number,
   isRelevant: (label: string) => boolean,
   isAuthorized: (actor: CommentAuthor | undefined) => Promise<boolean>,
+  manifestLabels: ReadonlySet<string>,
 ): Promise<string[]> {
   const settled = new Set<string>();
   const applied: string[] = [];
   for (const event of [...(await forge.listLabelEvents(prNumber))].reverse()) {
-    if (!isRelevant(event.label) || settled.has(event.label) || !(await isAuthorized(event.actor))) {
+    if (!isRelevant(event.label) || settled.has(event.label)) {
       continue;
     }
+    let keep: boolean;
+    try {
+      if (!(await isAuthorized(event.actor))) {
+        continue;
+      }
+      keep = event.action === 'labeled';
+    } catch (err) {
+      warn(
+        `Could not verify permission for '${event.actor?.login ?? 'unknown'}' — keeping \`${event.label}\` as the manifest has it: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      keep = manifestLabels.has(event.label);
+    }
     settled.add(event.label);
-    if (event.action === 'labeled') {
+    if (keep) {
       applied.push(event.label);
     }
   }
@@ -1146,7 +1162,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       warn(`Could not read current PR body to preserve selection: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
-  const bodyDeselected = new Set<string>((liveBody && extractSelection(liveBody)?.deselected) || []);
+  const bodySelection = liveBody ? extractSelection(liveBody) : undefined;
+  const bodyDeselected = new Set<string>(bodySelection?.deselected ?? []);
   // Fed to the version write step, not the dry run, so the projected-channel render keeps the marker that round-trips
   // the tick. Reset to the manifest's channels for an unauthorized editor at the write wiring.
   const channelToggleEnabled = standingPrConfig?.channelToggle === true;
@@ -1160,7 +1177,10 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   if (authz && existingStandingPr && !bodyAuthorized) {
     const manifestDeselected = new Set<string>(existingManifest?.deselected ?? []);
     priorDeselected = manifestDeselected;
-    if (liveBody !== undefined && !setsEqual(bodyDeselected, manifestDeselected)) {
+    // The manifest holds a held-back primary's whole unit, but only rows with a toggle can differ.
+    const bodyRows = new Set(bodySelection?.rows ?? []);
+    const manifestShown = new Set([...manifestDeselected].filter((name) => bodyRows.has(name)));
+    if (liveBody !== undefined && !setsEqual(bodyDeselected, manifestShown)) {
       const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
       await forge
         .upsertMarkerComment(
@@ -1180,14 +1200,21 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   let effectiveLabels = existingStandingPr?.labels ?? [];
   if (authz && isAuthorized && existingStandingPr) {
     const isRelevant = (l: string) => isRelevantOverrideLabel(l, ciConfig);
+    const manifestLabels = (existingManifest?.overrideLabels ?? []).filter(isRelevant);
     let authorizedLabels: string[];
     try {
-      authorizedLabels = await authorizedReleaseLabels(forge, existingStandingPr.number, isRelevant, isAuthorized);
+      authorizedLabels = await authorizedReleaseLabels(
+        forge,
+        existingStandingPr.number,
+        isRelevant,
+        isAuthorized,
+        new Set(manifestLabels),
+      );
     } catch (err) {
       warn(
-        `Could not verify who applied the release labels — resetting them to the manifest's: ${err instanceof Error ? err.message : String(err)}`,
+        `Could not read who applied the release labels — resetting them to the manifest's: ${err instanceof Error ? err.message : String(err)}`,
       );
-      authorizedLabels = (existingManifest?.overrideLabels ?? []).filter(isRelevant);
+      authorizedLabels = manifestLabels;
     }
     const reconciled = [...new Set([...effectiveLabels.filter((l) => !isRelevant(l)), ...authorizedLabels])];
     if (!setsEqual(new Set(effectiveLabels), new Set(reconciled))) {
