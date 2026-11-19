@@ -22,7 +22,7 @@ The workflow is [`examples/ci/minimal`](../../../examples/ci/minimal/release.yml
 - run: pnpm exec releasekit release
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    # Token-based npm publishing instead of OIDC? Add:
+    # Token-based npm publishing instead of OIDC? Drop `id-token: write` and add:
     # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 

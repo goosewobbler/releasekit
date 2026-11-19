@@ -148,7 +148,7 @@ The most common setup releases on every push to `main`. Set `"ci": { "releaseTri
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-If you publish with an npm token rather than OIDC, uncomment its `NODE_AUTH_TOKEN` line.
+If you publish with an npm token rather than OIDC, drop its `id-token: write` permission and uncomment its `NODE_AUTH_TOKEN` line.
 
 For other setups, see [`examples/`](../examples/README.md) (which also covers npm instead of pnpm) and the [CI setup guide](../packages/release/docs/ci-setup.md):
 
