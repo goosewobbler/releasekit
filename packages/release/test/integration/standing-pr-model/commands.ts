@@ -96,9 +96,8 @@ function untaggedBelowTip(model: Readonly<Model>): boolean {
   return pendingReleases(model).length > 0 && !model.releaseAtTip;
 }
 
-/** An open standing PR, outside the states only the knownBug commands reach. */
 function canRunOnOpenPr(model: Readonly<Model>): boolean {
-  return model.openPr !== undefined && !model.releaseAtTip;
+  return model.openPr !== undefined;
 }
 
 export abstract class Command implements fc.AsyncCommand<Model, World> {
@@ -143,9 +142,7 @@ export class Update extends Command {
     super();
   }
   check(model: Readonly<Model>): boolean {
-    return (
-      !untaggedBelowTip(model) && !(this.trigger === 'schedule' && model.openPr !== undefined && model.releaseAtTip)
-    );
+    return !untaggedBelowTip(model);
   }
   async apply(model: Model, world: World): Promise<void> {
     await update(model, world, this.trigger, { eventName: this.trigger, event: {} });
@@ -432,7 +429,6 @@ export const COMMANDS: Array<{ arbitrary: fc.Arbitrary<Command>; weight?: number
     arbitrary: fc
       .constantFrom<'schedule' | 'labeled'>('schedule', 'labeled')
       .map((trigger) => new UpdateAtReleaseTip(trigger)),
-    knownBug: '#841',
   },
   { arbitrary: fc.constant(new PublishOpenPr()) },
   { arbitrary: fc.constant(new EditManifest()) },

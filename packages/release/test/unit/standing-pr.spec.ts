@@ -627,6 +627,64 @@ describe('runStandingPRUpdate', () => {
       expect(result.reason).toMatch(/still publishing/);
       expect(forge.updatedPullRequests.map((u) => u.changes.body)).toEqual([`${bannerOf(RUN_ID)}\n\n`, '']);
     });
+
+    describe('with the release commit at HEAD', () => {
+      const RELEASE_SHA = 'd'.repeat(40);
+
+      /** A direct release's commit at HEAD, as a `release:immediate` release leaves it, with the standing PR open. */
+      async function releaseCommitAtHead(opts: { tagged: boolean }) {
+        const { loadConfig } = await import('@releasekit/config');
+        vi.mocked(loadConfig).mockReturnValue({
+          ...defaultConfig,
+          ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, minAge: '6h' } },
+        } as ReturnType<typeof loadConfig>);
+        await mockQueuedUpdate();
+        const committedAt = Math.floor(minutesAgo(5).getTime() / 1000);
+        setupGit({
+          subject: 'chore: release v0.29.0',
+          remoteTags: { origin: opts.tagged ? { 'v0.29.0': RELEASE_SHA } : { 'v0.28.0': 'old-release' } },
+          commits: { 'origin/main': `${RELEASE_SHA}\t${'e'.repeat(40)}\t${committedAt}\tchore: release v0.29.0` },
+        });
+        const manifest = serializeManifest({
+          ...baseManifest,
+          schemaVersion: 2,
+          firstUpdatedAt: minutesAgo(30).toISOString(),
+        });
+        return mockForge({ standingPR: openStandingPR(99), comments: [{ id: 77, body: manifest }] });
+      }
+
+      it('should advance the minAge check on a scheduled run once the release is tagged', async () => {
+        const forge = await releaseCommitAtHead({ tagged: true });
+        process.env.GITHUB_EVENT_NAME = 'schedule';
+
+        expect((await update()).action).toBe('updated');
+        expect(forge.commitStatuses).toContainEqual(
+          expect.objectContaining({ state: 'pending', description: expect.stringMatching(/Waiting .+ for minAge/) }),
+        );
+      });
+
+      it('should wait on a scheduled run, without analysing the bumps, while the release is untagged', async () => {
+        const forge = await releaseCommitAtHead({ tagged: false });
+        process.env.GITHUB_EVENT_NAME = 'schedule';
+        const { runVersionStep } = await import('../../src/steps.js');
+
+        expect(await update()).toEqual({
+          action: 'noop',
+          reason: expect.stringContaining(`release commit ${RELEASE_SHA.slice(0, 7)} (no tags on the remote)`),
+        });
+        expect(runVersionStep).not.toHaveBeenCalled();
+        expect(forge.commitStatuses).toHaveLength(0);
+        expect(fakeGit.pushed).toHaveLength(0);
+      });
+
+      it("should skip the release commit's own push run", async () => {
+        const forge = await releaseCommitAtHead({ tagged: true });
+        process.env.GITHUB_EVENT_NAME = 'push';
+
+        expect(await update()).toEqual({ action: 'noop' });
+        expect(forge.commitStatuses).toHaveLength(0);
+      });
+    });
   });
 
   describe('the in-progress banner', () => {

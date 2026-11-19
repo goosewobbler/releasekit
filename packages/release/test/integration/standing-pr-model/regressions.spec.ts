@@ -7,7 +7,9 @@ import {
   MergeFeeder,
   Publish,
   PublishOpenPr,
+  ToggleSelection,
   Update,
+  UpdateAtReleaseTip,
   UpdatePastUntaggedRelease,
 } from './commands.js';
 import { MAINTAINER, type StatefulForge } from './forge.js';
@@ -79,5 +81,24 @@ describe('standing-PR model regressions', () => {
     const manifest = parseManifest(world.forge.manifestWrites.at(-1)?.body ?? '');
     expect(manifest.overrideLabels ?? []).toEqual([]);
     expect(new Set(manifest.versionOutput.updates.map((u) => u.newVersion))).toEqual(new Set(['1.0.1']));
+  }, 120_000);
+
+  it('should update the standing PR while a tagged release commit is at the tip of main', async () => {
+    world = World.create({ sync: false, enforceMergeAuthor: false });
+    current.forge = world.forge;
+
+    const model = await runSequence(world, [
+      new MergeFeeder('feat', ['rk-a', 'rk-b']),
+      new Update('push'),
+      new ToggleSelection(MAINTAINER, 'rk-b'),
+      new Merge(MAINTAINER),
+      new Publish(null),
+      new UpdateAtReleaseTip('schedule'),
+      new UpdateAtReleaseTip('labeled'),
+    ]);
+
+    expect(model.releaseAtTip).toBe(true);
+    expect(model.openPr).toBeDefined();
+    expect(world.log).toEqual([]);
   }, 120_000);
 });
