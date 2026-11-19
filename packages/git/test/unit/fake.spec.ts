@@ -124,7 +124,7 @@ describe('FakeGit mutations', () => {
     expect(git.added).toEqual([['a.ts', 'b.ts']]);
     expect(git.addedAll).toBe(2);
     expect(git.committed).toEqual([{ message: 'chore: release', paths: ['CHANGELOG.md'], skipHooks: true }]);
-    expect(git.fetched).toEqual(['origin']);
+    expect(git.fetched).toEqual([{ remote: 'origin', prune: false }]);
     expect(git.checkedOut).toEqual([
       { ref: 'release/next', create: true },
       { ref: 'main', create: false },

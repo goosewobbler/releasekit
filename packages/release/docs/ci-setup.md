@@ -393,7 +393,7 @@ Mechanics (all in `standing-pr.yml`, no config):
 - **Self-clearing.** A successful rebuild regenerates the body, which drops the banner. A final `if: always()` step strips it from any run that didn't rewrite the body (a failure, a cancel or an early exit).
 - **Idempotent.** The step skips if the body already starts with a banner, so rapid re-triggers don't stack it.
 
-Rapid checkbox toggles are also **collapsed**: a maintainer's edits share a per-PR `concurrency` group with `cancel-in-progress: true`, so only the latest selection is rebuilt.
+Rapid checkbox toggles are also **collapsed**: a maintainer's edits share a per-PR `concurrency` group on the `update` job with `cancel-in-progress: true`, so only the latest selection is rebuilt.
 
 ### Label semantics in standing-pr mode
 
@@ -460,7 +460,7 @@ The `immediate-release` job in `standing-pr.yml` handles this:
 
 If a standing-PR publish fails partway through, add the **`release:retry`** label to the **merged** standing PR. The version commit is already on `main`. GitHub Releases are created only after every package succeeds. In per-package mode, tags for packages that published may already be on the remote — do not delete them. The example's `retry-publish` job:
 
-1. Validates via its `if` guard that the PR is a merged standing PR and the label is `release:retry` — note the guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard and the `concurrency` group to match.
+1. Validates via its `if` guard that the PR is a merged standing PR and the label is `release:retry` — note the guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard to match.
 2. Re-runs the manifest-driven publish for that PR (`standing-pr publish --pr <n>`) — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases.
 3. Runs `standing-pr update --reconcile`, rebuilding the standing PR now the release's tags exist.
 4. Removes the label, so each application is exactly one retry; re-apply it to retry again.

@@ -254,9 +254,10 @@ function eventPullRequest(prNumber: number): EventPullRequest | undefined {
 
 async function resetReleaseBranch(branch: string, base: string, cwd: string): Promise<void> {
   const git = createGitCli();
-  // The version analysis reads local tags, and a plain fetch skips a standing PR's tags when they sit on a notes
-  // commit off the base branch.
-  await git.fetch('origin', { tags: true, cwd });
+  // Prune so a release branch deleted on the remote doesn't leave a stale tracking ref that fails the push's lease.
+  // Fetch tags too: the version analysis reads local tags, and a plain fetch skips a standing PR's tags when they sit
+  // on a notes commit off the base branch.
+  await git.fetch('origin', { prune: true, tags: true, cwd });
 
   // `checkout -B` creates or resets the branch, so this works whether or not it already exists.
   await git.checkout(branch, { create: true, cwd });
