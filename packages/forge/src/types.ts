@@ -28,6 +28,7 @@ export interface IssueDetails {
   labels: string[];
   /** The issues endpoint also returns PRs. */
   isPullRequest: boolean;
+  state: IssueState;
 }
 
 export interface IssueRef {

@@ -127,6 +127,14 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
     existing && existingManifest && isBotComment(existingManifest) && isReleaseManifestComment(existingManifest.body)
       ? existing
       : null;
+  if (options.dryRun) {
+    info(
+      reusable
+        ? `Dry run: would update release draft issue #${reusable.number} as "${title}".`
+        : `Dry run: would open a new release draft issue "${title}".`,
+    );
+    return result;
+  }
   let issueNumber: number;
   if (reusable) {
     await forge.updateIssue(reusable.number, { title, body });
@@ -145,6 +153,13 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   const context = requireGitHubContext(`release draft #${issueNumber} cannot be published`);
 
   const forge = forgeFor(context);
+  const issue = await forge.getIssue(issueNumber);
+  if (issue.state === 'closed') {
+    throw new Error(
+      `Release draft #${issueNumber} is closed. Reopen it to publish it, or run 'releasekit release --draft' ` +
+        'for a new draft.',
+    );
+  }
   const manifestComment = await forge.findComment(issueNumber, DRAFT_MANIFEST_MARKER);
   if (!manifestComment) {
     throw new Error(
@@ -188,7 +203,6 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
     );
   }
 
-  const issue = await forge.getIssue(issueNumber);
   const draftedNotes = manifest.releaseNotes ?? {};
   const extracted = extractNotesRegions(issue.body, manifest.versionOutput);
   // An untouched region may hold the truncated render, so the full drafted text wins unless the region was edited.
