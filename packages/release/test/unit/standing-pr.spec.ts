@@ -206,9 +206,10 @@ function openStandingPR(number: number, labels: string[] = []) {
 const BOT = { login: 'github-actions[bot]', type: 'Bot' };
 const actor = (login: string) => (login === BOT.login ? BOT : { login, type: 'User' });
 
-/** Standing PR #99's body, opened by the bot and last edited by `login`. */
-function editedBy(login: string, body: string): FakeForgeSeed['authoredBodies'] {
-  return { PR_99: { body, author: BOT, editor: actor(login) } };
+/** Standing PR #99's body, opened by the bot, edited by each of `logins` in turn. */
+function editedBy(logins: string | string[], body: string): FakeForgeSeed['authoredBodies'] {
+  const editors = [logins].flat().reverse().map(actor);
+  return { PR_99: { body, author: BOT, editor: editors[0], editors: [...editors, BOT] } };
 }
 
 function labelEvent(action: 'labeled' | 'unlabeled', label: string, login: string) {
@@ -1016,6 +1017,32 @@ describe('runStandingPRUpdate', () => {
     expect(writeCall.exclude).toEqual([]);
   });
 
+  it('should keep the manifest’s release labels when the permission check throws', async () => {
+    await withAuthz();
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      strategy: 'async' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({
+      standingPR: openStandingPR(99, ['release', 'bump:major']),
+      pullRequests: { 99: { body: '', labels: [] } },
+      labelEvents: { 99: [labelEvent('labeled', 'bump:major', 'admin-user')] },
+      comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, overrideLabels: ['bump:major'] }) }],
+    });
+    vi.spyOn(forge, 'getActorPermission').mockRejectedValue(Object.assign(new Error('429'), { status: 429 }));
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string };
+    expect(writeCall.bump).toBe('major');
+    expect(forge.setLabelsCalls.at(-1)?.labels).toContain('bump:major');
+    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-label-denied -->')).toBe(false);
+  });
+
   it('should ignore + remove an unauthorized actor’s release label, preserving non-release labels', async () => {
     await withAuthz();
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
@@ -1314,6 +1341,13 @@ describe('runStandingPRUpdate', () => {
       expect(notices).toEqual(
         expect.arrayContaining(['<!-- releasekit-selection-denied -->', '<!-- releasekit-label-denied -->']),
       );
+    });
+
+    it('should revert an unauthorized actor’s untick that a bot edited after', async () => {
+      const { writeCall, notices } = await run({ authoredBodies: editedBy(['rando', BOT.login], selectionBody()) });
+
+      expect(writeCall.exclude).toEqual([]);
+      expect(notices).toContain('<!-- releasekit-selection-denied -->');
     });
 
     it('should honour an authorized actor’s untick and release label', async () => {

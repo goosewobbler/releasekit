@@ -252,7 +252,7 @@ The standing PR is a **release-control surface**, not just a PR. Its release lab
 
 So control is enforced in two places:
 
-- **Selection + release labels** — enforced *in code* by ReleaseKit, because GitHub can't. An unauthorized edit to the checkboxes or release labels is reverted by the next update, whatever triggers it: unless an authorized actor last edited the body, the checkboxes reset to the manifest's selection, and each release label goes back to how an authorized actor last left it. A notice is posted. This is opt-in hardening for teams that delegate triage.
+- **Selection + release labels** — enforced *in code* by ReleaseKit, because GitHub can't. An unauthorized edit to the checkboxes or release labels is reverted by the next update, whatever triggers it: unless the body's last human editor is authorized, the checkboxes reset to the manifest's selection, and each release label goes back to how an authorized actor last left it. A notice is posted. This is opt-in hardening for teams that delegate triage.
 - **Merge (= publish)** — enforced by a **GitHub branch ruleset** (the primary gate, since merge is the privileged action) plus a publish-time **author check** (`enforceMergeAuthor`, defense-in-depth behind the ruleset).
 
 #### The `authorization` config
@@ -281,7 +281,7 @@ With `authorization` configured (threshold `admin` shown):
 
 | Action | GitHub requires | With `authorization` configured |
 |---|---|---|
-| Tick/untick a selection checkbox | Triage (edit PR body) | Honored only while the body's last editor is authorized; otherwise reverted to the manifest, with a notice. |
+| Tick/untick a selection checkbox | Triage (edit PR body) | Honored only while the body's last human editor is authorized; otherwise reverted to the manifest, with a notice. |
 | Add/remove a release label (`bump:*`, `scope:*`, `channel:*`, `release:with-prerequisites`) | Triage | Same — unauthorized changes are reverted and a notice posted. |
 | Add/remove a non-release label (`area:*`, …) | Triage | Unaffected — ReleaseKit only reconciles release-control labels. |
 | Merge the standing PR (**= publish**) | Write | Refused at publish if the merger isn't authorized or can't be determined (`enforceMergeAuthor`); the branch ruleset below is the primary gate. |

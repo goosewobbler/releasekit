@@ -180,7 +180,7 @@ export class FakeForge implements Forge {
     if (prNumber === undefined) {
       throw new Error(`No PR, issue or comment with node ID ${nodeId}`);
     }
-    return { body: (await this.getPullRequest(Number(prNumber))).body, author: BOT };
+    return { body: (await this.getPullRequest(Number(prNumber))).body, author: BOT, editors: [] };
   }
 
   async createPullRequest(pr: NewPullRequest): Promise<PullRequestRef> {

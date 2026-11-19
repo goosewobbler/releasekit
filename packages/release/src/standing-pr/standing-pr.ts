@@ -13,6 +13,7 @@ import {
   VersionPackageChangelogSchema,
 } from '@releasekit/core/version-output-schema';
 import {
+  type AuthoredBody,
   type CommentAuthor,
   type Forge,
   type ForgeComment,
@@ -1014,10 +1015,7 @@ function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   return a.size === b.size && [...a].every((x) => b.has(x));
 }
 
-/**
- * Fails closed: a permission-lookup error (rate limit, network, mis-scoped token) treats the actor as unauthorized
- * rather than crashing the update. Memoized per actor.
- */
+/** Memoized per actor, including a failed lookup. */
 function actorAuthorizer(
   forge: Forge,
   authz: StandingPrAuthorization,
@@ -1027,16 +1025,20 @@ function actorAuthorizer(
     const key = `${actor?.type}:${actor?.login}`;
     let result = checked.get(key);
     if (!result) {
-      result = isAuthorizedActor(forge, actor?.login, actor?.type, authz).catch((err) => {
-        warn(
-          `Could not verify permission for '${actor?.login ?? 'unknown'}' — treating as unauthorized: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        return false;
-      });
+      result = isAuthorizedActor(forge, actor?.login, actor?.type, authz);
       checked.set(key, result);
     }
     return result;
   };
+}
+
+/**
+ * A bot's edit, such as an in-progress banner, can carry forward a body it read, so the body is only as trusted as the
+ * last human to write it.
+ */
+function lastHumanWriter(authored: AuthoredBody): CommentAuthor | undefined {
+  const index = authored.editors.findIndex((editor) => editor === undefined || !isBotComment({ user: editor }));
+  return index === -1 ? authored.author : authored.editors[index];
 }
 
 /** Each release label stands as its latest event by an authorized actor left it, whoever changed it since. */
@@ -1128,7 +1130,15 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         // Read together, so an edit landing between two reads can't pass under the previous editor.
         const authored = await forge.getAuthoredBody(existingStandingPr.nodeId);
         liveBody = authored.body;
-        bodyAuthorized = await isAuthorized(authored.editor ?? authored.author);
+        const writer = lastHumanWriter(authored);
+        // Fails closed: a permission-lookup error (rate limit, network, mis-scoped token) resets the body to the
+        // manifest rather than crashing the update.
+        bodyAuthorized = await isAuthorized(writer).catch((err) => {
+          warn(
+            `Could not verify permission for '${writer?.login ?? 'unknown'}' — treating as unauthorized: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          return false;
+        });
       } else {
         liveBody = (await forge.getPullRequest(existingStandingPr.number)).body;
       }
@@ -1144,8 +1154,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     ? extractChannelSelection(liveBody)
     : { prereleased: [], graduated: [], graduationRows: [] };
   const bodySyncGraduation = !!liveBody && extractSyncGraduation(liveBody);
-  // With an authorization policy the manifest's selection is authoritative unless an authorized actor last edited
-  // the body, so the result doesn't depend on which event started this run.
+  // With an authorization policy the manifest's selection is authoritative unless an authorized actor is the body's
+  // last human writer, so the result doesn't depend on which event started this run.
   let priorDeselected = bodyDeselected;
   if (authz && existingStandingPr && !bodyAuthorized) {
     const manifestDeselected = new Set<string>(existingManifest?.deselected ?? []);
@@ -1175,7 +1185,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       authorizedLabels = await authorizedReleaseLabels(forge, existingStandingPr.number, isRelevant, isAuthorized);
     } catch (err) {
       warn(
-        `Could not read who applied the release labels — resetting them to the manifest's: ${err instanceof Error ? err.message : String(err)}`,
+        `Could not verify who applied the release labels — resetting them to the manifest's: ${err instanceof Error ? err.message : String(err)}`,
       );
       authorizedLabels = (existingManifest?.overrideLabels ?? []).filter(isRelevant);
     }

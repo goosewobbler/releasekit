@@ -98,6 +98,11 @@ export interface AuthoredBody {
   /** Unset when the body was never edited. */
   editor?: CommentAuthor;
   lastEditedAt?: string;
+  /**
+   * Who made each revision, newest first, ending with the original once the body has been edited. `undefined` for an
+   * account that no longer exists.
+   */
+  editors: Array<CommentAuthor | undefined>;
 }
 
 export interface LabelEvent {
