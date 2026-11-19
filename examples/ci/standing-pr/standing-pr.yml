@@ -64,25 +64,6 @@ jobs:
       )
     runs-on: ubuntu-latest
     steps:
-      # Before checkout, so the banner lands within seconds of the runner starting.
-      - name: Acknowledge the update in progress
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
-          case "$BODY" in
-            '<!-- releasekit-processing -->'*'<!-- releasekit-processing-end -->'*) echo "Banner already present - skipping"; exit 0 ;;
-          esac
-          BANNER=$'<!-- releasekit-processing -->\n> 🔄 **Updating the release PR** to reflect your change… ([run details]('"$RUN_URL"$'))\n<!-- releasekit-processing-end -->'
-          NEWBODY=$(printf '%s\n\n%s' "$BANNER" "$BODY")
-          gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$NEWBODY" >/dev/null
-
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.base.ref }}
@@ -105,28 +86,14 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Update standing release PR
-        run: pnpm exec releasekit standing-pr update
+        # --ack shows an in-progress banner on the standing PR while a label or checkbox change is applied.
+        run: pnpm exec releasekit standing-pr update --ack
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # LLM key only needed when using the release:preview-notes label (optional).
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-      - name: Clear the in-progress banner
-        # Also after a success: update can exit without rewriting the body.
-        if: always() && github.event_name == 'pull_request'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
-          CLEANED=$(printf '%s' "$BODY" | perl -0777 -pe 's/\A<!-- releasekit-processing -->.*?<!-- releasekit-processing-end -->[\r\n]*//s')
-          if [ "$CLEANED" = "$BODY" ]; then exit 0; fi
-          gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$CLEANED" >/dev/null
 
   immediate-release:
     name: Immediate Release (bypass standing PR)
