@@ -43,7 +43,7 @@ Needs `notes.releaseNotes.llm` configured and the matching LLM secret uncommente
 
 ## Correctness notes
 
-Shared [correctness rules](../../README.md#cross-cutting-correctness-rules) apply (the `permissions` block lists all four scopes the jobs need). Scenario-specific:
+Shared [correctness rules](../../README.md#cross-cutting-correctness-rules) apply (the workflow `permissions` block lists the scopes `update` needs; only `publish`, `retry-publish` and `immediate-release` add `id-token: write`). Scenario-specific:
 
 - The `pull_request` trigger subscribes to **both** `closed` and `labeled`. The `publish` job guards on `action == 'closed'` so a label on an already-merged PR can't re-trigger a publish; only `retry-publish` reacts to `labeled`.
 - `retry-publish` checks out `ref: main` (since `release/next` is deleted on merge), then removes the `release:retry` label so each application is exactly one retry.

@@ -207,8 +207,17 @@ The `pull-requests: write` permission in the workflow is necessary but not suffi
 permissions:
   contents: write       # push to release branch, create tags
   pull-requests: write  # create/update/close standing PR and comments
-  id-token: write       # npm OIDC trusted publishing
   statuses: write       # post the releasekit/standing-pr status check
+```
+
+Only the jobs that publish (`publish`, `retry-publish` and `immediate-release`) get `id-token: write`, so `update`, which runs on label and edit events, can't mint an OIDC token. Job-level `permissions` replace the workflow's, so each of those jobs restates the other scopes:
+
+```yaml
+    permissions:
+      contents: write
+      pull-requests: write
+      statuses: write
+      id-token: write   # npm OIDC trusted publishing
 ```
 
 **Secrets:**
