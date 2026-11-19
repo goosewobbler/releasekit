@@ -44,3 +44,8 @@ The *find + idempotent upsert* of the whole comment is a separate concern, owned
 - **Changelog surface** — anywhere changelog entries are rendered: `CHANGELOG.md`, per-version notes files, GitHub release bodies, standing-PR rows and the preview. **Release surfaces** are the subset LLM output may reach (ADR 0007): release bodies, notes files and the standing PR's notes region.
 - **Section** — a labelled group of entries. Breaking comes first, then either LLM categories (when `categorize` ran) or type labels in Keep a Changelog order followed by "Dependencies & version bumps" for `deps`/`deps-dev` entries.
 - **Entry line** — one entry rendered as a Markdown list item: optional bold scope or lead-in, description, refs. The same shape on every surface; a breaking entry is marked by its section, not by a prefix.
+
+## Publish authorization
+
+- **Publish phase** — where a publish is asked for: **pre-merge** (`standing-pr merge`), **post-merge** (the merged standing PR's publish, whether its merge, a retry or a dispatch started it), **draft** (`release --from-draft`) and **direct** (`release` from the pushed commit). Every phase asks one module (`authorizePublish`), which reads each PR fact from the **[[forge]]**, never the triggering event.
+- **Refusal report** — the failure report a refused release posts on its PR or issue, with recovery for its phase. Naming the wrong kind of PR or issue refuses without one.

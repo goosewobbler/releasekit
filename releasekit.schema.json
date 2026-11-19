@@ -1245,7 +1245,7 @@
                 "enforceMergeAuthor": {
                   "type": "boolean",
                   "default": true,
-                  "description": "Refuse to publish the standing PR when the actor who merged it is not authorized or cannot be determined (defense-in-depth behind a branch-protection ruleset, which is the primary merge gate). Set false to rely on branch protection alone."
+                  "description": "Refuse to publish the standing PR, or to release from a merged PR, when the actor who merged it is not authorized or cannot be determined (defense-in-depth behind a branch-protection ruleset, which is the primary merge gate). Set false to rely on branch protection alone."
                 }
               },
               "description": "Restrict who can steer the standing PR — its selection checkboxes, per-row channel toggles, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action."

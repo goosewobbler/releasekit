@@ -2,6 +2,7 @@ import { info, type VersionOutput, warn } from '@releasekit/core';
 import { createFakeForge, type FakeForge } from '@releasekit/forge';
 import { FakeGit } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FAILURE_MARKER } from '../../src/failure-report/failure-report.js';
 import type { ReleaseOptions } from '../../src/types.js';
 
 const mockLoadReleaseKitConfig = vi.fn();
@@ -674,7 +675,9 @@ describe('runRelease', () => {
     const noTarget: ReleaseOptions = { ...defaultOptions, target: undefined };
     let forge: FakeForge;
 
-    function merge(...prs: Array<{ number: number; labels: string[]; headRef?: string }>): void {
+    function merge(
+      ...prs: Array<{ number: number; labels: string[]; headRef?: string; mergedBy?: { login: string; type: string } }>
+    ): void {
       fakeGit = new FakeGit({ nearestTag: 'v1.0.0', commits: { '*': 'feat: some feature\n' } });
       forge = createFakeForge({
         // The pushed commit is the first PR's merge.
@@ -692,9 +695,12 @@ describe('runRelease', () => {
         ),
         pullRequests: Object.fromEntries(
           prs.flatMap((pr) =>
-            pr.headRef ? ([[pr.number, { body: '', labels: pr.labels, headRef: pr.headRef }]] as const) : [],
+            pr.headRef || pr.mergedBy
+              ? ([[pr.number, { body: '', labels: pr.labels, headRef: pr.headRef, mergedBy: pr.mergedBy }]] as const)
+              : [],
           ),
         ),
+        actorPermissions: { maintainer: 'admin', contributor: 'write' },
       });
       mockForgeFor.mockReturnValue(forge);
     }
@@ -1093,6 +1099,114 @@ describe('runRelease', () => {
 
         expect(result).not.toBeNull();
         expect(mockPublishRunPipeline).toHaveBeenCalled();
+      });
+
+      it('should not post a refusal report on the standing PR', async () => {
+        mergedStandingPR('release/next');
+
+        await expect(runRelease(noTarget)).rejects.toThrow('PR #42 is the standing release PR');
+        expect(forge.comments.filter((c) => c.body.startsWith(FAILURE_MARKER))).toEqual([]);
+      });
+    });
+
+    describe("the merged PR's merger under enforceMergeAuthor", () => {
+      const authorization = { requiredPermission: 'admin', enforceMergeAuthor: true };
+      const contributor = { login: 'contributor', type: 'User' };
+
+      function reportOn(prNumber: number): string | undefined {
+        return forge.comments.find((c) => c.prNumber === prNumber && c.body.startsWith(FAILURE_MARKER))?.body;
+      }
+
+      beforeEach(() => {
+        mockLoadCIConfig.mockReturnValue({ standingPr: { authorization } });
+      });
+
+      it('should refuse a PR merged by an actor without the required permission, before versioning', async () => {
+        merge({ number: 123, labels: ['bump:minor'], mergedBy: contributor });
+
+        await expect(runRelease(noTarget)).rejects.toThrow(
+          /Refusing to release from PR #123: it was merged by 'contributor', who lacks the required 'admin' permission/,
+        );
+        expect(MockVersionEngine).not.toHaveBeenCalled();
+        expect(mockPublishRunPipeline).not.toHaveBeenCalled();
+        const body = reportOn(123) ?? '';
+        expect(body).toContain('## ❌ Release from #123 was refused');
+        expect(body).toContain('No release commit was made');
+      });
+
+      it('should refuse an immediate release from a feeder PR merged by an unauthorized actor', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', standingPr: { authorization } });
+        merge({
+          number: 123,
+          labels: ['release:immediate', 'bump:minor'],
+          headRef: 'fix/urgent',
+          mergedBy: contributor,
+        });
+
+        await expect(runRelease(noTarget)).rejects.toThrow(/merged by 'contributor'/);
+        expect(mockPublishRunPipeline).not.toHaveBeenCalled();
+      });
+
+      it('should release a PR merged by an authorized actor', async () => {
+        merge({ number: 123, labels: ['bump:minor'], mergedBy: { login: 'maintainer', type: 'User' } });
+
+        const result = await runRelease(noTarget);
+
+        expect(result).not.toBeNull();
+        expect(reportOn(123)).toBeUndefined();
+      });
+
+      it('should refuse a PR the forge reports no merger for', async () => {
+        merge({ number: 123, labels: ['bump:minor'], headRef: 'feat/x' });
+
+        await expect(runRelease(noTarget)).rejects.toThrow(/GitHub reports no merger/);
+        expect(mockPublishRunPipeline).not.toHaveBeenCalled();
+      });
+
+      it('should refuse as retryable when the PR cannot be read', async () => {
+        merge({ number: 123, labels: ['bump:minor'], mergedBy: { login: 'maintainer', type: 'User' } });
+        vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+
+        await expect(runRelease(noTarget)).rejects.toThrow(/the merger is unknown/);
+        expect(reportOn(123)).toContain('Re-run failed jobs');
+      });
+
+      it('should refuse without a report on a dry run', async () => {
+        merge({ number: 123, labels: ['bump:minor'], mergedBy: contributor });
+
+        await expect(runRelease({ ...noTarget, dryRun: true })).rejects.toThrow(/merged by 'contributor'/);
+        expect(reportOn(123)).toBeUndefined();
+      });
+
+      it('should not check a merger when the PR does not release', async () => {
+        merge({ number: 123, labels: ['documentation'], mergedBy: contributor });
+
+        const result = await runRelease(noTarget);
+
+        expect(result).toBeNull();
+        expect(reportOn(123)).toBeUndefined();
+      });
+
+      it('should not check the merger without enforceMergeAuthor', async () => {
+        mockLoadCIConfig.mockReturnValue({
+          standingPr: { authorization: { ...authorization, enforceMergeAuthor: false } },
+        });
+        merge({ number: 123, labels: ['bump:minor'], mergedBy: contributor });
+
+        const result = await runRelease(noTarget);
+
+        expect(result).not.toBeNull();
+      });
+
+      it('should release a direct push in commit mode, which has no merger', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit', standingPr: { authorization } });
+        merge();
+        const read = vi.spyOn(forge, 'getPullRequest');
+
+        const result = await runRelease(noTarget);
+
+        expect(result).not.toBeNull();
+        expect(read).not.toHaveBeenCalled();
       });
     });
   });

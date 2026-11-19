@@ -151,6 +151,8 @@ In GitHub Actions (`GITHUB_REPOSITORY`, `GITHUB_SHA` and `GITHUB_TOKEN` set, out
 
 Only the pushed commit's PR counts. A push that carries several merges is decided by the last one, and a run cancelled before it releases (say, by a later push) doesn't pass its PR's labels on to the next run; re-run it to release that PR.
 
+Under `ci.standingPr.authorization.enforceMergeAuthor`, `release` refuses a PR whose merger, as GitHub reports it, lacks the required permission, and posts the [failure report](./troubleshooting.md#the-failure-report) on the PR. A direct push has no merger, so this doesn't apply to it.
+
 Looking up the PR needs `pull-requests: read`. If the lookup fails, `release` fails and names the permission. `--draft` and `--from-draft` ignore PR labels.
 
 ### Draft-then-dispatch (manual mode)
@@ -168,7 +170,7 @@ releasekit release --draft
 releasekit release --from-draft 123
 ```
 
-Re-running `--draft` updates its open draft in place. The draft is pinned to the commit it was computed at: if `main` moves before you dispatch, `--from-draft` refuses and asks you to re-run `--draft`. To cancel a draft, close its issue: `--from-draft` refuses a closed draft. `--draft --dry-run` reports the issue it would open or update without writing to GitHub. Both phases need `GITHUB_REPOSITORY` and a `GITHUB_TOKEN` with `issues: write`. Use the workflow's token or a GitHub App installation token: `--from-draft` only accepts a manifest posted by the bot that opened the draft issue, so `--draft` fails with a personal token.
+Re-running `--draft` updates its open draft in place. The draft is pinned to the commit it was computed at: if `main` moves before you dispatch, `--from-draft` refuses and asks you to re-run `--draft`. To cancel a draft, close its issue: `--from-draft` refuses a closed issue, or one without the `release:draft` label. Any other refusal posts the [failure report](./troubleshooting.md#the-failure-report) on the draft issue. `--draft --dry-run` reports the issue it would open or update without writing to GitHub. Both phases need `GITHUB_REPOSITORY` and a `GITHUB_TOKEN` with `issues: write`. Use the workflow's token or a GitHub App installation token: `--from-draft` only accepts a manifest posted by the bot that opened the draft issue, so `--draft` fails with a personal token.
 
 ---
 
@@ -211,7 +213,7 @@ for the workflow.
 
 ### `releasekit standing-pr publish`
 
-Publish packages from a merged standing release PR (reads the manifest from the PR comment). It needs the GitHub variables even with `--pr`.
+Publish packages from a merged standing release PR (reads the manifest from the PR comment). It needs the GitHub variables even with `--pr`. It reads the PR from the GitHub API, not the triggering event, and refuses one that hasn't merged or whose head isn't `ci.standingPr.branch`.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -225,7 +227,7 @@ releasekit standing-pr publish --pr 123
 
 Merge the open standing release PR. The publish workflow then publishes it, as for a merge in GitHub's UI. A merge made with a workflow's default `GITHUB_TOKEN` doesn't start other workflows, so set `GITHUB_TOKEN` to a personal access token or GitHub App token.
 
-Before merging, it checks the release manifest as `standing-pr publish` does (written by the release bot, valid, override labels unchanged). It merges only the release-branch commit the manifest describes, so it fails if an update has moved the branch.
+Before merging, it checks the release manifest as `standing-pr publish` does (written by the release bot, valid, override labels unchanged). A refusal posts the [failure report](./troubleshooting.md#the-failure-report) on the PR. It merges only the release-branch commit the manifest describes, so it fails if an update has moved the branch.
 
 ```bash
 releasekit standing-pr merge

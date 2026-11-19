@@ -53,7 +53,7 @@ describe('standing-pr merge', () => {
   function seedForge(seed: FakeForgeSeed) {
     const forge = createFakeForge({
       standingPR,
-      pullRequests: { 42: { body: '', labels: [], headSha: HEAD } },
+      pullRequests: { 42: { body: '', labels: [], headSha: HEAD, headRef: 'release/next' } },
       ...seed,
     });
     vi.mocked(forgeFor).mockReturnValue(forge);
@@ -108,7 +108,7 @@ describe('standing-pr merge', () => {
       'an update moved the release branch after the manifest was written',
       {
         comments: [{ id: 1, body: serializeManifest(manifest) }],
-        pullRequests: { 42: { body: '', labels: [], headSha: MOVED_HEAD } },
+        pullRequests: { 42: { body: '', labels: [], headSha: MOVED_HEAD, headRef: 'release/next' } },
       },
       /'release\/next' has moved since the release manifest was written/,
     ],
@@ -116,7 +116,7 @@ describe('standing-pr merge', () => {
       'the override labels changed since the manifest was written',
       {
         comments: [{ id: 1, body: serializeManifest(manifest) }],
-        pullRequests: { 42: { body: '', labels: ['bump:major'], headSha: HEAD } },
+        pullRequests: { 42: { body: '', labels: ['bump:major'], headSha: HEAD, headRef: 'release/next' } },
       },
       /override labels changed after the last update[\s\S]*Refusing to merge/,
     ],

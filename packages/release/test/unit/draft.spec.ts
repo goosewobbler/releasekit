@@ -1,10 +1,13 @@
 import type { VersionOutput } from '@releasekit/core';
 import { type CommentAuthor, createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FAILURE_MARKER } from '../../src/failure-report/failure-report.js';
+import { DRAFT_LABEL } from '../../src/publish-authorization.js';
 import { serializeManifest } from '../../src/standing-pr/standing-pr.js';
 
 const mockForgeFor = vi.fn();
-vi.mock('../../src/github.js', () => ({
+vi.mock('../../src/github.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/github.js')>()),
   forgeFor: (...args: unknown[]) => mockForgeFor(...args),
 }));
 
@@ -78,7 +81,6 @@ const baseOptions = {
 
 describe('runReleaseDraft', () => {
   let runReleaseDraft: typeof import('../../src/draft/draft.js').runReleaseDraft;
-  let DRAFT_LABEL: string;
   let forge: FakeForge;
 
   beforeEach(async () => {
@@ -93,7 +95,6 @@ describe('runReleaseDraft', () => {
     });
     const mod = await import('../../src/draft/draft.js');
     runReleaseDraft = mod.runReleaseDraft;
-    DRAFT_LABEL = mod.DRAFT_LABEL;
   });
 
   it('should compute in dry-run so the working tree is never mutated', async () => {
@@ -320,12 +321,16 @@ describe('publishFromDraft', () => {
     await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/Release draft #9 is closed\. Reopen it/);
     expect(mockRunRelease).not.toHaveBeenCalled();
     expect(forge.updatedIssues).toHaveLength(0);
+    expect(forge.comments.filter((c) => c.body.startsWith(FAILURE_MARKER))).toEqual([]);
   });
 
   it.each<[string, FakeForgeSeed]>([
     [
       'a bot other than the one that opened the issue',
-      { comments: [{ id: 1, body: validManifestComment, prNumber: 9, user: { login: 'echo-app[bot]', type: 'Bot' } }] },
+      {
+        issues: { 9: { body: '', title: 'Release draft', labels: ['release:draft'], isPullRequest: false } },
+        comments: [{ id: 1, body: validManifestComment, prNumber: 9, user: { login: 'echo-app[bot]', type: 'Bot' } }],
+      },
     ],
     [
       'a bot, on an issue a human opened',
@@ -344,16 +349,83 @@ describe('publishFromDraft', () => {
     expect(mockRunRelease).not.toHaveBeenCalled();
   });
 
-  it("should refuse the standing PR's number: its bot-written manifest is not a draft manifest", async () => {
+  it("should refuse the standing PR's number without reporting on it: it is not a release draft", async () => {
     const forge = createFakeForge({
       issues: { 9: { body: '', title: 'chore: release', labels: [], isPullRequest: true } },
       comments: [{ id: 1, body: serializeManifest(manifest), prNumber: 9, user: botAuthor }],
     });
     mockForgeFor.mockReturnValue(forge);
 
-    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/No release-draft manifest found on issue #9/);
+    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(
+      "Refusing to publish from #9: it is not a release draft (it lacks the 'release:draft' label).",
+    );
     expect(mockRunRelease).not.toHaveBeenCalled();
     expect(forge.updatedIssues).toHaveLength(0);
+    expect(forge.comments.filter((c) => c.body.startsWith(FAILURE_MARKER))).toEqual([]);
+  });
+
+  it('should refuse an open issue without the draft label even when it carries a bot-written draft manifest', async () => {
+    const forge = createFakeForge({
+      issues: { 9: { body: '## Release Notes', title: 'Release draft', labels: [], isPullRequest: false } },
+      comments: [{ id: 1, body: validManifestComment, prNumber: 9, user: botAuthor }],
+    });
+    mockForgeFor.mockReturnValue(forge);
+
+    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/it is not a release draft/);
+    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(forge.comments.filter((c) => c.body.startsWith(FAILURE_MARKER))).toEqual([]);
+  });
+
+  describe('refusal report', () => {
+    function reportOn(forge: FakeForge): string | undefined {
+      return forge.comments.find((c) => c.prNumber === 9 && c.body.startsWith(FAILURE_MARKER))?.body;
+    }
+
+    it('should post one on the draft with the draft remedy when the manifest is not the bot one', async () => {
+      const forge = forgeWithDraft('## Release Notes', humanAuthor);
+      mockForgeFor.mockReturnValue(forge);
+
+      await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/not by the bot account that opened #9/);
+
+      const body = reportOn(forge) ?? '';
+      expect(body).toContain('## ❌ Release from #9 was refused');
+      expect(body).toContain('Run `releasekit release --draft` to refresh the draft');
+      expect(body).not.toContain('standing PR');
+    });
+
+    it('should list the reviewed release when HEAD has drifted', async () => {
+      headSha = 'sha-moved';
+      const forge = forgeWithDraft('## Release Notes');
+      mockForgeFor.mockReturnValue(forge);
+
+      await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/HEAD is sha-moved/);
+
+      const body = reportOn(forge) ?? '';
+      expect(body).toContain('## ❌ Release of v1.2.0 was refused');
+      expect(body).toContain('**0/1 package(s) published.** The publish refused the reviewed draft');
+      expect(body).toContain('HEAD is sha-moved');
+    });
+
+    it('should post one when the recomputed plan differs', async () => {
+      mockRunRelease.mockReset();
+      mockRunRelease.mockResolvedValueOnce({ versionOutput: { ...versionOutput, tags: ['v9.9.9'] } });
+      const forge = forgeWithDraft('## Release Notes');
+      mockForgeFor.mockReturnValue(forge);
+
+      await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/differs from the reviewed draft/);
+
+      expect(reportOn(forge)).toContain('differs from the reviewed draft #9');
+    });
+
+    it('should post none on --dry-run', async () => {
+      headSha = 'sha-moved';
+      const forge = forgeWithDraft('## Release Notes');
+      mockForgeFor.mockReturnValue(forge);
+
+      await expect(publishFromDraft(9, { ...baseOptions, dryRun: true })).rejects.toThrow(/HEAD is sha-moved/);
+
+      expect(reportOn(forge)).toBeUndefined();
+    });
   });
 
   it('should read a sync draft edit from the region keyed by the changelog', async () => {
@@ -616,7 +688,7 @@ describe('publishFromDraft', () => {
 
   it('should throw when the issue has no manifest comment', async () => {
     const forge = createFakeForge({
-      issues: { 9: { body: 'x', title: 't', labels: [], isPullRequest: false } },
+      issues: { 9: { body: 'x', title: 't', labels: ['release:draft'], isPullRequest: false } },
     });
     mockForgeFor.mockReturnValue(forge);
 

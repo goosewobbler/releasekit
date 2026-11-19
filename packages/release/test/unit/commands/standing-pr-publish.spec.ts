@@ -89,7 +89,7 @@ describe('standing-pr publish', () => {
     vi.mocked(forgeFor).mockReturnValue(
       createFakeForge({
         comments: [{ id: 1, body: manifest }],
-        pullRequests: { [PR]: { body: '', labels: [] } },
+        pullRequests: { [PR]: { body: '', labels: [], merged: true, headRef: 'release/next' } },
       }),
     );
     await createStandingPRCommand().parseAsync([

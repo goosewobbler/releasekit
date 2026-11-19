@@ -196,9 +196,12 @@ function bodyMissingEndMarker(): string {
   return [regions.replace('<!-- releasekit-notes-end:@scope/a -->', ''), '---', MERGE_HINT].join('\n');
 }
 
+/** Unless seeded otherwise, a PR read from the forge is a merged standing PR. */
 async function mockForge(seed: FakeForgeSeed = {}): Promise<FakeForge> {
   const { forgeFor } = await import('../../src/github.js');
   const forge = createFakeForge(seed);
+  const read = forge.getPullRequest.bind(forge);
+  forge.getPullRequest = async (prNumber) => ({ merged: true, headRef: 'release/next', ...(await read(prNumber)) });
   vi.mocked(forgeFor).mockReturnValue(forge);
   return forge;
 }
@@ -4864,15 +4867,89 @@ describe('runStandingPRPublish', () => {
       await expectNothingPublished(forge);
     });
 
-    it('should refuse when the event reports the PR as not merged', async () => {
+    it('should refuse a retry the event reports as merged when the forge reports it open', async () => {
+      process.env.GITHUB_EVENT_NAME = 'pull_request';
       const { readFileSync } = await import('node:fs');
       vi.mocked(readFileSync).mockReturnValue(
-        JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: false } }),
+        JSON.stringify({
+          action: 'labeled',
+          label: { name: 'release:retry' },
+          pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
+        }),
       );
-      const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
-      vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+      const forge = await mockForge({
+        comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+        pullRequests: { 42: { body: '', labels: [], merged: false, headRef: 'release/next' } },
+      });
 
       await expect(runStandingPRPublish(options, 42)).rejects.toThrow(refusal);
+      await expectNothingPublished(forge);
+    });
+  });
+
+  describe('with --pr naming a PR that is not the standing PR', () => {
+    const options = { projectDir: '/test', verbose: false, quiet: false, json: false };
+    const refusal =
+      "Refusing to publish PR #42: it is not the standing release PR (its head is 'feat/x', not 'release/next').";
+
+    async function featurePR() {
+      return mockForge({
+        comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+        pullRequests: { 42: { body: '', labels: [], merged: true, headRef: 'feat/x' } },
+      });
+    }
+
+    async function expectNothingPublished(forge: FakeForge) {
+      const { runPublishStep } = await import('../../src/steps.js');
+      expect(runPublishStep).not.toHaveBeenCalled();
+      expect(fakeGit.tagged).toEqual([]);
+      expect(forge.comments.filter((c) => c.body.startsWith(FAILURE_MARKER))).toEqual([]);
+    }
+
+    it('should refuse a dispatch without posting a report on that PR', async () => {
+      delete process.env.GITHUB_EVENT_PATH;
+      const forge = await featurePR();
+
+      await expect(runStandingPRPublish(options, 42)).rejects.toThrow(refusal);
+      await expectNothingPublished(forge);
+    });
+
+    it('should refuse a retry whose event names the standing branch', async () => {
+      process.env.GITHUB_EVENT_NAME = 'pull_request';
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({
+          action: 'labeled',
+          label: { name: 'release:retry' },
+          pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
+        }),
+      );
+      const forge = await featurePR();
+
+      await expect(runStandingPRPublish(options, 42)).rejects.toThrow(refusal);
+      await expectNothingPublished(forge);
+    });
+
+    it('should refuse a merged-PR event the forge contradicts', async () => {
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
+      );
+      const forge = await featurePR();
+
+      await expect(runStandingPRPublish(options)).rejects.toThrow(refusal);
+      await expectNothingPublished(forge);
+    });
+
+    it('should refuse the PR an inferred dispatch picked when the forge says it is not the standing PR', async () => {
+      delete process.env.GITHUB_EVENT_PATH;
+      const forge = await mockForge({
+        recentlyClosedPRs: [{ number: 42, mergedAt: '2024-01-02T00:00:00Z' }],
+        comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+        pullRequests: { 42: { body: '', labels: [], merged: true, headRef: 'feat/x' } },
+      });
+
+      await expect(runStandingPRPublish(options)).rejects.toThrow(refusal);
       await expectNothingPublished(forge);
     });
   });
@@ -4963,25 +5040,23 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'develop' }));
   });
 
-  it("should fall back to the event's base branch for stale marking when the PR can't be read", async () => {
+  it('should refuse as retryable a PR the forge cannot read, whatever the event says', async () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(
-      JSON.stringify({
-        pull_request: { head: { ref: 'release/next' }, base: { ref: 'develop' }, number: 42, merged: true },
-      }),
+      JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
     );
     const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
     vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
-    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
-    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
-    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
-      ReturnType<typeof runPublishStep>
-    >);
 
-    await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/PR #42: it could not be read from GitHub \(502 Bad Gateway\)/);
 
-    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
-    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'develop' }));
+    const { runPublishStep } = await import('../../src/steps.js');
+    expect(runPublishStep).not.toHaveBeenCalled();
+    expect(fakeGit.tagged).toEqual([]);
+    const report = forge.comments.find((c) => c.prNumber === 42 && c.body.startsWith(FAILURE_MARKER));
+    expect(report?.body).toContain('release:retry');
   });
 
   it('should mark previews stale only after deleting the release branch', async () => {
@@ -5040,21 +5115,28 @@ describe('runStandingPRPublish', () => {
     } as unknown as ReturnType<typeof loadConfig>);
   };
 
-  const mergedByEvent = async (login: string) => {
+  /** The merged PR as the forge reports it, with `merged_by` in the event naming someone else. */
+  const mergedBy = async (login: string, type = 'User'): Promise<FakeForgeSeed> => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
-        pull_request: { head: { ref: 'release/next' }, number: 42, merged: true, merged_by: { login } },
+        pull_request: {
+          head: { ref: 'release/next' },
+          number: 42,
+          merged: true,
+          merged_by: { login: login === 'admin-user' ? 'rando' : 'admin-user' },
+        },
       }),
     );
+    return { pullRequests: { 42: { body: '', labels: [], mergedBy: { login, type } } } };
   };
 
   it('should refuse to publish when the merger is not authorized', async () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
-    await mergedByEvent('rando');
     await mockForge({
+      ...(await mergedBy('rando')),
       comments: [{ id: 1, body: serializeManifest(baseManifest) }],
-      actorPermissions: { rando: 'write' },
+      actorPermissions: { rando: 'write', 'admin-user': 'admin' },
     });
 
     await expect(
@@ -5067,8 +5149,8 @@ describe('runStandingPRPublish', () => {
 
   it('should publish when the merger is authorized', async () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
-    await mergedByEvent('admin-user');
     await mockForge({
+      ...(await mergedBy('admin-user')),
       comments: [{ id: 1, body: serializeManifest(baseManifest) }],
       actorPermissions: { 'admin-user': 'admin' },
     });
@@ -5086,8 +5168,8 @@ describe('runStandingPRPublish', () => {
 
   it('should not check the merger when enforceMergeAuthor is false', async () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: false });
-    await mergedByEvent('rando');
     await mockForge({
+      ...(await mergedBy('rando')),
       comments: [{ id: 1, body: serializeManifest(baseManifest) }],
       actorPermissions: { rando: 'write' },
     });
@@ -5105,8 +5187,10 @@ describe('runStandingPRPublish', () => {
 
   it('should publish (fail open) when the merger permission check is unverifiable', async () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
-    await mergedByEvent('someone');
-    const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    const forge = await mockForge({
+      ...(await mergedBy('someone')),
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+    });
     // Fails open: the merge ruleset is the primary control.
     vi.spyOn(forge, 'getActorPermission').mockRejectedValue(Object.assign(new Error('500'), { status: 500 }));
     const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
@@ -5121,21 +5205,13 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(runPublishStep)).toHaveBeenCalled();
   });
 
-  it('should treat a Bot merger as authorized via merged_by.type, without a permission call', async () => {
+  it("should treat a Bot merger as authorized via the merger's type, without a permission call", async () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
-    const { readFileSync } = await import('node:fs');
     // A GitHub App login without the [bot] suffix.
-    vi.mocked(readFileSync).mockReturnValue(
-      JSON.stringify({
-        pull_request: {
-          head: { ref: 'release/next' },
-          number: 42,
-          merged: true,
-          merged_by: { login: 'release-bot', type: 'Bot' },
-        },
-      }),
-    );
-    const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    const forge = await mockForge({
+      ...(await mergedBy('release-bot', 'Bot')),
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+    });
     const permSpy = vi.spyOn(forge, 'getActorPermission');
     const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
@@ -5330,27 +5406,6 @@ describe('runStandingPRPublish', () => {
 
       expect(branchDeletePushes()).toHaveLength(0);
       expect(logs.some((l) => l.includes("couldn't read PR #42's head commit"))).toBe(true);
-    });
-
-    it("should fall back to the event's head commit when the PR can't be read", async () => {
-      const { readFileSync } = await import('node:fs');
-      vi.mocked(readFileSync).mockReturnValue(
-        JSON.stringify({
-          pull_request: { head: { ref: 'release/next', sha: MERGED_HEAD }, number: 42, merged: true },
-        }),
-      );
-      const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
-      vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
-      const { runPublishStep } = await import('../../src/steps.js');
-      vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
-        ReturnType<typeof runPublishStep>
-      >);
-
-      await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
-
-      expect(branchDeletePushes()).toEqual([
-        expect.objectContaining({ ref: ':release/next', forceWithLease: { ref: 'release/next', expect: MERGED_HEAD } }),
-      ]);
     });
 
     it('should keep the branch when the head commit is not a commit SHA', async () => {
@@ -5995,13 +6050,9 @@ describe('publishFromManifest', () => {
         },
         git: { branch: 'main' },
       } as unknown as ReturnType<typeof loadConfig>);
-      process.env.GITHUB_EVENT_PATH = '/tmp/test-event.json';
-      const { readFileSync } = await import('node:fs');
-      vi.mocked(readFileSync).mockReturnValue(
-        JSON.stringify({ pull_request: { number: 99, merged: true, merged_by: { login: 'rando' } } }),
-      );
       const forge = await mockForge({
         comments: [{ id: 77, body: serializeManifest(baseManifest) }],
+        pullRequests: { 99: { body: '', labels: [], mergedBy: { login: 'rando', type: 'User' } } },
         actorPermissions: { rando: 'write' },
       });
 
@@ -6133,7 +6184,7 @@ describe('publishFromManifest', () => {
     });
   });
 
-  describe('merge author without merged_by in the event', () => {
+  describe('the merger, read from the forge', () => {
     const options = { projectDir: '/test', verbose: false, quiet: false, json: false };
     const manifestComment = { id: 77, body: serializeManifest(baseManifest) };
 
@@ -6180,11 +6231,11 @@ describe('publishFromManifest', () => {
       expect(runPublishStep).toHaveBeenCalled();
     });
 
-    it('should refuse as retryable when the forge cannot return the merger', async () => {
+    it('should refuse as retryable when the forge cannot read the merged PR', async () => {
       const forge = await mockForge({ comments: [manifestComment] });
       vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('API unavailable'));
 
-      await expect(publishFromManifest(99, options)).rejects.toThrow(/merger is unknown/);
+      await expect(publishFromManifest(99, options)).rejects.toThrow(/could not be read from GitHub/);
 
       const { runPublishStep } = await import('../../src/steps.js');
       expect(runPublishStep).not.toHaveBeenCalled();
@@ -6322,5 +6373,68 @@ describe('runStandingPRMerge', () => {
 
     expect(result).toEqual({ merged: true, prNumber: 42 });
     expect(branchDeletePushes()).toHaveLength(0);
+  });
+
+  describe('refusal report', () => {
+    function reportOn(forge: FakeForge): string {
+      return forge.comments.find((c) => c.prNumber === 42 && c.body.startsWith(FAILURE_MARKER))?.body ?? '';
+    }
+
+    it('should post one with the update remedy when the manifest is not the bot one', async () => {
+      const forge = await mergeableForge({
+        comments: [{ id: 1, body: serializeManifest(baseManifest), user: { login: 'attacker', type: 'User' } }],
+      });
+
+      await expect(runStandingPRMerge(options)).rejects.toThrow(
+        /not by the bot account that opened #42.*Re-run 'standing-pr update' to regenerate it/,
+      );
+
+      expect(forge.mergedPullRequests).toHaveLength(0);
+      const body = reportOn(forge);
+      expect(body).toContain('## ❌ Release from #42 was refused');
+      expect(body).toContain('**Nothing was merged.**');
+      expect(body).toContain(
+        'Run `releasekit standing-pr update` to regenerate the release manifest, then merge again',
+      );
+      expect(body).not.toContain('release:retry');
+    });
+
+    it('should list the release when the override labels changed', async () => {
+      const forge = await mergeableForge({
+        standingPR: openStandingPR(42, ['bump:minor']),
+        comments: [{ id: 1, body: serializeManifest({ ...baseManifest, schemaVersion: 2, overrideLabels: [] }) }],
+        pullRequests: { 42: { body: '', labels: ['bump:minor'] } },
+      });
+
+      await expect(runStandingPRMerge(options)).rejects.toThrow(/labels changed after the last update/);
+
+      expect(forge.mergedPullRequests).toHaveLength(0);
+      expect(reportOn(forge)).toContain(
+        '**0/1 package(s) published.** The merge was refused, so nothing was merged, tagged or published.',
+      );
+    });
+
+    it('should not read as an unfinished release once the PR merges', async () => {
+      const forge = await mergeableForge({
+        comments: [{ id: 1, body: serializeManifest(baseManifest), user: { login: 'attacker', type: 'User' } }],
+      });
+      await expect(runStandingPRMerge(options)).rejects.toThrow(/not by the bot account/);
+
+      expect(reportOn(forge)).not.toBe('');
+      expect(await detectUnresolvedFailure(forge, 42)).toBeNull();
+    });
+
+    it('should be replaced by the publish refusal after the PR merges', async () => {
+      const forge = await mergeableForge({
+        comments: [{ id: 1, body: serializeManifest(baseManifest), user: { login: 'attacker', type: 'User' } }],
+      });
+      await expect(runStandingPRMerge(options)).rejects.toThrow(/not by the bot account/);
+
+      await expect(publishFromManifest(42, options)).rejects.toThrow(/not by the bot account/);
+
+      expect(forge.comments.filter((c) => c.prNumber === 42 && c.body.startsWith(FAILURE_MARKER))).toHaveLength(1);
+      expect(reportOn(forge)).toContain('Merge the next standing PR');
+      expect(await detectUnresolvedFailure(forge, 42)).toMatchObject({ refused: true });
+    });
   });
 });
