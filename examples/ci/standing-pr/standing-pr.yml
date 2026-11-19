@@ -170,7 +170,8 @@ jobs:
   release:
     name: Release
     needs: detect
-    # The standing PR's merge, a merged `release:immediate` PR, or a relayed `release:retry`.
+    # The standing PR's merge, a merged `release:immediate` PR (to publish any standing release still waiting for its
+    # tags first), or a relayed `release:retry`.
     if: >-
       !cancelled() &&
       (
@@ -213,28 +214,39 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Find the standing release
+        id: target
+        # The relayed PR, or on a push the merged standing PR still waiting for its tags (so a run that replaced the
+        # merge's own still publishes it), and its merge commit. The publish refuses any other checkout.
+        run: |
+          pnpm exec releasekit standing-pr resolve ${PR:+--pr "$PR"} --output "$RUNNER_TEMP/target.json"
+          echo "pr=$(jq -r '.data.pr // empty' "$RUNNER_TEMP/target.json")" >> "$GITHUB_OUTPUT"
+          echo "sha=$(jq -r '.data.mergeSha // empty' "$RUNNER_TEMP/target.json")" >> "$GITHUB_OUTPUT"
+        env:
+          PR: ${{ inputs.pr }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+
+      - name: Check out its merge commit
+        if: steps.target.outputs.sha != '' && steps.target.outputs.sha != github.sha
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.target.outputs.sha }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token || github.token }}
+
+      - if: steps.target.outputs.sha != '' && steps.target.outputs.sha != github.sha
+        run: pnpm install --frozen-lockfile
+
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Publish from standing release PR
-        # On a push, publishes the merged standing PR still waiting for its tags, if any, so a run that replaced the
-        # merge's own still publishes it, and an immediate release doesn't bump on top of it.
-        run: pnpm exec releasekit standing-pr publish ${PR:+--pr "$PR"}
+        if: steps.target.outputs.sha != ''
+        run: pnpm exec releasekit standing-pr publish --pr "$PR"
         env:
-          PR: ${{ inputs.pr }}
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
-          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-      - name: Direct release (bypassing standing PR)
-        # The CLI reads the merged PR and its labels for the pushed commit from GitHub.
-        if: needs.detect.outputs.immediate == 'true'
-        run: pnpm exec releasekit release
-        env:
+          PR: ${{ steps.target.outputs.pr }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -249,9 +261,68 @@ jobs:
           PR: ${{ inputs.pr }}
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
 
+  immediate:
+    name: Immediate Release
+    needs: [detect, release]
+    # After `release`, so it never bumps on top of an untagged standing release, and from the pushed commit, so it
+    # never builds that release's version.
+    if: needs.detect.outputs.immediate == 'true' && needs.release.result == 'success'
+    environment: release
+    concurrency: standing-release
+    permissions:
+      contents: write
+      pull-requests: write
+      statuses: write
+      id-token: write # npm OIDC trusted publishing
+    env:
+      RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint App token
+        id: app-token
+        if: env.RELEASE_APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token || github.token }}
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Direct release (bypassing standing PR)
+        # The CLI reads the merged PR and its labels for the pushed commit from GitHub.
+        run: pnpm exec releasekit release
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
   reconcile:
     name: Reconcile Release PR
-    needs: release
+    needs: [release, immediate]
+    if: >-
+      !cancelled() &&
+      needs.release.result == 'success' &&
+      needs.immediate.result != 'failure'
     environment: release
     # The rebuild group, so it queues with the updates rather than racing them.
     concurrency:

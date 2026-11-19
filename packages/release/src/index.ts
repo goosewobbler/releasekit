@@ -32,9 +32,11 @@ export type {
   StandingPRMergeResult,
   StandingPROptions,
   StandingPRResult,
+  StandingReleaseTarget,
 } from './standing-pr/standing-pr.js';
 export {
   publishFromManifest,
+  resolveStandingRelease,
   runStandingPRMerge,
   runStandingPRPublish,
   runStandingPRUpdate,

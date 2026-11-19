@@ -15,6 +15,7 @@ import {
   findLatestMergedStandingPR,
   parseManifest,
   publishFromManifest,
+  resolveStandingRelease,
   runStandingPRMerge,
   runStandingPRPublish,
   runStandingPRUpdate,
@@ -5040,14 +5041,23 @@ describe('runStandingPRPublish', () => {
     const MERGE_SHA = 'm'.repeat(40);
     const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 
-    /** Merged standing PR #77, with a feeder pushed on top of its merge, so the checkout is a later commit. */
+    /** Merged standing PR #77, checked out at its merge commit unless `head` names another. */
     async function mergedStandingPR(
-      opts: { tagged?: boolean; failureReport?: boolean; mergedMinutesAgo?: number; forged?: boolean } = {},
+      opts: {
+        tagged?: boolean;
+        failureReport?: boolean;
+        mergedMinutesAgo?: number;
+        forged?: boolean;
+        head?: string;
+      } = {},
     ) {
       const { readFileSync } = await import('node:fs');
       vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ ref: 'refs/heads/main', after: 'abc123' }));
       process.env.GITHUB_EVENT_NAME = 'push';
-      setupGit({ remoteTags: { origin: opts.tagged ? { '@scope/core@v1.2.3': MERGE_SHA } : {} } });
+      setupGit({
+        headSha: opts.head ?? MERGE_SHA,
+        remoteTags: { origin: opts.tagged ? { '@scope/core@v1.2.3': MERGE_SHA } : {} },
+      });
       const comments = [
         {
           id: 1,
@@ -5070,7 +5080,7 @@ describe('runStandingPRPublish', () => {
           }),
         });
       }
-      await mockForge({
+      const forge = await mockForge({
         recentlyClosedPRs: [{ number: 77, mergedAt: minutesAgo(opts.mergedMinutesAgo ?? 5) }],
         pullRequests: { 77: { body: '', labels: [], mergeCommitSha: MERGE_SHA } },
         comments,
@@ -5080,20 +5090,30 @@ describe('runStandingPRPublish', () => {
       vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
         ReturnType<typeof runPublishStep>
       >);
-      return runPublishStep;
+      return { forge, runPublishStep };
     }
 
-    const publish = () => runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+    const options = { projectDir: '/test', verbose: false, quiet: false, json: false };
+    const publish = () => runStandingPRPublish(options);
 
-    it('should publish the merged standing PR still waiting for its tags, tagging its merge commit', async () => {
-      const runPublishStep = await mergedStandingPR();
+    it('should publish the merged standing PR still waiting for its tags', async () => {
+      const { runPublishStep } = await mergedStandingPR();
 
       expect(await publish()).not.toBeNull();
 
       expect(runPublishStep).toHaveBeenCalledOnce();
-      expect(fakeGit.tagged).toEqual([
-        { name: '@scope/core@v1.2.3', message: 'Release @scope/core@v1.2.3', commit: MERGE_SHA },
-      ]);
+      expect(fakeGit.tagged).toEqual([{ name: '@scope/core@v1.2.3', message: 'Release @scope/core@v1.2.3' }]);
+    });
+
+    it('should refuse as retryable, with a report, from a checkout past the merge commit', async () => {
+      const { forge, runPublishStep } = await mergedStandingPR({ head: 'f'.repeat(40) });
+
+      await expect(publish()).rejects.toThrow(`HEAD is ${'f'.repeat(40)}, not its merge commit ${MERGE_SHA}`);
+
+      expect(runPublishStep).not.toHaveBeenCalled();
+      expect(fakeGit.tagged).toEqual([]);
+      const report = forge.comments.find((c) => c.prNumber === 77 && c.body.startsWith(FAILURE_MARKER));
+      expect(report?.body).toContain('Retrying is safe');
     });
 
     it.each([
@@ -5101,16 +5121,17 @@ describe('runStandingPRPublish', () => {
       { state: 'has a publish-failure report', opts: { failureReport: true } },
       { state: 'landed past the backstop', opts: { mergedMinutesAgo: 150 } },
     ])('should publish nothing when the release $state', async ({ opts }) => {
-      const runPublishStep = await mergedStandingPR(opts);
+      const { runPublishStep } = await mergedStandingPR(opts);
 
       expect(await publish()).toBeNull();
+      expect(await resolveStandingRelease(options)).toBeNull();
 
       expect(runPublishStep).not.toHaveBeenCalled();
       expect(fakeGit.tagged).toEqual([]);
     });
 
     it("should refuse, not skip, a merged standing PR whose manifest it can't trust", async () => {
-      const runPublishStep = await mergedStandingPR({ forged: true });
+      const { runPublishStep } = await mergedStandingPR({ forged: true });
 
       await expect(publish()).rejects.toThrow(/posted by 'attacker', not by the bot account that opened #77/);
 
@@ -5124,6 +5145,32 @@ describe('runStandingPRPublish', () => {
       await mockForge({ recentlyClosedPRs: [{ number: 80, mergedAt: null }] });
 
       expect(await publish()).toBeNull();
+    });
+
+    describe('resolveStandingRelease', () => {
+      it('should name the untagged standing release and its merge commit, whatever the checkout', async () => {
+        await mergedStandingPR({ head: 'f'.repeat(40) });
+
+        expect(await resolveStandingRelease(options)).toEqual({ pr: 77, mergeSha: MERGE_SHA });
+      });
+
+      it('should name the merge commit of the PR it is given, even once tagged', async () => {
+        await mergedStandingPR({ tagged: true });
+
+        expect(await resolveStandingRelease(options, 77)).toEqual({ pr: 77, mergeSha: MERGE_SHA });
+      });
+
+      it("should name a merged standing PR whose manifest it can't trust, so the publish reports it", async () => {
+        await mergedStandingPR({ forged: true });
+
+        expect(await resolveStandingRelease(options)).toEqual({ pr: 77, mergeSha: MERGE_SHA });
+      });
+
+      it('should fail for a PR that has not merged', async () => {
+        await mockForge({ pullRequests: { 81: { body: '', labels: [] } } });
+
+        await expect(resolveStandingRelease(options, 81)).rejects.toThrow('PR #81 has no merge commit');
+      });
     });
   });
 
@@ -5957,6 +6004,7 @@ describe('publishFromManifest', () => {
     /** The merge bumps `@scope/core` to 1.2.3 and `@scope/extra` to 2.0.0. */
     function mergeBumpingCoreAndExtra() {
       setupGit({
+        headSha: MERGE_COMMIT,
         files: {
           ...packageJsonAt(MERGE_COMMIT, '@scope/core', '1.2.3'),
           ...packageJsonAt(`${MERGE_COMMIT}^1`, '@scope/core', '1.2.2'),
@@ -6051,6 +6099,7 @@ describe('publishFromManifest', () => {
       const { runPublishStep } = await import('../../src/steps.js');
       const virtualWorkspace = '[workspace]\nmembers = ["crates/*"]\n';
       setupGit({
+        headSha: MERGE_COMMIT,
         files: {
           ...packageJsonAt(MERGE_COMMIT, '@scope/core', '1.2.3'),
           ...packageJsonAt(`${MERGE_COMMIT}^1`, '@scope/core', '1.2.2'),

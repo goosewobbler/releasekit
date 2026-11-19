@@ -34,8 +34,6 @@ export interface GitCommitOptions {
 export interface GitTagOptions {
   /** Makes the tag annotated; omitted, the tag is lightweight. */
   message?: string;
-  /** The commit to tag; omitted, HEAD. */
-  commit?: string;
   cwd?: string;
 }
 

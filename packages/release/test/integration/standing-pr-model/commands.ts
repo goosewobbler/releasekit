@@ -1,6 +1,8 @@
 import fc from 'fast-check';
+import { runRelease } from '../../../src/release.js';
 import {
   parseManifest,
+  resolveStandingRelease,
   runStandingPRMerge,
   runStandingPRPublish,
   runStandingPRUpdate,
@@ -247,9 +249,55 @@ export class MergeMidUpdate extends Command {
 }
 
 /**
- * The release job a push to `main` starts, at `main`'s tip as when a newer push replaced the merge's own run, then
- * the reconcile job after it. The push names no PR: the release still waiting for its tags is the latest merge's.
+ * The release job: resolves the standing release at `main`'s tip (PR `prNumber`, or the one still waiting for its
+ * tags), then checks out its merge commit and publishes it there. Undefined when the resolve fails, null when there is
+ * nothing to publish.
  */
+async function releaseJob(
+  model: Model,
+  world: World,
+  env: Omit<JobEnv, 'sha'>,
+  prNumber?: number,
+): Promise<{ prNumber: number; ok: boolean } | null | undefined> {
+  const sha = world.mainSha();
+  const dir = world.checkout(sha);
+  const target = await attempt(world, 'resolve', () =>
+    world.job(dir, { ...env, sha }, () => resolveStandingRelease(options(dir), prNumber)),
+  );
+  if (!target) {
+    return target;
+  }
+  const ok = await publish(model, world, target.pr, world.checkout(target.mergeSha), { ...env, sha }, true);
+  return { prNumber: target.pr, ok };
+}
+
+/** A push's release job, then, if it published, the reconcile job unless another job comes before it. */
+async function releaseOnPush(model: Model, world: World, sha: string, then = reconcile): Promise<boolean> {
+  const push = { eventName: 'push', event: { ref: 'refs/heads/main', after: sha } };
+  const result = await releaseJob(model, world, push);
+  world.registry.failAfter(null);
+  const release = model.releases.find((r) => r.prNumber === result?.prNumber) ?? pendingReleases(model).at(-1);
+  if (release) {
+    release.pending = false;
+    release.failed = result === null ? release.failed : !result?.ok;
+  }
+  if (result?.ok) {
+    await then(model, world, push);
+  }
+  return result !== undefined && result?.ok !== false;
+}
+
+async function reconcile(model: Model, world: World, env: Omit<JobEnv, 'sha'>): Promise<void> {
+  const run: UpdateRun = { trigger: 'reconcile', openPr: model.openPr, pending: pendingReleases(model) };
+  model.updates.push(run);
+  const sha = world.mainSha();
+  const dir = world.checkout(sha);
+  run.result = await attempt(world, 'reconcile', () =>
+    world.job(dir, { ...env, sha }, () => runStandingPRUpdate({ ...options(dir), reconcile: true })),
+  );
+}
+
+/** The release job a push to `main` starts, at `main`'s tip as when a newer push replaced the merge's own run. */
 export class Publish extends Command {
   constructor(private readonly failAfter: number | null) {
     super();
@@ -258,23 +306,8 @@ export class Publish extends Command {
     return pendingReleases(model).length > 0;
   }
   async apply(model: Model, world: World): Promise<void> {
-    const release = pendingReleases(model).at(-1) as Release;
     world.registry.failAfter(this.failAfter);
-    const sha = world.mainSha();
-    const push = { eventName: 'push', event: { ref: 'refs/heads/main', after: sha }, sha };
-    const ok = await publish(model, world, release.prNumber, world.checkout(sha), push, false);
-    release.pending = false;
-    release.failed = !ok;
-    if (ok) {
-      const run: UpdateRun = { trigger: 'reconcile', openPr: model.openPr, pending: pendingReleases(model) };
-      model.updates.push(run);
-      const dir = world.checkout(world.mainSha());
-      run.result = await attempt(world, 'reconcile', () =>
-        world.job(dir, { ...push, sha: world.mainSha() }, () =>
-          runStandingPRUpdate({ ...options(dir), reconcile: true }),
-        ),
-      );
-    }
+    await releaseOnPush(model, world, world.mainSha());
   }
   toString(): string {
     return this.failAfter === null ? 'publish' : `publish, failing after ${this.failAfter} package(s)`;
@@ -292,17 +325,62 @@ export class Retry extends Command {
   async apply(model: Model, world: World): Promise<void> {
     const release = model.releases.filter((r) => r.failed).at(-1) as Release;
     world.registry.failAfter(this.failAfter);
-    const sha = world.mainSha();
-    const dir = world.checkout(sha);
-    const env = {
-      eventName: 'workflow_dispatch',
-      event: { inputs: { pr: String(release.prNumber), edited: false } },
-      sha,
-    };
-    release.failed = !(await publish(model, world, release.prNumber, dir, env, true));
+    const env = { eventName: 'workflow_dispatch', event: { inputs: { pr: String(release.prNumber), edited: false } } };
+    const result = await releaseJob(model, world, env, release.prNumber);
+    world.registry.failAfter(null);
+    release.failed = !result?.ok;
   }
   toString(): string {
     return this.failAfter === null ? 'retry' : `retry, failing after ${this.failAfter} package(s)`;
+  }
+}
+
+/**
+ * A `release:immediate` feeder's push: the release job publishes any standing release still waiting for its tags,
+ * then the immediate job releases from the pushed commit, then the reconcile job.
+ */
+export class ImmediateRelease extends Command {
+  constructor(private readonly packages: PackageName[]) {
+    super();
+  }
+  check(): boolean {
+    return true;
+  }
+  async apply(model: Model, world: World): Promise<void> {
+    const n = ++model.feeders;
+    const subject = `fix: immediate change ${n}`;
+    const files = Object.fromEntries(this.packages.map((pkg) => [`packages/${pkg}/src/${n}.js`, `// ${n}\n`]));
+    const sha = world.commitToMain(subject, files);
+    model.nonReleaseShas.add(sha);
+    world.forge.recordMergedFeeder(subject, ['release:immediate'], sha);
+    if (!(await releaseOnPush(model, world, sha, async () => {}))) {
+      return;
+    }
+    const push = { eventName: 'push', event: { ref: 'refs/heads/main', after: sha }, sha };
+    const dir = world.checkout(sha);
+    const released = await attempt(world, 'immediate release', () =>
+      world.job(dir, push, () =>
+        runRelease({
+          dryRun: false,
+          sync: false,
+          skipNotes: false,
+          skipPublish: false,
+          skipGit: false,
+          skipGithubRelease: false,
+          skipVerification: false,
+          json: false,
+          verbose: false,
+          quiet: true,
+          projectDir: dir,
+        }),
+      ),
+    );
+    if (released !== undefined) {
+      await reconcile(model, world, push);
+    }
+  }
+  toString(): string {
+    return `merge a release:immediate feeder touching ${this.packages.join(', ')}`;
   }
 }
 

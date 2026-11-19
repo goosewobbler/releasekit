@@ -3,6 +3,7 @@ import {
   type AuthoredBody,
   FakeForge,
   type ForgeComment,
+  type IssueDetails,
   type MergeMethod,
   type NewPullRequest,
   type OpenPullRequest,
@@ -146,6 +147,12 @@ export class StatefulForge extends FakeForge {
     }
     comment.body = body;
     comment.editors = [actor, ...(comment.editors.length > 0 ? comment.editors : [comment.user])];
+  }
+
+  override async getIssue(issueNumber: number): Promise<IssueDetails> {
+    const issue = await super.getIssue(issueNumber);
+    const pr = this.prs.get(issueNumber);
+    return pr ? { ...issue, labels: [...pr.labels] } : issue;
   }
 
   override async getPullRequest(prNumber: number): Promise<PullRequestDetails> {

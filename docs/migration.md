@@ -359,7 +359,8 @@ separate notes commit.
 
 The [standing-PR example](../examples/ci/standing-pr/standing-pr.yml) no longer publishes from `pull_request` events.
 If your workflow is a copy of the old one, with `publish`, `retry-publish` and `immediate-release` jobs on
-`pull_request: closed` and `labeled`, it keeps working, but replace it to get the layout in
+`pull_request: closed` and `labeled`, its `retry-publish` job checks out `main`, which `standing-pr publish` now refuses
+once anything has landed after the merge. Replace it to get the layout in
 [CI setup](../packages/release/docs/ci-setup.md#workflow):
 
 1. Create a `release` environment restricted to `main`, with no required reviewers, and move registry secrets such as
@@ -377,7 +378,8 @@ CLI changes back it, and apply to any workflow:
   does nothing when there is none. It used to publish the most recently merged standing PR again.
 - `standing-pr update` on a `workflow_dispatch` run updates even when the checkout is a release commit, and `--ack`
   shows its banner, as on a label or body edit.
-- Publish tags the standing PR's merge commit when the checkout is a later commit.
+- `standing-pr publish` refuses, as a retryable refusal, unless the checkout is the standing PR's merge commit.
+  `standing-pr resolve` prints the standing PR to publish and that commit.
 
 ---
 

@@ -6,15 +6,16 @@ merging publishes. A `release:retry` label re-runs a publish that failed partway
 
 Every job that writes runs on `main`, in a `release` environment restricted to
 `main`. Events on the standing PR reach them through a relay that can only start
-the workflow. One workflow file (`standing-pr.yml`) carries five jobs:
+the workflow. One workflow file (`standing-pr.yml`) carries six jobs:
 
 | Job | Fires on | Does |
 |-----|----------|------|
 | `relay` | a label change or checkbox edit on the open standing PR, or `release:retry` on the merged one | dispatches the workflow on `main`: an update, or a publish of that PR. Holds only `actions: write` |
 | `detect` | push to `main` | reads the PR merged as the pushed commit, so only a standing-PR merge or a `release:immediate` PR starts `release` |
 | `update` | push to `main`, hourly `schedule`, a dispatch without a PR | rebuilds `release/next` and the standing PR from the queued changes |
-| `release` | the standing PR's merge, a merged `release:immediate` PR, a dispatch with a PR | publishes the merged standing PR still waiting for its tags (or the dispatched one), then for `release:immediate` releases directly, bypassing the standing PR |
-| `reconcile` | `release` succeeding | rebuilds the standing PR now the release is tagged |
+| `release` | the standing PR's merge, a merged `release:immediate` PR, a dispatch with a PR | publishes the merged standing PR still waiting for its tags (or the dispatched one) from its merge commit |
+| `immediate` | `release` succeeding for a `release:immediate` PR | releases the pushed commit directly, bypassing the standing PR |
+| `reconcile` | `release`, and `immediate` if it ran, succeeding | rebuilds the standing PR now the release is tagged |
 
 The jobs that write mint a GitHub App token when the App's secrets are in the
 `release` environment, and use `GITHUB_TOKEN` otherwise. See
@@ -25,7 +26,7 @@ and [The release App](../../../packages/release/docs/ci-setup.md#the-release-app
 
 By default the standing PR carries changelogs only; release notes are generated at publish time. To **review and edit** them first, label the standing PR **`release:preview-notes`**: the next `update` run generates LLM release notes into an editable, per-package region in the PR body (delimited by `<!-- releasekit-notes:<package> -->` markers). Edit the prose between the markers — your edits are preserved across update runs and win at merge.
 
-Needs `notes.releaseNotes.llm` configured and the matching LLM secret uncommented on the `update` job (and on the publishing jobs, which generate the final notes). Standing-pr mode only — see [Previewing and editing release notes](../../../packages/release/docs/ci-setup.md#previewing-and-editing-release-notes).
+Needs `notes.releaseNotes.llm` configured and the matching LLM secret uncommented on the `update` job (and on `release` and `immediate`, which generate the final notes). Standing-pr mode only — see [Previewing and editing release notes](../../../packages/release/docs/ci-setup.md#previewing-and-editing-release-notes).
 
 ## Files
 
@@ -54,8 +55,9 @@ Needs `notes.releaseNotes.llm` configured and the matching LLM secret uncommente
 
 ## Correctness notes
 
-Shared [correctness rules](../../README.md#cross-cutting-correctness-rules) apply (each job lists its own `permissions`; only `release` adds `id-token: write`). Scenario-specific:
+Shared [correctness rules](../../README.md#cross-cutting-correctness-rules) apply (each job lists its own `permissions`; only `release` and `immediate` add `id-token: write`). Scenario-specific:
 
-- `release` and `reconcile` start from the push of the merge to `main`, not from `pull_request: closed`, so the `release` environment's secrets never reach a run on another ref.
-- Only another release run can replace a queued `release`. A push's run publishes whatever standing release is still untagged; a retry's publishes only its PR. Updates and `reconcile` share a group of their own; a checkbox edit cancels the update in progress.
-- The relayed `release:retry` publishes on `main` with `--pr`, then removes the label so each application is exactly one retry.
+- `release`, `immediate` and `reconcile` start from the push of the merge to `main`, not from `pull_request: closed`, so the `release` environment's secrets never reach a run on another ref.
+- `release` asks `standing-pr resolve` which standing release to publish and checks out its merge commit, so a run a newer push started, or a retry, never builds the later commits into it. `standing-pr publish` refuses any other checkout.
+- Only another release run can replace a queued `release` or `immediate`. A push's `release` publishes whatever standing release is still untagged; a retry's publishes only its PR. Updates and `reconcile` share a group of their own; a checkbox edit cancels the update in progress.
+- The relayed `release:retry` publishes with `--pr`, then removes the label so each application is exactly one retry.

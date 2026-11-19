@@ -201,7 +201,7 @@ GitHub Actions is not permitted to create or approve pull requests.
 
 The `pull-requests: write` permission in the workflow is necessary but not sufficient — this is a separate org/repo-level toggle. The same toggle also lets workflow tokens approve pull requests: see [Workflow token approvals](#workflow-token-approvals).
 
-**Workflow permissions** (in the workflow YAML): the workflow grants none, and each job names its own. The jobs that write, `update`, `release` and `reconcile`, get:
+**Workflow permissions** (in the workflow YAML): the workflow grants none, and each job names its own. The jobs that write, `update`, `release`, `immediate` and `reconcile`, get:
 
 ```yaml
     permissions:
@@ -210,16 +210,16 @@ The `pull-requests: write` permission in the workflow is necessary but not suffi
       statuses: write       # post the releasekit/standing-pr status check
 ```
 
-Only `release`, which publishes, adds `id-token: write` for npm OIDC trusted publishing. The `relay` job, which runs on the standing PR's events, holds only `actions: write`, and `detect` only reads.
+Only `release` and `immediate`, which publish, add `id-token: write` for npm OIDC trusted publishing. The `relay` job, which runs on the standing PR's events, holds only `actions: write`, and `detect` only reads.
 
 **Secrets:**
 
 | Secret | Used by | When required |
 |---|---|---|
 | `GITHUB_TOKEN` | all jobs | Always (auto-provided). |
-| `NPM_TOKEN` | `release` | Only if not using OIDC. With OIDC, omit it entirely. Store it in the `release` environment. |
-| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `release` | Required for LLM-enhanced notes at publish time. Also pass to `update` and `reconcile` only if you use the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
-| `RELEASE_APP_ID` / `RELEASE_APP_PRIVATE_KEY` | `update`, `release` and `reconcile` | Only to act as a GitHub App: see [The release App](#the-release-app-optional). Store them in the `release` environment. |
+| `NPM_TOKEN` | `release` and `immediate` | Only if not using OIDC. With OIDC, omit it entirely. Store it in the `release` environment. |
+| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `release` and `immediate` | Required for LLM-enhanced notes at publish time. Also pass to `update` and `reconcile` only if you use the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
+| `RELEASE_APP_ID` / `RELEASE_APP_PRIVATE_KEY` | every job that writes | Only to act as a GitHub App: see [The release App](#the-release-app-optional). Store them in the `release` environment. |
 
 **Branch protection:** if `release/next` is protected, the bot's force-push will fail. Either leave the release branch unprotected or grant the bot bypass permissions.
 
@@ -357,17 +357,19 @@ on:
 
 Every job that writes runs on `main`, in [the release environment](#the-release-environment):
 
-- **Push to `main`:** `update` rebuilds the standing PR. `detect` reads the PR merged as the pushed commit, and starts `release` only for the standing PR's merge or a `release:immediate` PR. `release` publishes, then `reconcile` rebuilds the standing PR.
+- **Push to `main`:** `update` rebuilds the standing PR. `detect` reads the PR merged as the pushed commit, and starts `release` only for the standing PR's merge or a `release:immediate` PR. `release` publishes the merged standing PR still waiting for its tags, from its merge commit. For a `release:immediate` PR, `immediate` then releases the pushed commit. `reconcile` rebuilds the standing PR.
 - **Label or checkbox change on the open standing PR:** the `relay` job, holding only `actions: write`, dispatches the workflow on `main`, which runs `update`. It adds a few seconds.
 - **`release:retry` on the merged standing PR:** the relay dispatches `release` on `main` with the PR's number.
 - **Schedule:** `update`, to advance `minAge`.
 
-The jobs share two concurrency groups, and GitHub replaces a queued job with a newer one in its group. Every rebuild (`update` and `reconcile`) shares one, which is safe because an update gives the same result whatever started it; a checkbox edit also cancels the rebuild in progress. Every release shares the other, which no update joins, so no update can replace a queued release. A push's release run publishes the merged standing PR still waiting for its tags, so a newer push that replaces the merge's run still publishes it.
+The jobs share two concurrency groups, and GitHub replaces a queued job with a newer one in its group. Every rebuild (`update` and `reconcile`) shares one, which is safe because an update gives the same result whatever started it; a checkbox edit also cancels the rebuild in progress. Every `release` and `immediate` job shares the other, which no update joins, so no update can replace a queued release. A push's `release` publishes the merged standing PR still waiting for its tags, so a newer push that replaces the merge's run still publishes it.
+
+`release` runs `standing-pr resolve` to find the standing release and its merge commit, then checks that commit out before it installs and publishes, so later commits on `main` never ship under the release's version. `standing-pr publish` refuses any other checkout.
 
 ### How it works
 
 1. **Update → PR:** On every push to `main`, `standing-pr update` runs a dry-run version analysis against commits since the last release tag. If there are releasable changes, it force-resets `release/next` from `main`, writes the version bumps and regenerated changelogs, force-pushes, and creates or updates the standing PR with the version table and notes.
-2. **Merge → publish:** Maintainers merge the standing PR when ready. The merge's push to `main` starts the `release` job, whose `standing-pr publish` finds the merged standing PR still waiting for its tags, reads the release manifest from the bot's PR comment and publishes the packages. It does not re-run the version-bump computation, but it does **validate the manifest against the merged source** before publishing anything (see **Manifest integrity** below), so the publish reflects exactly what was reviewed and merged. The `reconcile` job then runs `standing-pr update --reconcile`, so prereleases that just shipped are offered for graduation without waiting for the next push.
+2. **Merge → publish:** Maintainers merge the standing PR when ready. The merge's push to `main` starts the `release` job, which finds the merged standing PR still waiting for its tags, checks out its merge commit, reads the release manifest from the bot's PR comment and publishes the packages. It does not re-run the version-bump computation, but it does **validate the manifest against the merged source** before publishing anything (see **Manifest integrity** below), so the publish reflects exactly what was reviewed and merged. The `reconcile` job then runs `standing-pr update --reconcile`, so prereleases that just shipped are offered for graduation without waiting for the next push.
 3. **Recurring re-evaluation:** The hourly `schedule` trigger re-runs `update`, which is essentially free when nothing has changed but advances the `minAge` countdown so the status check transitions from `pending` to `success` as time passes.
 
 Release notes go to the GitHub release only: `notes.releaseNotes.file` isn't supported in standing-PR mode.
@@ -482,8 +484,8 @@ To ship a single PR directly without queueing it, label it **`release:immediate`
 | `release:immediate` + `scope:foo` | Direct release of only the scoped packages. |
 | `release:immediate` + `channel:prerelease` | Direct prerelease. |
 
-The merge's push starts the `release` job in `standing-pr.yml`:
-1. Its `releasekit release` step reads the merged PR and its labels for the pushed commit from GitHub, then versions, writes notes and publishes. No update can replace the queued job, and the push's own `update` is skipped.
+The merge's push starts the `release` job in `standing-pr.yml`, which first publishes any standing release still waiting for its tags, then the `immediate` job:
+1. The `immediate` job's `releasekit release` step reads the merged PR and its labels for the pushed commit from GitHub, then versions, writes notes and publishes from the pushed commit. No update can replace the queued job, and the push's own `update` is skipped.
 2. The `reconcile` job runs `standing-pr update --reconcile` — released packages drop out of the queue, anything still queued stays. A plain `standing-pr update` would do nothing here, because HEAD is now a release commit.
 
 #### Retrying a failed publish
@@ -491,7 +493,7 @@ The merge's push starts the `release` job in `standing-pr.yml`:
 If a standing-PR publish fails partway through, add the **`release:retry`** label to the **merged** standing PR. The version commit is already on `main`. GitHub Releases are created only after every package succeeds. In per-package mode, tags for packages that published may already be on the remote — do not delete them. In the example:
 
 1. The `relay` job checks that the PR is a merged standing PR and the label is `release:retry`, then dispatches the workflow on `main` with the PR's number. Its guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard to match.
-2. The `release` job re-runs the manifest-driven publish for that PR (`standing-pr publish --pr <n>`) — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases. It then removes the label, so each application is exactly one retry; re-apply it to retry again.
+2. The `release` job checks out the PR's merge commit and re-runs the manifest-driven publish for that PR (`standing-pr publish --pr <n>`) — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases. It then removes the label, so each application is exactly one retry; re-apply it to retry again.
 3. The `reconcile` job runs `standing-pr update --reconcile`, rebuilding the standing PR now the release's tags exist.
 
 To retry without the label, run the workflow on `main` with the PR's number as its `pr` input.
@@ -520,7 +522,7 @@ This is a standing-pr-only feature — it needs a durable pre-publish artifact (
 | Symptom | Cause / fix |
 |---|---|
 | `403 — GitHub Actions is not permitted to create or approve pull requests` | Repo setting not enabled. See [Setup requirements](#setup-requirements). |
-| `OLLAMA_API_KEY is not set. … Returning entries ungrouped.` | LLM secret not passed to the job generating the notes: `release`, or `update` and `reconcile` for `release:preview-notes`. Add it to the job's `env:` block (or the equivalent for your provider). |
+| `OLLAMA_API_KEY is not set. … Returning entries ungrouped.` | LLM secret not passed to the job generating the notes: `release` and `immediate`, or `update` and `reconcile` for `release:preview-notes`. Add it to the job's `env:` block (or the equivalent for your provider). |
 | `error: too many arguments for 'preview'` | Pre-fix releasekit where `standing-pr` was missing from `cli.ts`. Upgrade `@releasekit/release`. |
 | Standing PR never appears despite merges | Check, in order: (1) the GitHub repo setting; (2) the head commit doesn't match `release.ci.skipPatterns`; (3) there are releasable conventional commits (`feat:`, `fix:`) since the last tag; (4) the `update` job logs — they print the dry-run version output. |
 | Standing PR keeps closing, or shows only graduation rows while changes are queued | `minPackages` is set higher than the current change count. Either lower the threshold or wait for more package changes to accumulate. |
@@ -543,7 +545,7 @@ Standing-pr mode handles both batched and one-off releases through a single work
 **How it works:**
 
 - A PR merged **without** `release:immediate` → `standing-pr update` accumulates the change into the standing PR. Any `bump:*` / `scope:*` / `channel:*` labels on the feeder PR are advisory only (see [Label semantics](#label-semantics-in-standing-pr-mode) above).
-- A PR merged **with** `release:immediate` → the `release` job in `standing-pr.yml` runs `releasekit release` directly (honouring companion `bump:*` / `scope:*` / `channel:*` labels), then the `reconcile` job reconciles the standing PR.
+- A PR merged **with** `release:immediate` → the `immediate` job in `standing-pr.yml` runs `releasekit release` directly (honouring companion `bump:*` / `scope:*` / `channel:*` labels), then the `reconcile` job reconciles the standing PR.
 - The standing PR itself only publishes when its own branch (`release/next`) is merged by a maintainer. `release:immediate` on it doesn't release it a second time: `releasekit release` fails instead.
 
 **Decision guide:**

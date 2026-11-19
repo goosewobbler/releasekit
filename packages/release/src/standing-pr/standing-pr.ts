@@ -299,11 +299,8 @@ async function commitAndForcePush(
  * Standing-PR publish sets `skipGitCommit: true` to avoid duplicating the squash-merge commit, which also skips the
  * pipeline's tag creation. Mirrors `runGitCommitStage`'s idempotency (packages/publish/src/stages/git-commit.ts).
  * Never throws: the pipeline's `--tags` push publishes whatever tags were created.
- *
- * Tags `mergeSha`, the release's commit on the base branch, when HEAD contains it: a publish from a later push's
- * checkout would otherwise mark the commits after the release as released.
  */
-export async function createReleaseTags(tags: string[], cwd: string, mergeSha?: string): Promise<void> {
+export async function createReleaseTags(tags: string[], cwd: string): Promise<void> {
   if (tags.length === 0) {
     return;
   }
@@ -317,10 +314,6 @@ export async function createReleaseTags(tags: string[], cwd: string, mergeSha?: 
     warn(`Failed to resolve HEAD for tag creation: ${err instanceof Error ? err.message : String(err)}`);
     return;
   }
-  const commit =
-    mergeSha && mergeSha !== headSha && (await git.isAncestor(mergeSha, headSha, cwd)) ? mergeSha : undefined;
-  const target = commit ?? headSha;
-  const at = commit ? 'the release commit' : 'HEAD';
 
   for (const tag of tags) {
     if (await git.refExists(`refs/tags/${tag}`, cwd)) {
@@ -330,16 +323,16 @@ export async function createReleaseTags(tags: string[], cwd: string, mergeSha?: 
       } catch {
         // Unresolvable: fall through to the warn below.
       }
-      if (existing === target) {
-        info(`Tag ${tag} already exists at ${at}, skipping`);
+      if (existing === headSha) {
+        info(`Tag ${tag} already exists at HEAD, skipping`);
         continue;
       }
-      warn(`Tag ${tag} exists at ${existing} but ${at} is ${target} — skipping (re-tag manually if intended)`);
+      warn(`Tag ${tag} exists at ${existing} but HEAD is ${headSha} — skipping (re-tag manually if intended)`);
       continue;
     }
 
     try {
-      await git.tag(tag, { message: `Release ${tag}`, commit, cwd });
+      await git.tag(tag, { message: `Release ${tag}`, cwd });
       success(`Created tag: ${tag}`);
     } catch (err) {
       warn(`Failed to create tag ${tag}: ${err instanceof Error ? err.message : String(err)}`);
@@ -1927,11 +1920,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     info(`Using the reviewed release notes for ${Object.keys(regionNotes).length} package(s) from the PR body.`);
   }
 
-  await createReleaseTags(
-    [...manifest.versionOutput.tags, ...(manifest.versionOutput.baselineTags ?? [])],
-    cwd,
-    pr.mergeCommitSha,
-  );
+  await createReleaseTags([...manifest.versionOutput.tags, ...(manifest.versionOutput.baselineTags ?? [])], cwd);
 
   const publishOptions: ReleaseOptions = {
     config: options.config,
@@ -2146,8 +2135,8 @@ export async function findReleaseInFlight(options: FindReleaseInFlightOptions): 
 }
 
 /**
- * On a push, the merged standing PR whose release is still publishing, as {@link findReleaseInFlight} sees it: a run
- * a newer push replaced leaves it untagged, so the newer run publishes it.
+ * The merged standing PR whose release is still publishing, as {@link findReleaseInFlight} sees it: a run a newer push
+ * replaced leaves it untagged, so the newer run publishes it.
  */
 async function standingReleaseToPublish(
   forge: Forge,
@@ -2271,6 +2260,41 @@ export async function runStandingPRPublish(
     `Inferred standing PR #${inferred} (most recently merged '${releaseBranch}' PR) — pass --pr to target a specific PR`,
   );
   return publishFromManifest(inferred, options);
+}
+
+export interface StandingReleaseTarget {
+  pr: number;
+  /** The commit to check out for the publish, which refuses any other. */
+  mergeSha: string;
+}
+
+/**
+ * The standing release a publish would take, and the merge commit to check out for it: PR `explicitPrNumber`, or the
+ * merged standing PR still waiting for its tags. Null when there is none.
+ */
+export async function resolveStandingRelease(
+  options: StandingPROptions,
+  explicitPrNumber?: number,
+): Promise<StandingReleaseTarget | null> {
+  const cwd = options.projectDir;
+  const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
+  const forge = forgeFor(requireGitHubContext('the standing release cannot be resolved'));
+  const prNumber =
+    explicitPrNumber ??
+    (await standingReleaseToPublish(
+      forge,
+      releaseKitConfig.ci?.standingPr?.branch ?? 'release/next',
+      (releaseKitConfig.ci?.labels ?? DEFAULT_LABELS).retry,
+      cwd,
+    ));
+  if (prNumber === null) {
+    return null;
+  }
+  const { mergeCommitSha } = await forge.getPullRequest(prNumber);
+  if (!mergeCommitSha) {
+    throw new Error(`PR #${prNumber} has no merge commit: it has not merged.`);
+  }
+  return { pr: prNumber, mergeSha: mergeCommitSha };
 }
 
 export async function runStandingPRMerge(options: StandingPROptions): Promise<StandingPRMergeResult> {

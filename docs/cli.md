@@ -39,7 +39,7 @@ Every command that produces a JSON result — `release`, `gate`, `standing-pr`, 
   - `publish`: a registry publish or a new release commit.
   - `standing-pr publish`: registry publishes only, since the merge already made the commit. A re-run where every version was already published reports `false`.
   - `standing-pr merge`: the merge. No open standing PR reports `false`.
-  - `gate` is read-only, so always `false`.
+  - `gate` and `standing-pr resolve` are read-only, so always `false`.
 - **`errors[]`** replaces prose-only failures in JSON mode. Each carries a stable machine `code`, a coarse `category` (its family in the table below), a `retryable` flag (only `true` for known-transient failures — a timeout, 429, or 5xx from a provider — so an agent never retries an unknown failure), and a human `message`.
 - **Stream discipline:** the envelope is the only thing on stdout; all diagnostics (progress, warnings, error text) go to stderr. Parsing stdout as JSON is always safe, and no command prompts interactively on a CI path.
 
@@ -213,7 +213,7 @@ for the workflow.
 
 ### `releasekit standing-pr publish`
 
-Publish packages from a merged standing release PR (reads the manifest from the PR comment). It needs the GitHub variables even with `--pr`. It reads the PR from the GitHub API, not the triggering event, and refuses one that hasn't merged or whose head isn't `ci.standingPr.branch`.
+Publish packages from a merged standing release PR (reads the manifest from the PR comment). It needs the GitHub variables even with `--pr`. It reads the PR from the GitHub API, not the triggering event, and refuses one that hasn't merged or whose head isn't `ci.standingPr.branch`. The checkout must be the PR's merge commit, which `standing-pr resolve` prints: from any other commit it refuses, as a retryable refusal.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -221,6 +221,18 @@ Publish packages from a merged standing release PR (reads the manifest from the 
 
 ```bash
 releasekit standing-pr publish --pr 123
+```
+
+### `releasekit standing-pr resolve`
+
+Print the standing release a publish would take and the commit to check out for it, as `{ "pr": <number>, "mergeSha": "<sha>" }` in the JSON result's `data`, or `null` when there is nothing to publish. It needs the GitHub variables.
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--pr <number>` | integer | auto | PR number of the merged standing release PR. When omitted, the merged standing PR still waiting for its tags |
+
+```bash
+releasekit standing-pr resolve --output target.json
 ```
 
 ### `releasekit standing-pr merge`

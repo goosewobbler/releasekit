@@ -196,9 +196,16 @@ async function authorizeMergedPublish(
     assertOverrideLabelsCurrent(manifest, prNumber, pr, config.ci, 'publish');
     await assertMergeAuthorized(forge, prNumber, pr, config.ci?.standingPr?.authorization, 'publish');
 
+    const currentSha = await createGitCli().headSha(cwd);
+    if (pr.mergeCommitSha && currentSha !== pr.mergeCommitSha) {
+      throw new Refusal(
+        `Refusing to publish PR #${prNumber}: HEAD is ${currentSha}, not its merge commit ${pr.mergeCommitSha}, so the ` +
+          'packages would be built from other commits. Check out the merge commit, then retry.',
+        true,
+      );
+    }
     // A `baseSha` that isn't an ancestor of HEAD means the manifest describes work not on this branch (rewritten
     // history, wrong branch or a forged baseSha).
-    const currentSha = await createGitCli().headSha(cwd);
     if (!(await createGitCli().isAncestor(manifest.baseSha, currentSha, cwd))) {
       throw new Refusal(
         `Refusing to publish PR #${prNumber}: the manifest's baseSha (${manifest.baseSha}) is not an ancestor of ` +

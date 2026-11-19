@@ -16,7 +16,7 @@ uses: goosewobbler/releasekit@v0
 - `preview` (default): posts or updates the PR preview comment.
 - `gate`: evaluates merged-PR labels and emits should-release/bump/scope outputs.
 - `standing-pr-update`: creates or refreshes the standing release PR.
-- `standing-pr-publish`: publishes from a merged standing release PR's manifest. Resolution order for which PR: the `pr` input, then the `pull_request` event payload, then, on a `push`, the merged standing PR still waiting for its tags (nothing to publish when there is none), and otherwise the most recently merged standing PR via the GitHub API. Pass `pr` explicitly in dispatch funnels (e.g. `workflow_dispatch` routing for npm OIDC trusted publishing) — re-runs of a stale dispatch can otherwise infer a newer standing PR.
+- `standing-pr-publish`: publishes from a merged standing release PR's manifest. Resolution order for which PR: the `pr` input, then the `pull_request` event payload, then, on a `push`, the merged standing PR still waiting for its tags (nothing to publish when there is none), and otherwise the most recently merged standing PR via the GitHub API. Pass `pr` explicitly in dispatch funnels (e.g. `workflow_dispatch` routing for npm OIDC trusted publishing) — re-runs of a stale dispatch can otherwise infer a newer standing PR. Check out the PR's merge commit first (`releasekit standing-pr resolve` prints it): the publish refuses any other checkout.
 - `backfill`: regenerates release notes for already-released versions from git history, writing per-version files and/or updating GitHub release bodies. Dry-run unless `apply: true`. Best driven by `workflow_dispatch` for one-off backfills.
 - `refresh-after-release`: refreshes the standing release PR after a direct release on `main`.
 

@@ -141,9 +141,11 @@ export function assertInvariants(model: Model, world: World): void {
     expect(count, `${key} was posted ${count} times`).toBe(1);
   }
 
+  const { builtAt } = registry.read();
   for (const [spec, prNumber] of model.publishedBy) {
     const pr = forge.prs.get(prNumber) as PullRequest;
     expect(pr.merged, `${spec} was published from #${prNumber}, which hasn't merged`).toBe(true);
+    expect(builtAt[spec], `${spec} wasn't built from #${prNumber}'s merge commit`).toBe(pr.mergeCommitSha);
     if (config.enforceMergeAuthor) {
       expect(authorizedMerger(pr), `${spec} was published from #${prNumber}, merged by ${pr.mergedBy?.login}`).toBe(
         true,

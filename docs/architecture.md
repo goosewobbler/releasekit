@@ -175,7 +175,7 @@ For each update: publish that package (npm, then crates.io, then pub.dev) → ve
 
 On failure, earlier packages' tags **and the release commit are already on the remote**, and no package has a GitHub Release. Do not delete those tags. Roll forward with the next release.
 
-**Standing-PR mode** uses the same batch or per-package publish, but the version commit is already on `main` from the merge. Recover with the `release:retry` label on the merged standing PR (or `standing-pr publish --pr`). Do not delete a tag whose version was published.
+**Standing-PR mode** uses the same batch or per-package publish, but the version commit is already on `main` from the merge. Recover with the `release:retry` label on the merged standing PR (or `standing-pr publish --pr` from its merge commit). Do not delete a tag whose version was published.
 
 Already-published versions are skipped on a later run. A local tag that points at the current commit is not recreated, and an existing GitHub Release for a tag is not duplicated. A retry never reverts a commit or deletes a tag.
 

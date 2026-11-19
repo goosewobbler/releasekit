@@ -3,6 +3,7 @@ import { parseManifest } from '../../../src/standing-pr/standing-pr.js';
 import {
   type Command,
   EditManifest,
+  ImmediateRelease,
   Merge,
   MergeFeeder,
   Publish,
@@ -66,12 +67,36 @@ describe('standing-PR model regressions', () => {
     ]);
     expect(world.forge.openStandingPr(RELEASE_BRANCH)).toBeUndefined();
 
-    // The push run publishes from main's tip, above the feeder, but tags the merge.
+    // A run at main's tip, above the feeder, still builds and tags the release at its merge commit.
+    const mergeSha = model.releases[0]?.mergeSha;
     await runSequence(world, [new Publish(null)], model);
     expect([...model.publishedBy.keys()].sort()).toEqual(['rk-a@1.0.1', 'rk-b@1.0.1']);
-    expect(world.git(world.origin, 'rev-list', '-n', '1', 'v1.0.1')).toBe(model.releases[0]?.mergeSha);
+    const { builtAt } = world.registry.read();
+    expect([builtAt['rk-a@1.0.1'], builtAt['rk-b@1.0.1']]).toEqual([mergeSha, mergeSha]);
+    expect(world.git(world.origin, 'rev-list', '-n', '1', 'v1.0.1')).toBe(mergeSha);
     const next = parseManifest(world.forge.manifestWrites.at(-1)?.body ?? '');
     expect(new Set(next.versionOutput.updates.map((u) => u.newVersion))).toEqual(new Set(['1.0.2']));
+  }, 120_000);
+
+  it('should publish an untagged standing release from its merge commit, then an immediate release from the tip', async () => {
+    world = World.create({ sync: true, enforceMergeAuthor: false });
+    current.forge = world.forge;
+
+    const model = await runSequence(world, [
+      new MergeFeeder('fix', ['rk-a']),
+      new Update('push'),
+      new Merge(MAINTAINER),
+      new ImmediateRelease(['rk-b']),
+    ]);
+
+    expect(world.log).toEqual([]);
+    const mergeSha = model.releases[0]?.mergeSha;
+    const { builtAt } = world.registry.read();
+    expect([builtAt['rk-a@1.0.1'], builtAt['rk-b@1.0.1']]).toEqual([mergeSha, mergeSha]);
+    // The immediate release's own commit, on top of the feeder it released.
+    const tip = world.mainSha();
+    expect([builtAt['rk-a@1.0.2'], builtAt['rk-b@1.0.2']]).toEqual([tip, tip]);
+    expect(world.git(world.origin, 'log', '-1', '--format=%s', `${tip}^`)).toMatch(/^fix: immediate change/);
   }, 120_000);
 
   it("should ignore a release label a writer approved by editing the bot's manifest", async () => {
