@@ -294,7 +294,7 @@ Release notes for the GitHub Release body and optional per-version files. Off un
 
 #### `notes.releaseNotes.file`
 
-Optional in-repo file output. Omit to keep release notes only on the GitHub release body (the default). When set, writes one immutable Markdown file per version under `dir` — release-notes/<package>/<version>.md in a monorepo, release-notes/<version>.md in a single-package repo — giving a browsable, provider-independent per-release history.
+Optional in-repo file output. Omit to keep release notes only on the GitHub release body (the default). When set, writes one immutable Markdown file per version under `dir` — release-notes/<package>/<version>.md in a monorepo, release-notes/<version>.md in a single-package repo — giving a browsable, provider-independent per-release history. Not supported with `ci.releaseStrategy: "standing-pr"`.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|

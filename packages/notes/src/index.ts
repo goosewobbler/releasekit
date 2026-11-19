@@ -13,4 +13,3 @@ export {
 export { aggregateToRoot, detectMonorepo, writeMonorepoChangelogs } from './monorepo/aggregator.js';
 export { renderJson, writeJson } from './output/json.js';
 export { formatVersion, renderMarkdown, writeChangelog } from './output/markdown.js';
-export { nestsReleaseNotes, writeVersionedNotes } from './output/versioned.js';

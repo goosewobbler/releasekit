@@ -655,7 +655,7 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((cfg, ctx) => {
 export const ReleaseNotesConfigSchema = z
   .strictObject({
     file: ReleaseNotesFileConfigSchema.optional().describe(
-      'Optional in-repo file output. Omit to keep release notes only on the GitHub release body (the default). When set, writes one immutable Markdown file per version under `dir` — release-notes/<package>/<version>.md in a monorepo, release-notes/<version>.md in a single-package repo — giving a browsable, provider-independent per-release history.',
+      'Optional in-repo file output. Omit to keep release notes only on the GitHub release body (the default). When set, writes one immutable Markdown file per version under `dir` — release-notes/<package>/<version>.md in a monorepo, release-notes/<version>.md in a single-package repo — giving a browsable, provider-independent per-release history. Not supported with `ci.releaseStrategy: "standing-pr"`.',
     ),
     templates: TemplateConfigSchema.optional().describe(
       'Template for rendering release notes (e.g. to add docs-site frontmatter). Takes precedence over LLM prose and the default formatted section.',
@@ -959,6 +959,16 @@ export const ReleaseKitConfigSchema = z
       'CI automation configuration for release triggers, PR previews, and label management',
     ),
     release: ReleaseConfigSchema.optional().describe('Release pipeline automation configuration'),
+  })
+  .superRefine((cfg, ctx) => {
+    const releaseNotes = cfg.notes?.releaseNotes;
+    if (cfg.ci?.releaseStrategy === 'standing-pr' && releaseNotes && releaseNotes.file) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['notes', 'releaseNotes', 'file'],
+        message: 'not supported with ci.releaseStrategy "standing-pr"; release notes go to the GitHub release only',
+      });
+    }
   })
   .describe('Configuration schema for ReleaseKit - Automated versioning, changelog generation, and publishing');
 

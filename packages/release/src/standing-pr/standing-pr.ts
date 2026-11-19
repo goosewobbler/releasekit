@@ -54,7 +54,6 @@ import {
   planNotesRegions,
   publishableNotesRegions,
   releaseNotesInputHashes,
-  writeRegionNotesFiles,
 } from './notes-state.js';
 import {
   type ChannelSelection,
@@ -304,49 +303,6 @@ async function commitAndForcePush(
   }
 
   await git.push({ remote: 'origin', ref: branch, forceWithLease: true, cwd });
-}
-
-/**
- * Commits the publish-time LLM-enhanced notes, so the release tags created next land on a commit that includes them.
- * Never throws: a failed notes commit only warns, and the publish goes ahead.
- */
-async function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: string): Promise<void> {
-  if (files.length === 0) {
-    return;
-  }
-
-  const git = createGitCli();
-
-  // `status`, not `git diff HEAD`, so untracked files count - a new per-version notes file would otherwise be skipped.
-  let statusOut: string;
-  try {
-    statusOut = (await git.status({ porcelain: true, paths: files, cwd })).trim();
-  } catch (err) {
-    warn(`Failed to probe release notes status: ${err instanceof Error ? err.message : String(err)}`);
-    return;
-  }
-
-  if (!statusOut) {
-    info('Release notes already match the on-disk content, skipping commit');
-    return;
-  }
-
-  try {
-    await git.add(files, cwd);
-  } catch (err) {
-    warn(`Failed to stage release notes files: ${err instanceof Error ? err.message : String(err)}`);
-    return;
-  }
-
-  // Sync mode shares one version; otherwise the first is a representative, fine for an audit-only commit.
-  const version = versionOutput.updates[0]?.newVersion ?? '';
-  const message = version ? `chore: release notes for v${version}` : 'chore: release notes';
-  try {
-    await git.commit(message, { paths: files, cwd });
-    success(`Committed release notes (${files.length} file(s))`);
-  } catch (err) {
-    warn(`Failed to commit release notes: ${err instanceof Error ? err.message : String(err)}`);
-  }
 }
 
 /**
@@ -1571,7 +1527,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     count > 0
       ? await runNotesStep(versionOutput, { ...writeOptions, skipNotes: false, skipReleaseNotes: true })
       : { packageNotes: {}, files: [] };
-  const notesFiles = [...notesResult.files];
   const generatedNotes: Record<string, string> = {};
   if (count > 0 && notesPlan.generate.length > 0) {
     info(`Generating release notes for ${notesPlan.generate.length} package(s)...`);
@@ -1582,7 +1537,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         skipReleaseNotes: false,
         releaseNotesFor: notesPlan.generate,
       });
-      notesFiles.push(...generated.files);
       for (const key of notesPlan.generate) {
         const notes = generated.releaseNotes?.[key];
         if (notes) {
@@ -1669,7 +1623,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     versionOutput,
     // Publish reads the notes from the body.
     releaseNotes: {},
-    notesFiles,
+    notesFiles: notesResult.files,
     createdAt: new Date().toISOString(),
     baseSha,
     // Stands in for the release branch's head, which has the same length, until the push below.
@@ -2230,7 +2184,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   const notesToGenerate = notesRegionKeys(manifest.versionOutput).filter((key) => !Object.hasOwn(usableNotes, key));
 
   let releaseNotes: Record<string, string> = {};
-  const newFiles: string[] = [];
   if (notesToGenerate.length > 0) {
     try {
       info('Generating release notes (with LLM enhancement)...');
@@ -2241,7 +2194,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
       releaseNotes = Object.fromEntries(
         Object.entries(notesResult.releaseNotes ?? {}).filter(([key]) => notesToGenerate.includes(key)),
       );
-      newFiles.push(...notesResult.files);
     } catch (err) {
       warn(`Release notes generation failed: ${err instanceof Error ? err.message : String(err)}`);
       warn('Publishing anyway; a package without notes in the PR body gets the githubRelease.body fallback.');
@@ -2253,22 +2205,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
       .filter(([key]) => !Object.hasOwn(releaseNotes, key))
       .map(([key, text]) => [key, normalizeRegionText(text)]),
   );
-  try {
-    newFiles.push(...(await writeRegionNotesFiles(regionNotes, manifest.versionOutput, releaseKitConfig.notes)));
-  } catch (err) {
-    warn(`Failed to write release notes: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  const notesFiles = [...new Set([...manifest.notesFiles, ...newFiles])];
-
-  // So main matches the GitHub release body. The update may have written some of these files with other text.
-  if (newFiles.length > 0) {
-    const formatCommand = releaseKitConfig.publish?.git?.formatCommand ?? releaseKitConfig.git?.formatCommand;
-    if (formatCommand) {
-      await runFormatCommand(formatCommand, newFiles, cwd);
-    }
-    await commitNotesFiles(newFiles, manifest.versionOutput, cwd);
-  }
-
   if (Object.keys(regionNotes).length > 0) {
     releaseNotes = { ...releaseNotes, ...regionNotes };
     info(`Using the reviewed release notes for ${Object.keys(regionNotes).length} package(s) from the PR body.`);
@@ -2295,7 +2231,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   let publishOutput: ReleaseOutput['publishOutput'];
   try {
-    publishOutput = await runPublishStep(manifest.versionOutput, publishOptions, releaseNotes, notesFiles);
+    publishOutput = await runPublishStep(manifest.versionOutput, publishOptions, releaseNotes);
   } catch (err) {
     // Versions are already on main (roll-forward), so report what landed and how to retry. A reporting failure must
     // never mask the pipeline error.
