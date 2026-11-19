@@ -28,7 +28,7 @@ automatically.
 
 ## Correctness notes
 
-Rust-specific (shared [correctness rules](../../README.md#cross-cutting-correctness-rules) apply too, including the OIDC `.npmrc` step):
+Rust-specific (shared [correctness rules](../../README.md#cross-cutting-correctness-rules) apply too):
 
 - **A second runtime.** Beyond pnpm, hosted runners ship no Rust toolchain — `dtolnay/rust-toolchain@stable` provides `cargo`, else the publish stage hits `cargo: command not found`.
 - crates.io index propagation lags npm; releasekit polls after each publish (`publish.verify.cargo`) and skips already-published versions, so re-running a partially failed release is safe.

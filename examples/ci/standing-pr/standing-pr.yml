@@ -163,10 +163,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # See the publish job. (Drop this step if you publish with NODE_AUTH_TOKEN.)
-      - name: Remove token-based .npmrc so OIDC can take over
-        run: rm -f .npmrc
-
       - name: Direct release (bypassing standing PR)
         run: pnpm exec releasekit release
         env:
@@ -222,12 +218,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      # setup-node's registry-url writes a .npmrc with `_authToken=${NODE_AUTH_TOKEN}`.
-      # With OIDC that var is empty, so npm fails ENEEDAUTH instead of the OIDC exchange.
-      # (Drop this step if you publish with NODE_AUTH_TOKEN.)
-      - name: Remove token-based .npmrc so OIDC can take over
-        run: rm -f .npmrc
 
       - name: Publish from standing release PR
         run: pnpm exec releasekit standing-pr publish
@@ -287,10 +277,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      # See the publish job. (Drop this step if you publish with NODE_AUTH_TOKEN.)
-      - name: Remove token-based .npmrc so OIDC can take over
-        run: rm -f .npmrc
 
       - name: Retry publish from standing release PR
         run: pnpm exec releasekit standing-pr publish --pr ${{ github.event.pull_request.number }}

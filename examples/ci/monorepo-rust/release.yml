@@ -34,11 +34,6 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # OIDC for npm: setup-node's .npmrc would inject an empty token, so remove
-      # it (see the oidc example for the full explanation).
-      - name: Remove token-based .npmrc so npm OIDC can take over
-        run: rm -f .npmrc
-
       - name: Release
         run: pnpm exec releasekit release
         env:

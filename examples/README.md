@@ -38,9 +38,9 @@ wrong in hand-written workflows:
 - **Explicit `permissions:` blocks are zero-by-default.** Naming any scope
   removes every scope you didn't name, so each workflow lists exactly what its
   jobs need (e.g. `contents: write` for tags/releases, `id-token: write` for OIDC).
-- **OIDC needs `.npmrc` removed.** `setup-node` with `registry-url` writes an
-  `.npmrc` with `_authToken=${NODE_AUTH_TOKEN}`; with OIDC that token is empty
-  and npm fails `ENEEDAUTH`. The OIDC-publishing examples `rm -f .npmrc` first.
+- **OIDC needs no `.npmrc` cleanup.** releasekit publishes with its own npm
+  userconfig, so it ignores the `_authToken` line that `setup-node` writes for
+  `registry-url`.
 
 > **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
