@@ -21,8 +21,9 @@ import { isReleasablePubspec } from '../pub/pubHandler.js';
 import type { Config, VersionRunOptions } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
-import { tagPrerequisiteRoles } from '../utils/jsonOutput.js';
+import { getJsonData, isJsonOutputMode, tagPrerequisiteRoles } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+import { recordBundledReleases } from './bundling.js';
 import { isGroupMode } from './groupResolution.js';
 import { resolvePrerequisiteTargets } from './prerequisiteScope.js';
 import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
@@ -49,6 +50,8 @@ export class VersionEngine {
   private includePrerequisites = false;
   private excludePackages: string[] = [];
   private prerequisiteOf: Record<string, string[]> = {};
+  /** Every discovered package, for the dependency graph bundling walks. */
+  private discoveredPackages: Package[] = [];
 
   constructor(config: Config, runOptions?: VersionRunOptions) {
     if (!config) {
@@ -448,6 +451,7 @@ export class VersionEngine {
       // Every discovered package, disabled ecosystems included, so the repo-level changelog classifier can tell
       // "touches a non-releasing package" from "genuinely repo-level" and resolve shared-package globs against every
       // package.
+      this.discoveredPackages = workspacePackages.packages;
       this.config.allWorkspacePackages = workspacePackages.packages.map((p) => ({
         name: p.packageJson.name,
         dir: p.dir,
@@ -588,6 +592,16 @@ export class VersionEngine {
       await syncCargoLockfiles(packages.root ?? cwd(), this.config.dryRun ?? false);
       if (Object.keys(this.prerequisiteOf).length > 0) {
         tagPrerequisiteRoles(this.config.overrideScope ?? [], this.prerequisiteOf);
+      }
+      if (isJsonOutputMode()) {
+        // Bundled sections only enrich notes, so a failure here mustn't stop the release.
+        await recordBundledReleases(getJsonData(), this.discoveredPackages, this.config, packages.root ?? cwd()).catch(
+          (error: unknown) =>
+            log(
+              `Couldn't record bundled releases: ${error instanceof Error ? error.message : String(error)}`,
+              'warning',
+            ),
+        );
       }
     } catch (error) {
       if (error instanceof VersionError) {

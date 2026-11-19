@@ -98,6 +98,22 @@ The root changelog lists both kinds once per run, after that run's versions:
 
 ---
 
+## Bundled release notes
+
+With per-package tags, a primary package's release notes and GitHub release body end with a section for each of its group-mates and internal dependencies (`dependencies`, `peerDependencies` and cargo path dependencies, not following into another primary) that released since the primary's previous release, in an earlier run or this one. Primaries come from `version.primaryPackages`.
+
+```markdown
+### @myorg/utils 1.1.0 → 1.2.0
+
+#### Fixed
+
+- Memory leak in event handler
+```
+
+Each section groups the package's entries by type, Breaking first. With `sync: false` and no `groups`, `version.sharedPackages` are left out, since their changes are already under Project-wide changes. `CHANGELOG.md` stays per package. `githubRelease.skipPackages` still decides whether a bundled package gets its own release.
+
+---
+
 ## CLI Flags
 
 `--changelog-mode` overrides the configured changelog location. Every flag is in the [CLI reference](../../../docs/cli.md#releasekit-notes-generate).

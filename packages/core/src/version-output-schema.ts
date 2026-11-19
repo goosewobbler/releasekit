@@ -21,6 +21,7 @@ export const VersionPackageChangelogSchema = z.looseObject({
   entries: z.array(VersionChangelogEntrySchema),
   tag: z.string().optional(),
   sharedPackageEntries: z.array(VersionChangelogEntrySchema).optional(),
+  bundled: z.array(z.looseObject({ packageName: z.string(), versions: z.array(z.string()) })).optional(),
 });
 
 const VersionPackageUpdateSchema = z.looseObject({
@@ -37,6 +38,11 @@ export const VersionOutputSchema = z.looseObject({
   updates: z.array(VersionPackageUpdateSchema),
   changelogs: z.array(VersionPackageChangelogSchema),
   sharedEntries: z.array(VersionChangelogEntrySchema).optional(),
+  bundledReleases: z
+    .array(
+      z.looseObject({ packageName: z.string(), version: z.string(), entries: z.array(VersionChangelogEntrySchema) }),
+    )
+    .optional(),
   commitMessage: z.string().optional(),
   tags: z.array(z.string()),
   baselineTags: z.array(z.string()).optional(),

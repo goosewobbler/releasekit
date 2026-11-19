@@ -23,7 +23,7 @@ export interface VersionActionInput {
 }
 
 /** Mirrors {@link isStableTag}'s extraction so graduation detection lines up with the changelog floor's. */
-function versionFromTag(tag: string): string | null {
+export function versionFromTag(tag: string): string | null {
   // Bounded quantifiers (not `\d+`) guard against polynomial backtracking on uncontrolled tag input
   // (CodeQL js/polynomial-redos) - real semver components never approach these lengths.
   const match = tag.match(/\d{1,16}\.\d{1,16}\.\d{1,16}(?:-[0-9A-Za-z.-]{1,256})?/);

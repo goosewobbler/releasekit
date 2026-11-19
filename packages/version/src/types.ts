@@ -89,6 +89,8 @@ export interface Config extends VersionConfigBase {
   sharedPackages?: string[];
   /** See VersionConfig.sharedChangelogFloor. */
   sharedChangelogFloor?: 'union' | 'sinceLastRelease';
+  /** Packages users install. Each one's notes bundle its group-mates' and dependencies' releases. */
+  primaryPackages?: string[];
   mainPackage?: string;
   skip?: string[];
   /** Include npm packages marked `"private": true` in the release flow. */
@@ -143,6 +145,7 @@ export function toVersionConfig(config: VersionConfig = VersionConfigSchema.pars
     packages: config.packages,
     sharedPackages: config.sharedPackages,
     sharedChangelogFloor: config.sharedChangelogFloor,
+    primaryPackages: config.primaryPackages,
     mainPackage: config.mainPackage,
     skip: config.skip,
     includePrivate: config.includePrivate,

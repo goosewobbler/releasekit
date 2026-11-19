@@ -26,6 +26,18 @@
 <% }); -%>
 <% }); -%>
 <% } -%>
+<% version.bundled.forEach(function(pkg) { -%>
+
+### <%- pkg.packageName %> <% if (pkg.firstVersion) { %><%- pkg.firstVersion %> → <% } %><%- pkg.version %>
+<% pkg.sections.forEach(function(section) { -%>
+
+#### <%- section.label %>
+
+<% section.entries.forEach(function(entry) { -%>
+<%- entry.line %>
+<% }); -%>
+<% }); -%>
+<% }); -%>
 <% if (version.compareUrl) { -%>
 
 **Full Changelog**: <%- version.compareUrl %>

@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import type { NotesConfig } from '@releasekit/config';
 import {
+  type BundledPackage,
+  resolveBundled,
   sharedPackageEntriesOf,
   type VersionChangelogEntry,
   type VersionOutput,
@@ -29,11 +31,13 @@ export function changelogInputHash(
   changelog: VersionPackageChangelog,
   config: unknown,
   sharedPackageEntries: VersionChangelogEntry[],
+  bundledPackages: BundledPackage<VersionChangelogEntry>[],
 ): string {
   const { version, previousVersion, entries } = changelog;
-  // Left out when empty, so releases without them keep their existing hash.
+  // Each left out when empty, so releases without them keep their existing hash.
   const shared = sharedPackageEntries.length > 0 ? sharedPackageEntries : undefined;
-  return shortHash(JSON.stringify({ version, previousVersion, entries, config, shared }));
+  const bundled = bundledPackages.length > 0 ? bundledPackages : undefined;
+  return shortHash(JSON.stringify({ version, previousVersion, entries, config, shared, bundled }));
 }
 
 export function releaseNotesInputHashes(
@@ -46,10 +50,11 @@ export function releaseNotesInputHashes(
     ? { ...releaseNotes, llm: releaseNotes.llm && { ...releaseNotes.llm, apiKey: undefined } }
     : releaseNotes;
   const shared = versionOutput.sharedEntries ?? [];
+  const releases = [...(versionOutput.bundledReleases ?? []), ...versionOutput.changelogs];
   return Object.fromEntries(
     versionOutput.changelogs.map((cl) => [
       cl.packageName,
-      changelogInputHash(cl, config, sharedPackageEntriesOf(cl, shared)),
+      changelogInputHash(cl, config, sharedPackageEntriesOf(cl, shared), resolveBundled(cl.bundled, releases)),
     ]),
   );
 }

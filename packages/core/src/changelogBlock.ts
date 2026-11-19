@@ -63,3 +63,53 @@ export function renderChangelogBlock(
     '\n\n',
   );
 }
+
+export interface BundledPackage<T> {
+  packageName: string;
+  /** Set when the package released more than once in the range. */
+  firstVersion?: string;
+  version: string;
+  entries: T[];
+}
+
+interface BundledEntry {
+  description: string;
+  synthetic?: boolean;
+}
+
+/** `releases` holds the stored bundled releases and this run's changelog records. Placeholder entries are dropped. */
+export function resolveBundled<T extends BundledEntry>(
+  bundled: readonly { packageName: string; versions: readonly string[] }[] | undefined,
+  releases: readonly { packageName: string; version: string; entries: readonly T[] }[],
+): BundledPackage<T>[] {
+  return (bundled ?? []).flatMap(({ packageName, versions }) => {
+    const entries = versions.flatMap((version) =>
+      (releases.find((r) => r.packageName === packageName && r.version === version)?.entries ?? []).filter(
+        (e) => !e.synthetic && e.description !== `Update version to ${version}`,
+      ),
+    );
+    const first = versions[0];
+    const last = versions.at(-1);
+    if (last === undefined || entries.length === 0) {
+      return [];
+    }
+    return [{ packageName, ...(versions.length > 1 ? { firstVersion: first } : {}), version: last, entries }];
+  });
+}
+
+export function renderBundledBlocks(
+  packages: readonly BundledPackage<ChangelogBlockEntry>[],
+  level: number,
+  mode: ChangelogRefsMode,
+  repoUrl: string | null,
+): string[] {
+  return packages.map((p) =>
+    renderChangelogBlock(
+      `${p.packageName} ${p.firstVersion ? `${p.firstVersion} → ` : ''}${p.version}`,
+      level,
+      p.entries,
+      mode,
+      repoUrl,
+    ),
+  );
+}

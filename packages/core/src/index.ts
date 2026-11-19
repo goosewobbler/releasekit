@@ -8,10 +8,13 @@ export {
   planCargoLockUpdates,
 } from './cargo.js';
 export {
+  type BundledPackage,
   type ChangelogBlockEntry,
   PROJECT_WIDE_HEADING,
+  renderBundledBlocks,
   renderChangelogBlock,
   renderChangelogSections,
+  resolveBundled,
   sharedPackageEntriesOf,
   unlistedEntries,
 } from './changelogBlock.js';
@@ -109,6 +112,8 @@ export {
   deriveReleaseChannel,
   type ReleaseChannel,
   type VersionAction,
+  type VersionBundledPackage,
+  type VersionBundledRelease,
   type VersionChangelogEntry,
   type VersionOutput,
   type VersionPackageChangelog,

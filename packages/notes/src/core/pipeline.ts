@@ -5,7 +5,9 @@ import {
   groupChangelogSections,
   info,
   parseGitHubOwnerRepo,
+  renderBundledBlocks,
   renderChangelogEntryLine,
+  resolveBundled,
   sharedPackageEntriesOf,
   unlistedEntries,
   warn,
@@ -182,13 +184,17 @@ function toTemplateVersion(ctx: TemplateContext, options: FormatVersionOptions):
     entries: s.items.map(withLine),
   });
 
-  const { enhanced, sharedEntries, ...rest } = ctx;
+  const { enhanced, sharedEntries, bundled, ...rest } = ctx;
   const { categories: _, ...prose } = enhanced ?? {};
   return {
     ...rest,
     entries: ctx.entries.map(withLine),
     sections: versionSections(ctx, options.categoryOrder).map(toTemplateSection),
     shared: groupChangelogSections(sharedEntries ?? [], (e) => e).map(toTemplateSection),
+    bundled: (bundled ?? []).map(({ entries, ...pkg }) => ({
+      ...pkg,
+      sections: groupChangelogSections(entries, (e) => e).map(toTemplateSection),
+    })),
     // Set even when absent: EJS throws on a bare `enhanced` that isn't a key.
     enhanced: prose.summary || prose.releaseNotes ? prose : undefined,
   };
@@ -198,7 +204,9 @@ export function createDocumentContext(
   contexts: TemplateContext[],
   repoUrl: string | undefined,
   options: FormatVersionOptions,
+  sharedEntries: ChangelogEntry[] = [],
 ): DocumentContext {
+  const refs = options.refs ?? 'link';
   const compareUrls: Record<string, string> = {};
   for (const ctx of contexts) {
     if (ctx.compareUrl) {
@@ -213,6 +221,13 @@ export function createDocumentContext(
     },
     versions: contexts.map((ctx) => toTemplateVersion(ctx, options)),
     compareUrls: Object.keys(compareUrls).length > 0 ? compareUrls : undefined,
+    shared: groupChangelogSections(sharedEntries, (e) => e).map((s) => ({
+      label: s.label,
+      entries: s.items.map((entry) => ({
+        ...entry,
+        line: renderChangelogEntryLine(entry, refs, repoUrl ?? null),
+      })),
+    })),
   };
 }
 
@@ -365,12 +380,13 @@ function renderReleaseNotes(
     return renderTemplate(templatePath, docCtx, releaseNotesConfig.templates.engine as TemplateEngine | undefined)
       .content;
   }
+  const refs = fmtOpts.refs ?? 'link';
   const prose = ctx.enhanced?.releaseNotes;
-  if (!prose) {
-    return formatVersion(ctx, fmtOpts);
-  }
-  const shared = sharedPackageBlock(ctx, fmtOpts.refs ?? 'link');
-  return shared ? `${prose.trimEnd()}\n\n${shared}\n` : prose;
+  const own = prose ? [prose.trimEnd(), sharedPackageBlock(ctx, refs)] : [formatVersion(ctx, fmtOpts).trimEnd()];
+  const blocks = [...own, ...renderBundledBlocks(ctx.bundled ?? [], 3, refs, ctx.repoUrl)].filter(
+    (block): block is string => !!block,
+  );
+  return prose && blocks.length === 1 ? prose : `${blocks.join('\n\n')}\n`;
 }
 
 export interface PipelineResult {
@@ -494,7 +510,17 @@ export async function runPipeline(
     const shared = pkg ? sharedPackageEntriesOf(pkg, sharedEntries) : [];
     return shared.length > 0 ? { ...ctx, sharedEntries: shared } : ctx;
   };
-  releaseNotesContexts = releaseNotesContexts.map(withShared);
+  const releases = [...(input.bundledReleases ?? []), ...input.packages];
+  const withBundled = (ctx: TemplateContext): TemplateContext => {
+    const bundled = resolveBundled(packages.get(ctx.packageName)?.bundled, releases);
+    if (bundled.length === 0) {
+      return ctx;
+    }
+    // A primary bumped only for its bundled packages: they are its notes, not its placeholder.
+    const entries = ctx.entries.filter((e) => e.description !== `Update version to ${ctx.version}`);
+    return { ...ctx, entries, bundled };
+  };
+  releaseNotesContexts = releaseNotesContexts.map(withShared).map(withBundled);
 
   const files: string[] = [];
 
@@ -519,7 +545,7 @@ export async function runPipeline(
       templates?.path
         ? renderTemplate(
             path.resolve(templates.path),
-            createDocumentContext(ctxs, ctxs[0]?.repoUrl ?? undefined, options),
+            createDocumentContext(ctxs, ctxs[0]?.repoUrl ?? undefined, options, runSharedEntries),
             templates.engine,
           ).content
         : renderMarkdown(ctxs, options, runSharedEntries);
