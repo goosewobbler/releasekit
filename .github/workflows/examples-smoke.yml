@@ -129,8 +129,6 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
-      - name: Remove token-based .npmrc so OIDC can take over
-        run: rm -f .npmrc
       - name: Dry-run release (pnpm + Node setup resolve; direct dry-run release reaches publish.)
         run: pnpm exec releasekit release --dry-run
   smoke-label-driven:
@@ -152,8 +150,6 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
-      - name: Remove token-based .npmrc so OIDC can take over
-        run: rm -f .npmrc
       - name: Dry-run release (label-driven setup matches minimal; the label gate is an event guard (out of scope).)
         run: pnpm exec releasekit release --dry-run
   smoke-oidc:
@@ -175,9 +171,7 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
-      - name: Remove token-based .npmrc so OIDC can take over
-        run: rm -f .npmrc
-      - name: Dry-run release (OIDC setup (incl. .npmrc removal) resolves; the OIDC exchange itself is dry-run only.)
+      - name: Dry-run release (OIDC setup resolves; the OIDC exchange itself is dry-run only.)
         run: pnpm exec releasekit release --dry-run
   smoke-monorepo-rust:
     name: smoke (monorepo-rust)
@@ -199,8 +193,6 @@ jobs:
           registry-url: https://registry.npmjs.org
       - uses: dtolnay/rust-toolchain@stable
       - run: pnpm install --frozen-lockfile
-      - name: Remove token-based .npmrc so npm OIDC can take over
-        run: rm -f .npmrc
       - name: "Probe: cargo is on PATH (config enables cargo)"
         run: cargo --version
       - name: "Dry-run release (rust-toolchain provides cargo (the cargo: command not found class); npm + cargo dry-run.)"
@@ -224,8 +216,6 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
-      - name: Remove token-based .npmrc so OIDC can take over
-        run: rm -f .npmrc
       - name: Dry-run release (manual prerelease setup resolves; dry-run produces a -beta.N version.)
         run: pnpm exec releasekit release --prerelease beta --dry-run
   smoke-standing-pr:

@@ -22,7 +22,7 @@ The workflow is [`examples/ci/minimal`](../../../examples/ci/minimal/release.yml
 - run: pnpm exec releasekit release
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    # Token-based npm publishing instead of OIDC? Drop the `rm -f .npmrc` step and add:
+    # Token-based npm publishing instead of OIDC? Add:
     # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 
@@ -533,7 +533,7 @@ With OIDC, no `NPM_TOKEN` secret is required. The workflow exchanges a GitHub-is
 - npm `>=9.5.0`
 - Each package must have an **Automation policy** configured at npmjs.com (Settings → Automation policies → add a GitHub Actions OIDC publisher for your repo and workflow)
 
-**Important:** `actions/setup-node` with `registry-url` writes a project `.npmrc` that injects `_authToken=${NODE_AUTH_TOKEN}`. When `NODE_AUTH_TOKEN` is unset, npm resolves this to an empty token and fails with `ENEEDAUTH` instead of falling through to the OIDC exchange. Delete the file before publishing, as [`examples/ci/oidc`](../../../examples/ci/oidc/release.yml) does. The workflow also needs:
+The workflow needs:
 
 ```yaml
 permissions:

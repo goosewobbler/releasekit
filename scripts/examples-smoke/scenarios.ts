@@ -50,7 +50,7 @@ export const SCENARIOS: Scenario[] = [
     config: 'releasekit.config.json',
     fixture: 'npm-single',
     releaseArgs: ['release', '--dry-run'],
-    proves: 'OIDC setup (incl. .npmrc removal) resolves; the OIDC exchange itself is dry-run only.',
+    proves: 'OIDC setup resolves; the OIDC exchange itself is dry-run only.',
   },
   {
     id: 'monorepo-rust',
