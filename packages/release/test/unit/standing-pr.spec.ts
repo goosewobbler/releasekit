@@ -165,7 +165,7 @@ function withPackageChangelogs<T extends ReturnType<typeof createMockVersionOutp
 
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 
-/** A manifest comment carrying `manifest` verbatim, for payloads serializeManifest can't encode. */
+/** A manifest comment carrying `manifest` verbatim, for payloads that aren't a valid StandingPRManifest. */
 function rawManifestComment(manifest: unknown): string {
   return `${MANIFEST_MARKER}\n<!-- base64 ${Buffer.from(JSON.stringify(manifest)).toString('base64')} -->`;
 }
