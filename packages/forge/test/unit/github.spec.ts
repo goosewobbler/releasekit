@@ -256,10 +256,14 @@ describe('GitHubForge', () => {
       fns.iterator.mockReturnValue(
         pages([
           { id: 1, body: 'nope' },
-          { id: 2, body: 'MARK hello' },
+          { id: 2, node_id: 'IC_2', body: 'MARK hello' },
         ]),
       );
-      expect(await new GitHubForge(octokit, 'o', 'r').findComment(9, 'MARK')).toEqual({ id: 2, body: 'MARK hello' });
+      expect(await new GitHubForge(octokit, 'o', 'r').findComment(9, 'MARK')).toEqual({
+        id: 2,
+        nodeId: 'IC_2',
+        body: 'MARK hello',
+      });
     });
 
     it('should update the existing marker comment on upsert (never stack a second)', async () => {

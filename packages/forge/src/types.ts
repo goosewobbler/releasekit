@@ -73,6 +73,8 @@ export interface CommentAuthor {
 
 export interface ForgeComment {
   id: number;
+  /** Identifies the comment to `getAuthoredBody`. */
+  nodeId: string;
   body: string;
   user?: CommentAuthor;
 }
