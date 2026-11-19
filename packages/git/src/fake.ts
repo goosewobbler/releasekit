@@ -100,7 +100,7 @@ export class FakeGit implements Git {
   addedAll = 0;
   readonly committed: FakeCommitRecord[] = [];
   readonly tagged: FakeTagRecord[] = [];
-  readonly fetched: string[] = [];
+  readonly fetched: Array<{ remote: string; prune: boolean }> = [];
   readonly checkedOut: Array<{ ref: string; create: boolean }> = [];
   readonly resetTo: string[] = [];
   readonly pushed: FakePushRecord[] = [];
@@ -224,7 +224,7 @@ export class FakeGit implements Git {
   }
 
   async fetch(remote: string, opts: GitFetchOptions = {}): Promise<void> {
-    this.fetched.push(remote);
+    this.fetched.push({ remote, prune: opts.prune ?? false });
     if (opts.tags) {
       for (const name of Object.keys(this.remoteTagCommits[remote] ?? {})) {
         if (!this.tagsList.includes(name)) {

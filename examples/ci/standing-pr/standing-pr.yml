@@ -24,17 +24,6 @@ on:
   schedule:
     - cron: '0 * * * *' # advances the minAge status check as time passes
 
-concurrency:
-  # GitHub keeps one pending run per group and replaces it with any newer one, so:
-  # - the standing PR's publish and retry get a group per PR that nothing else can replace;
-  # - push, schedule and label runs, and a merged `release:immediate` PR, share a non-cancelling group;
-  # - a maintainer's checkbox edits get a per-PR cancelling group, so rapid ticks collapse to one rebuild;
-  # - events that run no job get a unique group, so they can't replace a queued run.
-  # Label names, the `release/` prefix and `release/next` are hardcoded: update every use if you rename
-  # them in `ci.labels` or `ci.standingPr.branch`.
-  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && !(startsWith(github.event.pull_request.head.ref, 'release/') && github.event.sender.type != 'Bot') && format('standing-release-pr-noop-{0}', github.run_id) || github.event_name == 'pull_request' && github.event.action == 'edited' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
-
 # The publishing jobs restate these: job-level `permissions` replace the workflow's.
 permissions:
   contents: write # push to release/next, create tags
@@ -62,6 +51,12 @@ jobs:
         startsWith(github.event.pull_request.head.ref, 'release/') &&
         github.event.sender.type != 'Bot'
       )
+    # GitHub keeps one pending job per concurrency group and replaces it with any newer one. Updates share
+    # a non-cancelling group with immediate-release; a maintainer's checkbox edits get a per-PR cancelling
+    # group, so rapid ticks collapse to one rebuild.
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' }}
     runs-on: ubuntu-latest
     steps:
       # Before checkout, so the banner lands within seconds of the runner starting.
@@ -136,6 +131,7 @@ jobs:
       github.event.pull_request.merged == true &&
       github.event.pull_request.head.ref != 'release/next' &&
       contains(github.event.pull_request.labels.*.name, 'release:immediate')
+    concurrency: standing-release-pr
     permissions:
       contents: write
       pull-requests: write
@@ -192,6 +188,8 @@ jobs:
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'release/')
+    # Per PR, shared only with retry-publish, so no other job can replace a queued publish.
+    concurrency: standing-release-pr-closed-${{ github.event.pull_request.number }}
     permissions:
       contents: write
       pull-requests: write
@@ -242,14 +240,14 @@ jobs:
     # After a partial-publish failure, apply `release:retry` to the MERGED standing
     # PR (label events fire on closed PRs). Publishing is idempotent, so the retry
     # finishes whatever the failed run left undone. The label name is hardcoded
-    # (workflow `if` can't read config) - update it, and the concurrency group, if you
-    # change ci.labels.retry.
+    # (workflow `if` can't read config) - update it if you change ci.labels.retry.
     if: >
       github.event_name == 'pull_request' &&
       github.event.action == 'labeled' &&
       github.event.label.name == 'release:retry' &&
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'release/')
+    concurrency: standing-release-pr-closed-${{ github.event.pull_request.number }}
     permissions:
       contents: write
       pull-requests: write

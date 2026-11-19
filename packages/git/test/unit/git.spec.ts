@@ -332,6 +332,12 @@ describe('GitCli mutations', () => {
     expect(calls[0].args).toEqual(['fetch', '--', 'origin']);
   });
 
+  it('should pass --prune when prune is set', async () => {
+    const { run, calls } = makeRunner();
+    await new GitCli(run).fetch('origin', { prune: true });
+    expect(calls[0].args).toEqual(['fetch', '--prune', '--', 'origin']);
+  });
+
   it('should force-fetch every tag when tags is set', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).fetch('origin', { tags: true });

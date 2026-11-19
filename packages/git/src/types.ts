@@ -38,6 +38,8 @@ export interface GitTagOptions {
 }
 
 export interface GitFetchOptions {
+  /** `--prune`: drops remote-tracking refs whose branch is gone from the remote. */
+  prune?: boolean;
   cwd?: string;
   /** `--tags --force`: every remote tag too, even one off the fetched branches, replacing a local tag that differs. */
   tags?: boolean;
