@@ -31,7 +31,7 @@ export const INSTRUCTION_HIERARCHY =
 /**
  * The type/scope/description come from commit subjects (attacker-influenceable), so they are HTML-escaped
  * and fenced so a description can't forge prompt structure or smuggle instructions. The model echoes the
- * `index` back so its output maps to entries by it, not by position ({@link orderByIndex}).
+ * `index` back for {@link orderByIndex}.
  */
 export function renderEntry(entry: ChangelogEntry, index: number): string {
   const attrs = [`index="${index}"`, `type="${escAttr(entry.type)}"`];

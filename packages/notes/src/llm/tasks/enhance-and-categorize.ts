@@ -183,7 +183,7 @@ export async function enhanceAndCategorize(
   );
 
   // Chunk so a large release doesn't go into one prompt: the whole set overflows the output ceiling,
-  // fails entry-count validation, and drives corrective retries that resend a growing transcript.
+  // fails index validation, and drives corrective retries that resend a growing transcript.
   const chunkSize = LLM_DEFAULTS.enhanceCategorizeChunkSize;
   const enhancedEntries: ChangelogEntry[] = [];
   const categories: CategorizedEntries[] = [];
