@@ -168,23 +168,19 @@ describe('GitHubForge', () => {
   });
 
   describe('getAuthoredBody', () => {
-    it('should read the body with its author and editors across pages, typing bots by GraphQL typename', async () => {
+    it('should read the body with its author and editors, typing bots by GraphQL typename', async () => {
       const { octokit, fns } = makeOctokit();
       const bot = { login: 'github-actions', __typename: 'Bot' };
       const rando = { login: 'rando', __typename: 'User' };
-      const page = (editors: Array<typeof bot | null>, endCursor: string | null) => ({
+      fns.graphql.mockResolvedValue({
         node: {
           body: 'b',
           lastEditedAt: '2026-01-01T00:00:00Z',
           author: bot,
           editor: bot,
-          userContentEdits: {
-            nodes: editors.map((editor) => ({ editor })),
-            pageInfo: { hasNextPage: endCursor !== null, endCursor },
-          },
+          userContentEdits: { nodes: [bot, rando, null, bot].map((editor) => ({ editor })) },
         },
       });
-      fns.graphql.mockResolvedValueOnce(page([bot, rando], 'c1')).mockResolvedValueOnce(page([null, bot], null));
 
       expect(await new GitHubForge(octokit, 'o', 'r').getAuthoredBody('PR_n')).toEqual({
         body: 'b',
@@ -198,11 +194,7 @@ describe('GitHubForge', () => {
           { login: 'github-actions', type: 'Bot' },
         ],
       });
-      expect(fns.graphql).toHaveBeenNthCalledWith(1, expect.stringContaining('... on Comment'), {
-        id: 'PR_n',
-        after: null,
-      });
-      expect(fns.graphql).toHaveBeenNthCalledWith(2, expect.any(String), { id: 'PR_n', after: 'c1' });
+      expect(fns.graphql).toHaveBeenCalledWith(expect.stringContaining('... on Comment'), { id: 'PR_n' });
     });
 
     it('should leave the editor unset for a body never edited', async () => {
@@ -213,7 +205,7 @@ describe('GitHubForge', () => {
           lastEditedAt: null,
           author: { login: 'a', __typename: 'User' },
           editor: null,
-          userContentEdits: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
+          userContentEdits: { nodes: [] },
         },
       });
 

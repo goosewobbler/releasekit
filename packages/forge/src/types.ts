@@ -99,8 +99,8 @@ export interface AuthoredBody {
   editor?: CommentAuthor;
   lastEditedAt?: string;
   /**
-   * Who made each revision, newest first, ending with the original once the body has been edited. `undefined` for an
-   * account that no longer exists.
+   * Who made each of the latest 100 revisions, newest first, ending with the original once the body has been edited.
+   * `undefined` for an account that no longer exists.
    */
   editors: Array<CommentAuthor | undefined>;
 }

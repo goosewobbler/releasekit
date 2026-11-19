@@ -45,24 +45,20 @@ interface AuthoredBodyNode {
   lastEditedAt?: string | null;
   author?: GraphQLActor | null;
   editor?: GraphQLActor | null;
-  userContentEdits?: {
-    nodes: Array<{ editor: GraphQLActor | null } | null> | null;
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
-  };
+  userContentEdits?: { nodes: Array<{ editor: GraphQLActor | null } | null> | null };
 }
 
 // `Comment` covers PRs, issues and issue comments.
 const AUTHORED_BODY_QUERY = `
-  query ($id: ID!, $after: String) {
+  query ($id: ID!) {
     node(id: $id) {
       ... on Comment {
         body
         lastEditedAt
         author { login __typename }
         editor { login __typename }
-        userContentEdits(first: 100, after: $after) {
+        userContentEdits(first: 100) {
           nodes { editor { login __typename } }
-          pageInfo { hasNextPage endCursor }
         }
       }
     }
@@ -184,32 +180,19 @@ export class GitHubForge implements Forge {
   }
 
   async getAuthoredBody(nodeId: string): Promise<AuthoredBody> {
-    const read = async (after: string | null): Promise<AuthoredBodyNode & { body: string }> => {
-      const { node } = await this.octokit.graphql<{ node: AuthoredBodyNode | null }>(AUTHORED_BODY_QUERY, {
-        id: nodeId,
-        after,
-      });
-      if (node?.body === undefined) {
-        throw new Error(`No PR, issue or comment with node ID ${nodeId}`);
-      }
-      return { ...node, body: node.body };
-    };
-    let node = await read(null);
-    const authored: AuthoredBody = {
+    const { node } = await this.octokit.graphql<{ node: AuthoredBodyNode | null }>(AUTHORED_BODY_QUERY, {
+      id: nodeId,
+    });
+    if (node?.body === undefined) {
+      throw new Error(`No PR, issue or comment with node ID ${nodeId}`);
+    }
+    return {
       body: node.body,
       author: graphQLActor(node.author),
       editor: graphQLActor(node.editor),
       lastEditedAt: node.lastEditedAt ?? undefined,
-      editors: [],
+      editors: (node.userContentEdits?.nodes ?? []).map((edit) => graphQLActor(edit?.editor)),
     };
-    for (;;) {
-      const edits = node.userContentEdits;
-      authored.editors.push(...(edits?.nodes ?? []).map((edit) => graphQLActor(edit?.editor)));
-      if (!edits?.pageInfo.hasNextPage || !edits.pageInfo.endCursor) {
-        return authored;
-      }
-      node = await read(edits.pageInfo.endCursor);
-    }
   }
 
   async createPullRequest(pr: NewPullRequest): Promise<PullRequestRef> {
