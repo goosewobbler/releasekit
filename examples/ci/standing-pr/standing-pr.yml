@@ -35,10 +35,10 @@ concurrency:
   group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && !(startsWith(github.event.pull_request.head.ref, 'release/') && github.event.sender.type != 'Bot') && format('standing-release-pr-noop-{0}', github.run_id) || github.event_name == 'pull_request' && github.event.action == 'edited' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
+# The publishing jobs restate these: job-level `permissions` replace the workflow's.
 permissions:
   contents: write # push to release/next, create tags
   pull-requests: write # create/update/close the standing PR and its comments
-  id-token: write # npm OIDC trusted publishing
   statuses: write # post the releasekit/standing-pr status check
 
 jobs:
@@ -136,6 +136,11 @@ jobs:
       github.event.pull_request.merged == true &&
       github.event.pull_request.head.ref != 'release/next' &&
       contains(github.event.pull_request.labels.*.name, 'release:immediate')
+    permissions:
+      contents: write
+      pull-requests: write
+      statuses: write
+      id-token: write # npm OIDC trusted publishing
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -191,6 +196,11 @@ jobs:
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'release/')
+    permissions:
+      contents: write
+      pull-requests: write
+      statuses: write
+      id-token: write # npm OIDC trusted publishing
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -250,6 +260,11 @@ jobs:
       github.event.label.name == 'release:retry' &&
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'release/')
+    permissions:
+      contents: write
+      pull-requests: write
+      statuses: write
+      id-token: write # npm OIDC trusted publishing
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
