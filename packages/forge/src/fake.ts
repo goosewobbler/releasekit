@@ -59,7 +59,7 @@ export class FakeForge implements Forge {
   private readonly recentlyClosedPRs: AssociatedPullRequest[];
   private readonly openPullRequests: OpenPullRequest[];
   private readonly pullRequestsForCommit: Record<string, AssociatedPullRequest[]>;
-  private readonly issues: Record<number, FakeIssue>;
+  private readonly issues: Record<number, IssueDetails>;
   private openIssues: Array<{ number: number; url: string; labels: string[] }>;
   private readonly pullRequestDetails: Record<number, PullRequestDetails>;
   comments: FakeComment[];
@@ -94,12 +94,14 @@ export class FakeForge implements Forge {
     this.recentlyClosedPRs = seed.recentlyClosedPRs ?? [];
     this.openPullRequests = seed.openPullRequests ?? [];
     this.pullRequestsForCommit = seed.pullRequestsForCommit ?? {};
-    this.issues = seed.issues ?? {};
+    this.issues = Object.fromEntries(
+      Object.entries(seed.issues ?? {}).map(([n, issue]) => [n, { ...issue, state: issue.state ?? 'open' }]),
+    );
     this.openIssues = [...(seed.openIssues ?? [])];
     // Issues seeded for getIssue are also discoverable by findOpenIssueByLabel, as on GitHub.
     for (const [num, details] of Object.entries(this.issues)) {
       const n = Number(num);
-      if (!details.isPullRequest && details.state !== 'closed' && !this.openIssues.some((i) => i.number === n)) {
+      if (!details.isPullRequest && details.state === 'open' && !this.openIssues.some((i) => i.number === n)) {
         this.openIssues.push({ number: n, url: `https://github.com/fake/fake/issues/${n}`, labels: details.labels });
       }
     }
@@ -144,10 +146,7 @@ export class FakeForge implements Forge {
   }
 
   async getIssue(issueNumber: number): Promise<IssueDetails> {
-    const issue = this.issues[issueNumber];
-    return issue
-      ? { ...issue, state: issue.state ?? 'open' }
-      : { body: '', title: '', labels: [], isPullRequest: true, state: 'open' };
+    return this.issues[issueNumber] ?? { body: '', title: '', labels: [], isPullRequest: true, state: 'open' };
   }
 
   async getPullRequest(prNumber: number): Promise<PullRequestDetails> {
@@ -179,7 +178,7 @@ export class FakeForge implements Forge {
     const url = `https://github.com/fake/fake/issues/${number}`;
     const labels = issue.labels ?? [];
     this.openIssues.push({ number, url, labels });
-    this.issues[number] = { body: issue.body, title: issue.title, labels, isPullRequest: false };
+    this.issues[number] = { body: issue.body, title: issue.title, labels, isPullRequest: false, state: 'open' };
     return { number, url };
   }
 

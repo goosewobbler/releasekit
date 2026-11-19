@@ -177,6 +177,13 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
     );
   }
 
+  if ((await forge.getIssue(issueNumber)).state === 'closed') {
+    throw new Error(
+      `Release draft #${issueNumber} is closed. Reopen it to publish it, or run 'releasekit release --draft' ` +
+        'for a new draft.',
+    );
+  }
+
   // A different HEAD could publish something other than what was reviewed.
   const currentSha = await createGitCli().headSha(options.projectDir);
   if (currentSha !== manifest.baseSha) {
@@ -195,13 +202,8 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
     );
   }
 
+  // Re-read after the preview so notes edited while it ran are published.
   const issue = await forge.getIssue(issueNumber);
-  if (issue.state === 'closed') {
-    throw new Error(
-      `Release draft #${issueNumber} is closed. Reopen it to publish it, or run 'releasekit release --draft' ` +
-        'for a new draft.',
-    );
-  }
   const draftedNotes = manifest.releaseNotes ?? {};
   const extracted = extractNotesRegions(issue.body, manifest.versionOutput);
   // An untouched region may hold the truncated render, so the full drafted text wins unless the region was edited.
