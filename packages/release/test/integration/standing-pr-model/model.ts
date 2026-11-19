@@ -130,7 +130,8 @@ export function assertInvariants(model: Model, world: World): void {
 
   const markers = new Map<string, number>();
   for (const comment of forge.comments) {
-    const marker = /^<!-- [\w-]+ -->/.exec(comment.body)?.[0];
+    const end = comment.body.indexOf(' -->');
+    const marker = comment.body.startsWith('<!-- ') && end !== -1 ? comment.body.slice(0, end + 4) : undefined;
     if (marker && isBotComment(comment)) {
       const key = `#${comment.prNumber} ${marker}`;
       markers.set(key, (markers.get(key) ?? 0) + 1);
