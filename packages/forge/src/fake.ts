@@ -35,7 +35,7 @@ interface FakeComment {
 }
 
 /** Left undefined, a seeded issue is open. */
-export type FakeIssue = Omit<IssueDetails, 'state'> & { state?: IssueState };
+type FakeIssue = Omit<IssueDetails, 'state'> & { state?: IssueState };
 
 export interface FakeForgeSeed {
   standingPR?: StandingPullRequest | null;
