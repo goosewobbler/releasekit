@@ -164,6 +164,17 @@ function withPackageChangelogs<T extends ReturnType<typeof createMockVersionOutp
 }
 
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
+
+/** A manifest comment carrying `manifest` verbatim, for payloads serializeManifest can't encode. */
+function rawManifestComment(manifest: unknown): string {
+  return `${MANIFEST_MARKER}\n<!-- base64 ${Buffer.from(JSON.stringify(manifest)).toString('base64')} -->`;
+}
+
+function decodeManifestComment(body: string) {
+  const encoded = /<!-- base64 (\S+) -->/.exec(body)?.[1] ?? '';
+  return JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'));
+}
+
 const MERGE_HINT = '> Merge this PR to publish. The release will be triggered automatically.';
 
 function twoPackageOutput() {
@@ -346,6 +357,18 @@ describe('serializeManifest / parseManifest', () => {
   it('should accept a manifest without graduated (backward compat)', () => {
     const parsed = parseManifest(serializeManifest(baseManifest));
     expect(parsed.graduated).toBeUndefined();
+  });
+
+  it('should reject a shared-package entry reference outside the pool', () => {
+    const changelog = { ...baseManifest.versionOutput.changelogs[0], sharedPackageEntryRefs: [1] };
+    const m = {
+      ...baseManifest,
+      versionOutput: { ...baseManifest.versionOutput, changelogs: [changelog] },
+      sharedPackageEntryPool: [{ type: 'fixed', description: 'Fix shared', sharedPackage: true }],
+    };
+    expect(() => parseManifest(rawManifestComment(m))).toThrow(
+      'versionOutput.changelogs.0.sharedPackageEntryRefs: 1 is not in sharedPackageEntryPool',
+    );
   });
 
   it('should reject an update whose files is not a string array', () => {
@@ -1941,7 +1964,10 @@ describe('runStandingPRUpdate', () => {
 
     const forge = await mockForge({ standingPR: null });
 
-    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+    // The manifest can't fit in a comment either, but the body is written first.
+    await expect(
+      runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow("over GitHub's 65536-character comment limit");
 
     const body = forge.createdPullRequests[0]?.body as string;
     // Assert against the module's cap (well under GitHub's 65,536), so a truncation that leaks into
@@ -1950,6 +1976,70 @@ describe('runStandingPRUpdate', () => {
     expect(body).toContain('Changelog truncated');
     // The selection region above the changelog is preserved so the PR is still usable.
     expect(body).toContain('- [x] `@scope/core` → 1.0.0');
+  });
+
+  describe("the manifest's size", () => {
+    function sharedPackageOutput(packages: number, ownEntries: number) {
+      const shared = Array.from({ length: 40 }, (_, i) => ({
+        type: 'fixed',
+        description: `fix shared utility behaviour number ${i}`,
+        scope: 'shared',
+        sharedPackage: true,
+      }));
+      const base = createMockVersionOutput(
+        Array.from({ length: packages }, (_, i) => ({ packageName: `@scope/pkg-${i}`, newVersion: '1.1.0' })),
+      );
+      return {
+        ...base,
+        strategy: 'async' as const,
+        sharedEntries: shared,
+        changelogs: base.updates.map((u) => ({
+          packageName: u.packageName,
+          version: u.newVersion,
+          previousVersion: '1.0.0',
+          revisionRange: `${u.packageName}@v1.0.0..HEAD`,
+          repoUrl: null,
+          entries: Array.from({ length: ownEntries }, (_, i) => ({
+            type: 'added',
+            description: `add a feature to ${u.packageName} with some text to pad it out, number ${i}`,
+          })),
+          sharedPackageEntries: shared,
+        })),
+      };
+    }
+
+    async function update(versionOutput: ReturnType<typeof sharedPackageOutput>) {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      vi.mocked(runVersionStep).mockResolvedValue(
+        versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      const forge = await mockForge({ standingPR: null });
+      const run = runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+      return { forge, run };
+    }
+
+    it('should store each shared-package entry once and parse back to the same version output', async () => {
+      const versionOutput = sharedPackageOutput(20, 1);
+      const { forge, run } = await update(versionOutput);
+      await run;
+
+      const comment = forge.upsertedComments.findLast((c) => c.marker === MANIFEST_MARKER)?.body as string;
+      const stored = decodeManifestComment(comment);
+      expect(stored.sharedPackageEntryPool).toEqual(versionOutput.sharedEntries);
+      // Once in the pool and once in sharedEntries, not once per changelog.
+      expect(JSON.stringify(stored).split('fix shared utility behaviour number 0"').length - 1).toBe(2);
+      expect(parseManifest(comment).versionOutput).toEqual(versionOutput);
+    });
+
+    it("should fail before posting a manifest over GitHub's comment limit", async () => {
+      const { forge, run } = await update(sharedPackageOutput(20, 40));
+
+      await expect(run).rejects.toThrow(
+        /^Release manifest comment is \d+ characters, over GitHub's 65536-character comment limit\. Largest parts, in characters of JSON before base64: changelog @scope\/pkg-\d+ \(\d+\)/,
+      );
+      expect(forge.upsertedComments.filter((c) => c.marker === MANIFEST_MARKER)).toEqual([]);
+    });
   });
 
   it('should omit the ### Changelog section when all updates are sync-bumped (no entries)', async () => {
@@ -4916,7 +5006,7 @@ describe('publishFromManifest', () => {
     const { runPublishStep } = await import('../../src/steps.js');
     const { changelogs: _changelogs, ...versionOutput } = baseManifest.versionOutput;
     await mockForge({
-      comments: [{ id: 77, body: serializeManifest({ ...baseManifest, versionOutput } as StandingPRManifest) }],
+      comments: [{ id: 77, body: rawManifestComment({ ...baseManifest, versionOutput }) }],
       pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': 'EDITED AT MERGE' }), labels: [] } },
     });
 

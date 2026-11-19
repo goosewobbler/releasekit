@@ -5,9 +5,13 @@ import {
   loadConfig as loadReleaseKitConfig,
   runFormatCommand,
 } from '@releasekit/config';
-import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
+import type { VersionChangelogEntry, VersionOutput, VersionPackageUpdate } from '@releasekit/core';
 import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
-import { VersionOutputSchema, VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
+import {
+  VersionChangelogEntrySchema,
+  VersionOutputSchema,
+  VersionPackageChangelogSchema,
+} from '@releasekit/core/version-output-schema';
 import {
   type Forge,
   type ForgeComment,
@@ -101,7 +105,11 @@ const ManifestVersionOutputSchema = z
         })
         .passthrough(),
     ),
-    changelogs: z.array(VersionPackageChangelogSchema),
+    changelogs: z.array(
+      VersionPackageChangelogSchema.extend({
+        sharedPackageEntryRefs: z.array(z.number().int().nonnegative()).optional(),
+      }),
+    ),
     sharedEntries: VersionOutputSchema.shape.sharedEntries,
     bundledReleases: VersionOutputSchema.shape.bundledReleases,
     tags: z.array(z.string()),
@@ -130,6 +138,7 @@ const ManifestSchema = z
         z.object({ inputHash: z.string(), renderedHash: z.string(), truncated: z.boolean().optional() }),
       )
       .optional(),
+    sharedPackageEntryPool: z.array(VersionChangelogEntrySchema).optional(),
   })
   .passthrough();
 
@@ -569,8 +578,94 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
   return shed(undefined);
 }
 
+const GITHUB_COMMENT_LIMIT = 65_536;
+
+interface PooledManifest {
+  versionOutput: { changelogs: Record<string, unknown>[] } & Record<string, unknown>;
+  sharedPackageEntryPool?: VersionChangelogEntry[];
+  [key: string]: unknown;
+}
+
+function replaceKey(record: object, from: string, to: string, value: unknown): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(record).map(([key, v]) => (key === from ? [to, value] : [key, v])));
+}
+
+// Changelogs share most of their sharedPackageEntries, so the manifest stores each entry once and the changelogs
+// refer to it by index.
+function poolSharedPackageEntries(m: StandingPRManifest): PooledManifest {
+  if (!m.versionOutput.changelogs.some((changelog) => changelog.sharedPackageEntries)) {
+    return m as unknown as PooledManifest;
+  }
+  const pool: VersionChangelogEntry[] = [];
+  const indexOf = new Map<string, number>();
+  const changelogs = m.versionOutput.changelogs.map((changelog) => {
+    if (!changelog.sharedPackageEntries) {
+      return { ...changelog };
+    }
+    const refs = changelog.sharedPackageEntries.map((entry) => {
+      const key = JSON.stringify(entry);
+      let index = indexOf.get(key);
+      if (index === undefined) {
+        index = pool.push(entry) - 1;
+        indexOf.set(key, index);
+      }
+      return index;
+    });
+    return replaceKey(changelog, 'sharedPackageEntries', 'sharedPackageEntryRefs', refs);
+  });
+  return { ...m, versionOutput: { ...m.versionOutput, changelogs }, sharedPackageEntryPool: pool };
+}
+
+function expandSharedPackageEntries(pooled: PooledManifest): StandingPRManifest {
+  const { sharedPackageEntryPool: pool = [], ...manifest } = pooled;
+  const changelogs = pooled.versionOutput.changelogs.map((changelog, n) => {
+    const refs = changelog.sharedPackageEntryRefs as number[] | undefined;
+    if (refs === undefined) {
+      return changelog;
+    }
+    const entries = refs.map((index) => {
+      const entry = pool[index];
+      if (!entry) {
+        throw new Error(
+          `Release manifest failed validation: versionOutput.changelogs.${n}.sharedPackageEntryRefs: ${index} is not in sharedPackageEntryPool`,
+        );
+      }
+      return structuredClone(entry);
+    });
+    return replaceKey(changelog, 'sharedPackageEntryRefs', 'sharedPackageEntries', entries);
+  });
+  return { ...manifest, versionOutput: { ...pooled.versionOutput, changelogs } } as unknown as StandingPRManifest;
+}
+
+function largestManifestParts(pooled: PooledManifest, count: number): string {
+  const { versionOutput, ...rest } = pooled;
+  const { changelogs, ...versionRest } = versionOutput;
+  const parts: [string, unknown][] = [
+    ...Object.entries(rest),
+    ...Object.entries(versionRest).map(([key, value]): [string, unknown] => [`versionOutput.${key}`, value]),
+    ...changelogs.map((changelog): [string, unknown] => [`changelog ${String(changelog.packageName)}`, changelog]),
+  ];
+  return parts
+    .map(([name, value]) => ({ name, size: JSON.stringify(value)?.length ?? 0 }))
+    .sort((a, b) => b.size - a.size)
+    .slice(0, count)
+    .map(({ name, size }) => `${name} (${size})`)
+    .join(', ');
+}
+
+function manifestCommentWithinLimit(m: StandingPRManifest): string {
+  const comment = serializeManifest(m);
+  if (comment.length > GITHUB_COMMENT_LIMIT) {
+    throw new Error(
+      `Release manifest comment is ${comment.length} characters, over GitHub's ${GITHUB_COMMENT_LIMIT}-character ` +
+        `comment limit. Largest parts, in characters of JSON before base64: ${largestManifestParts(poolSharedPackageEntries(m), 5)}`,
+    );
+  }
+  return comment;
+}
+
 export function serializeManifest(m: StandingPRManifest, marker = MANIFEST_MARKER): string {
-  const encoded = Buffer.from(JSON.stringify(m)).toString('base64');
+  const encoded = Buffer.from(JSON.stringify(poolSharedPackageEntries(m))).toString('base64');
   return [
     marker,
     '<details><summary>Release manifest (do not edit)</summary>',
@@ -622,7 +717,7 @@ export function parseManifest(commentBody: string): StandingPRManifest {
   }
 
   // The validated input, not zod's copy: zod lists schema keys first, which breaks order-sensitive comparisons.
-  return parsed as StandingPRManifest;
+  return expandSharedPackageEntries(parsed as PooledManifest);
 }
 
 export async function findManifestComment(forge: Forge, prNumber: number): Promise<ForgeComment | null> {
@@ -1661,7 +1756,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     notesRegions: Object.keys(notesRegionStates).length > 0 ? notesRegionStates : undefined,
   };
 
-  await forge.upsertMarkerComment(prNumber, MANIFEST_MARKER, serializeManifest(manifest));
+  await forge.upsertMarkerComment(prNumber, MANIFEST_MARKER, manifestCommentWithinLimit(manifest));
   success(`Manifest written to PR #${prNumber}`);
 
   const holds = [...overrides.conflicts, ...graduationHolds];
