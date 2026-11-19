@@ -8,10 +8,7 @@ export interface Scenario {
   id: string;
   /** Relative to examples/ci/<id>/. */
   workflow: string;
-  /**
-   * Job whose setup steps to extract. The extractor drops the example's
-   * `actions/checkout` and stops at `releaseStep`; everything between is kept verbatim.
-   */
+  /** Job whose steps before `releaseStep` become the smoke job's setup. */
   job: string;
   /** `name` of the job's releasekit step, which `releaseArgs` replace. */
   releaseStep: string;
