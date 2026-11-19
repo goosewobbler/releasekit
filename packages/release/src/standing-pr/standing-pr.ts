@@ -2244,7 +2244,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   let publishOutput: ReleaseOutput['publishOutput'];
   try {
-    publishOutput = await runPublishStep(manifest.versionOutput, publishOptions, releaseNotes, manifest.notesFiles);
+    publishOutput = await runPublishStep(manifest.versionOutput, publishOptions, releaseNotes);
   } catch (err) {
     // Versions are already on main (roll-forward), so report what landed and how to retry. A reporting failure must
     // never mask the pipeline error.

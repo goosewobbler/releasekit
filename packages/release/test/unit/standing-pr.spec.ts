@@ -4585,7 +4585,6 @@ describe('runStandingPRPublish', () => {
       expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
       expect.objectContaining({ skipGitCommit: true }),
       { '@scope/core': '- regenerated at publish time' },
-      manifest.notesFiles,
     );
     expect(fakeGit.committed).toEqual([]);
     expect(fakeGit.tagged.map((t) => t.name)).toEqual(baseManifest.versionOutput.tags);
@@ -4894,7 +4893,6 @@ describe('runStandingPRPublish', () => {
       expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
       expect.objectContaining({ skipGitCommit: true }),
       {},
-      expect.arrayContaining(baseManifest.notesFiles),
     );
   });
 
