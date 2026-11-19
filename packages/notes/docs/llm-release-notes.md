@@ -116,7 +116,6 @@ When `categories` is not configured, the following defaults are used:
 
 | Name | Description |
 |------|-------------|
-| `Breaking` | Breaking changes that require user action to upgrade |
 | `New` | New features and capabilities |
 | `Changed` | Changes to existing functionality |
 | `Fixed` | Bug fixes |
@@ -211,9 +210,9 @@ This is more efficient than two sequential calls and produces richer output. Use
 
 ## Breaking change handling
 
-Any entry with `breaking: true`, which only its commit can set, is moved to a `Breaking` category by the built-in markdown renderer at render time, regardless of which category the LLM assigned it to. The `Breaking` category comes first unless `categoryOrder` places it.
+Any entry with `breaking: true`, which only its commit can set, is moved to a `Breaking` category by the built-in markdown renderer at render time, regardless of which category the LLM assigned it to. The model is never offered `Breaking` as a category, even if `categories` lists it. The `Breaking` category comes first unless `categoryOrder` places it.
 
-This happens in the renderer, not during the LLM call, so custom templates receive the raw data and must implement breaking-change handling themselves if needed.
+Templates get the same grouping in [`sections`](templates.md#sections).
 
 The section marks an entry as breaking, so its line has no prefix: `- **API rename**: Rename connect() to initialize()`.
 

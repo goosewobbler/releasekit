@@ -109,7 +109,7 @@ LLM configuration lives under `notes.releaseNotes.llm`:
 |------|-------------|
 | `enhance` | Rewrites each entry description in the release notes to be clearer |
 | `summarize` | Generates a one-paragraph summary of the release |
-| `categorize` | Groups entries into semantic categories (default set: Breaking, New, Changed, Fixed, Developer) |
+| `categorize` | Groups entries into semantic categories (default set: New, Changed, Fixed, Developer); breaking entries lead under Breaking |
 | `releaseNotes` | Generates full prose release notes (use as GitHub release body) |
 
 ## Templates

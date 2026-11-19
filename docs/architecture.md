@@ -135,7 +135,7 @@ Available tasks:
 |---|---|
 | `enhance` | Rewrites each entry description to be clearer |
 | `summarize` | Generates a one-paragraph release summary |
-| `categorize` | Groups entries into semantic categories (Breaking, New, Changed, Fixed, Developer) |
+| `categorize` | Groups entries into semantic categories (New, Changed, Fixed, Developer); breaking entries lead under Breaking |
 | `releaseNotes` | Generates full prose release notes for the GitHub Release body |
 
 Supported providers: OpenAI, Anthropic, Ollama (local), and any OpenAI-compatible endpoint. All LLM config lives under `notes.releaseNotes.llm` in `releasekit.config.json`.

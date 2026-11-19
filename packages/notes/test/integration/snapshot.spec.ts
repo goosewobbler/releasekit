@@ -43,7 +43,7 @@ const MOCK_RESPONSE = JSON.stringify({
     {
       index: 0,
       description: 'Rename connect() to initialize()',
-      category: 'Breaking',
+      category: 'Changed',
       scope: null,
       leadIn: 'API rename',
     },

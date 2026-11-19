@@ -589,14 +589,13 @@ const LLMConfigBaseSchema = z.strictObject({
   categories: z
     .array(LLMCategorySchema)
     .default(() => [
-      { name: 'Breaking', description: 'Breaking changes that require user action to upgrade' },
       { name: 'New', description: 'New features and capabilities' },
       { name: 'Changed', description: 'Changes to existing functionality' },
       { name: 'Fixed', description: 'Bug fixes' },
       { name: 'Developer', description: 'Internal changes: CI, tooling, dependencies, refactoring' },
     ])
     .describe(
-      'Categories the categorize task sorts entries into. Default: Breaking, New, Changed, Fixed and Developer, each with a built-in description.',
+      'Categories the categorize task sorts entries into. Default: New, Changed, Fixed and Developer, each with a built-in description. Breaking is never offered to the model, even if listed: only a commit marked breaking puts an entry there.',
     ),
   style: z
     .string()

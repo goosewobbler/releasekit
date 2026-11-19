@@ -94,7 +94,7 @@ describe('formatVersion: leadIn phrases', () => {
       enhanced: {
         categories: [
           {
-            name: 'Breaking',
+            name: 'Changed',
             entries: [{ type: 'changed', description: 'Removed old API', leadIn: 'API removal', breaking: true }],
           },
         ],
@@ -253,33 +253,6 @@ describe('formatVersion: breaking changes section', () => {
     const newPos = result.indexOf('### New');
     expect(breakingPos).toBeGreaterThanOrEqual(0);
     expect(breakingPos).toBeLessThan(newPos);
-  });
-
-  it('should merge breaking entries into an existing Breaking category returned by the LLM', async () => {
-    const { formatVersion } = await import('../../../src/output/markdown.js');
-
-    const ctx = makeContext({
-      enhanced: {
-        categories: [
-          { name: 'Breaking', entries: [{ type: 'removed', description: 'Already-breaking entry' }] },
-          {
-            name: 'Changed',
-            entries: [
-              { type: 'changed', description: 'Another breaking change', breaking: true },
-              { type: 'changed', description: 'Normal change' },
-            ],
-          },
-        ],
-      },
-    });
-
-    const result = formatVersion(ctx);
-    const firstBreaking = result.indexOf('### Breaking');
-    const secondBreaking = result.indexOf('### Breaking', firstBreaking + 1);
-    expect(firstBreaking).toBeGreaterThanOrEqual(0);
-    expect(secondBreaking).toBe(-1);
-    expect(result).toContain('Already-breaking entry');
-    expect(result).toContain('Another breaking change');
   });
 
   it('should not render an empty source category after all entries are rerouted', async () => {

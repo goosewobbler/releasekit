@@ -34,8 +34,8 @@ const categories = [
   { name: 'Changed', description: 'Changes' },
 ];
 
-function llm(tasks: LLMConfig['tasks']): LLMConfig {
-  return { provider: 'mock', model: 'mock', tasks, categories, examples: 0 };
+function llm(tasks: LLMConfig['tasks'], llmCategories: LLMConfig['categories'] = categories): LLMConfig {
+  return { provider: 'mock', model: 'mock', tasks, categories: llmCategories, examples: 0 };
 }
 
 const outputs = {
@@ -58,8 +58,15 @@ function stubProvider(responses: unknown[][]): { calls: LLMMessage[][] } {
   return { calls };
 }
 
-async function releaseNotes(tasks: LLMConfig['tasks']): Promise<string | undefined> {
-  const result = await runPipeline(input, { changelog: false, releaseNotes: { llm: llm(tasks) } }, false);
+async function releaseNotes(
+  tasks: LLMConfig['tasks'],
+  llmCategories?: LLMConfig['categories'],
+): Promise<string | undefined> {
+  const result = await runPipeline(
+    input,
+    { changelog: false, releaseNotes: { llm: llm(tasks, llmCategories) } },
+    false,
+  );
   return result.releaseNotes?.['@acme/app'];
 }
 
@@ -125,5 +132,26 @@ describe('Pipeline: LLM output maps to entries by index', () => {
     stubProvider([[outputs.preset, { ...outputs.deepLinks, breaking: true }, { ...outputs.leak, breaking: true }]]);
 
     expect(await releaseNotes({ enhance: true, categorize: true })).toBe(ENHANCED_NOTES);
+  });
+});
+
+describe('Pipeline: only the commit puts an entry under Breaking', () => {
+  beforeEach(() => {
+    vi.mocked(createProvider).mockReset();
+  });
+
+  it.each([
+    ['config lists Breaking', [{ name: 'Breaking', description: 'Breaking changes' }, ...categories]],
+    ['config lists no categories', []],
+  ])('should not offer Breaking and should send it back for correction when the %s', async (_label, llmCategories) => {
+    const { calls } = stubProvider([
+      [outputs.preset, { ...outputs.deepLinks, category: 'Breaking' }, outputs.leak],
+      [outputs.preset, outputs.deepLinks, outputs.leak],
+    ]);
+
+    expect(await releaseNotes({ enhance: true, categorize: true }, llmCategories)).toBe(ENHANCED_NOTES);
+    expect(calls[0]?.[0]?.content).not.toContain('"Breaking"');
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.at(-1)?.content).toContain('Unknown categories: Breaking');
   });
 });

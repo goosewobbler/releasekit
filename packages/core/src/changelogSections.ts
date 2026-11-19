@@ -125,14 +125,7 @@ function groupByCategory<T>(
       return true;
     }),
   }));
-
-  // The LLM may name a Breaking category itself.
-  const llmBreaking = sections.find((s) => s.label === BREAKING_SECTION);
-  if (llmBreaking) {
-    llmBreaking.items.unshift(...breaking);
-  } else {
-    sections.push({ label: BREAKING_SECTION, items: breaking });
-  }
+  sections.push({ label: BREAKING_SECTION, items: breaking });
 
   const rank = (label: string): number => {
     const index = order.indexOf(label);

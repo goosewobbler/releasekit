@@ -165,7 +165,6 @@ Groups entries into user-friendly categories rather than conventional commit typ
 
 | Name | Description |
 |------|-------------|
-| `Breaking` | Breaking changes that require user action to upgrade |
 | `New` | New features and capabilities |
 | `Changed` | Changes to existing functionality |
 | `Fixed` | Bug fixes |

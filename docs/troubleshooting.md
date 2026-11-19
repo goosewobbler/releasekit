@@ -108,7 +108,7 @@ Also consider reducing `llm.concurrency` (default `5`) if the provider rate-limi
 
 **Cause:** The LLM returned categories that do not match any entry in the commit list. This usually means the custom `categories` descriptions are too restrictive, use domain-specific terminology the model does not map to the commits, or the commit messages themselves are not descriptive enough.
 
-**Fix:** Broaden the `description` fields in `notes.releaseNotes.llm.categories`, or remove the `categories` override entirely to use the built-in defaults (`Breaking`, `New`, `Changed`, `Fixed`, `Developer`). Run with `--verbose` to inspect the raw LLM response and see what categories were returned. You can also add `prompts.instructions.categorize` to guide the model more explicitly.
+**Fix:** Broaden the `description` fields in `notes.releaseNotes.llm.categories`, or remove the `categories` override entirely to use the built-in defaults (`New`, `Changed`, `Fixed`, `Developer`). Run with `--verbose` to inspect the raw LLM response and see what categories were returned. You can also add `prompts.instructions.categorize` to guide the model more explicitly.
 
 ---
 

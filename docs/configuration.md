@@ -420,7 +420,7 @@ Additional context sources for the LLM.
 
 #### `notes.releaseNotes.llm.categories`
 
-Categories the categorize task sorts entries into. Default: Breaking, New, Changed, Fixed and Developer, each with a built-in description. Each item has:
+Categories the categorize task sorts entries into. Default: New, Changed, Fixed and Developer, each with a built-in description. Breaking is never offered to the model, even if listed: only a commit marked breaking puts an entry there. Each item has:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
