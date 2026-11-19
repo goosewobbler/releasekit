@@ -265,7 +265,7 @@ Invalid scopes trigger a corrective retry — the LLM is told which scopes are v
 
 ## PR body context (`context.pullRequests`)
 
-When `context.pullRequests` is `true` (the default), the pipeline fetches the body of each linked pull request from GitHub and includes it in the LLM prompt. This gives the LLM additional context — PR descriptions, linked issues, migration notes — for writing accurate enhanced entries.
+When `context.pullRequests` is `true` (the default), the pipeline fetches the body of each entry's own pull request (the `(#N)` on a squash-merge subject) and includes it in the LLM prompt. This gives the LLM additional context — PR descriptions, linked issues, migration notes — for writing accurate enhanced entries.
 
 Requires `GITHUB_TOKEN` or `GH_TOKEN`. If no token is available, PR fetching is silently skipped and a warning is logged.
 
@@ -316,7 +316,7 @@ The built-in renderer can append a links section at the bottom of each release. 
 Two sources of links can be combined:
 
 - **`items`** — static label/URL pairs hardcoded in config
-- **`fromPRBodyMarker`** — scans all linked PR bodies for lines starting with the marker string and extracts markdown links or bare URLs from them
+- **`fromPRBodyMarker`** — scans each entry's own PR body for lines starting with the marker string and extracts markdown links or bare URLs from them
 
 ```json
 {

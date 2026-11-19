@@ -248,15 +248,41 @@ function mapCommitTypeToChangelogType(type: string): ChangelogEntry['type'] {
   }
 }
 
+/** Drops fenced blocks and inline code spans, where a closing keyword is quoted rather than meant. */
+function stripCode(body: string): string {
+  let fence: string | undefined;
+  return (
+    body
+      .split('\n')
+      .filter((line) => {
+        if (fence) {
+          const close = line.match(/^ {0,3}(`{3,}|~{3,})\s*$/)?.[1];
+          if (close?.[0] === fence[0] && close.length >= fence.length) {
+            fence = undefined;
+          }
+          return false;
+        }
+        // Backticks later on the line make it an inline span, not a fence.
+        fence = line.match(/^ {0,3}(`{3,}(?=[^`]*$)|~{3,})/)?.[1];
+        return !fence;
+      })
+      .join('\n')
+      // Single-line, so a stray backtick can't swallow refs on later lines. `|` is a non-word character: it keeps
+      // "closes `x` #3" from matching and the \b before a keyword that follows a span.
+      .replace(/`[^`\n]*`/g, '|')
+  );
+}
+
 function extractIssueIds(body: string): string[] {
   // GitHub's closing keywords. Not the parser's references: its action covers every ref after the keyword on the line.
   const issueRegex = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+#(\d+)/gi;
   const issueIds: string[] = [];
+  const prose = stripCode(body);
 
-  let match: RegExpExecArray | null = issueRegex.exec(body);
+  let match: RegExpExecArray | null = issueRegex.exec(prose);
   while (match !== null) {
     issueIds.push(`#${match[1]}`);
-    match = issueRegex.exec(body);
+    match = issueRegex.exec(prose);
   }
 
   return issueIds;

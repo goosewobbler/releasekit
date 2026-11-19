@@ -56,6 +56,10 @@ import type {
   TemplateVersion,
 } from './types.js';
 
+function ownPrNumber(entry: ChangelogEntry): number | undefined {
+  return entry.prNumber ? parseIssueNumbers([entry.prNumber])[0] : undefined;
+}
+
 /**
  * For dash-format compound tags (e.g. "scope-pkg-1.2.3" or "scope-pkg-1.2.3-next.1"),
  * find the index of the '-' that separates the package prefix from the semver version.
@@ -464,20 +468,19 @@ export async function runPipeline(
     const prCache = new Map<number, PRContext | null>();
     const pullRequestsEnabled = llmConfig.context?.pullRequests !== false;
     if (pullRequestsEnabled && ownerRepo) {
-      const allIssueNumbers = [
-        ...new Set(
-          releaseNotesContexts.flatMap((ctx) => ctx.entries.flatMap((e) => parseIssueNumbers(e.issueIds ?? []))),
-        ),
+      // Only the entry's own PR: a PR its body names describes a different change.
+      const allPrNumbers = [
+        ...new Set(releaseNotesContexts.flatMap((ctx) => ctx.entries.flatMap((e) => ownPrNumber(e) ?? []))),
       ];
 
-      if (allIssueNumbers.length > 0) {
+      if (allPrNumbers.length > 0) {
         const token = resolveGitHubToken();
         if (!token) {
           warn('No GitHub token available — skipping PR context fetch (set GITHUB_TOKEN to enable)');
         } else {
-          debug(`Fetching PR context for ${allIssueNumbers.length} issue(s)`);
-          await fetchPullRequestContext(ownerRepo.owner, ownerRepo.repo, allIssueNumbers, token, prCache);
-          debug(`Loaded PR context for ${prCache.size} issue(s)`);
+          debug(`Fetching PR context for ${allPrNumbers.length} PR(s)`);
+          await fetchPullRequestContext(ownerRepo.owner, ownerRepo.repo, allPrNumbers, token, prCache);
+          debug(`Loaded PR context for ${prCache.size} PR(s)`);
         }
       }
     }
@@ -486,10 +489,9 @@ export async function runPipeline(
       releaseNotesContexts = releaseNotesContexts.map((ctx) => ({
         ...ctx,
         entries: ctx.entries.map((entry) => {
-          const prs = parseIssueNumbers(entry.issueIds ?? [])
-            .map((n) => prCache.get(n))
-            .filter((pr): pr is PRContext => pr != null);
-          return prs.length > 0 ? { ...entry, context: { prs } } : entry;
+          const number = ownPrNumber(entry);
+          const pr = number === undefined ? undefined : prCache.get(number);
+          return pr ? { ...entry, context: { prs: [pr] } } : entry;
         }),
       }));
     }
