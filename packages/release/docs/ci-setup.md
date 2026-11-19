@@ -339,7 +339,7 @@ on:
 2. **Merge → publish:** Maintainers merge the standing PR when ready. The `pull_request.closed` trigger fires `standing-pr publish`, which reads the release manifest from the bot's PR comment and publishes the packages. It does not re-run the version-bump computation, but it does **validate the manifest against the merged source** before publishing anything (see **Manifest integrity** below), so the publish reflects exactly what was reviewed and merged. The job then runs `standing-pr update --reconcile`, so prereleases that just shipped are offered for graduation without waiting for the next push.
 3. **Recurring re-evaluation:** The hourly `schedule` trigger re-runs `update`, which is essentially free when nothing has changed but advances the `minAge` countdown so the status check transitions from `pending` to `success` as time passes.
 
-Release notes live in the GitHub release body. Per-version notes files (`notes.releaseNotes.file`) need the `direct` strategy: config loading fails if they're set with `standing-pr`.
+Release notes live in the GitHub release body. Per-version notes files (`notes.releaseNotes.file`) aren't supported: config loading fails if they're set.
 
 Use `release:graduate` and `channel:prerelease` labels on **the standing PR itself** to control release type during merge.
 

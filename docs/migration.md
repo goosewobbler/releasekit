@@ -351,9 +351,9 @@ In async mode (`sync: false`, no `groups`, more than one package in the run):
 
 ### Standing PRs don't write release-notes files
 
-With `ci.releaseStrategy: "standing-pr"`, config loading fails if `notes.releaseNotes.file` is set. Standing-PR
-release notes live in the GitHub release; per-version files need the `direct` strategy. Publish no longer commits
-the files or tags a commit that isn't on the base branch: the tags go on the merged release commit.
+With `ci.releaseStrategy: "standing-pr"`, config loading fails if `notes.releaseNotes.file` is set: per-version
+files aren't supported, and standing-PR release notes live in the GitHub release. Publish no longer commits the
+files or tags a commit that isn't on the base branch: the tags go on the merged release commit.
 
 ---
 

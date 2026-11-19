@@ -967,7 +967,7 @@ export const ReleaseKitConfigSchema = z
         code: z.ZodIssueCode.custom,
         path: ['notes', 'releaseNotes', 'file'],
         message:
-          'per-version release-notes files need ci.releaseStrategy "direct"; with "standing-pr" the release notes live in the GitHub release',
+          'per-version release-notes files aren\'t supported with ci.releaseStrategy "standing-pr", whose release notes live in the GitHub release',
       });
     }
   })

@@ -242,7 +242,7 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).toThrow(
       [
         'Config validation errors:',
-        '  notes.releaseNotes.file: per-version release-notes files need ci.releaseStrategy "direct"; with "standing-pr" the release notes live in the GitHub release',
+        '  notes.releaseNotes.file: per-version release-notes files aren\'t supported with ci.releaseStrategy "standing-pr", whose release notes live in the GitHub release',
       ].join('\n'),
     );
 
