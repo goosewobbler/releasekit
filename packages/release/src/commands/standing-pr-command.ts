@@ -34,7 +34,7 @@ export function createStandingPRCommand(): Command {
       )
       .option(
         '--reconcile',
-        'Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point)',
+        'Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point), and analyse the latest origin/<base> rather than the checkout',
         false,
       ),
   ).action(async (opts) => {

@@ -141,8 +141,8 @@ export interface StandingPROptions {
   json: boolean;
   npmAuth?: string;
   /**
-   * Bypass only the skip-pattern guard: post-release reconcile runs `standing-pr update` when HEAD is, by
-   * definition, a release commit matching the skip pattern.
+   * Post-release reconcile: bypass the skip-pattern guard, since HEAD is by definition a release commit matching the
+   * skip pattern, and analyse `origin/<base>` rather than the job's checkout.
    */
   reconcile?: boolean;
   /** Ad-hoc CLI override: release only these comma-split package patterns (supplements label overrides). */
@@ -1105,12 +1105,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         includePrerequisites,
       };
 
-  const { getWorkspacePackageVersions } = await import('@releasekit/version');
-  const workspaceVersions = await getWorkspacePackageVersions({ cwd, configPath: options.config });
-  const prereleaseLine = Object.entries(workspaceVersions)
-    .filter(([, version]) => deriveReleaseChannel(version) === 'prerelease')
-    .map(([name]) => name);
-
   const waitForReleaseInFlight = async (): Promise<StandingPRResult | null> => {
     const inFlight = await findReleaseInFlight({ forge, cwd, base, branch, skipPatterns });
     if (!inFlight) {
@@ -1129,6 +1123,12 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       return waiting;
     }
   }
+
+  const { getWorkspacePackageVersions } = await import('@releasekit/version');
+  const workspaceVersions = await getWorkspacePackageVersions({ cwd, configPath: options.config });
+  const prereleaseLine = Object.entries(workspaceVersions)
+    .filter(([, version]) => deriveReleaseChannel(version) === 'prerelease')
+    .map(([name]) => name);
 
   info('Running version analysis (dry run)...');
   // Run without label graduation, so the dry run is just the queue. Otherwise an unchanged prerelease that a label
