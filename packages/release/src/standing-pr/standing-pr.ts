@@ -653,15 +653,14 @@ function largestManifestParts(pooled: PooledManifest, count: number): string {
     .join(', ');
 }
 
-function manifestCommentWithinLimit(m: StandingPRManifest): string {
-  const comment = serializeManifest(m);
-  if (comment.length > GITHUB_COMMENT_LIMIT) {
+function assertManifestCommentFits(m: StandingPRManifest): void {
+  const { length } = serializeManifest(m);
+  if (length > GITHUB_COMMENT_LIMIT) {
     throw new Error(
-      `Release manifest comment is ${comment.length} characters, over GitHub's ${GITHUB_COMMENT_LIMIT}-character ` +
+      `Release manifest comment is ${length} characters, over GitHub's ${GITHUB_COMMENT_LIMIT}-character ` +
         `comment limit. Largest parts, in characters of JSON before base64: ${largestManifestParts(poolSharedPackageEntries(m), 5)}`,
     );
   }
-  return comment;
 }
 
 export function serializeManifest(m: StandingPRManifest, marker = MANIFEST_MARKER): string {
@@ -1544,6 +1543,81 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       : FALLBACK_TITLE;
 
   const title = safeStandingPrTitle(renderedTitle, skipPatterns);
+  // Accepted race: a human edit landing between the body read above and the update below is overwritten; updates
+  // are infrequent enough not to warrant optimistic concurrency.
+  let notesRegion: string | undefined;
+  const notesRegionStates: NotesRegionStates = { ...notesPlan.owned };
+  if (previewNotesEnabled) {
+    for (const [key, notes] of Object.entries(generatedNotes)) {
+      notesRegionStates[key] = notesRegionState(key, notes, notesInputHashes[key] ?? '');
+    }
+    // A region that wasn't regenerated, as when the LLM call failed, stays with its old state.
+    const regions = { ...liveNotes, ...generatedNotes };
+    if (Object.keys(regions).length > 0) {
+      notesRegion = renderNotesRegion(regions);
+    }
+  }
+
+  let firstUpdatedAt = new Date().toISOString();
+  // A PR holding only unticked graduation rows had nothing to release, so its minAge wait hasn't started.
+  if (existingManifest && publishableUpdates(existingManifest.versionOutput).length > 0) {
+    firstUpdatedAt = existingManifest.firstUpdatedAt ?? existingManifest.createdAt;
+  }
+
+  const graduatedPackages = graduatedPackageNames(versionOutput, workspaceVersions);
+  const rowGraduated =
+    sync && syncGraduated && !queued
+      ? graduatedPackages
+      : graduatedPackages.filter((name) => graduationRowsTicked.has(name));
+
+  const queuedEntries = new Map(versionOutputDry.changelogs.map((cl) => [cl.packageName, cl.entries]));
+  // A sync release records its changes once, in its shared changelog, and graduates as one.
+  const graduationChecks = sync
+    ? graduatedPackages.slice(0, 1).map((name) => ({
+        subject: 'The release',
+        entries: versionOutputDry.changelogs.flatMap((cl) => cl.entries),
+        current: workspaceVersions[name],
+      }))
+    : graduatedPackages.map((name) => ({
+        subject: `\`${name}\``,
+        entries: queuedEntries.get(name),
+        current: workspaceVersions[name],
+      }));
+  const graduationHolds: string[] = [];
+  for (const { subject, entries, current } of graduationChecks) {
+    const needed =
+      entries && current ? graduationOvershoot(entries, current, releaseKitConfig.version?.zeroMajor) : undefined;
+    if (needed) {
+      const bumpLabel = needed === 'major' ? overrideLabelNames.major : overrideLabelNames.minor;
+      const hold =
+        `${subject} can't graduate: its queued changes need a ${needed} bump. Start a new line with ` +
+        `\`${bumpLabel}\` + \`${overrideLabelNames.prerelease}\``;
+      warn(hold);
+      graduationHolds.push(hold);
+    }
+  }
+
+  const manifest: StandingPRManifest = {
+    schemaVersion: 2,
+    versionOutput,
+    // Publish reads the notes from the body.
+    releaseNotes: {},
+    notesFiles,
+    createdAt: new Date().toISOString(),
+    baseSha,
+    // Stands in for the release branch's head, which has the same length, until the push below.
+    headSha: baseSha,
+    firstUpdatedAt,
+    overrideLabels: extractOverrideLabels(effectiveLabels, ciConfig),
+    deselected: effectiveDeselected.size > 0 ? [...effectiveDeselected].sort() : undefined,
+    graduated: graduatedPackages.length > 0 ? graduatedPackages : undefined,
+    graduationRows: rowGraduated.length > 0 ? rowGraduated : undefined,
+    graduationHolds: graduationHolds.length > 0 ? graduationHolds : undefined,
+    prereleased: writePrereleaseScope.length > 0 ? [...writePrereleaseScope].sort() : undefined,
+    notesRegions: Object.keys(notesRegionStates).length > 0 ? notesRegionStates : undefined,
+  };
+  assertManifestCommentFits(manifest);
+
   info(`Committing and pushing '${branch}'...`);
   // With nothing ticked there's nothing to commit, and GitHub won't open a PR with no commits.
   await commitAndForcePush(
@@ -1582,21 +1656,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   } catch (err) {
     warn(`Could not check for unresolved publish failures: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  // Accepted race: a human edit landing between the body read above and the update below is overwritten; updates
-  // are infrequent enough not to warrant optimistic concurrency.
-  let notesRegion: string | undefined;
-  const notesRegionStates: NotesRegionStates = { ...notesPlan.owned };
-  if (previewNotesEnabled) {
-    for (const [key, notes] of Object.entries(generatedNotes)) {
-      notesRegionStates[key] = notesRegionState(key, notes, notesInputHashes[key] ?? '');
-    }
-    // A region that wasn't regenerated, as when the LLM call failed, stays with its old state.
-    const regions = { ...liveNotes, ...generatedNotes };
-    if (Object.keys(regions).length > 0) {
-      notesRegion = renderNotesRegion(regions);
-    }
   }
 
   // Rendered from the dry run's full changed set so a held-back package still shows as an unticked row with its
@@ -1698,65 +1757,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  let firstUpdatedAt = new Date().toISOString();
-  // A PR holding only unticked graduation rows had nothing to release, so its minAge wait hasn't started.
-  if (existingManifest && publishableUpdates(existingManifest.versionOutput).length > 0) {
-    firstUpdatedAt = existingManifest.firstUpdatedAt ?? existingManifest.createdAt;
-  }
-
-  const graduatedPackages = graduatedPackageNames(versionOutput, workspaceVersions);
-  const rowGraduated =
-    sync && syncGraduated && !queued
-      ? graduatedPackages
-      : graduatedPackages.filter((name) => graduationRowsTicked.has(name));
-
-  const queuedEntries = new Map(versionOutputDry.changelogs.map((cl) => [cl.packageName, cl.entries]));
-  // A sync release records its changes once, in its shared changelog, and graduates as one.
-  const graduationChecks = sync
-    ? graduatedPackages.slice(0, 1).map((name) => ({
-        subject: 'The release',
-        entries: versionOutputDry.changelogs.flatMap((cl) => cl.entries),
-        current: workspaceVersions[name],
-      }))
-    : graduatedPackages.map((name) => ({
-        subject: `\`${name}\``,
-        entries: queuedEntries.get(name),
-        current: workspaceVersions[name],
-      }));
-  const graduationHolds: string[] = [];
-  for (const { subject, entries, current } of graduationChecks) {
-    const needed =
-      entries && current ? graduationOvershoot(entries, current, releaseKitConfig.version?.zeroMajor) : undefined;
-    if (needed) {
-      const bumpLabel = needed === 'major' ? overrideLabelNames.major : overrideLabelNames.minor;
-      const hold =
-        `${subject} can't graduate: its queued changes need a ${needed} bump. Start a new line with ` +
-        `\`${bumpLabel}\` + \`${overrideLabelNames.prerelease}\``;
-      warn(hold);
-      graduationHolds.push(hold);
-    }
-  }
-
-  const manifest: StandingPRManifest = {
-    schemaVersion: 2,
-    versionOutput,
-    // Publish reads the notes from the body.
-    releaseNotes: {},
-    notesFiles,
-    createdAt: new Date().toISOString(),
-    baseSha,
-    headSha: releaseBranchSha,
-    firstUpdatedAt,
-    overrideLabels: extractOverrideLabels(effectiveLabels, ciConfig),
-    deselected: effectiveDeselected.size > 0 ? [...effectiveDeselected].sort() : undefined,
-    graduated: graduatedPackages.length > 0 ? graduatedPackages : undefined,
-    graduationRows: rowGraduated.length > 0 ? rowGraduated : undefined,
-    graduationHolds: graduationHolds.length > 0 ? graduationHolds : undefined,
-    prereleased: writePrereleaseScope.length > 0 ? [...writePrereleaseScope].sort() : undefined,
-    notesRegions: Object.keys(notesRegionStates).length > 0 ? notesRegionStates : undefined,
-  };
-
-  await forge.upsertMarkerComment(prNumber, MANIFEST_MARKER, manifestCommentWithinLimit(manifest));
+  manifest.headSha = releaseBranchSha;
+  await forge.upsertMarkerComment(prNumber, MANIFEST_MARKER, serializeManifest(manifest));
   success(`Manifest written to PR #${prNumber}`);
 
   const holds = [...overrides.conflicts, ...graduationHolds];

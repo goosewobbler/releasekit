@@ -1938,44 +1938,71 @@ describe('runStandingPRUpdate', () => {
     expect(footer).not.toContain('Fix B bug');
   });
 
-  it("should truncate the PR body when the changelog would exceed GitHub's limit", async () => {
+  it("should truncate the PR body when a held-back row's changelog would exceed GitHub's limit", async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     // A no-baseline-tag package's full-history changelog: thousands of entries blow past 65,536 chars.
     const hugeEntries = Array.from({ length: 4000 }, (_, i) => ({
       type: 'added',
       description: `feature number ${i} with some descriptive text to pad the changelog body length`,
     }));
-    const versionOutput = {
-      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.0.0' }]),
+    const dryOutput = {
+      ...createMockVersionOutput([
+        { packageName: '@scope/a', newVersion: '1.1.0' },
+        { packageName: '@scope/core', newVersion: '1.0.0' },
+      ]),
+      strategy: 'async' as const,
       changelogs: [
+        {
+          packageName: '@scope/a',
+          version: '1.1.0',
+          previousVersion: '1.0.0',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [{ type: 'added', description: 'Ship A feature' }],
+        },
         {
           packageName: '@scope/core',
           version: '1.0.0',
           previousVersion: null,
           revisionRange: 'HEAD',
+          repoUrl: null,
           entries: hugeEntries,
         },
       ],
     };
+    // Held back, so the body shows its changelog but the manifest doesn't carry it.
+    const writeOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/a', newVersion: '1.1.0' }]),
+      strategy: 'async' as const,
+      changelogs: [dryOutput.changelogs[0]],
+    };
     vi.mocked(runVersionStep)
-      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
-      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+      .mockResolvedValueOnce(dryOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(writeOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const forge = await mockForge({ standingPR: null });
+    const priorBody = [
+      '<!-- releasekit-selection -->',
+      '',
+      '- [x] `@scope/a` → 1.1.0 <!-- rk-sel:@scope/a -->',
+      '- [ ] `@scope/core` → 1.0.0 <!-- rk-sel:@scope/core -->',
+      '',
+      '<!-- releasekit-selection-end -->',
+    ].join('\n');
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: priorBody, labels: [] } },
+    });
 
-    // The manifest can't fit in a comment either, but the body is written first.
-    await expect(
-      runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false }),
-    ).rejects.toThrow("over GitHub's 65536-character comment limit");
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    const body = forge.createdPullRequests[0]?.body as string;
+    const body = forge.updatedPullRequests[0]?.changes.body ?? '';
     // Assert against the module's cap (well under GitHub's 65,536), so a truncation that leaks into
     // the 64,001–65,535 safety margin still fails the test.
     expect(body.length).toBeLessThanOrEqual(STANDING_PR_BODY_CAP);
     expect(body).toContain('Changelog truncated');
     // The selection region above the changelog is preserved so the PR is still usable.
-    expect(body).toContain('- [x] `@scope/core` → 1.0.0');
+    expect(body).toContain('- [ ] `@scope/core` → 1.0.0');
   });
 
   describe("the manifest's size", () => {
@@ -2032,12 +2059,14 @@ describe('runStandingPRUpdate', () => {
       expect(parseManifest(comment).versionOutput).toEqual(versionOutput);
     });
 
-    it("should fail before posting a manifest over GitHub's comment limit", async () => {
+    it("should fail before pushing or posting anything when the manifest is over GitHub's comment limit", async () => {
       const { forge, run } = await update(sharedPackageOutput(20, 40));
 
       await expect(run).rejects.toThrow(
         /^Release manifest comment is \d+ characters, over GitHub's 65536-character comment limit\. Largest parts, in characters of JSON before base64: changelog @scope\/pkg-\d+ \(\d+\)/,
       );
+      expect(fakeGit.pushed).toEqual([]);
+      expect(forge.createdPullRequests).toEqual([]);
       expect(forge.upsertedComments.filter((c) => c.marker === MANIFEST_MARKER)).toEqual([]);
     });
   });
