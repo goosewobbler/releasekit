@@ -1,6 +1,7 @@
 import { escapeChangelogMentions, escapeCommentOpeners, markerData, type VersionOutput } from '@releasekit/core';
 import type { PublishOutput, PublishResult } from '@releasekit/publish';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
+import type { PublishPhase } from '../publish-authorization.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 
 export const FAILURE_MARKER = '<!-- releasekit-publish-failure -->';
@@ -20,7 +21,11 @@ export interface FailureReportData {
   refused?: boolean;
   /** A refusal whose cause can clear on its own, so a retry can succeed. */
   retryable?: boolean;
+  /** Where the release was refused; unset for the merged standing PR's publish. */
+  phase?: Exclude<PublishPhase, 'post-merge'>;
 }
+
+const REFUSAL_PHASES: ReadonlySet<string> = new Set(['pre-merge', 'draft', 'direct']);
 
 const STATUS_FIELD = markerData<FailureReportStatus>({
   open: STATUS_PREFIX,
@@ -48,6 +53,9 @@ const DATA_FIELD = markerData<FailureReportData>({
       }
       if (parsed.retryable === true) {
         data.retryable = true;
+      }
+      if (typeof parsed.phase === 'string' && REFUSAL_PHASES.has(parsed.phase)) {
+        data.phase = parsed.phase;
       }
       return data;
     } catch {
@@ -329,6 +337,8 @@ export function renderFailureReport(input: FailureReportInput): string {
 }
 
 export interface RefusalReportInput {
+  phase: PublishPhase;
+  /** A PR, or the draft's issue. */
   prNumber: number;
   /** Absent when the manifest couldn't be read or trusted. */
   versionOutput?: VersionOutput;
@@ -342,13 +352,71 @@ function untrusted(text: string): string {
   return escapeChangelogMentions(escapeCommentOpeners(text));
 }
 
+function refusedState(phase: PublishPhase, prNumber: number, manifestRead: boolean): string {
+  switch (phase) {
+    case 'pre-merge':
+      return manifestRead
+        ? 'The merge was refused, so nothing was merged, tagged or published.'
+        : `**Nothing was merged.** The release manifest on #${prNumber} could not be read or trusted, so the merge was refused.`;
+    case 'draft':
+      return manifestRead
+        ? 'The publish refused the reviewed draft before creating any commit or tag or publishing anything.'
+        : `**Nothing was published.** The release-draft manifest on #${prNumber} could not be read or trusted, so the publish stopped before creating any commit or tag or publishing anything.`;
+    case 'direct':
+      return `**Nothing was released.** The release from #${prNumber} stopped before versioning anything, so it created no commit or tag and published nothing.`;
+    case 'post-merge':
+      return manifestRead
+        ? 'The publish refused the release manifest before creating any tag or publishing anything. The merge put the version bumps on `main`.'
+        : `**Nothing was published.** The publish stopped before it could trust the release manifest on #${prNumber}, so it created no tag and published nothing.`;
+  }
+}
+
+function refusalRecovery(input: RefusalReportInput): string[] {
+  const { phase, prNumber, retryable } = input;
+  switch (phase) {
+    case 'pre-merge':
+      return [
+        "Run `releasekit standing-pr update` to regenerate the release manifest, then merge again. Don't merge this PR another way: its publish would refuse the same manifest.",
+      ];
+    case 'draft':
+      return [
+        'Run `releasekit release --draft` to refresh the draft, then dispatch `--from-draft` for the draft issue it reports, with the same flags.',
+      ];
+    case 'direct':
+      return retryable
+        ? ['Use GitHub’s **"Re-run failed jobs"** on the failed workflow run once the cause clears.']
+        : [
+            'No release commit was made, so the next release includes these changes. To release them now, have an actor with the required permission dispatch the release workflow, or set `ci.standingPr.authorization.enforceMergeAuthor: false`.',
+          ];
+    case 'post-merge':
+      return retryable
+        ? [
+            ...standingPrRetry({
+              mode: 'standing-pr',
+              standingPrNumber: prNumber,
+              retryLabelAvailable: input.retryLabelAvailable,
+            }),
+            '',
+            SAFE_RETRY_NOTE,
+          ]
+        : [
+            "Retrying won't help: a retry reads the same manifest and merged commit, so it is refused again.",
+            '',
+            "Merge the next standing PR instead. It supersedes this release: it skips this release's versions, bumps on top of them and repeats their changelog entries. Don't delete tags or revert the release commit.",
+          ];
+  }
+}
+
 export function renderRefusalReport(input: RefusalReportInput): string {
-  const { prNumber, versionOutput, reason, retryable } = input;
+  const { phase, prNumber, versionOutput, reason, retryable } = input;
   const ledger = versionOutput ? buildLedger(versionOutput, undefined) : [];
   const label = versionOutput ? releaseLabel(versionOutput) : '';
   const data: FailureReportData = { label, published: 0, total: ledger.length, refused: true };
   if (retryable) {
     data.retryable = true;
+  }
+  if (phase !== 'post-merge') {
+    data.phase = phase;
   }
 
   const lines: string[] = [FAILURE_MARKER, STATUS_FIELD.encode('unresolved'), DATA_FIELD.encode(data), ''];
@@ -357,16 +425,12 @@ export function renderRefusalReport(input: RefusalReportInput): string {
     lines.push(
       `## ❌ Release of ${untrusted(label)} was refused`,
       '',
-      `**0/${ledger.length} package(s) published.** The publish refused the release manifest before creating any tag or publishing anything. The merge put the version bumps on \`main\`.`,
+      `**0/${ledger.length} package(s) published.** ${refusedState(phase, prNumber, true)}`,
       '',
       ...renderLedger(ledger).map(untrusted),
     );
   } else {
-    lines.push(
-      `## ❌ Release from #${prNumber} was refused`,
-      '',
-      `**Nothing was published.** The release manifest on #${prNumber} could not be read or trusted, so the publish stopped before creating any tag or publishing anything.`,
-    );
+    lines.push(`## ❌ Release from #${prNumber} was refused`, '', refusedState(phase, prNumber, false));
   }
   // A fence longer than any backtick run in the reason, which quotes the manifest's tags and names.
   const fence = '`'.repeat(Math.max(2, ...(reason.match(/`+/g) ?? []).map((run) => run.length)) + 1);
@@ -380,25 +444,11 @@ export function renderRefusalReport(input: RefusalReportInput): string {
     '',
     '### How to recover',
     '',
+    ...refusalRecovery(input),
+    '',
+    '---',
+    ATTRIBUTION_FOOTER,
   );
-  if (retryable) {
-    lines.push(
-      ...standingPrRetry({
-        mode: 'standing-pr',
-        standingPrNumber: prNumber,
-        retryLabelAvailable: input.retryLabelAvailable,
-      }),
-      '',
-      SAFE_RETRY_NOTE,
-    );
-  } else {
-    lines.push(
-      "Retrying won't help: a retry reads the same manifest and merged commit, so it is refused again.",
-      '',
-      "Merge the next standing PR instead. It supersedes this release: it skips this release's versions, bumps on top of them and repeats their changelog entries. Don't delete tags or revert the release commit.",
-    );
-  }
-  lines.push('', '---', ATTRIBUTION_FOOTER);
 
   return lines.join('\n');
 }

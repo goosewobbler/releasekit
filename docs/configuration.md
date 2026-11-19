@@ -494,7 +494,7 @@ Restrict who can steer the standing PR — its selection checkboxes, per-row cha
 |-----|------|---------|-------------|
 | `requiredPermission` | `"admin"` \| `"maintain"` \| `"write"` | `"admin"` | Minimum repository permission an actor needs to steer the standing PR — tick/untick selection checkboxes, flip per-row channel toggles, apply release labels, and (with branch protection) merge. Default: admin. |
 | `allowedActors` | `string[]` | — | Extra actors authorized regardless of permission level: GitHub usernames, or "@org/team-slug" to authorize a whole team. Team-membership checks need a token with read:org scope (a PAT or GitHub App), not the default GITHUB_TOKEN; without it, team entries fail closed — the 403 is surfaced as a warning and the actor is not authorized. |
-| `enforceMergeAuthor` | boolean | `true` | Refuse to publish the standing PR when the actor who merged it is not authorized or cannot be determined (defense-in-depth behind a branch-protection ruleset, which is the primary merge gate). Set false to rely on branch protection alone. |
+| `enforceMergeAuthor` | boolean | `true` | Refuse to publish the standing PR, or to release from a merged PR, when the actor who merged it is not authorized or cannot be determined (defense-in-depth behind a branch-protection ruleset, which is the primary merge gate). Set false to rely on branch protection alone. |
 
 ---
 

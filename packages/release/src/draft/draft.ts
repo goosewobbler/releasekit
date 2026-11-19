@@ -2,8 +2,10 @@ import type { VersionOutput } from '@releasekit/core';
 import { hasUnterminatedNotesRegion, info, success, warn } from '@releasekit/core';
 import { type Forge, isBotComment } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
+import { resolveFailureReportIfPresent } from '../failure-report/post.js';
 import { requireGitHubContext } from '../git.js';
 import { forgeFor } from '../github.js';
+import { authorizePublish, DRAFT_LABEL, DRAFT_MANIFEST_MARKER } from '../publish-authorization.js';
 import { runRelease } from '../release.js';
 import { extractNotesRegions, renderedRegionText, renderNotesRegion } from '../standing-pr/notes-region.js';
 import { parseManifest, type StandingPRManifest, serializeManifest } from '../standing-pr/standing-pr.js';
@@ -11,46 +13,8 @@ import { findTrustedComment, type TrustedCommentLookup } from '../trusted-commen
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 
-/** Keys the draft issue so re-running `--draft` reuses the open one instead of stacking new ones. */
-export const DRAFT_LABEL = 'release:draft';
-/** Distinct from the standing-PR manifest's marker, so neither flow can pick up the other's manifest. */
-export const DRAFT_MANIFEST_MARKER = '<!-- releasekit-draft-manifest -->';
-
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-/** Order-independent arrays are sorted so a reordering alone never reads as drift. */
-function planFingerprint(v: VersionOutput, withFiles: boolean, withChangelogTags: boolean): string {
-  const byName = <T extends { packageName: string }>(arr: readonly T[]) =>
-    [...arr].sort((a, b) => a.packageName.localeCompare(b.packageName));
-  const updates = withFiles ? v.updates : v.updates.map(({ files: _files, ...update }) => update);
-  const changelogs = withChangelogTags ? v.changelogs : v.changelogs.map(({ tag: _tag, ...changelog }) => changelog);
-  return JSON.stringify({
-    strategy: v.strategy ?? null,
-    commitMessage: v.commitMessage ?? null,
-    tags: [...v.tags].sort(),
-    baselineTags: [...(v.baselineTags ?? [])].sort(),
-    updates: byName(updates),
-    changelogs: byName(changelogs),
-    sharedEntries: v.sharedEntries ?? [],
-  });
-}
-
-/**
- * The full plan, not just name@version: a recompute at the pinned baseSha can keep every version yet differ in tags,
- * commit message, the root update or changelogs (drifted flags or config).
- */
-function samePlan(recomputed: VersionOutput | undefined, draft: VersionOutput): boolean {
-  if (!recomputed) {
-    return false;
-  }
-  // A draft written before updates listed their `files`, or changelogs their `tag`, would otherwise never match.
-  const withFiles = draft.updates.some((u) => u.files !== undefined);
-  const withChangelogTags = draft.changelogs.some((c) => c.tag !== undefined);
-  return (
-    planFingerprint(recomputed, withFiles, withChangelogTags) === planFingerprint(draft, withFiles, withChangelogTags)
-  );
 }
 
 function findDraftManifestComment(forge: Forge, issueNumber: number): Promise<TrustedCommentLookup> {
@@ -169,53 +133,14 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   const context = requireGitHubContext(`release draft #${issueNumber} cannot be published`);
 
   const forge = forgeFor(context);
-  const { comment: manifestComment, refusal } = await findDraftManifestComment(forge, issueNumber);
-  if (refusal) {
-    throw new Error(
-      `Refusing to publish from draft #${issueNumber}. ${refusal} Re-run 'releasekit release --draft' with the ` +
-        "workflow's GITHUB_TOKEN or a GitHub App installation token, then dispatch the draft issue it reports.",
-    );
-  }
-  if (!manifestComment) {
-    throw new Error(
-      `No release-draft manifest found on issue #${issueNumber}. Pass the number of the issue ` +
-        "'releasekit release --draft' reported, or run --draft again.",
-    );
-  }
-  let manifest: StandingPRManifest;
-  try {
-    manifest = parseManifest(manifestComment.body);
-  } catch (err) {
-    throw new Error(
-      `Release manifest on draft #${issueNumber} is invalid or incompatible. Re-run 'releasekit release --draft'. ` +
-        `Details: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  if ((await forge.getIssue(issueNumber)).state === 'closed') {
-    throw new Error(
-      `Release draft #${issueNumber} is closed. Reopen it to publish it, or run 'releasekit release --draft' ` +
-        'for a new draft.',
-    );
-  }
-
-  // A different HEAD could publish something other than what was reviewed.
-  const currentSha = await createGitCli().headSha(options.projectDir);
-  if (currentSha !== manifest.baseSha) {
-    throw new Error(
-      `Release draft #${issueNumber} was computed at ${manifest.baseSha} but HEAD is ${currentSha}. ` +
-        "Re-run 'releasekit release --draft' to refresh the draft, then dispatch again.",
-    );
-  }
-
-  // baseSha pins the commit but not the CLI flags or config.
-  const preview = await runRelease({ ...options, dryRun: true, skipNotes: true, skipGate: true });
-  if (!samePlan(preview?.versionOutput, manifest.versionOutput)) {
-    throw new Error(
-      `The release plan recomputed at dispatch differs from the reviewed draft #${issueNumber}. ` +
-        "Re-run 'releasekit release --draft' to refresh the draft, then dispatch with the same flags.",
-    );
-  }
+  const { manifest } = await authorizePublish(forge, {
+    phase: 'draft',
+    issueNumber,
+    cwd: options.projectDir,
+    recomputePlan: async () =>
+      (await runRelease({ ...options, dryRun: true, skipNotes: true, skipGate: true }))?.versionOutput,
+    dryRun: options.dryRun,
+  });
 
   // Re-read after the preview so notes edited while it ran are published.
   const issue = await forge.getIssue(issueNumber);
@@ -242,6 +167,7 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   const result = await runRelease({ ...options, dryRun: options.dryRun, editedNotes, skipGate: true });
 
   if (result && !options.dryRun && !options.skipPublish) {
+    await resolveFailureReportIfPresent(forge, issueNumber, result.versionOutput);
     await forge.updateIssue(issueNumber, { state: 'closed' });
     success(`Published from draft #${issueNumber}; closed the draft issue.`);
   }

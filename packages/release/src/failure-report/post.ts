@@ -130,6 +130,10 @@ export async function detectUnresolvedFailure(forge: Forge, prNumber: number): P
   if (parseFailureReportStatus(body) !== 'unresolved') {
     return null;
   }
+  // A refused merge put nothing on `main`, so it isn't an unfinished release.
+  if (parseFailureReportData(body)?.phase === 'pre-merge') {
+    return null;
+  }
 
   return parseReportLedgerSummary(body, prNumber);
 }

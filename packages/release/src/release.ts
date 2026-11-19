@@ -10,6 +10,7 @@ import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './gi
 import { findMergedPRsForCommit, forgeFor } from './github.js';
 import { resolveScopeToTarget } from './label-utils.js';
 import { markFeederPreviewsStale } from './preview/stale.js';
+import { authorizePublish } from './publish-authorization.js';
 import { mergeNotesRegions } from './standing-pr/notes-region.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
@@ -66,7 +67,10 @@ async function reportReleaseFailure(versionOutput: VersionOutput, err: PipelineE
 }
 
 /** Null when no merged PR has a say, so commits and flags alone decide. */
-async function decideFromPRs(releaseKitConfig: ReleaseKitConfig, projectDir: string): Promise<GateOutput | null> {
+async function decideFromPRs(
+  releaseKitConfig: ReleaseKitConfig,
+  projectDir: string,
+): Promise<{ forge: Forge; verdict: GateOutput } | null> {
   const githubContext = getGitHubContext();
   if (!githubContext?.sha) {
     return null;
@@ -83,7 +87,8 @@ async function decideFromPRs(releaseKitConfig: ReleaseKitConfig, projectDir: str
   const forge = forgeFor({ token: githubContext.token, owner: githubContext.owner, repo: githubContext.repo });
   // A failed lookup throws rather than releasing from commits: labels can block or change a release, and a re-run is
   // cheaper than a wrong version.
-  return decideFromMergedPRs({ forge, releaseKitConfig, projectDir, pushedSha: githubContext.sha });
+  const verdict = await decideFromMergedPRs({ forge, releaseKitConfig, projectDir, pushedSha: githubContext.sha });
+  return { forge, verdict };
 }
 
 /** CLI flags win: `--bump`, `--stable` or `--prerelease` replace the PR's bump and channel, `--target` its scope. */
@@ -148,15 +153,19 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     options.target = resolvedTarget;
   }
 
-  const verdict = options.skipGate ? null : await decideFromPRs(releaseKitConfig, options.projectDir);
+  const gate = options.skipGate ? null : await decideFromPRs(releaseKitConfig, options.projectDir);
+  const verdict = gate?.verdict;
   if (verdict?.blocked) {
     warn(`Release blocked: ${verdict.reason}`);
     return null;
   }
-  const standingRefusal = verdict?.evaluations.find((e) => e.refusedStandingPr);
-  if (standingRefusal) {
-    // Fail rather than skip, so the job's next step doesn't reconcile the standing PR while it publishes.
-    throw new Error(standingRefusal.reason);
+  if (gate) {
+    await authorizePublish(gate.forge, {
+      phase: 'direct',
+      verdict: gate.verdict,
+      config: releaseKitConfig,
+      dryRun: options.dryRun,
+    });
   }
   if (verdict && !verdict.shouldRelease) {
     info(`Not releasing: ${verdict.reason}`);
