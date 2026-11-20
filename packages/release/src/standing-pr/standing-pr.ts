@@ -155,7 +155,7 @@ export interface StandingPROptions {
   target?: string;
   /** Ad-hoc CLI override: also release the changed prerequisites (and group members) of the targets. */
   includePrerequisites?: boolean;
-  /** Show an in-progress banner on the standing PR while a label or body edit's, or a dispatch's, update runs. */
+  /** Show an in-progress banner on the standing PR while a label edit, body edit or dispatched run updates it. */
   ack?: boolean;
 }
 
@@ -221,9 +221,9 @@ async function getHeadSha(cwd: string): Promise<string> {
 }
 
 /**
- * True when a maintainer's label or body edit on the standing PR triggered this run, or a dispatch asked for it (the
- * example workflow relays those edits as one), so the checked-out commit's subject says nothing about it. Read from
- * the event (not a flag) so it works from the action, the reusable workflow or the CLI. An `edited` re-trigger is
+ * True when a maintainer's label or body edit on the standing PR, or a dispatch, triggered this run (the example
+ * workflow relays those edits as one), so the checked-out commit's subject says nothing about it. Read from the event
+ * (not a flag) so it works from the action, the reusable workflow or the CLI. An `edited` re-trigger is
  * safe: the body re-render is idempotent and the workflow guards out the bot's own edits.
  */
 function isStandingPrEventRun(): boolean {
@@ -2056,7 +2056,6 @@ function mergedStandingRelease(forge: Forge, merged: MergedStandingPR, why: stri
   };
 }
 
-/** The latest merged standing PR when its manifest's tags aren't all on the remote. */
 function untaggedStandingRelease(
   forge: Forge,
   merged: MergedStandingPR,
@@ -2068,8 +2067,8 @@ function untaggedStandingRelease(
 }
 
 /**
- * Why an untagged release no longer counts as publishing: its publish reported a failure, so the next release
- * supersedes it, or it is older than the backstop. Null while it still counts.
+ * Why an untagged release no longer counts as publishing: its publish reported a failure, or it is older than the
+ * backstop. Null while it still counts.
  */
 async function lapsed(release: UntaggedRelease): Promise<{ reported: true } | { age: number } | null> {
   if (await release.hasFailureReport()) {
@@ -2135,8 +2134,8 @@ export async function findReleaseInFlight(options: FindReleaseInFlightOptions): 
 }
 
 /**
- * The merged standing PR whose release is still publishing, as {@link findReleaseInFlight} sees it: a run a newer push
- * replaced leaves it untagged, so the newer run publishes it.
+ * The merged standing PR whose release is still publishing, as {@link findReleaseInFlight} sees it. A newer push's run
+ * can replace the merge's, leaving it untagged, so any push's run publishes it.
  */
 async function standingReleaseToPublish(
   forge: Forge,
@@ -2269,8 +2268,8 @@ export interface StandingReleaseTarget {
 }
 
 /**
- * The standing release a publish would take, and the merge commit to check out for it: PR `explicitPrNumber`, or the
- * merged standing PR still waiting for its tags. Null when there is none.
+ * The standing PR a publish would take (`explicitPrNumber`, or the merged one still waiting for its tags) and the merge
+ * commit to check out for it. Null when there is none.
  */
 export async function resolveStandingRelease(
   options: StandingPROptions,

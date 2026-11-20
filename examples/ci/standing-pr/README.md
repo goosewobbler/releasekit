@@ -58,6 +58,6 @@ Needs `notes.releaseNotes.llm` configured and the matching LLM secret uncommente
 Shared [correctness rules](../../README.md#cross-cutting-correctness-rules) apply (each job lists its own `permissions`; only `release` and `immediate` add `id-token: write`). Scenario-specific:
 
 - `release`, `immediate` and `reconcile` start from the push of the merge to `main`, not from `pull_request: closed`, so the `release` environment's secrets never reach a run on another ref.
-- `release` asks `standing-pr resolve` which standing release to publish and checks out its merge commit, so a run a newer push started, or a retry, never builds the later commits into it. `standing-pr publish` refuses any other checkout.
-- Only another release run can replace a queued `release` or `immediate`. A push's `release` publishes whatever standing release is still untagged; a retry's publishes only its PR. Updates and `reconcile` share a group of their own; a checkbox edit cancels the update in progress.
+- `release` checks out the merge commit `standing-pr resolve` names, so neither a retry nor a later push's run builds later commits into the release. `standing-pr publish` refuses any other checkout.
+- Releases and rebuilds use separate concurrency groups, so no update can replace a queued release: see [Workflow](../../../packages/release/docs/ci-setup.md#workflow).
 - The relayed `release:retry` publishes with `--pr`, then removes the label so each application is exactly one retry.

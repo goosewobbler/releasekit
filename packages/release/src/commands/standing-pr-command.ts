@@ -44,7 +44,7 @@ export function createStandingPRCommand(): Command {
       )
       .option(
         '--ack',
-        'On a label or body edit, or a dispatched run, show an in-progress banner on the standing PR while the update runs',
+        'Show an in-progress banner on the standing PR while a label edit, body edit or dispatched run updates it',
         false,
       ),
   ).action(async (opts) => {

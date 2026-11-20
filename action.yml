@@ -106,7 +106,7 @@ inputs:
     required: false
     default: 'false'
   ack:
-    description: 'On a label or body edit, or a dispatched run, in standing-pr-update mode, show an in-progress banner on the standing PR while the update runs'
+    description: 'In standing-pr-update mode, show an in-progress banner on the standing PR while a label edit, body edit or dispatched run updates it'
     required: false
     default: 'false'
 

@@ -271,7 +271,7 @@ async function releaseJob(
   return { prNumber: target.pr, ok };
 }
 
-/** A push's release job, then, if it published, the reconcile job unless another job comes before it. */
+/** A push's release job, then `then` (the reconcile job by default) if it published. */
 async function releaseOnPush(model: Model, world: World, sha: string, then = reconcile): Promise<boolean> {
   const push = { eventName: 'push', event: { ref: 'refs/heads/main', after: sha } };
   const result = await releaseJob(model, world, push);
@@ -297,7 +297,7 @@ async function reconcile(model: Model, world: World, env: Omit<JobEnv, 'sha'>): 
   );
 }
 
-/** The release job a push to `main` starts, at `main`'s tip as when a newer push replaced the merge's own run. */
+/** The release job a push to `main` starts, run at `main`'s tip as if a newer push had replaced the merge's own run. */
 export class Publish extends Command {
   constructor(private readonly failAfter: number | null) {
     super();

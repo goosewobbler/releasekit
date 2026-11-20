@@ -207,17 +207,17 @@ While the base branch holds a release whose tags aren't on the remote yet, the u
 
 The standing PR body carries a **Packages to release** checklist — untick a changed package to hold
 it back from the next release (it is excluded from the version step, never bumped). Requires an
-update on the standing PR's `edited` event, which the example workflow relays as a dispatch; see the [release taxonomy](./release-taxonomy.md#selection--what-to-act-on-now)
+update on the standing PR's `edited` event (the example workflow relays it as a dispatch); see the [release taxonomy](./release-taxonomy.md#selection--what-to-act-on-now)
 for how this composes with groups and prerequisites, and [CI setup](../packages/release/docs/ci-setup.md)
 for the workflow.
 
 ### `releasekit standing-pr publish`
 
-Publish packages from a merged standing release PR (reads the manifest from the PR comment). It needs the GitHub variables even with `--pr`. It reads the PR from the GitHub API, not the triggering event, and refuses one that hasn't merged or whose head isn't `ci.standingPr.branch`. The checkout must be the PR's merge commit, which `standing-pr resolve` prints: from any other commit it refuses, as a retryable refusal.
+Publish packages from a merged standing release PR (reads the manifest from the PR comment). It needs the GitHub variables even with `--pr`. It reads the PR from the GitHub API, not the triggering event, and refuses one that hasn't merged or whose head isn't `ci.standingPr.branch`. It refuses, as retryable, from any commit but the PR's merge commit, which `standing-pr resolve` prints.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--pr <number>` | integer | auto | PR number of the merged standing release PR. When omitted, falls back to the `pull_request` event payload; on a `push`, to the merged standing PR still waiting for its tags, publishing nothing when there is none; otherwise to the most recently merged standing PR via the GitHub API |
+| `--pr <number>` | integer | auto | PR number of the merged standing release PR. When omitted, falls back to the `pull_request` event payload; on a `push`, to the merged standing PR still waiting for its tags, or none; otherwise to the most recently merged standing PR via the GitHub API |
 
 ```bash
 releasekit standing-pr publish --pr 123
@@ -225,7 +225,7 @@ releasekit standing-pr publish --pr 123
 
 ### `releasekit standing-pr resolve`
 
-Print the standing release a publish would take and the commit to check out for it, as `{ "pr": <number>, "mergeSha": "<sha>" }` in the JSON result's `data`, or `null` when there is nothing to publish. It needs the GitHub variables.
+Print the merged standing PR a publish would take and the merge commit to check out for it, as `{ "pr": <number>, "mergeSha": "<sha>" }` in the JSON result's `data`, or `null` when there is nothing to publish. It needs the GitHub variables.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|

@@ -36,7 +36,7 @@ function isOutOfScopeApiStep(step: Step): boolean {
   return typeof step.run === 'string' && /\bgh\s+api\b/.test(step.run);
 }
 
-/** A step whose inputs are secrets, such as minting the standing-pr example's App token, needs real credentials. */
+/** A step whose `with` reads secrets, such as minting the standing-pr example's App token, needs real credentials. */
 function isCredentialStep(step: Step): boolean {
   return Object.values(step.with ?? {}).some(isSecretReferencingEnvValue);
 }

@@ -144,9 +144,9 @@ ad-hoc holds:
 3. **Create the labels** in the repo: `releasekit labels sync` (or `--check` as a CI guard). This
    creates `scope:*`, `release:with-prerequisites`, and the rest of the canonical set.
 
-4. **Enable standing-PR checkboxes** by adding the `edited` trigger and the bot-sender guard to your
-   standing-pr workflow's relay job (so a tick/untick dispatches the update on `main`, and the bot's
-   own body rewrite doesn't loop):
+4. **Enable standing-PR checkboxes** by adding the `edited` trigger to your standing-pr workflow and
+   the bot-sender guard to its relay job (so a tick/untick dispatches the update on `main`, and the
+   bot's own body rewrite doesn't loop):
 
    ```yaml
    on:
