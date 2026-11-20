@@ -8,7 +8,7 @@ Accepted. Implementation tracked in [#1066](https://github.com/goosewobbler/rele
 
 ## Context
 
-The version step has four strategies, sync, single, async and group, each with its own code path. `sync: true` is described as one implicit fixed group of every package, but it stays off the group code for two reasons. Standing PRs and other consumers depend on its outputs: one shared tag, one repo changelog, the root manifest bump and `strategy: 'sync'`. And it takes its version from a single package, because packages' tags and manifests could disagree.
+The version step has four strategies, sync, single, async and group, each with its own code path. `sync: true` is described as one implicit fixed group of every package, but it stays off the group code for two reasons. Standing PRs and other consumers depend on its outputs: one shared tag (unless `packageSpecificTags` is set), one repo changelog, the root manifest bump and `strategy: 'sync'`. And it takes its version from a single package, because packages' tags and manifests could disagree.
 
 With versions in the record ([ADR 0008](./0008-versions-live-in-a-version-record.md)), a `sync: true` group takes its version from its members' entries, as a fixed group does, so the second reason is gone. The first is kept on purpose: the group code produces sync's outputs for a `sync: true` group.
 
@@ -24,4 +24,4 @@ With versions in the record ([ADR 0008](./0008-versions-live-in-a-version-record
 
 - One code path works out every version.
 - `sync: true` really is a `fixed` group, with a repo-wide scope and sync's outputs, and its description says so; `mainPackage` no longer chooses where its version comes from; what it still names is specified in [#1066](https://github.com/goosewobbler/releasekit/issues/1066).
-- A run that resolves one package with `sync: false` and no groups reports a different `strategy` in its version output; [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies that and the run's other changes, how `sync: true` combines with declared groups, and how old standing-PR manifests are read.
+- A run that resolves one package with `sync: false` and no groups reports `strategy: 'async'` instead of `'single'`, and consumers still accept `'single'` in old manifests; [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies that and the run's other changes, how `sync: true` combines with declared groups, and how old standing-PR manifests are read.
