@@ -6,7 +6,7 @@ Shared *domain* vocabulary for releasekit. (Architecture terms — module / seam
 
 Conflating these is the historical source of the `fix(version)` bug cluster (#330/#334/#339/#348). They are not one concept.
 
-- **Version source (A)** — the semver a package is bumped *from*: its own tag → manifest version → `0.1.0`, with tag/manifest mismatch detection. Owned by `getBestVersionSource`. Answers *"bump from what?"*.
+- **Version source (A)** — the semver a release unit is bumped *from*: its own tag series → manifest version → `0.1.0`, with tag/manifest mismatch detection. Owned by `getBestVersionSource`. Answers *"bump from what?"*. Another unit's tag is never a version source, only a floor ([ADR-0008](./docs/adr/0008-version-source-is-the-units-own-tag-series-then-its-manifest.md)).
 - **Changelog floor / per-package floor (B)** — the `<tag>..HEAD` revision range a package's *own* changelog entries, and the shared-package entries its notes list, are collected from. On prerelease→stable **graduation** the floor is the last *stable* tag (aggregate since last stable), which can differ from the version source's tag.
 - **Shared floor / repo-level floor (C)** — the range bounding the run's *project-wide* ("shared") entries (CI, infra, shared-package changes) in the standing PR and the root changelog, so an untagged package doesn't flood them with full history. Under `sharedChangelogFloor: union` (the default) it's the oldest releasing package's baseline; under `sinceLastRelease`, the nearest reachable tag.
 
@@ -15,12 +15,15 @@ Conflating these is the historical source of the `fix(version)` bug cluster (#33
 ## Tags
 
 - **Consumer tag** — user-facing release tag from `tagTemplate` (e.g. `v1.2.3`); drives GitHub Releases.
+- **Own tag series** — the tags a release unit's own tags are named in: the repo's (`v1.2.3`) for a sync unit, `tagTemplate`'s for single, the package's (`pkg@v1.2.3`) otherwise.
 - **Baseline (marker) tag** — internal tag from `baselineTagTemplate` (e.g. `release/v1.2.3`); stays on branch history for range math when the consumer tag is force-moved off it. `previousVersion` is the floor tag display-stripped back to consumer form.
 - **baselineUnreachable** — the configured floor ref exists but isn't reachable from HEAD (shallow clone / unpushed), or is a manifest-fallback synthetic tag; the range collapses to full history and `previousVersion` is suppressed.
 
 ## Release taxonomy (feature: grouped / prerequisite releases)
 
 - **Explicit group** — a declared coordination invariant over related packages: `fixed` (shared version, all move) · `linked` (shared version, changed-only) · `independent` (own version lines, changed-only, atomic).
+- **Release unit** — what the version step releases as one: the whole repo in sync mode, the one package in single mode, otherwise each package. Each unit has its own version source.
+- **Carried package** — a package released at another unit's version with no version source of its own: every package of a sync release, and a fixed-group member with no change. Its placeholder changelog entry is `synthetic`.
 - **Prerequisite** — *derived* from the dependency graph at release time; keeps its own commit-driven bump; pulled in only if changed; dependency-ordered.
 - **Selection** — orthogonal *"what to act on now"* (scope labels / checkboxes / CLI). Under this taxonomy, scope labels revert to pure selection — they are not the home for co-release coupling.
 - **Selection region** — the standing-PR ad-hoc selection surface: a GitHub task-list in the PR body (one ticked row per changed package). Unticking holds a package back; the engine drops it via the `exclude` knob (never bumped → no orphan version on `main`), and the choice round-trips by marker slicing so it survives regeneration. A `markerRegion` adapter (see below). Sync releases are atomic and carry none; lockstep group members can't be held back individually.

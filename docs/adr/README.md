@@ -13,3 +13,4 @@ Roadmap sequencing lives in [ROADMAP.md](../../ROADMAP.md); implementation detai
 | [0005](./0005-llm-enhanced-notes-require-an-explicit-model-no-defaults.md) | LLM-enhanced release notes require an explicit model; ship no defaults | Accepted, amended by 0006, scoping sentence superseded by 0007 |
 | [0006](./0006-check-llm-model-when-the-llm-runs.md) | Check `llm.model` when the LLM runs, not at config load | Accepted |
 | [0007](./0007-changelog-is-deterministic.md) | `CHANGELOG.md` is deterministic; LLM output goes only to release surfaces | Accepted |
+| [0008](./0008-version-source-is-the-units-own-tag-series-then-its-manifest.md) | A release unit's version comes from its own tag series, then its manifest | Accepted |
