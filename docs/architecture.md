@@ -185,7 +185,7 @@ Already-published versions are skipped on a later run. A local tag that points a
 
 ## Mental model summary
 
-Given the git tags, the commits since the last tag, and `releasekit.config.json` (the version record replaces the tags here once [ADR 0008](./adr/0008-versions-live-in-a-version-record.md) ships), ReleaseKit:
+Given the git tags, the commits since the last tag, and `releasekit.config.json` (once [ADR 0008](./adr/0008-versions-live-in-a-version-record.md) ships, the version record replaces the tags, and its recorded commits replace the last tag), ReleaseKit:
 
 1. Computes the next semver for each package from conventional commits (or a forced `--bump`).
 2. Writes updated manifest files and emits `VersionOutput`.
