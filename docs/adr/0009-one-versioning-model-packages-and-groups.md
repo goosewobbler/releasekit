@@ -17,7 +17,7 @@ With versions in the record ([ADR 0008](./0008-versions-live-in-a-version-record
 **Every package is versioned on its own line unless a group couples it. There is one code path, not four strategies; the version output's `strategy` stays as a label for the release's shape.**
 
 - Groups couple packages as they do now: `fixed` and `linked` share a version, and `independent` keeps members on their own lines, releasing its changed members together and pulling the whole group in when any member is targeted. A `fixed` or `linked` group's version is the highest of its members' entries, bumped once.
-- `sync: true` is one `fixed` group of every package. It keeps sync's repo-wide commit scope and its outputs (one shared tag by default, one repo changelog, the root manifest bump).
+- `sync: true` is one `fixed` group of every package. It keeps sync's repo-wide commit scope and its outputs (one shared tag by default, one repo changelog, the root manifest bump, `strategy: 'sync'`).
 - Single mode goes: a run that resolves one package with `sync: false` and no groups versions it as one package on its own line.
 
 ## Consequences
