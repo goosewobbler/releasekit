@@ -8,9 +8,9 @@ Accepted. Implementation tracked in [#958](https://github.com/goosewobbler/relea
 
 ## Context
 
-`CONTEXT.md` defines a package's version source as its own tag, then its manifest version, then `0.1.0`. The strategies drifted from that. Sync, single and group fall back to the latest repo-level tag (`vX.Y.Z`) when a package has no tag of its own; async reads the manifest first and never uses the repo-level tag. `detectChangedPackages` has a fifth variant.
+`CONTEXT.md` defines a package's version source as its own tag, then its manifest version, then `0.1.0`. The strategies drifted from that. Sync, single and group fall back to the latest repo-level tag (`vX.Y.Z`) when a package has no tag of its own; async reads the manifest first and uses the repo-level tag only when the manifest has no version. `detectChangedPackages` has a fifth variant. Group mode also looks up baseline tags without a package name, so with `baselineTagTemplate: "release/${prefix}${version}"` a package can start from another package's baseline tag.
 
-For a package on its own version line, the latest repo-level tag is another release's version. `getBestVersionSource` takes the tag whenever it's higher than the manifest, warning only when it's ahead by a minor or major. So a package added at `0.1.0` to a repo tagged `v2.3.0` releases as `2.3.1` or `2.4.0` in group mode, and as `0.1.1` or `0.2.0` in async mode. Adding `groups` to a config changes the version of a package that isn't in any group.
+For a package on its own version line, the latest repo-level tag is another release's version. Under the default `mismatchStrategy` (`warn`), `getBestVersionSource` takes the tag whenever it's higher than the manifest, warning only when it's ahead by a minor or major. So a package added at `0.1.0` to a repo tagged `v2.3.0` releases as `2.3.1` or `2.4.0` in group mode, and as `0.1.1` or `0.2.0` in async mode. Adding `groups` to a config changes the version of a package that isn't in any group.
 
 The repo-level tag is still a good changelog floor for such a package: it bounds which commits are listed. Treating one tag as both the version source (A) and the floor (B) is the conflation `CONTEXT.md` warns against.
 
@@ -19,14 +19,18 @@ The repo-level tag is still a good changelog floor for such a package: it bounds
 **A release unit's version comes from its own tag series, then its manifest, then `0.1.0`.**
 
 - A release unit is what the version step releases as one: the whole repo in sync mode, the one package in single mode, otherwise each package.
-- Its own tag series is the one its tags are named in: the repo's for sync, `tagTemplate`'s for single, and the package's own for every other package, grouped members included. A group's shared version is computed from its members' versions, so it needs no series of its own.
-- `baselineTagTemplate`, when set, replaces the tag lookup in every strategy.
-- The repo-level tag is never a version source outside sync and single. It stays a changelog floor, through `BaselineResolver`'s nearest reachable tag.
-- Change detection for prerequisites counts commits since the unit's own tag. With no own tag it counts all history: a package with no tag may never have been published, so it counts as changed.
+- Its own tag series is the one `tagTemplate` names its tags in. For sync and single that's the repo's (`v1.2.3`), or with `packageSpecificTags` the main or single package's (`pkg@v1.2.3`). For every other package, grouped members included, it's the package's own. A group's shared version is computed from its members' version sources, so it needs no series of its own.
+- Its manifest is the one it releases from. For sync that's `mainPackage`'s, else the first discovered package's, never the root `package.json`, which often holds a placeholder.
+- `baselineTagTemplate`, when set, replaces the tag lookup in every strategy. In async and group mode it must contain `${packageName}`, so each package's baseline tags form its own series; config load rejects one that doesn't.
+- A tag outside the unit's own series is never its version source.
+- The commit range is unchanged. With no own tag, the bump and prerequisite change detection still count from the latest repo-level tag, as conventional-recommended-bump does today, and the changelog from `BaselineResolver`'s nearest reachable tag. Only the base version changes.
 
 ## Consequences
 
 - One rule for every strategy, so the version-source code exists once (#958).
 - A package gets the same version whether or not the config has groups.
-- Behaviour change: in group mode, a package or member with no tag of its own whose manifest is behind the repo's tags now starts from its manifest. After a migration from sync every manifest equals the repo version, so migrated repos are unaffected.
-- Tag-only ecosystems, whose manifests hold no version, rely on the tag series alone. The rule already covers them.
+- Behaviour changes, each for a package with no tag of its own:
+  - in group mode, one whose manifest is behind the repo's tags starts from its manifest. After a migration from sync every manifest equals the repo version, so migrated repos are unaffected;
+  - in async mode, one whose manifest has no version starts from `0.1.0` instead of the repo-level tag. This also covers tag-only ecosystems, whose manifests hold no version;
+  - in single mode with `packageSpecificTags`, the repo-level tag is no longer a fallback.
+- A config with `baselineTagTemplate` but no `${packageName}` in async or group mode now fails to load. In group mode it could already give a package another package's version.
