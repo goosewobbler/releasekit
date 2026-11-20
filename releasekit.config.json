@@ -39,37 +39,75 @@
         "categories": [
           {
             "name": "New",
-            "description": "New features and additions"
+            "description": "New features and additions",
+            "scopes": [
+              "standing-pr",
+              "publish",
+              "draft",
+              "version",
+              "notes",
+              "config",
+              "action",
+              "examples"
+            ]
           },
           {
             "name": "Fixed",
-            "description": "Bug fixes including security and performance fixes"
+            "description": "Bug fixes including security and performance fixes",
+            "scopes": [
+              "standing-pr",
+              "publish",
+              "draft",
+              "version",
+              "notes",
+              "config",
+              "action",
+              "examples"
+            ]
           },
           {
             "name": "Changed",
-            "description": "Changes to existing functionality"
+            "description": "Changes to existing functionality",
+            "scopes": [
+              "standing-pr",
+              "publish",
+              "draft",
+              "version",
+              "notes",
+              "config",
+              "action",
+              "examples"
+            ]
           },
           {
             "name": "Removed",
-            "description": "Features that were removed"
+            "description": "Features that were removed",
+            "scopes": [
+              "standing-pr",
+              "publish",
+              "draft",
+              "version",
+              "notes",
+              "config",
+              "action",
+              "examples"
+            ]
           },
           {
             "name": "Documentation",
-            "description": "Documentation updates"
+            "description": "Documentation updates",
+            "scopes": [
+              "docs"
+            ]
           },
           {
             "name": "Developer",
             "description": "Internal changes",
             "scopes": [
-              "Dependencies",
-              "CI",
-              "Testing",
-              "Build System",
-              "Code Quality",
-              "Infrastructure",
-              "Tooling",
-              "Performance",
-              "Security"
+              "ci",
+              "tests",
+              "deps",
+              "tooling"
             ]
           }
         ],
@@ -80,7 +118,12 @@
             "invalidScopeAction": "remove"
           }
         },
-        "style": "Use past tense descriptions. Be concise. Focus on what changed, not implementation details."
+        "style": "Use past tense descriptions. Be concise. Focus on what changed, not implementation details.",
+        "prompts": {
+          "instructions": {
+            "enhanceAndCategorize": "Set every entry's scope to the area it changes, from its category's list. Leave leadIn null: the scope is the entry's label."
+          }
+        }
       }
     }
   },
