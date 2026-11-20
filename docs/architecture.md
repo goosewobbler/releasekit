@@ -20,7 +20,7 @@ A conceptual overview for contributors and users evaluating ReleaseKit.
 └─────────────────────────────────────────────────┘
 ```
 
-**version** reads git history since the last tag, applies conventional commit rules, and computes the next semver for each package. It writes updated `package.json`/`Cargo.toml` files and emits a `VersionOutput` JSON object.
+**version** reads git history since the last tag (the version record's last release, once [ADR 0008](./adr/0008-versions-live-in-a-version-record.md) ships), applies conventional commit rules, and computes the next semver for each package. It writes updated `package.json`/`Cargo.toml` files and emits a `VersionOutput` JSON object.
 
 **notes** consumes `VersionOutput` and renders the `CHANGELOG.md` plus per-release notes (the GitHub release body, or optional per-version files) via Liquid/Handlebars/EJS templates. An optional LLM pass inside this stage shapes the release notes; the changelog never goes through it.
 
@@ -185,7 +185,7 @@ Already-published versions are skipped on a later run. A local tag that points a
 
 ## Mental model summary
 
-Given the git tags, the commits since the last tag, and `releasekit.config.json`, ReleaseKit:
+Given the git tags, the commits since the last tag, and `releasekit.config.json` (the version record replaces the tags here once [ADR 0008](./adr/0008-versions-live-in-a-version-record.md) ships), ReleaseKit:
 
 1. Computes the next semver for each package from conventional commits (or a forced `--bump`).
 2. Writes updated manifest files and emits `VersionOutput`.
