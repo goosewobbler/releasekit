@@ -16,8 +16,8 @@ A draft ADR that tried to define one consistent rule for the search ([#1060](htt
 
 **Once a package has an entry in a committed version record, the record is the only source of its current version and of its last release. Package manifests (`package.json`, `Cargo.toml`, ...) and tags are outputs.**
 
-- Each package's entry records its version and the base-branch commit its release was computed at, and a prerelease entry also records its last stable release's version and commit. The next release counts the commits after the recorded commit, except commits that change the record (release commits, migration, and hand edits, which go in commits of their own); a stable release after prereleases counts from the last stable one, or over the package's whole history if it has none.
-- Tags are created for consumers and GitHub Releases, but never read to work out a version or a release range. Only migration reads tags, and only a package's first release, before it has an entry, reads its manifest's version.
+- Each package's entry records its version and the base-branch commit its release was computed at, and a prerelease entry also records its last stable release's version and commit. The next release counts the commits in the package's paths after the recorded commit (the whole repo, for a `sync: true` group), except commits that change the record: release commits, migration, and hand edits, which have to go in commits of their own; a stable release after prereleases counts from the last stable one, or over the package's whole history if it has none.
+- Tags are created for consumers and GitHub Releases, but never read to work out a version or a release range. Beyond that, tags are read only by migration and by safety checks, and a manifest's version only for a package's first release, before it has an entry.
 
 ## Consequences
 
