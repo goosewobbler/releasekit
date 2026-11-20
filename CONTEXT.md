@@ -15,14 +15,14 @@ Conflating these is the historical source of the `fix(version)` bug cluster (#33
 ## Tags
 
 - **Consumer tag** — user-facing release tag from `tagTemplate` (e.g. `v1.2.3`); drives GitHub Releases.
-- **Own tag series** — the tags `tagTemplate` names a release unit's tags in: the repo's (`v1.2.3`) for a sync or single unit, or with `packageSpecificTags` its version source package's; the package's (`pkg@v1.2.3`) otherwise.
+- **Own tag series** — the series a release unit's own tags are named in, such as the repo's `v1.2.3` for a sync unit or `pkg@v1.2.3` for a package on its own version line.
 - **Baseline (marker) tag** — internal tag from `baselineTagTemplate` (e.g. `release/v1.2.3`); stays on branch history for range math when the consumer tag is force-moved off it. `previousVersion` is the floor tag display-stripped back to consumer form.
 - **baselineUnreachable** — the configured floor ref exists but isn't reachable from HEAD (shallow clone / unpushed), or is a manifest-fallback synthetic tag; the range collapses to full history and `previousVersion` is suppressed.
 
 ## Release taxonomy (feature: grouped / prerequisite releases)
 
 - **Explicit group** — a declared coordination invariant over related packages: `fixed` (shared version, all move) · `linked` (shared version, changed-only) · `independent` (own version lines, changed-only, atomic).
-- **Release unit** — what the version step releases as one: the whole repo in sync mode, the one package in single mode, otherwise each package. Each unit has its own version source; a sync unit's version source package is `mainPackage`, else the first package in the release.
+- **Release unit** — what the version step releases as one: the whole repo in sync mode, the one package in single mode, otherwise each package. Each unit has its own version source.
 - **Carried package** — a package released at a version it didn't bump to itself: every package of a sync release, and a fixed-group member with no change. A fixed-group carry's own version still counts toward the group's.
 - **Prerequisite** — *derived* from the dependency graph at release time; keeps its own commit-driven bump; pulled in only if changed; dependency-ordered.
 - **Selection** — orthogonal *"what to act on now"* (scope labels / checkboxes / CLI). Under this taxonomy, scope labels revert to pure selection — they are not the home for co-release coupling.
