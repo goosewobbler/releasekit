@@ -83,7 +83,7 @@ jobs:
           # GitHub's commit-to-PR index can lag a merge by ~30s; the squash subject's `(#N)` can't.
           subject=$(head -n1 <<<"$COMMIT_MESSAGE")
           if [ "$prs" = '[]' ] && [[ $subject =~ \(#([0-9]+)\)[[:space:]]*$ ]]; then
-            pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/${BASH_REMATCH[1]}" || echo null)
+            pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/${BASH_REMATCH[1]}" 2>/dev/null) || pr=null
             prs=$(jq --arg sha "$GITHUB_SHA" '[select(.merge_commit_sha? == $sha)]' <<<"$pr")
           fi
           echo "publish=$(jq 'any(.[]; .head.ref | startswith("release/"))' <<<"$prs")" >> "$GITHUB_OUTPUT"
@@ -374,7 +374,8 @@ jobs:
   action-dist:
     name: Build and tag action dist
     needs: release
-    if: needs.release.outputs.action_tag != ''
+    # Without a status check, a skipped `detect` on a dispatched retry would skip this too.
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.action_tag != '' }}
     uses: ./.github/workflows/_action-release.reusable.yml
     permissions:
       contents: write
