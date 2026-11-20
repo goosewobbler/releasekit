@@ -237,7 +237,7 @@ The example works with `GITHUB_TOKEN`. The release bot is then GitHub Actions, a
 
 A GitHub App closes that: only jobs in the `release` environment can mint its token, so only runs on `main` can bypass the rulesets. It matters in an org with many writers, or where Code Owners review on `main` has to hold. Switching needs no workflow edits:
 
-1. **Create the App** (Settings → Developer settings → GitHub Apps, under the org or your account). Turn the webhook off. Repository permissions, the scopes the jobs give `GITHUB_TOKEN`:
+1. **Create the App** (Settings → Developer settings → GitHub Apps, under the org or your account). Create one per repository, named after it, such as `<repo>-release`: the App's key mints a token for every repository the App is installed on. Turn the webhook off. Repository permissions, the scopes the jobs give `GITHUB_TOKEN`:
    - **Contents:** read and write, to push the release branch, release commits and tags.
    - **Pull requests:** read and write, for the standing PR, labels and comments.
    - **Commit statuses:** read and write, for the `releasekit/standing-pr` check.
