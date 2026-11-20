@@ -190,7 +190,7 @@ Manage the standing release PR (create/update or publish on merge). Pick a subco
 
 ### `releasekit standing-pr update`
 
-Calculate versions, commit to the release branch, and create/update the standing PR. Without the GitHub variables, it fails before touching the release branch. A run whose checkout is a release commit does nothing, unless `--reconcile` is set or a `labeled`, `unlabeled`, `edited` or `workflow_dispatch` event started it.
+Calculate versions, commit to the release branch, and create/update the standing PR. Without the GitHub variables, it fails before touching the release branch. A run whose checkout is a release commit does nothing, unless `--reconcile` is set, a `labeled`, `unlabeled`, `edited` or `workflow_dispatch` event started it, or it's a scheduled run and that release is tagged.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -206,8 +206,8 @@ releasekit standing-pr update --reconcile
 While the base branch holds a release whose tags aren't on the remote yet, the update returns `noop` with a `reason` instead of bumping on top of it. [CI setup](../packages/release/docs/ci-setup.md#lifecycle-and-edge-cases) says when it goes ahead anyway.
 
 The standing PR body carries a **Packages to release** checklist — untick a changed package to hold
-it back from the next release (it is excluded from the version step, never bumped). Requires an
-update on the standing PR's `edited` event (the example workflow relays it as a dispatch); see the [release taxonomy](./release-taxonomy.md#selection--what-to-act-on-now)
+it back from the next release (it is excluded from the version step, never bumped). The workflow must run an update when the
+standing PR is edited (the example relays the `edited` event as a dispatch); see the [release taxonomy](./release-taxonomy.md#selection--what-to-act-on-now)
 for how this composes with groups and prerequisites, and [CI setup](../packages/release/docs/ci-setup.md)
 for the workflow.
 
