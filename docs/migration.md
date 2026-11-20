@@ -355,6 +355,31 @@ With `ci.releaseStrategy: "standing-pr"`, config loading now fails if `notes.rel
 Standing-PR release notes go to the GitHub release only, and publish tags the merged release commit rather than a
 separate notes commit.
 
+### The standing-PR workflow writes only on `main`
+
+The [standing-PR example](../examples/ci/standing-pr/standing-pr.yml) no longer publishes from `pull_request` events.
+A copy of the old one, with `publish`, `retry-publish` and `immediate-release` jobs on `pull_request: closed` and
+`labeled`, breaks: its `retry-publish` job checks out `main`, and `standing-pr publish` now refuses that once anything
+lands after the merge. Replace it with the layout in [CI setup](../packages/release/docs/ci-setup.md#workflow):
+
+1. Create a `release` environment restricted to `main`, with no required reviewers, and move registry secrets such as
+   `NPM_TOKEN` into it. See [The release environment](../packages/release/docs/ci-setup.md#the-release-environment).
+2. Replace `standing-pr.yml` with the new example, carrying over your LLM keys and any edited label names or branch
+   prefixes. Its `pull_request` trigger drops `closed`, and it adds `workflow_dispatch`.
+3. Add the `release` environment to each registry's trusted-publisher settings.
+4. Optionally, add [the release App](../packages/release/docs/ci-setup.md#the-release-app-optional).
+
+Switch while no release is publishing, so a merge's publish doesn't fall between the two workflows.
+
+These CLI changes apply to any workflow:
+
+- `standing-pr publish` on a `push`, without `--pr`, publishes the merged standing PR still waiting for its tags and
+  does nothing when there is none. It used to publish the most recently merged standing PR again.
+- `standing-pr update` on a `workflow_dispatch` run updates even when the checkout is a release commit, and `--ack`
+  shows its banner, as on a label or body edit.
+- `standing-pr publish` refuses, as retryable, unless the checkout is the standing PR's merge commit. The new
+  `standing-pr resolve` prints the standing PR to publish and that commit.
+
 ---
 
 ## Further reading

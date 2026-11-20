@@ -8,6 +8,7 @@ vi.mock('../../src/standing-pr/standing-pr.js', () => ({
   runStandingPRUpdate: vi.fn().mockResolvedValue({ action: 'noop' }),
   runStandingPRPublish: vi.fn().mockResolvedValue(null),
   runStandingPRMerge: vi.fn().mockResolvedValue(null),
+  resolveStandingRelease: vi.fn().mockResolvedValue(null),
 }));
 
 const projectDir = realpathSync(tmpdir());
@@ -25,10 +26,11 @@ describe('createStandingPRCommand', () => {
     expect(cmd.name()).toBe('standing-pr');
   });
 
-  it('should have update, publish and merge subcommands', () => {
+  it('should have update, publish, resolve and merge subcommands', () => {
     const cmd = createStandingPRCommand();
     const names = cmd.commands.map((c) => c.name());
     expect(names).toContain('update');
+    expect(names).toContain('resolve');
     expect(names).toContain('publish');
     expect(names).toContain('merge');
   });
@@ -68,6 +70,20 @@ describe('createStandingPRCommand', () => {
     const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
     await parseCommand(['publish', '--project-dir', projectDir, '--pr', '189']);
     expect(runStandingPRPublish).toHaveBeenCalledWith(expect.objectContaining({ projectDir }), 189);
+  });
+
+  it('should print the resolved standing release as JSON for resolve', async () => {
+    const { resolveStandingRelease } = await import('../../src/standing-pr/standing-pr.js');
+    vi.mocked(resolveStandingRelease).mockResolvedValueOnce({ pr: 189, mergeSha: 'abc123' });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await parseCommand(['resolve', '--project-dir', projectDir, '--json', '--pr', '189']);
+      expect(resolveStandingRelease).toHaveBeenLastCalledWith(expect.objectContaining({ projectDir }), 189);
+      const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+      expect(envelope).toMatchObject({ status: 'success', data: { pr: 189, mergeSha: 'abc123' } });
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 
   it('should reject --pr values with trailing non-digit characters', async () => {

@@ -2,7 +2,12 @@ import { exitCodeForError } from '@releasekit/core';
 import { publishDidChange } from '@releasekit/publish';
 import { Command } from 'commander';
 import type { StandingPROptions } from '../standing-pr/standing-pr.js';
-import { runStandingPRMerge, runStandingPRPublish, runStandingPRUpdate } from '../standing-pr/standing-pr.js';
+import {
+  resolveStandingRelease,
+  runStandingPRMerge,
+  runStandingPRPublish,
+  runStandingPRUpdate,
+} from '../standing-pr/standing-pr.js';
 import { emitError, emitResult, failInput } from './emitResult.js';
 import { enterProjectDir } from './project-dir.js';
 
@@ -39,7 +44,7 @@ export function createStandingPRCommand(): Command {
       )
       .option(
         '--ack',
-        'On a label or body edit, show an in-progress banner on the standing PR while the update runs',
+        'Show an in-progress banner on the standing PR while a label edit, body edit or dispatched run updates it',
         false,
       ),
   ).action(async (opts) => {
@@ -72,7 +77,7 @@ export function createStandingPRCommand(): Command {
       .description('Publish packages from a merged standing release PR (reads manifest from PR comment)')
       .option(
         '--pr <number>',
-        'PR number of the merged standing release PR. When omitted, falls back to the pull_request event payload, then to the most recently merged standing PR via the GitHub API',
+        'PR number of the merged standing release PR. When omitted, falls back to the pull_request event payload; on a push, to the merged standing PR still waiting for its tags (none: nothing to publish); otherwise to the most recently merged standing PR via the GitHub API',
       ),
   ).action(async (opts) => {
     const options: StandingPROptions = {
@@ -84,20 +89,42 @@ export function createStandingPRCommand(): Command {
       quiet: opts.quiet,
     };
 
-    let prNumber: number | undefined;
-    if (opts.pr !== undefined) {
-      // Not parseInt, which silently accepts trailing junk ('123abc' → 123).
-      const trimmed = String(opts.pr).trim();
-      if (!/^[1-9]\d*$/.test(trimmed)) {
-        failInput(`--pr must be a positive integer (got: ${opts.pr})`, { json: opts.json, output: opts.output });
-      }
-      prNumber = Number.parseInt(trimmed, 10);
-    }
+    const prNumber = parsePrOption(opts);
 
     try {
       const result = await runStandingPRPublish(options, prNumber);
       // The manifest is on main whether or not anything published, so `changed` comes from the publish output.
       emitResult(result, { json: opts.json, output: opts.output, changed: publishDidChange(result?.publishOutput) });
+    } catch (err) {
+      emitError(err, { json: opts.json, output: opts.output });
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(exitCodeForError(err));
+    }
+  });
+
+  sharedOptions(
+    cmd
+      .command('resolve')
+      .description(
+        'Print the merged standing PR a publish would take and its merge commit, which the publish must run from',
+      )
+      .option(
+        '--pr <number>',
+        'PR number of the merged standing release PR. When omitted, the merged standing PR still waiting for its tags (none: null)',
+      ),
+  ).action(async (opts) => {
+    const options: StandingPROptions = {
+      config: opts.config,
+      projectDir: opts.projectDir,
+      json: opts.json,
+      verbose: opts.verbose,
+      quiet: opts.quiet,
+    };
+    const prNumber = parsePrOption(opts);
+
+    try {
+      const result = await resolveStandingRelease(options, prNumber);
+      emitResult(result, { json: opts.json, output: opts.output, changed: false });
     } catch (err) {
       emitError(err, { json: opts.json, output: opts.output });
       console.error(err instanceof Error ? err.message : String(err));
@@ -126,4 +153,16 @@ export function createStandingPRCommand(): Command {
   });
 
   return cmd;
+}
+
+function parsePrOption(opts: { pr?: unknown; json?: boolean; output?: string }): number | undefined {
+  if (opts.pr === undefined) {
+    return undefined;
+  }
+  // Not parseInt, which silently accepts trailing junk ('123abc' → 123).
+  const trimmed = String(opts.pr).trim();
+  if (!/^[1-9]\d*$/.test(trimmed)) {
+    failInput(`--pr must be a positive integer (got: ${opts.pr})`, { json: opts.json, output: opts.output });
+  }
+  return Number.parseInt(trimmed, 10);
 }

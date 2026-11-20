@@ -39,7 +39,7 @@ Every command that produces a JSON result — `release`, `gate`, `standing-pr`, 
   - `publish`: a registry publish or a new release commit.
   - `standing-pr publish`: registry publishes only, since the merge already made the commit. A re-run where every version was already published reports `false`.
   - `standing-pr merge`: the merge. No open standing PR reports `false`.
-  - `gate` is read-only, so always `false`.
+  - `gate` and `standing-pr resolve` are read-only, so always `false`.
 - **`errors[]`** replaces prose-only failures in JSON mode. Each carries a stable machine `code`, a coarse `category` (its family in the table below), a `retryable` flag (only `true` for known-transient failures — a timeout, 429, or 5xx from a provider — so an agent never retries an unknown failure), and a human `message`.
 - **Stream discipline:** the envelope is the only thing on stdout; all diagnostics (progress, warnings, error text) go to stderr. Parsing stdout as JSON is always safe, and no command prompts interactively on a CI path.
 
@@ -190,14 +190,14 @@ Manage the standing release PR (create/update or publish on merge). Pick a subco
 
 ### `releasekit standing-pr update`
 
-Calculate versions, commit to the release branch, and create/update the standing PR. Without the GitHub variables, it fails before touching the release branch.
+Calculate versions, commit to the release branch, and create/update the standing PR. Without the GitHub variables, it fails before touching the release branch. A run whose checkout is a release commit does nothing, unless `--reconcile` is set or a `labeled`, `unlabeled`, `edited` or `workflow_dispatch` event started it.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-t, --target <packages>` | string | labels | Ad-hoc override: release only these packages (comma-separated). Wins over label-derived targets |
 | `--include-prerequisites` | boolean | `false` | With `--target`, also release the changed internal dependencies (and group members) of the targets |
 | `--reconcile` | boolean | `false` | Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point), and analyse the latest `origin/<base>` rather than the checkout |
-| `--ack` | boolean | `false` | On a `labeled`, `unlabeled` or `edited` run, show an in-progress banner at the top of the standing PR body while the update runs. See [In-progress feedback](../packages/release/docs/ci-setup.md#in-progress-feedback) |
+| `--ack` | boolean | `false` | On a `labeled`, `unlabeled`, `edited` or `workflow_dispatch` run, show an in-progress banner at the top of the standing PR body while the update runs. See [In-progress feedback](../packages/release/docs/ci-setup.md#in-progress-feedback) |
 
 ```bash
 releasekit standing-pr update --reconcile
@@ -206,21 +206,33 @@ releasekit standing-pr update --reconcile
 While the base branch holds a release whose tags aren't on the remote yet, the update returns `noop` with a `reason` instead of bumping on top of it. [CI setup](../packages/release/docs/ci-setup.md#lifecycle-and-edge-cases) says when it goes ahead anyway.
 
 The standing PR body carries a **Packages to release** checklist — untick a changed package to hold
-it back from the next release (it is excluded from the version step, never bumped). Requires the
-`pull_request: edited` trigger; see the [release taxonomy](./release-taxonomy.md#selection--what-to-act-on-now)
+it back from the next release (it is excluded from the version step, never bumped). Requires an
+update on the standing PR's `edited` event (the example workflow relays it as a dispatch); see the [release taxonomy](./release-taxonomy.md#selection--what-to-act-on-now)
 for how this composes with groups and prerequisites, and [CI setup](../packages/release/docs/ci-setup.md)
 for the workflow.
 
 ### `releasekit standing-pr publish`
 
-Publish packages from a merged standing release PR (reads the manifest from the PR comment). It needs the GitHub variables even with `--pr`. It reads the PR from the GitHub API, not the triggering event, and refuses one that hasn't merged or whose head isn't `ci.standingPr.branch`.
+Publish packages from a merged standing release PR (reads the manifest from the PR comment). It needs the GitHub variables even with `--pr`. It reads the PR from the GitHub API, not the triggering event, and refuses one that hasn't merged or whose head isn't `ci.standingPr.branch`. It refuses, as retryable, from any commit but the PR's merge commit, which `standing-pr resolve` prints.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--pr <number>` | integer | auto | PR number of the merged standing release PR. When omitted, falls back to the `pull_request` event payload, then to the most recently merged standing PR via the GitHub API |
+| `--pr <number>` | integer | auto | PR number of the merged standing release PR. When omitted, falls back to the `pull_request` event payload; on a `push`, to the merged standing PR still waiting for its tags, or none; otherwise to the most recently merged standing PR via the GitHub API |
 
 ```bash
 releasekit standing-pr publish --pr 123
+```
+
+### `releasekit standing-pr resolve`
+
+Print the merged standing PR a publish would take and the merge commit to check out for it, as `{ "pr": <number>, "mergeSha": "<sha>" }` in the JSON result's `data`, or `null` when there is nothing to publish. It needs the GitHub variables.
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--pr <number>` | integer | auto | PR number of the merged standing release PR. When omitted, the merged standing PR still waiting for its tags |
+
+```bash
+releasekit standing-pr resolve --output target.json
 ```
 
 ### `releasekit standing-pr merge`

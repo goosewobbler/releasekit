@@ -11,11 +11,14 @@ export interface RegistryState {
   attempts: RegistryAttempt[];
   /** Publishes left to succeed before the next one fails; null never fails. */
   failAfter: number | null;
+  /** The commit each published version was built from. */
+  builtAt: Record<string, string>;
 }
 
 // Answers the dispatcher's `view`, `publish` and `--version` calls the way npm does, from a JSON file.
 const SHIM = `#!/usr/bin/env node
 const fs = require('node:fs');
+const { execFileSync } = require('node:child_process');
 const file = process.env.RK_FAKE_REGISTRY;
 const load = () => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const save = (state) => fs.writeFileSync(file, JSON.stringify(state, null, 2));
@@ -47,6 +50,7 @@ if (command === '--version') {
     if (state.failAfter !== null) state.failAfter -= 1;
     state.published.push(spec);
     state.attempts.push({ spec, outcome: 'published' });
+    state.builtAt[spec] = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf-8' }).trim();
     console.log('+ ' + spec);
   }
   save(state);
@@ -70,7 +74,7 @@ export class FakeRegistry {
       fs.writeFileSync(path.join(binDir, name), SHIM, { mode: 0o755 });
     }
     const registry = new FakeRegistry(path.join(dir, 'registry.json'), binDir);
-    registry.write({ published, attempts: [], failAfter: null });
+    registry.write({ published, attempts: [], failAfter: null, builtAt: {} });
     return registry;
   }
 

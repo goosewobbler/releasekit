@@ -155,7 +155,7 @@ export interface StandingPROptions {
   target?: string;
   /** Ad-hoc CLI override: also release the changed prerequisites (and group members) of the targets. */
   includePrerequisites?: boolean;
-  /** Show an in-progress banner on the standing PR while a label or body edit's update runs. */
+  /** Show an in-progress banner on the standing PR while a label edit, body edit or dispatched run updates it. */
   ack?: boolean;
 }
 
@@ -221,12 +221,15 @@ async function getHeadSha(cwd: string): Promise<string> {
 }
 
 /**
- * True when a maintainer's label or body edit on the standing PR triggered this run, so the checked-out commit's
- * subject says nothing about it. Read from the event (not a flag) so it works from the action, the reusable workflow
- * or the CLI. An `edited` re-trigger is safe: the body re-render is idempotent and the workflow guards out the bot's
- * own edits.
+ * True when a maintainer's label or body edit on the standing PR, or a dispatch, triggered this run (the example
+ * workflow relays those edits as one), so the checked-out commit's subject says nothing about it. Read from the event
+ * (not a flag) so it works from the action, the reusable workflow or the CLI. An `edited` re-trigger is
+ * safe: the body re-render is idempotent and the workflow guards out the bot's own edits.
  */
 function isStandingPrEventRun(): boolean {
+  if (process.env.GITHUB_EVENT_NAME === 'workflow_dispatch') {
+    return true;
+  }
   if (process.env.GITHUB_EVENT_NAME !== 'pull_request') {
     return false;
   }
@@ -1038,7 +1041,7 @@ async function updateStandingPR(options: StandingPROptions, banner: ProgressBann
     info(
       options.reconcile
         ? 'Reconcile mode: bypassing skip-pattern guard'
-        : 'Label-triggered run: bypassing skip-pattern guard',
+        : 'Label, edit or dispatched run: bypassing skip-pattern guard',
     );
   } else {
     // A release's own commit on HEAD must not trigger an update.
@@ -2005,10 +2008,7 @@ export async function findLatestMergedStandingPR(forge: Forge, branch: string): 
   return (await latestMergedStandingPR(forge, branch))?.number ?? null;
 }
 
-async function latestMergedStandingPR(
-  forge: Forge,
-  branch: string,
-): Promise<{ number: number; mergedAt: string } | null> {
+async function latestMergedStandingPR(forge: Forge, branch: string): Promise<MergedStandingPR | null> {
   const prs = await forge.listRecentlyClosedPullRequests(branch, 10);
 
   // 'updated' ordering only guarantees the newest merge is in the page; late activity on an older merged PR can
@@ -2043,6 +2043,41 @@ interface UntaggedRelease {
   hasFailureReport: () => Promise<boolean>;
 }
 
+interface MergedStandingPR {
+  number: number;
+  mergedAt: string;
+}
+
+function mergedStandingRelease(forge: Forge, merged: MergedStandingPR, why: string): UntaggedRelease {
+  return {
+    label: `standing PR #${merged.number} (${why})`,
+    landedAt: Date.parse(merged.mergedAt),
+    hasFailureReport: async () => (await detectUnresolvedFailure(forge, merged.number)) !== null,
+  };
+}
+
+function untaggedStandingRelease(
+  forge: Forge,
+  merged: MergedStandingPR,
+  manifest: StandingPRManifest | null,
+  remoteTags: Record<string, string>,
+): UntaggedRelease | null {
+  const missing = (manifest?.versionOutput.tags ?? []).filter((tag) => !Object.hasOwn(remoteTags, tag));
+  return missing.length === 0 ? null : mergedStandingRelease(forge, merged, `${missing.join(', ')} not on the remote`);
+}
+
+/**
+ * Why an untagged release no longer counts as publishing: its publish reported a failure, or it is older than the
+ * backstop. Null while it still counts.
+ */
+async function lapsed(release: UntaggedRelease): Promise<{ reported: true } | { age: number } | null> {
+  if (await release.hasFailureReport()) {
+    return { reported: true };
+  }
+  const age = Date.now() - release.landedAt;
+  return age > RELEASE_IN_FLIGHT_BACKSTOP_MS ? { age } : null;
+}
+
 /**
  * A release on `origin/<base>` whose tags aren't on the remote yet: a merged standing PR missing any of its manifest's
  * tags, or a direct release commit with none. Recomputing from its bumped versions would double-bump. One whose
@@ -2054,16 +2089,10 @@ export async function findReleaseInFlight(options: FindReleaseInFlightOptions): 
   const untagged: UntaggedRelease[] = [];
 
   const merged = await latestMergedStandingPR(forge, branch);
-  if (merged) {
-    const manifest = await findTrustedManifest(forge, merged.number);
-    const missing = (manifest?.versionOutput.tags ?? []).filter((tag) => !Object.hasOwn(remoteTags, tag));
-    if (missing.length > 0) {
-      untagged.push({
-        label: `standing PR #${merged.number} (${missing.join(', ')} not on the remote)`,
-        landedAt: Date.parse(merged.mergedAt),
-        hasFailureReport: async () => (await detectUnresolvedFailure(forge, merged.number)) !== null,
-      });
-    }
+  const standing =
+    merged && untaggedStandingRelease(forge, merged, await findTrustedManifest(forge, merged.number), remoteTags);
+  if (standing) {
+    untagged.push(standing);
   }
 
   const commit = await latestReleaseCommit(base, skipPatterns, cwd);
@@ -2088,19 +2117,55 @@ export async function findReleaseInFlight(options: FindReleaseInFlightOptions): 
   }
 
   for (const release of untagged) {
-    if (await release.hasFailureReport()) {
+    const lapse = await lapsed(release);
+    if (lapse === null) {
+      return { reason: `a release is still publishing: ${release.label}` };
+    }
+    if ('reported' in lapse) {
       info(`${release.label} has a publish-failure report, so the next release supersedes it`);
-      continue;
-    }
-    const age = Date.now() - release.landedAt;
-    if (age > RELEASE_IN_FLIGHT_BACKSTOP_MS) {
+    } else {
       warn(
-        `${release.label} is still untagged ${formatDuration(age)} after it landed, with no publish-failure report; ` +
-          'updating anyway, so check that its publish finished',
+        `${release.label} is still untagged ${formatDuration(lapse.age)} after it landed, with no publish-failure ` +
+          'report; updating anyway, so check that its publish finished',
       );
-      continue;
     }
-    return { reason: `a release is still publishing: ${release.label}` };
+  }
+  return null;
+}
+
+/**
+ * The merged standing PR whose release is still publishing, as {@link findReleaseInFlight} sees it. A newer push's run
+ * can replace the merge's, leaving it untagged, so any push's run publishes it.
+ */
+async function standingReleaseToPublish(
+  forge: Forge,
+  branch: string,
+  retryLabel: string,
+  cwd: string,
+): Promise<number | null> {
+  const merged = await latestMergedStandingPR(forge, branch);
+  const manifest = merged && (await findTrustedManifest(forge, merged.number));
+  // An untrusted manifest names no tags to check, so publish it anyway: the refusal is reported on the PR.
+  const release =
+    merged &&
+    (manifest
+      ? untaggedStandingRelease(forge, merged, manifest, await createGitCli().remoteTags('origin', cwd))
+      : mergedStandingRelease(forge, merged, "its release manifest can't be trusted"));
+  if (!merged || !release) {
+    info('Nothing to publish: no merged standing PR is waiting for its tags');
+    return null;
+  }
+  const lapse = await lapsed(release);
+  if (lapse === null) {
+    return merged.number;
+  }
+  if ('reported' in lapse) {
+    info(`Not publishing ${release.label}: its publish failed. Apply '${retryLabel}' to the PR to retry it.`);
+  } else {
+    warn(
+      `Not publishing ${release.label}: it landed ${formatDuration(lapse.age)} ago. Check whether its publish ` +
+        `finished, and apply '${retryLabel}' to the PR to publish it.`,
+    );
   }
   return null;
 }
@@ -2127,8 +2192,8 @@ async function latestReleaseCommit(
 
 /**
  * `null` means nothing to do (the caller reports success); anything that went wrong throws so a misconfiguration
- * can't read as a successful no-op. `pull_request: closed` fires for every closed PR, so non-release PRs must stay
- * quiet no-ops.
+ * can't read as a successful no-op. `pull_request: closed` fires for every closed PR, and a push for every commit, so
+ * both stay quiet no-ops unless they find a standing release to publish.
  */
 export async function runStandingPRPublish(
   options: StandingPROptions,
@@ -2179,6 +2244,12 @@ export async function runStandingPRPublish(
   }
 
   const forge = forgeFor(requireGitHubContext('the merged standing PR cannot be inferred'));
+  if (process.env.GITHUB_EVENT_NAME === 'push') {
+    const retryLabel = (releaseKitConfig.ci?.labels ?? DEFAULT_LABELS).retry;
+    const prNumber = await standingReleaseToPublish(forge, releaseBranch, retryLabel, cwd);
+    return prNumber === null ? null : publishFromManifest(prNumber, options);
+  }
+
   const inferred = await findLatestMergedStandingPR(forge, releaseBranch);
   if (inferred === null) {
     throw new Error(`No merged standing release PR found for branch '${releaseBranch}' — pass --pr explicitly.`);
@@ -2188,6 +2259,41 @@ export async function runStandingPRPublish(
     `Inferred standing PR #${inferred} (most recently merged '${releaseBranch}' PR) — pass --pr to target a specific PR`,
   );
   return publishFromManifest(inferred, options);
+}
+
+export interface StandingReleaseTarget {
+  pr: number;
+  /** The commit to check out for the publish, which refuses any other. */
+  mergeSha: string;
+}
+
+/**
+ * The standing PR a publish would take (`explicitPrNumber`, or the merged one still waiting for its tags) and the merge
+ * commit to check out for it. Null when there is none.
+ */
+export async function resolveStandingRelease(
+  options: StandingPROptions,
+  explicitPrNumber?: number,
+): Promise<StandingReleaseTarget | null> {
+  const cwd = options.projectDir;
+  const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
+  const forge = forgeFor(requireGitHubContext('the standing release cannot be resolved'));
+  const prNumber =
+    explicitPrNumber ??
+    (await standingReleaseToPublish(
+      forge,
+      releaseKitConfig.ci?.standingPr?.branch ?? 'release/next',
+      (releaseKitConfig.ci?.labels ?? DEFAULT_LABELS).retry,
+      cwd,
+    ));
+  if (prNumber === null) {
+    return null;
+  }
+  const { mergeCommitSha } = await forge.getPullRequest(prNumber);
+  if (!mergeCommitSha) {
+    throw new Error(`PR #${prNumber} has no merge commit: it has not merged.`);
+  }
+  return { pr: prNumber, mergeSha: mergeCommitSha };
 }
 
 export async function runStandingPRMerge(options: StandingPROptions): Promise<StandingPRMergeResult> {
