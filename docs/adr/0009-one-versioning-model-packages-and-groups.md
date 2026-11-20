@@ -23,5 +23,5 @@ With versions in the record ([ADR 0008](./0008-versions-live-in-a-version-record
 ## Consequences
 
 - One code path works out every version.
-- `sync: true` becomes what its description says.
-- A one-package repo with `sync: false` reports a different `strategy` in its version output; #1066 specifies that change and how old standing-PR manifests are read.
+- `sync: true` becomes what its description says, and `mainPackage` no longer chooses where its version comes from.
+- A one-package repo with `sync: false` reports a different `strategy` in its version output; [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies that change, how `sync: true` combines with declared groups, and how old standing-PR manifests are read.

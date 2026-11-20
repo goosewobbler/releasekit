@@ -16,7 +16,7 @@ A draft ADR that tried to define one consistent rule for the search ([#1060](htt
 
 **A committed version record is the only source of a package's current version and of its last release. Package manifests (`package.json`, `Cargo.toml`, ...) and tags are outputs.**
 
-- Each package's entry records its version and the commit its release was computed at. Its next release counts the commits after that one.
+- Each package's entry records its version and the commit its release was computed at, and a prerelease entry also records its last stable release. The next release counts the commits after the recorded commit; a stable release after prereleases counts from the last stable one.
 - Tags are created for consumers and GitHub Releases, but never read to work out a version or a release range.
 
 ## Consequences
@@ -25,4 +25,4 @@ A draft ADR that tried to define one consistent rule for the search ([#1060](htt
 - Every ecosystem works the same way, including those with no version in a manifest and packages with more than one manifest.
 - Each repo adopts the record once, through a migration step.
 - The record is per-branch state: releasing from more than one branch, such as a maintenance branch, means reconciling records on merge, which needs a design of its own.
-- The record's format, the rules that keep it consistent, migration and recovery are specified in #1066.
+- The record's format, packages with no entry, hand edits to the record or to package manifests, the rules that keep it consistent, migration and recovery are specified in [#1066](https://github.com/goosewobbler/releasekit/issues/1066).
