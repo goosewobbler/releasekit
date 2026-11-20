@@ -13,7 +13,7 @@ permissions:
 jobs:
   build-action:
     name: Build and tag action dist
-    # The release App's secrets live in the environment; a caller can't pass environment secrets in.
+    # Here, not in the callers: a caller can't pass environment secrets to a reusable workflow.
     environment: release
     env:
       RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
