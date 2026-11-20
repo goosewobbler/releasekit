@@ -67,3 +67,4 @@ jobs:
       contents: write
     with:
       tag: ${{ needs.resolve.outputs.tag }}
+    secrets: inherit

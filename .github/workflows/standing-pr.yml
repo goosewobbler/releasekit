@@ -424,6 +424,7 @@ jobs:
       contents: write
     with:
       tag: ${{ needs.release.outputs.action_tag }}
+    secrets: inherit
 
   action-dist-immediate:
     name: Build and tag action dist (immediate)
@@ -434,3 +435,4 @@ jobs:
       contents: write
     with:
       tag: ${{ needs.immediate.outputs.action_tag }}
+    secrets: inherit
