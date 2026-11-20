@@ -147,6 +147,8 @@ export function buildWorkflow(scenarios: Scenario[] = SCENARIOS): Record<string,
   const jobs: Record<string, unknown> = {
     prepare: {
       name: 'Prepare fixtures',
+      // The standing PR is main's code plus version bumps, so there's nothing new to test.
+      if: "github.head_ref != 'release/next' || github.event.pull_request.head.repo.full_name != github.repository",
       'runs-on': 'ubuntu-latest',
       steps: [
         { name: 'Checkout', uses: 'actions/checkout@v7' },

@@ -26,6 +26,8 @@ env:
 jobs:
   detect-changes:
     name: Detect Changes
+    # The standing PR is main's code plus version bumps, so there's nothing new to test.
+    if: github.head_ref != 'release/next' || github.event.pull_request.head.repo.full_name != github.repository
     uses: ./.github/workflows/_ci-detect-changes.reusable.yml
     with:
       force_all: ${{ inputs.force_all || false }}
