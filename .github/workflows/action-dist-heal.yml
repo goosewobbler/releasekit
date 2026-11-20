@@ -67,4 +67,5 @@ jobs:
       contents: write
     with:
       tag: ${{ needs.resolve.outputs.tag }}
+    # The App's secrets are environment secrets, which reach a reusable workflow only through `inherit`.
     secrets: inherit
