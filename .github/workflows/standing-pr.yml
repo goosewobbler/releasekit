@@ -142,6 +142,18 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Use the App's git identity
+        # So commits and tags name the account that pushes them.
+        if: steps.app-token.outputs.app-slug != ''
+        run: |
+          name="${SLUG}[bot]"
+          id=$(gh api "/users/$name" --jq .id)
+          git config user.name "$name"
+          git config user.email "$id+$name@users.noreply.github.com"
+        env:
+          SLUG: ${{ steps.app-token.outputs.app-slug }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
       - name: Update standing release PR
         # --ack shows an in-progress banner on the standing PR while a relayed label or checkbox change is applied.
         run: node packages/release/dist/cli.js standing-pr update --ack
@@ -227,6 +239,17 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Use the App's git identity
+        if: steps.app-token.outputs.app-slug != ''
+        run: |
+          name="${SLUG}[bot]"
+          id=$(gh api "/users/$name" --jq .id)
+          git config user.name "$name"
+          git config user.email "$id+$name@users.noreply.github.com"
+        env:
+          SLUG: ${{ steps.app-token.outputs.app-slug }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
       - name: Publish from standing release PR
         if: steps.target.outputs.sha != ''
         run: node packages/release/dist/cli.js standing-pr publish --pr "$PR" --npm-auth oidc
@@ -298,6 +321,17 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Use the App's git identity
+        if: steps.app-token.outputs.app-slug != ''
+        run: |
+          name="${SLUG}[bot]"
+          id=$(gh api "/users/$name" --jq .id)
+          git config user.name "$name"
+          git config user.email "$id+$name@users.noreply.github.com"
+        env:
+          SLUG: ${{ steps.app-token.outputs.app-slug }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
       - name: Direct release (bypassing standing PR)
         # The CLI reads the merged PR and its labels for the pushed commit from GitHub.
         run: node packages/release/dist/cli.js release --npm-auth oidc --output "$RUNNER_TEMP/release.json"
@@ -359,6 +393,17 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Use the App's git identity
+        if: steps.app-token.outputs.app-slug != ''
+        run: |
+          name="${SLUG}[bot]"
+          id=$(gh api "/users/$name" --jq .id)
+          git config user.name "$name"
+          git config user.email "$id+$name@users.noreply.github.com"
+        env:
+          SLUG: ${{ steps.app-token.outputs.app-slug }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
 
       - name: Update standing release PR
         # Rebuilds now, e.g. to offer graduation of the prereleases that just shipped. `--reconcile` because main's tip
