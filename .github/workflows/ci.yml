@@ -27,7 +27,7 @@ jobs:
   detect-changes:
     name: Detect Changes
     # The standing PR only bumps versions on top of main, which already ran CI.
-    if: github.head_ref != 'release/next'
+    if: github.head_ref != 'release/next' || github.event.pull_request.head.repo.full_name != github.repository
     uses: ./.github/workflows/_ci-detect-changes.reusable.yml
     with:
       force_all: ${{ inputs.force_all || false }}

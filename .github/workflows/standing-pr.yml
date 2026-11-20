@@ -28,11 +28,11 @@ env:
 jobs:
   relay:
     name: Relay to main
-    # Label and checkbox changes on the open standing PR, and `release:retry` on the merged one, run on main where the
-    # `release` environment's secrets are. `sender.type != 'Bot'` is load-bearing: the update rewrites the PR body (an
-    # `edited` event), so the bot would otherwise re-trigger itself forever. Matching on type rather than the
-    # `github-actions[bot]` login also filters the App. The `release/` prefix and the label name are hardcoded (workflow
-    # `if` can't read config) - in-step config is authoritative.
+    # Label and checkbox changes on the open standing PR, and `release:retry` on the merged one, run on main, where the
+    # `release` environment's secrets are. `sender.type != 'Bot'` stops the update's own body rewrite (an `edited`
+    # event) re-triggering it forever; matching on type rather than login also covers the App. The `release/` prefix and
+    # the label names, here and in `detect`, are hardcoded (workflow `if` can't read config); in-step config is
+    # authoritative.
     if: >-
       startsWith(github.event.pull_request.head.ref, 'release/') &&
       (
@@ -65,8 +65,8 @@ jobs:
 
   detect:
     name: Detect Release
-    # Coarse: only a release job can replace a queued release, so a feeder push mustn't start one. The release job's
-    # CLI steps decide what actually publishes. The `release/` prefix and the label name are hardcoded, as in the relay.
+    # Only a release job can replace a queued release, so a feeder push mustn't start one. The release job's CLI steps
+    # decide what publishes.
     if: github.event_name == 'push'
     permissions:
       contents: read
@@ -104,9 +104,8 @@ jobs:
         (github.event_name == 'workflow_dispatch' && inputs.pr == '')
       )
     environment: release
-    # GitHub keeps one pending job per concurrency group and replaces it with any newer one. Every rebuild shares this
-    # group, which is safe because an update gives the same result whatever started it; a checkbox edit also cancels
-    # the one in progress, so rapid ticks collapse to one rebuild.
+    # GitHub replaces a group's pending job with any newer one, which is safe for rebuilds because an update gives the
+    # same result whatever started it. A checkbox edit also cancels the one in progress, so rapid ticks collapse to one.
     concurrency:
       group: standing-release-pr
       cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' && inputs.edited }}
@@ -120,7 +119,7 @@ jobs:
     steps:
       - name: Mint App token
         id: app-token
-        # Only once the App's secrets are in the release environment; every step falls back to GITHUB_TOKEN.
+        # `if` can't read secrets, hence the job's RELEASE_APP_ID env. Without it, every step uses GITHUB_TOKEN.
         if: env.RELEASE_APP_ID != ''
         uses: actions/create-github-app-token@v2
         with:
@@ -153,8 +152,7 @@ jobs:
   release:
     name: Release
     needs: detect
-    # The standing PR's merge, a merged `release:immediate` PR (to publish any standing release still waiting for its
-    # tags first), or a relayed `release:retry`.
+    # A merged `release:immediate` PR runs it too, to publish any standing release still waiting for its tags first.
     if: >-
       !cancelled() &&
       (
@@ -163,7 +161,7 @@ jobs:
         (github.event_name == 'workflow_dispatch' && inputs.pr != '')
       )
     environment: release
-    # Shared by every release and joined by no update, so no update can replace a queued release.
+    # No update joins this group, so none can replace a queued release.
     concurrency: standing-release
     permissions:
       contents: write
@@ -198,8 +196,8 @@ jobs:
 
       - name: Find the standing release
         id: target
-        # The relayed PR, or on a push the merged standing PR still waiting for its tags (so a run that replaced the
-        # merge's own still publishes it), and its merge commit. The publish refuses any other checkout.
+        # On a push, the merged standing PR still waiting for its tags, so a run that replaced the merge's still
+        # publishes it. The publish refuses any checkout but its merge commit.
         run: |
           node packages/release/dist/cli.js standing-pr resolve ${PR:+--pr "$PR"} --output "$RUNNER_TEMP/target.json"
           echo "pr=$(jq -r '.data.pr // empty' "$RUNNER_TEMP/target.json")" >> "$GITHUB_OUTPUT"
@@ -260,8 +258,8 @@ jobs:
   immediate:
     name: Immediate Release
     needs: [detect, release]
-    # After `release`, so it never bumps on top of an untagged standing release, and from the pushed commit, so it
-    # never builds that release's version.
+    # A job of its own after `release`: it mustn't bump on top of an untagged standing release, and must build the
+    # pushed commit, not that release's merge commit.
     if: needs.detect.outputs.immediate == 'true' && needs.release.result == 'success'
     environment: release
     concurrency: standing-release
@@ -363,8 +361,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Update standing release PR
-        # Rebuilds the standing PR once the release is tagged, e.g. to offer graduation of the prereleases that just
-        # shipped. `--reconcile` because main's tip is now a release commit, which a plain update skips.
+        # Rebuilds now, e.g. to offer graduation of the prereleases that just shipped. `--reconcile` because main's tip
+        # is now a release commit, which a plain update skips.
         run: node packages/release/dist/cli.js standing-pr update --reconcile
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
@@ -374,7 +372,7 @@ jobs:
   action-dist:
     name: Build and tag action dist
     needs: release
-    # Without a status check, a skipped `detect` on a dispatched retry would skip this too.
+    # The implicit success() would skip this on a dispatched retry, where `detect` is skipped.
     if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.action_tag != '' }}
     uses: ./.github/workflows/_action-release.reusable.yml
     permissions:

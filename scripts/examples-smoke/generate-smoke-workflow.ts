@@ -148,7 +148,7 @@ export function buildWorkflow(scenarios: Scenario[] = SCENARIOS): Record<string,
     prepare: {
       name: 'Prepare fixtures',
       // The standing PR only bumps versions on top of main, which already ran this.
-      if: "github.head_ref != 'release/next'",
+      if: "github.head_ref != 'release/next' || github.event.pull_request.head.repo.full_name != github.repository",
       'runs-on': 'ubuntu-latest',
       steps: [
         { name: 'Checkout', uses: 'actions/checkout@v7' },
