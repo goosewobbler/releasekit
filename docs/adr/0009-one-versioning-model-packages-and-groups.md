@@ -8,20 +8,19 @@ Accepted. Implementation tracked in [#1066](https://github.com/goosewobbler/rele
 
 ## Context
 
-The version step has four strategies, sync, single, async and group, each with its own code path. `sync: true` is described as one implicit fixed group of every package, but it stays off the group code for two reasons. Standing PRs and other consumers depend on its outputs: a shared tag and changelog (per-package ones with `packageSpecificTags`), the root manifest bump and `strategy: 'sync'`. And it takes its version from a single package, because packages' tags and manifests could disagree.
-
-With versions in the record ([ADR 0008](./0008-versions-live-in-a-version-record.md)), a `sync: true` group takes its version from its members' entries, as a fixed group does, so the second reason is gone. The first is kept on purpose: the group code produces sync's outputs for a `sync: true` group.
+The version step has four strategies, sync, single, async and group, each with its own code path. `sync: true` is described as an implicit fixed group of every package, but it stays off the group code for two reasons: consumers such as standing PRs depend on its outputs, and it takes its version from a single package because packages' tags and manifests could disagree. [ADR 0008](./0008-versions-live-in-a-version-record.md) removes the second reason.
 
 ## Decision
 
-**Every package is versioned on its own line unless a group couples it. There is one code path, not four strategies; the version output's `strategy` stays as a label for the release's shape.**
+**One code path versions every package. A package moves on its own line unless a group couples it.**
 
-- Groups couple packages as they do now (`fixed`, `linked`, `independent`). A `fixed` or `linked` group's version is the highest of its members' entries, bumped at most once and never below a member's own next version, as the group code does now.
-- `sync: true` is one `fixed` group of every package. It keeps sync's repo-wide commit scope and every output sync produces today, listed in [#1066](https://github.com/goosewobbler/releasekit/issues/1066).
-- Single mode goes: a run that resolves one package with `sync: false` and no groups versions it as one package on its own line.
+- `fixed` and `linked` groups share a version: the highest of their members' versions, bumped at most once. `independent` groups keep their members' own versions and only release them together.
+- `sync: true` is a `fixed` group of every package that counts commits across the whole repo and keeps sync's outputs.
+- Single mode goes.
 
 ## Consequences
 
-- One code path works out every version.
-- `sync: true` really is a `fixed` group, with a repo-wide scope and sync's outputs, and its description says so; `mainPackage` no longer chooses where its version comes from; what it still names is specified in [#1066](https://github.com/goosewobbler/releasekit/issues/1066).
-- A run that resolves one package with `sync: false` and no groups reports `strategy: 'async'` instead of `'single'`, and consumers still accept `'single'` in old manifests and drafts; [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies that and the run's other changes, how `sync: true` combines with declared groups, and how old standing-PR manifests are read.
+- Four code paths become one, and `sync: true` does what its description says.
+- The version output's `strategy` becomes a label for the release's shape. A one-package run with `sync: false` reports `async`, not `single`.
+- `mainPackage` no longer chooses where sync's version comes from.
+- [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies the outputs each kind of release keeps and how old manifests are read.

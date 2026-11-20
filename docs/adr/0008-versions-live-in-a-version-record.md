@@ -8,22 +8,22 @@ Accepted. Implementation tracked in [#1066](https://github.com/goosewobbler/rele
 
 ## Context
 
-ReleaseKit works out a package's current version, and where its last release was, by searching git tags. Tag names come from configurable templates. Tags can be moved off the branch, sanitized, or left over from earlier tooling. When the search finds nothing, it falls back to the manifest or to another release's tag, and settings such as `mismatchStrategy` and `baselineTagTemplate` exist to work around the search.
+ReleaseKit finds a package's current version, and where its last release was, by searching git tags, with the manifest as a fallback. Tag names come from configurable templates, and tags get moved, sanitized or left behind by earlier tooling, so the search has many edge cases and each versioning strategy resolves them differently. `mismatchStrategy` and `baselineTagTemplate` exist to work around it.
 
-A draft ADR that tried to define one consistent rule for the search ([#1060](https://github.com/goosewobbler/releasekit/pull/1060)) didn't converge over twenty review rounds: each round found another case where tag naming, reachability or the manifest comparison changed the answer. Planned ecosystems add more cases: tag-only ecosystems, such as Go, have no version in any manifest. release-please keeps versions, though not release ranges, in a committed manifest file; recording where each release was computed is this ADR's addition.
+The ecosystems on the roadmap make this harder: tag-only ecosystems such as Go have no manifest version to fall back to. release-please avoids the search by keeping versions in a committed file.
 
 ## Decision
 
-**Once a package has an entry in a committed version record, the record is the only source of its current version and of its last release. Package manifests (`package.json`, `Cargo.toml`, ...) and tags are outputs.**
+**A committed version record, `releasekit.versions.json`, is the source of each package's current version and of where its last release was. Tags and package manifests are outputs.**
 
-- Each package's entry records its version and the base-branch commit its release was computed at, and a prerelease entry also records its last stable release's version and commit. The next release counts the commits in the package's paths after the recorded commit (the whole repo, for a `sync: true` group). In release bookkeeping commits (any commit that changes the record, such as a release commit, migration or hand edit, and the rest of a merged standing PR), only changes other than the record and everything else the release step writes count; a stable release after prereleases counts from the last stable one, or over the package's whole history if it has none.
-- Tags are created for consumers and GitHub Releases, but never read to work out a version or a release range; bundled release notes and the project-wide changelog floor take past releases from the record's history too. Only migration reads tags to set a version, seeding each entry once. Other uses of tags (backfill rebuilding releases from before the record, safety checks, and checking what a release already published) never decide the next release's version or range. A manifest's version is read only for a package's first release, before it has an entry. A package added after migration that already has releases, such as a module with existing tags, is added to the record by migration first; a safety check refuses to release it as new.
+- Each entry records a package's version and the base-branch commit its release was computed at. The next release counts the package's commits after that one.
+- Tags are written for consumers and GitHub Releases, but never read to work out a version or a release range. The exception is migration, which seeds the record from tags once.
 
 ## Consequences
 
-- Version and range no longer depend on tag naming or moved tags, and the settings that exist to work around the tag search go or change, as #1066 specifies. The range still needs each entry's commit in the clone's history.
-- Every ecosystem works the same way, including those with no version in a manifest and packages with more than one manifest.
-- Each repo adopts the record once, through a migration step.
-- In standing-PR mode, commits that land on `main` after the standing PR's last update ship with its merge but are counted, and listed, in the next release. Today they ship in a release whose changelog never lists them.
-- The record is per-branch state: releasing from more than one branch, such as a maintenance branch, means reconciling records on merge, which needs a design of its own.
-- The record's format, which commit bounds a group's range, the project-wide changelog floor, packages with no entry, packages in an ecosystem whose versioning is turned off ([ADR 0004](./0004-ecosystem-enablement-detection-enables-config-opts-out.md)), hand edits to the record or to package manifests, the rules that keep it consistent, migration and recovery are specified in [#1066](https://github.com/goosewobbler/releasekit/issues/1066).
+- Versions and release ranges no longer depend on tag naming or moved tags, and the settings that work around the tag search go or change.
+- Every ecosystem works the same way, including those with no manifest version and packages with more than one manifest.
+- Each repo migrates once to create the record.
+- The record is per-branch state, so releasing from more than one branch (a maintenance branch, say) needs a design of its own.
+- In standing-PR mode, commits that land on `main` after the standing PR's last update ship in that release without informing its version, and are counted in the next one. Today they ship and are never counted.
+- [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies the record's format and the rules that keep it consistent.
