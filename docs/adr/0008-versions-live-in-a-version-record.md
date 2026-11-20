@@ -16,24 +16,27 @@ The planned ecosystems make it harder. Tag-only ecosystems and Go have no versio
 
 ## Decision
 
-**A committed version record is the only source of a package's current version. Manifests and tags are outputs.**
+**A committed version record is the only source of a package's current version and of its last release. Manifests and tags are outputs.**
 
-- The record is `releasekit.versions.json` at the repo root. It maps each package's path to its version. The release step is its only automated writer; hand edits and adoption (below) are the deliberate exceptions.
-- The version step reads each package's current version from the record and writes the new version to the record, the manifests and the tags.
-- A package's last release is the last commit that changed its entry. Its bump, its changelog and change detection count commits after that one. A stable release after a prerelease series counts from the last stable version in the entry's history instead.
-- A package with no entry has never been released by ReleaseKit. It starts from its manifest version, else `0.1.0`, and every commit in its paths counts.
-- Tags are created for consumers and GitHub Releases, but never read to work out a version.
-- An entry only moves forward. The version step fails if a package's next version isn't higher than every version its entry has held, which catches a reverted release commit or a lowering edit.
-- A key with no package at its path fails the version step, so a moved package's entry moves with it.
-- A shallow clone whose history stops before a package's last release fails the version step, rather than treating the clone's boundary as a release.
-- Editing an entry by hand declares that version released at the editing commit, as creating a tag by hand does today. A bump is still requested with labels or `--bump`, not by editing the record.
+- The record is `releasekit.versions.json` at the repo root. Each package's entry, keyed by its path, holds its version and `at`: the commit its release was computed at. A prerelease entry also holds the version and `at` of the package's last stable release, if it has one.
+- The version step is the record's only automated writer. It reads each package's version from the record and writes the new version, with `at` set to the commit it ran on, to the record, the manifests and the tags.
+- A package's bump, changelog and change detection count the commits in its paths after its `at`. A stable release after a prerelease series counts from its last stable `at`, or over its paths' whole history if it has never had a stable release.
+- A package with no entry has never been released by ReleaseKit. It starts from its manifest version, else `0.1.0`, and every commit in its paths counts. In a `fixed` or `linked` group it takes the group's version, and its commits count from the group's oldest `at`.
+- Anything that needs a package's past releases, such as bundled release notes or the project-wide changelog floor, reads them from the record's history, not from tags.
+- Tags are created for consumers and GitHub Releases, but never read to work out a version. The version step fails if a tag it would create already exists, which stops a reverted record from releasing a version again.
+- A key with no package at its path fails the version step; moving a package means moving its entry, `at` included.
+- An `at` that isn't in the clone's history, as in a shallow clone, fails the version step.
+- Editing an entry by hand declares that version released at the given `at`, as creating a tag by hand does today. A bump is still requested with labels or `--bump`.
+- A release whose publish fails is completed by retrying it, not by the next release: the record already holds its versions.
 
 ## Consequences
 
-- No version is looked up in tags, so tag templates and moved tags stop affecting versions. History back to each package's last release (its last stable one, for a graduation) still has to be fetched.
+- No version or release range is worked out from tags, so tag templates and moved tags stop mattering. History back to each package's `at` (its last stable `at`, for a graduation) still has to be fetched.
 - Settings that exist for the tag lookup go: `mismatchStrategy`, `baselineTagTemplate` and `strictReachable`. A first release is one with no entry, which is what `allowFirstBump` then refers to. `packageSpecificTags` only shapes tag names.
 - Every ecosystem works the same way: those with no version in a manifest, a package with more than one manifest, and configs that don't write a manifest's version.
+- A squash-merged standing PR can't mark commits that landed after its last update as released, because `at` is the commit the release was computed at.
 - Tag names still have to be unique ([#1045](https://github.com/goosewobbler/releasekit/issues/1045)).
 - A version appears in two places, the record and the manifest. The record wins; a hand-edited manifest version is overwritten by the next release, and a drift check warns.
-- A repo adopts the record with a migrate command that seeds each entry from the package's last tag. It refuses while any package has commits since that tag, so the adopting commit is a valid last release. Backfill still reads tags, since it rebuilds releases from before the record existed.
+- A repo adopts the record with a migrate command that seeds each entry's version and `at` from the package's last tag, so pending commits stay pending. A package whose tag can't be found or reached is seeded by hand. Backfill still reads tags, since it rebuilds releases from before the record existed.
+- Reconciling against registries ([#548](https://github.com/goosewobbler/releasekit/issues/548)) compares the record with what was published, which also finds a failed release that was never retried.
 - Supersedes #958's decisions on finding the version source in tags and warning about untagged packages.
