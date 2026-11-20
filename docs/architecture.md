@@ -20,7 +20,7 @@ A conceptual overview for contributors and users evaluating ReleaseKit.
 └─────────────────────────────────────────────────┘
 ```
 
-**version** reads git history since the last tag (the commit recorded for its last release, once [ADR 0008](./adr/0008-versions-live-in-a-version-record.md) ships), applies conventional commit rules, and computes the next semver for each package. It writes updated `package.json`/`Cargo.toml` files and emits a `VersionOutput` JSON object.
+**version** reads git history since the last tag, applies conventional commit rules, and computes the next semver for each package. It writes updated `package.json`/`Cargo.toml` files and emits a `VersionOutput` JSON object.
 
 **notes** consumes `VersionOutput` and renders the `CHANGELOG.md` plus per-release notes (the GitHub release body, or optional per-version files) via Liquid/Handlebars/EJS templates. An optional LLM pass inside this stage shapes the release notes; the changelog never goes through it.
 
@@ -74,7 +74,7 @@ The atomic unit: a version bump + changelog entry + git commit + git tag + regis
 
 ## Tags as source of truth
 
-[ADR 0008](./adr/0008-versions-live-in-a-version-record.md) replaces the tag baseline described in the next paragraph with a committed version record, so moved or deleted tags will stop changing it; until the version record ships ([#958](https://github.com/goosewobbler/releasekit/issues/958), [#1066](https://github.com/goosewobbler/releasekit/issues/1066)), the paragraph describes the current behaviour.
+[ADR 0008](./adr/0008-versions-live-in-a-version-record.md) replaces the tag baseline described below with a committed version record. Until the version record ships ([#958](https://github.com/goosewobbler/releasekit/issues/958), [#1066](https://github.com/goosewobbler/releasekit/issues/1066)), this section describes the current behaviour; #1066 updates the rest of this doc.
 
 Git tags mark what was last released. Conventional commits between the last tag and `HEAD` determine the next version bump. There are no version files to keep in sync — the tag *is* the current version baseline. This means:
 
@@ -185,14 +185,14 @@ Already-published versions are skipped on a later run. A local tag that points a
 
 ## Mental model summary
 
-Given the git tags, the commits since the last tag, and `releasekit.config.json` (once [ADR 0008](./adr/0008-versions-live-in-a-version-record.md) ships, the version record replaces the tags as the source of versions and ranges, and its recorded commits replace the last tag), ReleaseKit:
+Given the git tags, the commits since the last tag, and `releasekit.config.json`, ReleaseKit:
 
 1. Computes the next semver for each package from conventional commits (or a forced `--bump`).
 2. Writes updated manifest files and emits `VersionOutput`.
 3. Renders changelogs and optional release notes from `VersionOutput`, optionally passing the release notes through an LLM.
 4. Publishes, then pushes and creates GitHub Releases, in the order in [Publish order and partial failure](#publish-order-and-partial-failure). Tags are created locally before publishing and pushed only after a clean publish (once, at the end, in batch mode; after each package in per-package mode).
 
-If the head commit message matches a skip pattern (default: `chore: release `), ReleaseKit exits early so that its own release commits do not trigger an infinite loop. If there are no releasable commits since the last tag (since its recorded commit, once ADR 0008 ships), it exits with code 0 and skips all remaining steps.
+If the head commit message matches a skip pattern (default: `chore: release `), ReleaseKit exits early so that its own release commits do not trigger an infinite loop. If there are no releasable commits since the last tag, it exits with code 0 and skips all remaining steps.
 
 ---
 
