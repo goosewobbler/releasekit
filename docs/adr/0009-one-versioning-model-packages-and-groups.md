@@ -18,10 +18,10 @@ With versions in the record ([ADR 0008](./0008-versions-live-in-a-version-record
 
 - Groups couple packages as they do now: `fixed`, `linked` and `independent`.
 - `sync: true` is one `fixed` group of every package. It keeps sync's repo-wide commit scope and its outputs (one shared tag by default, one repo changelog, the root manifest bump).
-- Single mode goes: a one-package repo with `sync: false` is one package on its own line.
+- Single mode goes: a run that resolves one package with `sync: false` versions it as one package on its own line.
 
 ## Consequences
 
 - One code path works out every version.
-- `sync: true` becomes what its description says, and `mainPackage` no longer chooses where its version comes from; what it still names is specified in [#1066](https://github.com/goosewobbler/releasekit/issues/1066).
-- A one-package repo with `sync: false` reports a different `strategy` in its version output; [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies that change, how `sync: true` combines with declared groups, and how old standing-PR manifests are read.
+- `sync: true` really is a `fixed` group, with a repo-wide scope and sync's outputs, and its description says so; `mainPackage` no longer chooses where its version comes from; what it still names is specified in [#1066](https://github.com/goosewobbler/releasekit/issues/1066).
+- A run that resolves one package with `sync: false` reports a different `strategy` in its version output; [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies that change, how `sync: true` combines with declared groups, and how old standing-PR manifests are read.
