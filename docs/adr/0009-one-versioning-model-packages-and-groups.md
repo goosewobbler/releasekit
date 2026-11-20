@@ -18,9 +18,9 @@ With versions in the record ([ADR 0008](./0008-versions-live-in-a-version-record
 
 - Each package has its own entry in the version record.
 - Groups couple packages as they do now: `fixed` (one version, every member moves), `linked` (one version, changed members move) and `independent` (own versions, released together). A `fixed` or `linked` group's version is the highest of its members' versions, bumped once.
-- `sync: true` is one `fixed` group of every package, whose bump and changelog count commits anywhere in the repo, as sync does now. Its outputs don't change: one shared tag with the default template, one changelog for the repo, the root manifest bump, and `strategy: 'sync'` in the version output.
+- `sync: true` is one `fixed` group of every package, whose bump and changelog count commits anywhere in the repo, as sync does now. It takes precedence over `version.groups`, as now. Its outputs don't change: one shared tag with the default template, one changelog for the repo, the root manifest bump, and `strategy: 'sync'` in the version output.
 - Single mode goes: a repo with one package has one package on its own line.
-- The version output's `strategy` keeps describing the release's shape: `sync` for `sync: true`, `group` when groups are configured, else `async`. Nothing writes `single` any more, and consumers still accept it in old manifests.
+- The version output's `strategy` keeps describing the release's shape: `sync` for `sync: true`, `group` when groups are configured, else `async`. Nothing writes `single` any more; consumers still accept it in old manifests, and comparing a reviewed release draft with its recomputed plan treats `single` as `async`.
 
 ## Consequences
 
