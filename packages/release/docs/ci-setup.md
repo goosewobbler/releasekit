@@ -248,7 +248,7 @@ A GitHub App closes that: only jobs in the `release` environment can mint its to
 4. **Swap the bypass actor** on both rulesets: add the App, then remove GitHub Actions.
 5. **Close the open standing PR.** ReleaseKit trusts a release manifest only from the account that opened the PR, so it would refuse the App's manifest on the old one. The next update opens a new one as the App. A standing PR that merged before the switch still publishes and retries.
 
-Commits and tags are then authored as the App's bot user, `<name>[bot]`. Pushes made with an App token start workflows, unlike `GITHUB_TOKEN`'s. Each update's push to the release branch then runs your CI on the standing PR, so [keep CI off it](#keeping-ci-off-the-standing-pr). The token expires after an hour, so a release that runs longer can fail at its final push.
+With the App, commits and tags are authored as its bot user, `<name>[bot]`. Pushes made with an App token start workflows, unlike `GITHUB_TOKEN`'s. Each update's push to the release branch then runs your CI on the standing PR, so [keep CI off it](#keeping-ci-off-the-standing-pr). The token expires after an hour, so a release that runs longer can fail at its final push.
 
 ### Configuration
 
