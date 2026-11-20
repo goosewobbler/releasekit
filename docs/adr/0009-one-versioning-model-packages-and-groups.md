@@ -8,9 +8,9 @@ Accepted. Implementation tracked in [#958](https://github.com/goosewobbler/relea
 
 ## Context
 
-The version step has four strategies, sync, single, async and group, each with its own code path. `sync: true` is described as one implicit fixed group of every package, but it takes its version from a single package instead of from its members. Single mode is chosen at run time from the number of packages.
+The version step has four strategies, sync, single, async and group, each with its own code path. `sync: true` is described as one implicit fixed group of every package, but it stays off the group code: standing PRs and other consumers depend on its outputs (one shared tag, one changelog for the repo, the root manifest bump, and `strategy: 'sync'` in the version output), and it takes its version from a single package because packages' tags and manifests could disagree. Single mode is chosen at run time from the number of packages.
 
-Sync needed its own version source because packages' tags and manifests could disagree. With versions in the record ([ADR 0008](./0008-versions-live-in-a-version-record.md)), every package of a sync release holds the same version, so that reason is gone.
+With versions in the record ([ADR 0008](./0008-versions-live-in-a-version-record.md)), every package of a sync release holds the same version, so only the outputs still set sync apart.
 
 ## Decision
 
@@ -18,13 +18,13 @@ Sync needed its own version source because packages' tags and manifests could di
 
 - Each package has its own entry in the version record.
 - Groups couple packages as they do now: `fixed` (one version, every member moves), `linked` (one version, changed members move) and `independent` (own versions, released together). A `fixed` or `linked` group's version is the highest of its members' versions, bumped once.
-- `sync: true` is one `fixed` group of every package, whose bump and changelog count commits anywhere in the repo, as sync does now.
+- `sync: true` is one `fixed` group of every package, whose bump and changelog count commits anywhere in the repo, as sync does now. Its outputs don't change: one shared tag with the default template, one changelog for the repo, the root manifest bump, and `strategy: 'sync'` in the version output.
 - Single mode goes. A repo with one package has one package on its own line; releasing one package of several is a matter of selection (`version.packages`, targets).
 
 ## Consequences
 
 - One code path works out every version, which #958 builds.
-- `sync: true` becomes what its description says.
+- `sync: true` becomes what its description says, and standing-PR manifests, old and new, still read as sync releases.
 - `mainPackage` no longer chooses where a version comes from.
 - A config that relies on single mode to release one package of a workspace selects it with `version.packages` instead.
 - Supersedes #958's decision to keep sync as a separate unit with its own version source.
