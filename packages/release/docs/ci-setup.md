@@ -496,7 +496,7 @@ To retry without the label, run the workflow on `main` with the PR's number as i
 
 A publish that refused the manifest usually can't be retried this way; its failure report says whether it can, and otherwise to merge the next standing PR (see [A refused publish](../../../docs/troubleshooting.md#a-refused-publish)).
 
-Applying the label to a non-standing or unmerged PR doesn't match the relay's guard — nothing runs. A successful retry resolves the partial-publish failure report and clears the supersede warning from the next standing PR. Full recovery walkthrough: [Recovering from a failed publish](../../../docs/troubleshooting.md#recovering-from-a-failed-publish). (For reference, releasekit's own repo implements the same flow as a standalone [`release-retry.yml`](../../../.github/workflows/release-retry.yml) that dispatches its release workflow — useful if your publish runs in a separate dispatchable workflow.)
+Applying the label to a non-standing or unmerged PR doesn't match the relay's guard — nothing runs. A successful retry resolves the partial-publish failure report and clears the supersede warning from the next standing PR. Full recovery walkthrough: [Recovering from a failed publish](../../../docs/troubleshooting.md#recovering-from-a-failed-publish).
 
 #### Previewing and editing release notes
 

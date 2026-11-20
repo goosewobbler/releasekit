@@ -43,6 +43,7 @@ permissions:
 jobs:
   prepare:
     name: Prepare fixtures
+    if: github.head_ref != 'release/next'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

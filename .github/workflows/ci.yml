@@ -26,6 +26,8 @@ env:
 jobs:
   detect-changes:
     name: Detect Changes
+    # The standing PR only bumps versions on top of main, which already ran CI.
+    if: github.head_ref != 'release/next'
     uses: ./.github/workflows/_ci-detect-changes.reusable.yml
     with:
       force_all: ${{ inputs.force_all || false }}

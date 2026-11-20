@@ -1,10 +1,10 @@
 name: Action Dist Heal
 
-# Backstop that heals a vX.Y.Z tag left dist-less despite the in-run build (release.yml ->
+# Backstop that heals a vX.Y.Z tag left dist-less despite the in-run build (standing-pr.yml ->
 # _action-release).
 #
 # Triggers:
-#   - workflow_run on a non-success Release run: a run that died mid-build can't heal itself.
+#   - workflow_run on a non-success Standing Release PR run: a run that died mid-build can't heal itself.
 #   - schedule: cause-agnostic daily backstop for anything that leaves a green run dist-less.
 #
 # Not triggered on tag push, and _action-release's dist commit skips CI, so a heal can't loop.
@@ -17,7 +17,7 @@ on:
         required: true
         type: string
   workflow_run:
-    workflows: [Release]
+    workflows: [Standing Release PR]
     types: [completed]
   schedule:
     - cron: '17 6 * * *'
@@ -29,7 +29,7 @@ jobs:
   resolve:
     name: Resolve tag
     runs-on: ubuntu-latest
-    # A successful Release run already committed dist in-run; a skipped one released nothing.
+    # A successful run already committed dist in-run; a skipped one released nothing.
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion != 'success' &&
