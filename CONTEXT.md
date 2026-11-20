@@ -16,7 +16,7 @@ Conflating these is the historical source of the `fix(version)` bug cluster (#33
 
 - **Consumer tag** — user-facing release tag from `tagTemplate` (e.g. `v1.2.3`); drives GitHub Releases.
 - **Own tag series** — per ADR 0008, the series a version unit's own tags are named in, consumer or (with `baselineTagTemplate`) baseline: the repo's `v1.2.3` (or `release/v1.2.3`) when the template doesn't name the package, or `pkg@v1.2.3` (or `release/pkg@v1.2.3`) when it does; with package-named tags, a sync unit's is its `mainPackage`'s.
-- **Baseline (marker) tag** — internal tag from `baselineTagTemplate` (e.g. `release/v1.2.3`); stays on branch history for range math when the consumer tag is force-moved off it. `previousVersion` is the floor tag display-stripped back to consumer form (per ADR 0008, #958 limits it to the unit's own tags).
+- **Baseline (marker) tag** — internal tag from `baselineTagTemplate` (e.g. `release/v1.2.3`); stays on branch history for range math when the consumer tag is force-moved off it. `previousVersion` is the floor tag display-stripped back to consumer form (per ADR 0008, a unit with no own tag gets none).
 - **baselineUnreachable** — the configured floor ref exists but isn't reachable from HEAD (shallow clone / unpushed), or is a manifest-fallback synthetic tag; the range collapses to full history and `previousVersion` is suppressed.
 
 ## Release taxonomy (feature: grouped / prerequisite releases)
