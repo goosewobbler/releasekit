@@ -15,7 +15,7 @@ Conflating these is the historical source of the `fix(version)` bug cluster (#33
 ## Tags
 
 - **Consumer tag** — user-facing release tag from `tagTemplate` (e.g. `v1.2.3`); drives GitHub Releases.
-- **Own tag series** — per ADR 0008, the series a version unit's own tags are named in, consumer or (with `baselineTagTemplate`) baseline: the repo's `v1.2.3` (or `release/v1.2.3`) when the template doesn't name the package, or `pkg@v1.2.3` (or `release/pkg@v1.2.3`) when it does; for sync, its `mainPackage`'s.
+- **Own tag series** — per ADR 0008, the series a version unit's own tags are named in, consumer or (with `baselineTagTemplate`) baseline: the repo's `v1.2.3` (or `release/v1.2.3`) when the template doesn't name the package, or `pkg@v1.2.3` (or `release/pkg@v1.2.3`) when it does; with package-named tags, a sync unit's is its `mainPackage`'s.
 - **Baseline (marker) tag** — internal tag from `baselineTagTemplate` (e.g. `release/v1.2.3`); stays on branch history for range math when the consumer tag is force-moved off it. `previousVersion` is the floor tag display-stripped back to consumer form (per ADR 0008, #958 limits it to the unit's own tags).
 - **baselineUnreachable** — the configured floor ref exists but isn't reachable from HEAD (shallow clone / unpushed), or is a manifest-fallback synthetic tag; the range collapses to full history and `previousVersion` is suppressed.
 
@@ -24,7 +24,7 @@ Conflating these is the historical source of the `fix(version)` bug cluster (#33
 - **Explicit group** — a declared coordination invariant over related packages: `fixed` (shared version, all move) · `linked` (shared version, changed-only) · `independent` (own version lines, changed-only, atomic).
 - **Release unit** — a primary package (`primaryPackages`) with its group-mates and the internal dependencies it releases with; used by the standing-PR selection list.
 - **Version unit** — what has its own version source (not a *release unit*, the `primaryPackages` selection unit): the whole repo in sync mode, otherwise each package. A `fixed` or `linked` group's members are separate units; the group sets their shared version from all of them.
-- **Carried package** — a package released with no change of its own: a fixed-group member with no change, whose own version still counts toward the group's. Every package of a sync release is handled the same way, since only the sync unit has a version source.
+- **Carried package** — a package released without setting its own version: a fixed-group member with no change of its own (its own version still counts toward the group's), and every package of a sync release (only the sync unit has a version source, so its packages' versions count toward nothing).
 - **Prerequisite** — *derived* from the dependency graph at release time; keeps its own commit-driven bump; pulled in only if changed; dependency-ordered.
 - **Selection** — orthogonal *"what to act on now"* (scope labels / checkboxes / CLI). Under this taxonomy, scope labels revert to pure selection — they are not the home for co-release coupling.
 - **Selection region** — the standing-PR ad-hoc selection surface: a GitHub task-list in the PR body (one ticked row per changed package). Unticking holds a package back; the engine drops it via the `exclude` knob (never bumped → no orphan version on `main`), and the choice round-trips by marker slicing so it survives regeneration. A `markerRegion` adapter (see below). Sync releases are atomic and have no selection rows; lockstep group members can't be held back individually.
