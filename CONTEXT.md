@@ -6,7 +6,7 @@ Shared *domain* vocabulary for releasekit. (Architecture terms — module / seam
 
 Conflating these is the historical source of the `fix(version)` bug cluster (#330/#334/#339/#348). They are not one concept.
 
-- **Version source (A)** — the semver a version unit is bumped *from*: its own tag series → manifest version → `0.1.0`, with a newer manifest winning subject to tag/manifest mismatch detection. Owned by `getBestVersionSource`, except that a group member's baseline takes the higher of its tag and manifest regardless of `mismatchStrategy`. Answers *"bump from what?"*. Per ADR 0008, a tag outside the unit's own series is never its version source; #958 implements this.
+- **Version source (A)** — the semver a version unit is bumped *from*: its own tag series → manifest version → `0.1.0`, with a newer manifest winning subject to tag/manifest mismatch detection. Owned by `getBestVersionSource`, except that a group member's baseline takes the higher of its tag and manifest whatever `mismatchStrategy` prefers (a mismatch under `error` still aborts). Answers *"bump from what?"*. Per ADR 0008, a tag outside the unit's own series is never its version source; #958 implements this.
 - **Changelog floor / per-package floor (B)** — the `<tag>..HEAD` revision range a package's *own* changelog entries, and the shared-package entries its notes list, are collected from. On prerelease→stable **graduation** the floor is the last *stable* tag (aggregate since last stable), which can differ from the version source's tag.
 - **Shared floor / repo-level floor (C)** — the range bounding the run's *project-wide* ("shared") entries (CI, infra, shared-package changes) in the standing PR and the root changelog, so an untagged package doesn't flood them with full history. Under `sharedChangelogFloor: union` (the default) it's the oldest releasing package's baseline; under `sinceLastRelease`, the nearest reachable tag.
 
@@ -15,7 +15,7 @@ Conflating these is the historical source of the `fix(version)` bug cluster (#33
 ## Tags
 
 - **Consumer tag** — user-facing release tag from `tagTemplate` (e.g. `v1.2.3`); drives GitHub Releases.
-- **Own tag series** — the series `tagTemplate` names a version unit's own tags in: the repo's `v1.2.3` for a sync or single unit with the default template, or `pkg@v1.2.3` when the template names the package.
+- **Own tag series** — the series a version unit's own tags are named in, consumer and baseline: the repo's `v1.2.3` for a sync or single unit with the default template, or `pkg@v1.2.3` when the template names the package (for sync, the version source package's).
 - **Baseline (marker) tag** — internal tag from `baselineTagTemplate` (e.g. `release/v1.2.3`); stays on branch history for range math when the consumer tag is force-moved off it. `previousVersion` is the floor tag display-stripped back to consumer form.
 - **baselineUnreachable** — the configured floor ref exists but isn't reachable from HEAD (shallow clone / unpushed), or is a manifest-fallback synthetic tag; the range collapses to full history and `previousVersion` is suppressed.
 
