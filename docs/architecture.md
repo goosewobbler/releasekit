@@ -74,7 +74,7 @@ The atomic unit: a version bump + changelog entry + git commit + git tag + regis
 
 ## Tags as source of truth
 
-[ADR 0008](./adr/0008-versions-live-in-a-version-record.md) replaces the tag baseline described in the next paragraph with a committed version record, so moved or deleted tags will stop changing it; until the version record ships ([#958](https://github.com/goosewobbler/releasekit/issues/958), [#1066](https://github.com/goosewobbler/releasekit/issues/1066)), the paragraph describes the current behaviour. Full history (`fetch-depth: 0`) is still needed afterwards.
+[ADR 0008](./adr/0008-versions-live-in-a-version-record.md) replaces the tag baseline described in the next paragraph with a committed version record, so moved or deleted tags will stop changing it; until the version record ships ([#958](https://github.com/goosewobbler/releasekit/issues/958), [#1066](https://github.com/goosewobbler/releasekit/issues/1066)), the paragraph describes the current behaviour.
 
 Git tags mark what was last released. Conventional commits between the last tag and `HEAD` determine the next version bump. There are no version files to keep in sync — the tag *is* the current version baseline. This means:
 
@@ -185,7 +185,7 @@ Already-published versions are skipped on a later run. A local tag that points a
 
 ## Mental model summary
 
-Given the git tags, the commits since the last tag, and `releasekit.config.json` (once [ADR 0008](./adr/0008-versions-live-in-a-version-record.md) ships, the version record replaces the tags, and its recorded commits replace the last tag), ReleaseKit:
+Given the git tags, the commits since the last tag, and `releasekit.config.json` (once [ADR 0008](./adr/0008-versions-live-in-a-version-record.md) ships, the version record replaces the tags as the source of versions and ranges, and its recorded commits replace the last tag), ReleaseKit:
 
 1. Computes the next semver for each package from conventional commits (or a forced `--bump`).
 2. Writes updated manifest files and emits `VersionOutput`.
