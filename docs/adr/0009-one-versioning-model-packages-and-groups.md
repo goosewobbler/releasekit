@@ -17,11 +17,11 @@ With versions in the record ([ADR 0008](./0008-versions-live-in-a-version-record
 **Every package is versioned on its own line unless a group couples it. There are no strategies.**
 
 - Groups couple packages as they do now: `fixed`, `linked` and `independent`.
-- `sync: true` is one `fixed` group of every package. Its outputs don't change.
-- Single mode goes.
+- `sync: true` is one `fixed` group of every package. It keeps sync's repo-wide commit scope and its outputs (one shared tag by default, one repo changelog, the root manifest bump).
+- Single mode goes: a one-package repo is one package on its own line.
 
 ## Consequences
 
 - One code path works out every version.
 - `sync: true` becomes what its description says.
-- Which outputs each kind of release keeps, and how old standing-PR manifests are read, are specified in #1066.
+- A one-package repo with `sync: false` reports a different `strategy` in its version output; #1066 specifies that change and how old standing-PR manifests are read.
