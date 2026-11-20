@@ -67,5 +67,3 @@ jobs:
       contents: write
     with:
       tag: ${{ needs.resolve.outputs.tag }}
-    secrets:
-      ssh_key: ${{ secrets.DEPLOY_KEY }}
