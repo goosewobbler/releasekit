@@ -26,6 +26,6 @@ With versions in the record ([ADR 0008](./0008-versions-live-in-a-version-record
 
 - One code path works out every version, which #958 builds.
 - `sync: true` becomes what its description says, and standing-PR manifests, old and new, still read as sync releases.
-- `mainPackage` no longer chooses where a version comes from.
+- `mainPackage` no longer chooses where a version comes from. Migration seeds every sync entry with the shared version, so a sync repo's version doesn't jump to its highest member manifest.
 - A one-package repo's version output says `async` instead of `single`. An open standing PR's manifest is rewritten in the new form by its next update.
 - Supersedes #958's decision to keep sync as a separate unit with its own version source.
