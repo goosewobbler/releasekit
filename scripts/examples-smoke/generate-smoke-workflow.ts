@@ -147,7 +147,7 @@ export function buildWorkflow(scenarios: Scenario[] = SCENARIOS): Record<string,
   const jobs: Record<string, unknown> = {
     prepare: {
       name: 'Prepare fixtures',
-      // The standing PR only bumps versions on top of main, which already ran this.
+      // The standing PR only bumps versions on top of main, where this already ran.
       if: "github.head_ref != 'release/next' || github.event.pull_request.head.repo.full_name != github.repository",
       'runs-on': 'ubuntu-latest',
       steps: [

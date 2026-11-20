@@ -187,7 +187,7 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token || github.token }}
 
-      # `resolve` runs from this checkout's CLI, so main's tip is built first; the publish runs from the release's own.
+      # `resolve` needs a built CLI, so main's tip is built first; the publish uses the merge commit's own build.
       - name: Setup workspace
         uses: ./.github/workflows/actions/setup-workspace
 
@@ -196,8 +196,8 @@ jobs:
 
       - name: Find the standing release
         id: target
-        # On a push, the merged standing PR still waiting for its tags, so a run that replaced the merge's still
-        # publishes it. The publish refuses any checkout but its merge commit.
+        # On a push, the merged standing PR still missing its tags, so it still publishes when a newer push's run
+        # replaced the merge's own. The publish refuses any checkout but its merge commit.
         run: |
           node packages/release/dist/cli.js standing-pr resolve ${PR:+--pr "$PR"} --output "$RUNNER_TEMP/target.json"
           echo "pr=$(jq -r '.data.pr // empty' "$RUNNER_TEMP/target.json")" >> "$GITHUB_OUTPUT"
@@ -238,7 +238,7 @@ jobs:
       - name: Find the action tag
         id: tag
         if: steps.target.outputs.sha != ''
-        # From git rather than the CLI's output, so a lost stdout can't strand a dist-less action tag.
+        # Read from git, not the CLI's output, so the dist still gets built if that output is lost.
         run: |
           tag=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
           if [ -z "$tag" ]; then
@@ -307,7 +307,7 @@ jobs:
 
       - name: Find the action tag
         id: tag
-        # From git, as in `release`. A run with nothing to release legitimately tags nothing.
+        # Read from git, as in `release`, but no tag is fine when there was nothing to release.
         run: |
           tag=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
           if [ -z "$tag" ] && jq -e '.data.versionOutput' "$RUNNER_TEMP/release.json" >/dev/null 2>&1; then
