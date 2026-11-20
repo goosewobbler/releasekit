@@ -466,8 +466,8 @@ async function assertManifestMatchesSource(
     validatedVersions.push(update.newVersion);
   }
 
-  // Baseline tags are pushed alongside consumer tags, so both must carry a validated version. Deliberately runs even
-  // when `validatedVersions` is empty: a legitimate manifest then has no tags, so every tag is rejected.
+  // Baseline tags are pushed alongside consumer tags, so both must carry a validated version. Runs even when
+  // `validatedVersions` is empty: a legitimate manifest then has no tags, so every tag is rejected.
   for (const tag of [...manifest.versionOutput.tags, ...(manifest.versionOutput.baselineTags ?? [])]) {
     // Bounded by anything but a digit, dot or prerelease/build separator (`-`/`+`), or a rogue tag like `v1.2.30`,
     // `v11.2.3` or `v1.2.3-evil` passes for a validated `1.2.3`.

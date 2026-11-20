@@ -55,7 +55,10 @@ export async function postFailureReport(
   }
 }
 
-/** For the standing PR only: a direct release's report sits on a PR a human opened, so the opener can't vouch for it. */
+/**
+ * Finds a report only on the standing PR or a draft issue: a direct release's report sits on a PR a human opened, so
+ * the opener can't vouch for it.
+ */
 function findFailureReport(forge: Forge, prNumber: number): Promise<TrustedCommentLookup> {
   return findTrustedComment(forge, prNumber, FAILURE_MARKER, 'publish-failure report');
 }
@@ -130,7 +133,7 @@ export async function detectUnresolvedFailure(forge: Forge, prNumber: number): P
   if (parseFailureReportStatus(body) !== 'unresolved') {
     return null;
   }
-  // A refused merge put nothing on `main`, so it isn't an unfinished release.
+  // A refused merge put nothing on the base branch, so it isn't an unfinished release.
   if (parseFailureReportData(body)?.phase === 'pre-merge') {
     return null;
   }

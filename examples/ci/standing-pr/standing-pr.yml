@@ -23,7 +23,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    # Only the relay job runs on these: it dispatches the work on main.
+    # Only the relay job runs on these: it dispatches the work on main, where the `release` environment's secrets are.
     types: [labeled, unlabeled, edited]
     branches: [main]
   schedule:
@@ -44,11 +44,9 @@ permissions: {}
 jobs:
   relay:
     name: Relay to main
-    # Label and checkbox changes on the open standing PR, and `release:retry` on the merged one, run on main, where the
-    # `release` environment's secrets are. `sender.type != 'Bot'` stops the update's own body rewrite (an `edited`
-    # event) re-triggering it forever; matching on type rather than login also covers the App. The `release/` prefix and
-    # the label names, here and in `detect`, are hardcoded (workflow `if` can't read config); in-step config is
-    # authoritative.
+    # `sender.type != 'Bot'` stops the update's own body rewrite (an `edited` event) re-triggering it forever; matching
+    # on type rather than login also covers the App. The `release/` prefix and the label names in this file are
+    # hardcoded (workflow `if` can't read config); in-step config is authoritative.
     if: >-
       startsWith(github.event.pull_request.head.ref, 'release/') &&
       (
@@ -214,8 +212,8 @@ jobs:
 
       - name: Find the standing release
         id: target
-        # On a push, the merged standing PR still waiting for its tags, so a run that replaced the merge's still
-        # publishes it. The publish refuses any checkout but its merge commit.
+        # On a push, the merged standing PR still missing its tags, so it still publishes when a newer push's run
+        # replaced the merge's own. The publish refuses any checkout but its merge commit.
         run: |
           pnpm exec releasekit standing-pr resolve ${PR:+--pr "$PR"} --output "$RUNNER_TEMP/target.json"
           echo "pr=$(jq -r '.data.pr // empty' "$RUNNER_TEMP/target.json")" >> "$GITHUB_OUTPUT"

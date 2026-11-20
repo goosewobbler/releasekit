@@ -66,8 +66,8 @@ function renderDraftBody(versionOutput: VersionOutput, releaseNotes: Record<stri
 /** Phase 1 of draft-then-dispatch: a human edits the issue's notes, then {@link publishFromDraft} consumes them. */
 export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseOutput | null> {
   const context = requireGitHubContext('a release draft cannot be created');
-  // ghs_ is the workflow's GITHUB_TOKEN or an App installation token; these are user tokens. A user token in another
-  // format is caught once the manifest is posted.
+  // User-token prefixes; ghs_ (the GITHUB_TOKEN or an App installation token) passes. A user token in another format
+  // is caught once the manifest is posted.
   if (/^(ghp|github_pat|gho|ghu)_/.test(context.token ?? '')) {
     throw new Error(
       "Cannot create a release draft with a personal token: '--from-draft' refuses a manifest a bot didn't post. " +
@@ -142,7 +142,7 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
     dryRun: options.dryRun,
   });
 
-  // Re-read after the preview so notes edited while it ran are published.
+  // Re-read after the plan recompute so notes edited while it ran are published.
   const issue = await forge.getIssue(issueNumber);
   const draftedNotes = manifest.releaseNotes ?? {};
   const extracted = extractNotesRegions(issue.body, manifest.versionOutput);

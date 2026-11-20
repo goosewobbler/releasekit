@@ -221,10 +221,10 @@ async function getHeadSha(cwd: string): Promise<string> {
 }
 
 /**
- * True when a maintainer's label or body edit on the standing PR, or a dispatch, triggered this run (the example
- * workflow relays those edits as one), so the checked-out commit's subject says nothing about it. Read from the event
- * (not a flag) so it works from the action, the reusable workflow or the CLI. An `edited` re-trigger is
- * safe: the body re-render is idempotent and the workflow guards out the bot's own edits.
+ * True when a dispatch or a maintainer's label or body edit on the standing PR triggered this run (the example
+ * workflow relays those edits as a dispatch), so the checked-out commit's subject says nothing about it. Read from the
+ * event (not a flag) so it works from the action, the reusable workflow or the CLI. An `edited` re-trigger is safe: the
+ * body re-render is idempotent and the workflow guards out the bot's own edits.
  */
 function isStandingPrEventRun(): boolean {
   if (process.env.GITHUB_EVENT_NAME === 'workflow_dispatch') {
@@ -1588,8 +1588,6 @@ async function updateStandingPR(options: StandingPROptions, banner: ProgressBann
       : FALLBACK_TITLE;
 
   const title = safeStandingPrTitle(renderedTitle, skipPatterns);
-  // Accepted race: a human edit landing between the body read above and the update below is overwritten; updates
-  // are infrequent enough not to warrant optimistic concurrency.
   let notesRegion: string | undefined;
   const notesRegionStates: NotesRegionStates = { ...notesPlan.owned };
   if (previewNotesEnabled) {
@@ -1769,6 +1767,8 @@ async function updateStandingPR(options: StandingPROptions, banner: ProgressBann
   let action: StandingPRResult['action'];
 
   if (existing) {
+    // Accepted race: a human edit landing between the body read above and this update is overwritten; updates are
+    // infrequent enough not to warrant optimistic concurrency.
     await forge.updatePullRequest(existing.number, { title, body });
     banner.markRewritten();
     prNumber = existing.number;
@@ -2080,8 +2080,7 @@ async function lapsed(release: UntaggedRelease): Promise<{ reported: true } | { 
 
 /**
  * A release on `origin/<base>` whose tags aren't on the remote yet: a merged standing PR missing any of its manifest's
- * tags, or a direct release commit with none. Recomputing from its bumped versions would double-bump. One whose
- * publish reported a failure doesn't count, as the next release supersedes it, nor does one older than the backstop.
+ * tags, or a direct release commit with none. Recomputing from its bumped versions would double-bump.
  */
 export async function findReleaseInFlight(options: FindReleaseInFlightOptions): Promise<ReleaseInFlight | null> {
   const { forge, cwd, base, branch, skipPatterns } = options;

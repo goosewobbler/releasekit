@@ -355,9 +355,9 @@ on:
       edited: # cancel the update in progress
 ```
 
-Every job that writes runs on `main`, in [the release environment](#the-release-environment). Label and checkbox changes on the open standing PR, and `release:retry` on the merged one, reach `main` through the `relay` job, which holds only `actions: write` and adds a few seconds.
+Every job that writes runs on `main`, in [the release environment](#the-release-environment). Label and checkbox changes on the open standing PR, and `release:retry` on the merged one, reach `main` through the `relay` job, which adds a few seconds.
 
-The jobs use two concurrency groups, and GitHub replaces a group's queued job with any newer one. The rebuilds (`update` and `reconcile`) share one, which is safe because an update gives the same result whatever started it; a checkbox edit also cancels the rebuild in progress. `release` and `immediate` share the other, so no update can replace a queued release. A newer push's `release` run can replace the merge's and still publish it, because a push's `release` publishes the merged standing PR still waiting for its tags.
+The jobs use two concurrency groups, and GitHub replaces a group's queued job with any newer one. The rebuilds (`update` and `reconcile`) share one, which is safe because an update gives the same result whatever started it. `release` and `immediate` share the other, so no update can replace a queued release. A newer push's `release` run can replace the merge's and still publish it, because a push's `release` publishes the merged standing PR still waiting for its tags.
 
 `release` runs `standing-pr resolve` to find the standing PR and its merge commit, then checks that commit out before it installs and publishes, so later commits on `main` never ship under the release's version. `standing-pr publish` refuses any other checkout.
 
@@ -376,7 +376,7 @@ Use `release:graduate` and `channel:prerelease` labels on **the standing PR itse
 - **No releasable commits since last release:** the standing PR is closed with an explanatory comment. It reopens automatically when releasable commits land. While any package is on a prerelease line, it stays open with only graduation rows instead, and its status check stays `pending` until one is ticked.
 - **A release still publishing:** an update waits while `main` holds a release whose tags aren't on the remote yet, so it can't bump on top of the untagged versions. The `reconcile` job rebuilds the standing PR once they exist. An update goes ahead anyway if that release's publish posted a failure report, or, with a warning, two hours after it landed.
 - **Dependabot and other `chore` commits:** trigger the workflow. Under `conventionalcommits` (the default) they aren't releasable on their own: they join an existing standing PR, or the workflow no-ops. Under `angular`, which releases at least a patch for any commit, they open a standing PR proposing a patch.
-- **Coexistence with label-driven releases:** safe by design. The label-driven path publishes immediately and writes a `chore: release …` commit, with a CI-skip marker, which the standing PR's skip-pattern guard (`release.ci.skipPatterns`, default `["chore: release "]`) recognises, so that commit's push doesn't update the standing PR. The `reconcile` job reconciles it instead, and once the release is tagged, scheduled runs, label changes and checkbox edits update it as usual.
+- **Coexistence with label-driven releases:** safe by design. The label-driven path publishes immediately and writes a `chore: release …` commit, with a CI-skip marker, which the standing PR's skip-pattern guard (`release.ci.skipPatterns`, default `["chore: release "]`) recognises, so that commit's push doesn't update the standing PR. The `reconcile` job rebuilds the standing PR instead, and once the release is tagged, scheduled runs, label changes and checkbox edits update it as usual.
 - **CI concurrency caveat:** if `ci.yml` uses `cancel-in-progress: true` on the `main` branch concurrency group, sequential merges will cancel each other's CI. Any release workflow gated on `workflow_run` completion will then silently skip for the cancelled run. Use a per-SHA group for push events:
 
   ```yaml
@@ -488,7 +488,7 @@ In `standing-pr.yml`, the merge's push starts:
 
 If a standing-PR publish fails partway through, add the **`release:retry`** label to the **merged** standing PR. The version commit is already on `main`. GitHub Releases are created only after every package succeeds. In per-package mode, tags for packages that published may already be on the remote — do not delete them. In the example:
 
-1. The `relay` job checks that the PR is a merged standing PR and the label is `release:retry`, then dispatches the workflow on `main` with the PR's number. Its guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard to match.
+1. The `relay` job checks that the PR is a merged standing PR and the label is `release:retry`, then dispatches the workflow on `main` with the PR's number. Its guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard, and the `release` job's step that removes the label, to match.
 2. The `release` job checks out the PR's merge commit and re-runs the manifest-driven publish for that PR (`standing-pr publish --pr <n>`) — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases. It then removes the label, so each application is exactly one retry; re-apply it to retry again.
 3. The `reconcile` job runs `standing-pr update --reconcile`, rebuilding the standing PR now the release's tags exist.
 
@@ -566,7 +566,7 @@ With OIDC, no `NPM_TOKEN` secret is required. The workflow exchanges a GitHub-is
 
 **Requirements:**
 - npm `>=9.5.0`
-- Each package must have an **Automation policy** configured at npmjs.com (Settings → Automation policies → add a GitHub Actions OIDC publisher for your repo and workflow, and, for the standing-PR example, the `release` environment)
+- Each package must have a **trusted publisher** configured at npmjs.com (package Settings → Trusted publishing → add a GitHub Actions publisher for your repo and workflow, and, for the standing-PR example, the `release` environment)
 
 The workflow needs:
 
