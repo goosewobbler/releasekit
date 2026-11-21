@@ -7,7 +7,7 @@ import type { Preset as BumperPreset } from 'conventional-recommended-bump';
 
 const HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!?: (.+)$/;
 const BREAKING_HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!: (.+)$/;
-const REVERTED_HASH_PATTERN = /^This reverts commit (\w{7,40})\b/m;
+const REVERTED_HASH_PATTERN = /^This reverts commit (\w+)/m;
 
 type RevertFields = Pick<Commit, 'header' | 'body' | 'footer' | 'revert'> & { hash?: string | null };
 
