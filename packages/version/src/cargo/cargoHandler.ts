@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { CargoManifest } from '@releasekit/config';
-import { isCargoToml, parseCargoToml } from '@releasekit/config';
+import { isCargoToml, isCratePublishable, parseCargoToml } from '@releasekit/config';
 import * as TOML from 'smol-toml';
+import { createVersionError, VersionErrorCode } from '../errors/versionError.js';
 import { addPackageUpdate, writeVersionFile } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { recordCargoBump } from './cargoLock.js';
@@ -59,6 +60,12 @@ export function isVersionedCrate(cargoPath: string): boolean {
   return !!cargo.package?.name;
 }
 
+/** Both TOML spellings, `version.workspace = true` and `version = { workspace = true }`, parse to this table. */
+export function inheritsWorkspaceVersion(cargo: CargoManifest): boolean {
+  const version: unknown = cargo.package?.version;
+  return typeof version === 'object' && version !== null && (version as { workspace?: unknown }).workspace === true;
+}
+
 /**
  * Records the bump for the end-of-run Cargo.lock sync. Every version-step bump goes through here, so no
  * strategy can skip the sync.
@@ -75,6 +82,17 @@ export function updateCargoVersion(
 
     if (!packageName) {
       throw new Error(`No package name found in ${cargoPath}`);
+    }
+
+    if (inheritsWorkspaceVersion(cargo)) {
+      if (isCratePublishable(cargo)) {
+        throw createVersionError(
+          VersionErrorCode.CARGO_INHERITED_VERSION,
+          `${packageName} (${path.relative(process.cwd(), cargoPath)})`,
+        );
+      }
+      log(`Not bumping ${cargoPath}: ${packageName} inherits its version from the workspace`, 'warning');
+      return;
     }
 
     if (!cargo.package) {

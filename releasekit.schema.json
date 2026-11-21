@@ -140,7 +140,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Packages to include in versioning. Empty includes every discovered package."
+          "description": "Packages to include in versioning. Empty includes every discovered package. `./` matches only a package at the repository root, not workspace members."
         },
         "sharedPackages": {
           "type": "array",

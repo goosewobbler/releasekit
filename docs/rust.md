@@ -25,6 +25,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 - OIDC / trusted publishing for crates.io — token-based auth only via `CARGO_REGISTRY_TOKEN`
 - Nested Cargo workspaces — only the repo-root `Cargo.toml`'s `[workspace] members` scope crate discovery
 - `[patch]`, in `Cargo.toml` or `.cargo/config.toml`, when syncing `Cargo.lock` — a lock whose workspace reaches a bumped crate only through a patch keeps the old version, without an error, and `cargo build --locked` there fails until you run `cargo update --workspace` in that workspace and commit the lock
+- Workspace-inherited versions (`version.workspace = true`): a crate that would release with one fails the version step, naming the crate. Give each crate a literal `version`
 - Comment and formatting preservation in `Cargo.toml` — the file is rewritten with `smol-toml`'s serialiser on a version bump or a raised requirement; whitespace, comments, and key order may change
 
 ---
@@ -37,7 +38,6 @@ Minimum `releasekit.config.json`:
 {
   "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
   "version": {
-    "packages": ["./"],
     "cargo": {
       "enabled": true
     }
@@ -49,6 +49,8 @@ Minimum `releasekit.config.json`:
   }
 }
 ```
+
+With `version.packages` unset, releasekit versions every crate it discovers, whether that's one crate at the repo root or the members of a Cargo workspace. The repo doesn't need a `package.json`.
 
 `version.cargo.enabled` and `publish.cargo.enabled` both default to `true`, so those keys are optional but make intent explicit. Set `publish.cargo.enabled` to `false` to version and tag without publishing to crates.io.
 

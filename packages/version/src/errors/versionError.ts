@@ -10,6 +10,7 @@ export enum VersionErrorCode {
   PACKAGE_NOT_FOUND = 'PACKAGE_NOT_FOUND',
   VERSION_CALCULATION_ERROR = 'VERSION_CALCULATION_ERROR',
   UNSAFE_CONFIG_PATH = 'UNSAFE_CONFIG_PATH',
+  CARGO_INHERITED_VERSION = 'CARGO_INHERITED_VERSION',
 }
 
 export function createVersionError(code: VersionErrorCode, details?: string): VersionError {
@@ -21,6 +22,7 @@ export function createVersionError(code: VersionErrorCode, details?: string): Ve
     [VersionErrorCode.PACKAGE_NOT_FOUND]: 'Package not found',
     [VersionErrorCode.VERSION_CALCULATION_ERROR]: 'Failed to calculate version',
     [VersionErrorCode.UNSAFE_CONFIG_PATH]: 'Refusing to write a manifest outside the repository root',
+    [VersionErrorCode.CARGO_INHERITED_VERSION]: "Workspace-inherited crate versions aren't supported yet",
   };
 
   const suggestions: Record<VersionErrorCode, string[] | undefined> = {
@@ -56,6 +58,10 @@ export function createVersionError(code: VersionErrorCode, details?: string): Ve
     [VersionErrorCode.UNSAFE_CONFIG_PATH]: [
       'Use a version.cargo.paths / version.pub.paths entry that stays inside the repository',
       'Remove any leading ../ segments or absolute paths that point outside the project',
+    ],
+    [VersionErrorCode.CARGO_INHERITED_VERSION]: [
+      'Give each listed crate a literal version in its Cargo.toml [package] section',
+      'Or leave it out of the release with version.packages, or set publish = false',
     ],
   };
 

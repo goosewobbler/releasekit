@@ -1110,5 +1110,54 @@ describe('Version Engine', () => {
         fs.rmSync(tmp, { recursive: true, force: true });
       }
     });
+
+    it('should discover native packages when no package.json exists', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-no-pkgjson-'));
+      try {
+        fs.writeFileSync(path.join(tmp, 'Cargo.toml'), '[workspace]\nmembers = ["crates/*"]\n');
+        fs.mkdirSync(path.join(tmp, 'crates', 'a'), { recursive: true });
+        fs.writeFileSync(path.join(tmp, 'crates', 'a', 'Cargo.toml'), '[package]\nname = "a"\nversion = "0.1.0"\n');
+        fs.mkdirSync(path.join(tmp, 'dart'), { recursive: true });
+        fs.writeFileSync(path.join(tmp, 'dart', 'pubspec.yaml'), 'name: d\nversion: 1.0.0\n');
+        class NoPkgJsonFound extends Error {}
+        vi.mocked(getPackagesSync).mockImplementation(() => {
+          throw new NoPkgJsonFound(`No package.json could be found upwards from directory ${tmp}`);
+        });
+
+        const result = await new VersionEngine({ ...defaultConfig, sync: false } as Config).getWorkspacePackages(tmp);
+
+        expect(result.root).toBe(tmp);
+        expect(result.packages.map((p) => p.packageJson.name).sort()).toEqual(['a', 'd']);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it.each([['version.workspace = true'], ['version = { workspace = true }']])(
+      'should discover a crate with %s at the workspace version',
+      async (spelling) => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-inherit-'));
+        try {
+          fs.writeFileSync(
+            path.join(tmp, 'Cargo.toml'),
+            '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\n',
+          );
+          fs.mkdirSync(path.join(tmp, 'crates', 'inheriting'), { recursive: true });
+          fs.writeFileSync(
+            path.join(tmp, 'crates', 'inheriting', 'Cargo.toml'),
+            `[package]\nname = "inheriting"\n${spelling}\n`,
+          );
+          vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+          const result = await new VersionEngine({ ...defaultConfig, sync: false } as Config).getWorkspacePackages(tmp);
+
+          expect(result.packages.map((p) => [p.packageJson.name, p.packageJson.version])).toEqual([
+            ['inheriting', '0.3.0'],
+          ]);
+        } finally {
+          fs.rmSync(tmp, { recursive: true, force: true });
+        }
+      },
+    );
   });
 });

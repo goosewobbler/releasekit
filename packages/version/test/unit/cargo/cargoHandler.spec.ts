@@ -14,9 +14,9 @@ vi.mock('../../../src/utils/logging.js');
 vi.mock('smol-toml', () => ({
   stringify: vi.fn(() => 'mocked stringified TOML'),
 }));
-vi.mock('@releasekit/config', () => ({
+vi.mock('@releasekit/config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@releasekit/config')>()),
   parseCargoToml: vi.fn(),
-  isCargoToml: vi.fn((filePath: string) => path.basename(filePath) === 'Cargo.toml'),
 }));
 
 import { parseCargoToml } from '@releasekit/config';
@@ -191,6 +191,35 @@ describe('Cargo Handler', () => {
       vi.mocked(parseCargoToml, { partial: true }).mockReturnValue({ package: { version: '1.0.0' } });
 
       expect(() => updateCargoVersion(mockCargoPath, '2.0.0')).toThrow('No package name found in');
+    });
+
+    it.each([['version.workspace = true'], ['version = { workspace = true }']])(
+      'should fail naming a publishable crate with %s, leaving it untouched',
+      async (spelling) => {
+        const { parse } = await vi.importActual<typeof import('smol-toml')>('smol-toml');
+        vi.mocked(parseCargoToml, { partial: true }).mockReturnValue(
+          parse(`[package]\nname = "inheriting"\n${spelling}\n`),
+        );
+
+        expect(() => updateCargoVersion(mockCargoPath, '2.0.0')).toThrow(
+          `Workspace-inherited crate versions aren't supported yet: inheriting (${mockCargoPath})`,
+        );
+        expect(jsonOutput.writeVersionFile).not.toHaveBeenCalled();
+        expect(recordCargoBump).not.toHaveBeenCalled();
+      },
+    );
+
+    it('should leave a publish = false crate with an inherited version untouched without failing', async () => {
+      const { parse } = await vi.importActual<typeof import('smol-toml')>('smol-toml');
+      vi.mocked(parseCargoToml, { partial: true }).mockReturnValue(
+        parse('[package]\nname = "internal"\nversion.workspace = true\npublish = false\n'),
+      );
+
+      updateCargoVersion(mockCargoPath, '2.0.0');
+
+      expect(jsonOutput.writeVersionFile).not.toHaveBeenCalled();
+      expect(jsonOutput.addPackageUpdate).not.toHaveBeenCalled();
+      expect(recordCargoBump).not.toHaveBeenCalled();
     });
 
     it('should create package section if missing', () => {

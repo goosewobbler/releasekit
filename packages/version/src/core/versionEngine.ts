@@ -13,6 +13,7 @@ import {
 import { isPrivatePackageJson, shouldMatchPackageTargets } from '@releasekit/core';
 import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
+import { inheritsWorkspaceVersion } from '../cargo/cargoHandler.js';
 import { clearCargoBumps, syncCargoLockfiles } from '../cargo/cargoLock.js';
 import { raiseCargoDependentRequirements } from '../cargo/dependentRequirements.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
@@ -121,12 +122,36 @@ export class VersionEngine {
     this.currentStrategy = createStrategy(effective);
   }
 
+  private discoverNpmPackages(workspaceRoot: string): PackagesWithRoot {
+    try {
+      return getPackagesSync(workspaceRoot) as PackagesWithRoot;
+    } catch (error) {
+      // @manypkg/get-packages doesn't re-export the class, so match it by name.
+      if (!(error instanceof Error) || error.constructor.name !== 'NoPkgJsonFound') {
+        throw error;
+      }
+      log('No package.json found, so no npm packages to discover', 'debug');
+      return {
+        packages: [],
+        root: workspaceRoot,
+        // biome-ignore lint/suspicious/noExplicitAny: Tool type from @manypkg doesn't support repos without package.json
+        tool: 'pnpm' as any,
+        rootDir: workspaceRoot,
+      };
+    }
+  }
+
   private discoverCargoTomlPackages(workspaceRoot: string): PackagesWithRoot {
     let workspaceMembers: string[] | null = null;
+    let workspaceVersion: string | undefined;
     const rootCargoPath = path.join(workspaceRoot, 'Cargo.toml');
     if (fs.existsSync(rootCargoPath)) {
       try {
         const rootCargo = parseCargoToml(rootCargoPath);
+        const workspacePackage = rootCargo.workspace?.package as { version?: unknown } | undefined;
+        if (typeof workspacePackage?.version === 'string') {
+          workspaceVersion = workspacePackage.version;
+        }
         if (Array.isArray(rootCargo.workspace?.members) && rootCargo.workspace.members.length > 0) {
           workspaceMembers = rootCargo.workspace.members;
           log(`Cargo workspace members detected: ${workspaceMembers.join(', ')}`, 'debug');
@@ -181,7 +206,9 @@ export class VersionEngine {
           continue;
         }
 
-        if (cargoData.package?.name && typeof cargoData.package?.version === 'string') {
+        // An inheriting crate is discovered so that bumping it fails by name instead of skipping it silently.
+        const version = inheritsWorkspaceVersion(cargoData) ? workspaceVersion : cargoData.package?.version;
+        if (cargoData.package?.name && typeof version === 'string') {
           const relativePath = path.relative(workspaceRoot, packageDir);
           const pathParts = relativePath.split(path.sep);
           if (pathParts.includes('target') || pathParts.includes('node_modules')) {
@@ -206,7 +233,7 @@ export class VersionEngine {
           rustPackages.push({
             packageJson: {
               name: cargoData.package.name,
-              version: cargoData.package.version,
+              version,
             },
             dir: packageDir,
             relativeDir: relativePath,
@@ -419,7 +446,7 @@ export class VersionEngine {
         return this.workspaceCache;
       }
 
-      const npmPackages = getPackagesSync(workspaceRoot) as PackagesWithRoot;
+      const npmPackages = this.discoverNpmPackages(workspaceRoot);
       if (!npmPackages?.packages) {
         throw createVersionError(VersionErrorCode.PACKAGES_NOT_FOUND);
       }
