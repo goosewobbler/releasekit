@@ -4,7 +4,7 @@ Date: 2026-07-19
 
 ## Status
 
-Accepted. Implementation tracked in [#545](https://github.com/goosewobbler/releasekit/issues/545).
+Accepted. Implementation tracked in [#545](https://github.com/goosewobbler/releasekit/issues/545). Amended by [0009](./0009-one-versioning-model-packages-and-groups.md): the strategy machinery becomes one versioning model.
 
 ## Context
 

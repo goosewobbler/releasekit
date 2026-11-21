@@ -4,7 +4,7 @@ Date: 2026-07-19
 
 ## Status
 
-Accepted. Implementation tracked in [#541](https://github.com/goosewobbler/releasekit/issues/541). Amended by [0006](./0006-check-llm-model-when-the-llm-runs.md): `llm.model` is checked when the LLM runs, not at config load.
+Accepted. Implementation tracked in [#541](https://github.com/goosewobbler/releasekit/issues/541). Amended by [0006](./0006-check-llm-model-when-the-llm-runs.md): `llm.model` is checked when the LLM runs, not at config load. This ADR's scoping sentence is superseded by [0007](./0007-changelog-is-deterministic.md).
 
 ## Context
 
