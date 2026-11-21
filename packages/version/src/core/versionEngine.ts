@@ -50,7 +50,7 @@ export class VersionEngine {
   private includePrerequisites = false;
   private excludePackages: string[] = [];
   private prerequisiteOf: Record<string, string[]> = {};
-  private prerequisiteTargets: string[] | null = null;
+  private targetsExpanded = false;
   /** Every discovered package, for the dependency graph bundling walks. */
   private discoveredPackages: Package[] = [];
 
@@ -514,7 +514,7 @@ export class VersionEngine {
           'info',
         );
         this.runtimeTargets = targets;
-        this.prerequisiteTargets = targets;
+        this.targetsExpanded = true;
         this.config.overrideScope = overrideScope;
         this.prerequisiteOf = prerequisiteOf;
         // Rebuild strategies so they pick up the override scope derived from the workspace graph.
@@ -589,8 +589,10 @@ export class VersionEngine {
   public async run(packages: PackagesWithRoot, targets: string[] = []): Promise<void> {
     try {
       clearCargoBumps();
-      // Callers pass the targets they were given, which the prerequisite expansion has since widened.
-      await this.currentStrategy(packages, this.prerequisiteTargets ?? targets);
+      // Callers pass the targets they were given, which the prerequisite expansion has since widened. An empty
+      // expansion means the targets matched nothing, and an empty list would read as every package.
+      const expanded = this.targetsExpanded && this.runtimeTargets.length > 0;
+      await this.currentStrategy(packages, expanded ? this.runtimeTargets : targets);
       await raiseCargoDependentRequirements(packages.root ?? cwd(), this.config.dryRun ?? false);
       await syncCargoLockfiles(packages.root ?? cwd(), this.config.dryRun ?? false);
       if (Object.keys(this.prerequisiteOf).length > 0) {

@@ -63,13 +63,17 @@ describe('release --include-prerequisites', { timeout: 30_000 }, () => {
   beforeEach(() => {
     // Without a GitHub context the merged-PR gate is skipped.
     vi.stubEnv('GITHUB_REPOSITORY', '');
-    vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    });
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
-    fs.rmSync(projectDir, { recursive: true, force: true });
+    if (projectDir) {
+      fs.rmSync(projectDir, { recursive: true, force: true });
+    }
   });
 
   it.each([

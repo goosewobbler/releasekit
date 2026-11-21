@@ -63,4 +63,15 @@ describe('--include-prerequisites', () => {
       lib: '1.0.1',
     });
   });
+
+  it('should release nothing when the target matches no package', () => {
+    createRepo({});
+    addDependencies();
+    commitTo('app', 'feat', 'add a command');
+    commitTo('lib', 'fix', 'correct a typo');
+
+    const output = runVersionJson(tempDir, '--target ap --include-prerequisites');
+
+    expect(output.updates).toEqual([]);
+  });
 });
