@@ -4,13 +4,13 @@ Date: 2026-11-20
 
 ## Status
 
-Accepted. Amends [0003](./0003-optional-change-file-input.md): the "strategy machinery" change files feed is now this one model. Implementation tracked in [#1066](https://github.com/goosewobbler/releasekit/issues/1066) and [#958](https://github.com/goosewobbler/releasekit/issues/958).
+Accepted. Amends [0003](./0003-optional-change-file-input.md): the "strategy machinery" change files feed becomes this one model. Implementation tracked in [#1066](https://github.com/goosewobbler/releasekit/issues/1066) and [#958](https://github.com/goosewobbler/releasekit/issues/958).
 
 ## Context
 
 The version step has four strategies, each with its own code path: sync, single, async and group. The `sync` setting's description calls `sync: true` an implicit fixed group of every package, but sync has its own code path for two reasons:
 
-- consumers such as standing PRs rely on its outputs: a shared tag and changelog (per-package ones with `packageSpecificTags`) and the root manifest bump;
+- consumers such as standing PRs rely on its outputs: a shared tag and changelog (per-package ones with `packageSpecificTags`) and the root manifests' bump;
 - it takes its version from one package, because packages' tags and manifests can disagree.
 
 [ADR 0008](./0008-versions-live-in-a-version-record.md) removes the second reason: every package's version comes from the record.

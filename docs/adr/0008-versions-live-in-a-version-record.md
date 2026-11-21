@@ -16,7 +16,7 @@ The ecosystems on the roadmap make this harder: tag-only ecosystems such as Go h
 
 **A committed version record, `releasekit.versions.json`, is the source of each package's current version and of where its last release was.**
 
-- Each entry records a package's version and the base-branch commit its release was computed at, and a prerelease entry also records its last stable release. Older releases come from the record's history.
+- Each entry records a package's version and the base-branch commit its release was computed at, and a prerelease entry also records its last stable release. Past releases since migration come from the record's history; backfill still reads tags for earlier ones.
 - The version step updates the record in the release commit, alongside the manifest bumps.
 - Tags are never read to compute a package's next version or its commit range. Migration seeds the record from them.
 
@@ -26,5 +26,5 @@ The ecosystems on the roadmap make this harder: tag-only ecosystems such as Go h
 - Every ecosystem works the same way, including those with no manifest version and packages with more than one manifest.
 - Each repo migrates once to create the record.
 - In standing-PR mode, a commit that lands on `main` after the standing PR's last update ships with that release but appears in the next release's changelog and bump. Today such a commit ships without ever being counted.
-- Each branch carries its own copy of the record, so a maintenance branch releases from its own entries. Merging it back means resolving the record by keeping the higher version of each entry, normally `main`'s.
+- Each branch carries its own copy of the record, so a maintenance branch releases from its own entries. Merging it back means resolving the record by keeping the higher of each recorded version, an entry's last stable release included.
 - [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies the record's format and the rules that keep it consistent.

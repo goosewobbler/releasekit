@@ -2,7 +2,7 @@
 
 A conceptual overview for contributors and users evaluating ReleaseKit.
 
-[ADR 0008](./adr/0008-versions-live-in-a-version-record.md) replaces the tag baseline this doc describes with a committed version record, and [ADR 0009](./adr/0009-one-versioning-model-packages-and-groups.md) replaces the versioning strategies with one model. Until they ship ([#958](https://github.com/goosewobbler/releasekit/issues/958), [#1066](https://github.com/goosewobbler/releasekit/issues/1066)), this doc describes the current behaviour.
+[ADR 0008](./adr/0008-versions-live-in-a-version-record.md) replaces the tag baseline this doc describes with a committed version record, and [ADR 0009](./adr/0009-one-versioning-model-packages-and-groups.md) replaces the version step's sync, single, async and group strategies with one model. Until they ship ([#958](https://github.com/goosewobbler/releasekit/issues/958), [#1066](https://github.com/goosewobbler/releasekit/issues/1066)), this doc describes the current behaviour.
 
 ---
 
