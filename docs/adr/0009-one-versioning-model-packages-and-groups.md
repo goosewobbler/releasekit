@@ -31,6 +31,6 @@ The version step has four strategies with separate code paths: sync, single, asy
 
 ## Consequences
 
-- `sync: true` becomes the implicit fixed group its description claims, with a repo-wide commit scope and sync's outputs, which a declared fixed group doesn't have. It still takes precedence over `version.groups`.
-- `mainPackage` no longer chooses sync's version, but still supplies its repository URL and, when `packageSpecificTags` is off, names its changelog.
+- `sync: true` now works as its description says: a fixed group of every package. Unlike a declared fixed group, it counts commits anywhere in the repo and keeps sync's outputs, and it still overrides `version.groups`.
+- `mainPackage` no longer decides sync's version. It still provides sync's repository URL and, without `packageSpecificTags`, the name of its changelog.
 - [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies the outputs each kind of release keeps, the single strategy's other changes, and how old manifests are read.
