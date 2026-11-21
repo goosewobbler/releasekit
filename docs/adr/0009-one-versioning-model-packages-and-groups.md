@@ -19,12 +19,7 @@ The version step has four strategies with separate code paths: sync, single, asy
 
 **One code path versions every package. A package is versioned on its own unless a group couples it to others.**
 
-- Groups work as they do now:
-  - `fixed`: every member releases at one version, the highest of the members' recorded versions raised by the largest bump any member calls for, and never below a member's own next version.
-  - `linked`: the same, but only changed members release.
-  - `independent`: changed members release together, each at its own version.
-
-  A member with no entry joins at the group's version, and a group with no entries starts from its members' manifests, as a new package does. Targeting a member of a `fixed` or `independent` group pulls in the whole group.
+- Groups keep today's behaviour. A `fixed` group releases every member at one shared version, a `linked` group releases only its changed members at that version, and an `independent` group releases its changed members together at their own versions. [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies how the shared version is computed.
 - The four strategies map onto this model, and the version output's `strategy` label keeps three of their names:
 
 | Config | Today | Under this ADR | `strategy` |
