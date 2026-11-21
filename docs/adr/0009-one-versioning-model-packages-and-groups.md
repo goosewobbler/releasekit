@@ -20,7 +20,7 @@ The version step has four strategies with separate code paths: sync, single, asy
 **One code path versions every package. A package is versioned on its own unless a group couples it to others.**
 
 - Groups keep today's behaviour. A `fixed` group releases every member at one shared version, a `linked` group releases only its changed members at that version, and an `independent` group releases its changed members together at their own versions. [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies how the shared version is computed.
-- The four strategies map onto this model, and the version output's `strategy` label keeps three of their names:
+- The `single` strategy is dropped. Today's strategies map onto this model as follows:
 
 | Config | Today | Under this ADR | `strategy` |
 |---|---|---|---|
@@ -32,6 +32,5 @@ The version step has four strategies with separate code paths: sync, single, asy
 ## Consequences
 
 - `sync: true` becomes the implicit fixed group its description claims, with a repo-wide commit scope and sync's outputs, which a declared fixed group doesn't have. It still takes precedence over `version.groups`.
-- The single strategy goes: a one-package run with `sync: false` and no groups reports `async`, not `single`.
 - `mainPackage` no longer chooses sync's version, but still supplies its repository URL and, when `packageSpecificTags` is off, names its changelog.
 - [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies the outputs each kind of release keeps, the single strategy's other changes, and how old manifests are read.
