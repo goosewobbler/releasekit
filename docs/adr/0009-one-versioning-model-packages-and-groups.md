@@ -24,13 +24,13 @@ The version step has four strategies, each with its own code path: sync, single,
 
 | Config | Today | Under this ADR | `strategy` |
 |---|---|---|---|
-| `sync: true` (the default) or `--sync`, with or without `version.groups` | sync strategy | one `fixed` group of every package, counting commits anywhere in the repo, with the sync strategy's tag, changelog and root manifest bump | `sync` |
+| `sync: true` (the default) or `--sync`, with or without `version.groups` | sync strategy | one `fixed` group of every package, behaving as the sync strategy does today | `sync` |
 | `sync: false`, non-empty `version.groups` | group strategy | the declared groups, and every other package on its own | `group` |
 | `sync: false`, no groups, several packages resolved | async strategy | each package on its own | `async` |
 | `sync: false`, no groups, one package resolved | single strategy | that package on its own | `async` |
 
 ## Consequences
 
-- `sync: true` now works as its description says: a fixed group of every package. It differs from a fixed group in `version.groups` in two ways: it counts commits anywhere in the repo, and it produces the sync strategy's tag, changelog and root manifest bump. It still overrides `version.groups`.
+- `sync: true` releases behave as they do today and still override `version.groups`. Only the code behind them changes, and their version comes from the record instead of one package.
 - `mainPackage` no longer decides the shared version of a `sync: true` release. It still provides that release's repository URL and, without `packageSpecificTags`, the name of its changelog.
 - [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies the outputs each kind of release keeps, the single strategy's other changes, and how old manifests are read.
