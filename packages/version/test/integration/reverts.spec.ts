@@ -44,6 +44,56 @@ describe('reverted commits', () => {
     expect(entries.map((e) => e.description)).toEqual(['handle empty input']);
   });
 
+  // Git 2.43+ titles the second revert `Reapply "feat!: drop Node 18 (#12)"`. Each revert toggles the one before it.
+  const fix = { description: 'handle empty input' };
+  const breakingFeat = { description: 'drop Node 18', breaking: true, prNumber: '#12' };
+  it.each([
+    { reverts: 2, version: '2.0.0', entries: [breakingFeat, fix] },
+    { reverts: 3, version: '1.4.3', entries: [fix] },
+    { reverts: 4, version: '2.0.0', entries: [breakingFeat, fix] },
+  ])(
+    'should resolve a commit reverted $reverts times in the same release by the last revert',
+    ({ reverts, version, entries }) => {
+      tempDir = createWorkspaceRepo('rk-reverts-', {
+        packages: { core: '@test/core' },
+        version: '1.4.2',
+        config: { preset: 'conventionalcommits', sync: true, versionPrefix: 'v' },
+        tags: ['v1.4.2'],
+      });
+      commitChange('fix', 'handle empty input');
+      commitChange('feat', 'drop Node 18 (#12)', true);
+      for (let i = 0; i < reverts; i++) {
+        revertHead();
+      }
+
+      const output = runVersionJson(tempDir);
+      expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe(version);
+      expect(output.changelogs.flatMap((c) => c.entries)).toMatchObject(entries);
+    },
+  );
+
+  it('should resolve a hand-written Reapply commit by the revert it names', () => {
+    tempDir = createWorkspaceRepo('rk-reverts-', {
+      packages: { core: '@test/core' },
+      version: '1.4.2',
+      config: { preset: 'conventionalcommits', sync: true, versionPrefix: 'v' },
+      tags: ['v1.4.2'],
+    });
+    commitChange('feat', 'drop Node 18 (#12)', true);
+    revertHead();
+    const revert = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tempDir, encoding: 'utf-8' }).trim();
+    writeFileSync(join(tempDir, 'packages/core/index.js'), '// reapplied\n');
+    execFileSync('git', ['add', 'packages/core'], { cwd: tempDir });
+    const message = `Reapply "feat!: drop Node 18 (#12)"\n\nThis reverts commit ${revert}.`;
+    execFileSync('git', ['commit', '-q', '-m', message], { cwd: tempDir });
+
+    const output = runVersionJson(tempDir);
+    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('2.0.0');
+    expect(output.changelogs.flatMap((c) => c.entries)).toMatchObject([
+      { description: 'drop Node 18', breaking: true, prNumber: '#12' },
+    ]);
+  });
+
   it('should keep a squash-merged revert, as the bump does', () => {
     tempDir = createWorkspaceRepo('rk-reverts-', {
       packages: { core: '@test/core' },
