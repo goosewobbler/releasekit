@@ -22,12 +22,12 @@ The version step has four strategies, each with its own code path: sync, single,
 - Groups keep today's behaviour. A `fixed` group releases every member at one shared version, a `linked` group releases only its changed members at that version, and an `independent` group releases its changed members together at their own versions. [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies how the shared version is computed.
 - The `single` strategy is dropped. Today's strategies map onto this model as follows:
 
-| Config | Today | Under this ADR | `strategy` |
+| Config | Strategy today | Versioned as | `strategy` reported |
 |---|---|---|---|
-| `sync: true` (the default) or `--sync`, with or without `version.groups` | sync strategy | one `fixed` group of every package, behaving as the sync strategy does today | `sync` |
-| `sync: false`, non-empty `version.groups` | group strategy | the declared groups, and every other package on its own | `group` |
-| `sync: false`, no groups, several packages resolved | async strategy | each package on its own | `async` |
-| `sync: false`, no groups, one package resolved | single strategy | that package on its own | `async` |
+| `sync: true` (the default) or `--sync`, with or without `version.groups` | `sync` | one `fixed` group of every package, behaving as `sync` does today | `sync` |
+| `sync: false`, non-empty `version.groups` | `group` | the declared groups, and every other package on its own | `group` |
+| `sync: false`, no groups, several packages resolved | `async` | each package on its own | `async` |
+| `sync: false`, no groups, one package resolved | `single` | that package on its own | `async` |
 
 ## Consequences
 
