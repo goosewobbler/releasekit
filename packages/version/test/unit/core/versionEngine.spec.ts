@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { cwd as mockCwd } from 'node:process';
-import { getPackagesSync } from '@manypkg/get-packages';
+import { getPackagesSync, PackageJsonMissingNameError } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VersionEngine } from '../../../src/core/versionEngine.js';
 import * as strategyModule from '../../../src/core/versionStrategies.js';
@@ -632,7 +632,7 @@ describe('Version Engine', () => {
       discoverSpy.mockRestore();
     });
 
-    it('should fail when no npm, Cargo or pub package is found', async () => {
+    it('should fail when the project directory has no package.json, Cargo.toml or pubspec.yaml', async () => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-empty-'));
       try {
         vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, rootDir: tmp, packages: [] });
@@ -641,8 +641,22 @@ describe('Version Engine', () => {
 
         await expect(engine.getWorkspacePackages(tmp)).rejects.toMatchObject({
           code: 'PACKAGES_NOT_FOUND',
-          message: `Failed to get packages information: no npm, Cargo or pub package found in ${tmp}`,
+          message: `Failed to get packages information: no package.json, Cargo.toml or pubspec.yaml found in ${tmp}`,
         });
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it('should not fail an npm workspace whose globs match no packages yet', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-empty-npm-'));
+      try {
+        fs.writeFileSync(path.join(tmp, 'package.json'), JSON.stringify({ name: 'monorepo', private: true }));
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, rootDir: tmp, packages: [] });
+
+        const result = await new VersionEngine({ ...defaultConfig, sync: false } as Config).getWorkspacePackages(tmp);
+
+        expect(result.packages).toEqual([]);
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
       }
@@ -1150,7 +1164,7 @@ describe('Version Engine', () => {
     });
 
     it.each([['version.workspace = true'], ['version = { workspace = true }']])(
-      'should discover a crate with %s at the workspace version',
+      'should skip a crate with %s, warning that it inherits its version',
       async (spelling) => {
         const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-inherit-'));
         try {
@@ -1158,17 +1172,27 @@ describe('Version Engine', () => {
             path.join(tmp, 'Cargo.toml'),
             '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\n',
           );
-          fs.mkdirSync(path.join(tmp, 'crates', 'inheriting'), { recursive: true });
-          fs.writeFileSync(
-            path.join(tmp, 'crates', 'inheriting', 'Cargo.toml'),
-            `[package]\nname = "inheriting"\n${spelling}\n`,
-          );
+          for (const [name, fields] of [
+            ['literal', 'version = "0.1.0"'],
+            ['inheriting', spelling],
+            ['internal', `${spelling}\npublish = false`],
+          ]) {
+            fs.mkdirSync(path.join(tmp, 'crates', name), { recursive: true });
+            fs.writeFileSync(path.join(tmp, 'crates', name, 'Cargo.toml'), `[package]\nname = "${name}"\n${fields}\n`);
+          }
           vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
 
           const result = await new VersionEngine({ ...defaultConfig, sync: false } as Config).getWorkspacePackages(tmp);
 
-          expect(result.packages.map((p) => [p.packageJson.name, p.packageJson.version])).toEqual([
-            ['inheriting', '0.3.0'],
+          expect(result.packages.map((p) => p.packageJson.name)).toEqual(['literal']);
+          const warnings = vi.mocked(log).mock.calls.filter(([, level]) => level === 'warning');
+          expect(warnings).toEqual([
+            [
+              expect.stringMatching(
+                /^Skipping Rust package inheriting at crates.inheriting: it inherits its version from the workspace, which ReleaseKit doesn't support yet, so it won't be released$/,
+              ),
+              'warning',
+            ],
           ]);
         } finally {
           fs.rmSync(tmp, { recursive: true, force: true });
@@ -1225,30 +1249,33 @@ describe('Version Engine', () => {
       }
     });
 
-    it('should resolve inherited version and publish from the nearest workspace, not the repo root', async () => {
-      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-nested-'));
+    it.each([
+      ['@manypkg rejects it as the root package', 'own'],
+      ['@manypkg returns an outer workspace', 'outer'],
+    ])('should treat a nameless package.json as no npm packages when %s', async (_, root) => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-nameless-'));
       try {
-        fs.mkdirSync(path.join(tmp, 'app', 'src-tauri', 'crates', 'internal'), { recursive: true });
-        fs.mkdirSync(path.join(tmp, 'app', 'src-tauri', 'crates', 'inheriting'), { recursive: true });
-        fs.writeFileSync(
-          path.join(tmp, 'app', 'src-tauri', 'Cargo.toml'),
-          '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\npublish = false\n',
-        );
-        fs.writeFileSync(
-          path.join(tmp, 'app', 'src-tauri', 'crates', 'internal', 'Cargo.toml'),
-          '[package]\nname = "internal"\nversion.workspace = true\npublish.workspace = true\n',
-        );
-        fs.writeFileSync(
-          path.join(tmp, 'app', 'src-tauri', 'crates', 'inheriting', 'Cargo.toml'),
-          '[package]\nname = "inheriting"\nversion.workspace = true\n',
-        );
-        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+        const project = path.join(tmp, 'project');
+        fs.mkdirSync(project);
+        fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ private: true }));
+        fs.writeFileSync(path.join(project, 'Cargo.toml'), '[package]\nname = "solo"\nversion = "1.0.0"\n');
+        if (root === 'own') {
+          vi.mocked(getPackagesSync).mockImplementation(() => {
+            throw Object.assign(new PackageJsonMissingNameError(['package.json']), { directories: ['package.json'] });
+          });
+        } else {
+          vi.mocked(getPackagesSync).mockReturnValue({
+            root: tmp,
+            rootDir: tmp,
+            packages: [{ dir: tmp, relativeDir: '.', packageJson: { name: 'outer', version: '1.0.0' } }],
+          });
+        }
 
-        const result = await new VersionEngine({ ...defaultConfig, sync: false } as Config).getWorkspacePackages(tmp);
+        const result = await new VersionEngine({ ...defaultConfig, sync: false } as Config).getWorkspacePackages(
+          project,
+        );
 
-        expect(result.packages.map((p) => [p.packageJson.name, p.packageJson.version])).toEqual([
-          ['inheriting', '0.3.0'],
-        ]);
+        expect(result.packages.map((p) => p.packageJson.name)).toEqual(['solo']);
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
       }

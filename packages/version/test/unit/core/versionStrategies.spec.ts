@@ -98,7 +98,6 @@ describe('Version Strategies', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.mocked(packageManagement.updatePackageVersion).mockReturnValue(true);
     vi.mocked(cargoHandler.isVersionedCrate).mockReturnValue(true);
     vi.mocked(pubHandler.isReleasablePubspec).mockReturnValue(true);
 
@@ -262,7 +261,6 @@ describe('Version Strategies', () => {
         if (file === '/test/workspace/pubspec.yaml') {
           throw new Error('No version field found in /test/workspace/pubspec.yaml');
         }
-        return true;
       });
       const config: Partial<Config> = { ...defaultConfig, sync: true };
 

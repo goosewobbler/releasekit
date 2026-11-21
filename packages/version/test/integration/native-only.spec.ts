@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } fro
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { executeCliCommand, runVersionJson } from '../utils/cli.js';
+import { executeCliCommand, readVersionOutput, runVersionJson } from '../utils/cli.js';
 import { createConventionalCommit, initGitRepo } from '../utils/git.js';
 import { cleanupTempDir } from '../utils/tempFixture.js';
 
@@ -71,50 +71,42 @@ describe('Rust-only repo', () => {
     expect(output.updates.map((u) => [u.packageName, u.newVersion, relativeFiles(u.files)])).toEqual([
       ['solo', '1.0.1', ['Cargo.toml']],
     ]);
+    expect(output.updates[0].isRoot).toBeUndefined();
     expect(output.tags).toEqual(['v1.0.1']);
   });
 
-  it.each([
-    ['the repo root', ''],
-    ['a nested directory', 'src-tauri/'],
-  ])('should fail naming a releasing crate that inherits its version from a workspace at %s', (_, dir) => {
-    write(`${dir}Cargo.toml`, '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\n');
-    write(`${dir}crates/literal/Cargo.toml`, '[package]\nname = "literal"\nversion = "0.1.0"\n');
-    write(`${dir}crates/inheriting/Cargo.toml`, '[package]\nname = "inheriting"\nversion.workspace = true\n');
-    write(
-      `${dir}crates/internal/Cargo.toml`,
-      '[package]\nname = "internal"\nversion.workspace = true\npublish = false\n',
-    );
+  it.each([['version.workspace = true'], ['version = { workspace = true }']])(
+    'should skip a crate with %s with a warning and release the rest',
+    (spelling) => {
+      write('Cargo.toml', '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\n');
+      write('crates/literal/Cargo.toml', '[package]\nname = "literal"\nversion = "0.1.0"\n');
+      write('crates/inheriting/Cargo.toml', `[package]\nname = "inheriting"\n${spelling}\n`);
+      initGitRepo(tempDir);
+      createConventionalCommit(tempDir, 'feat', 'add feature');
+
+      const result = executeCliCommand('--json', tempDir);
+
+      expect(result.status).toBe(0);
+      expect(readVersionOutput(result.stdout).updates.map((u) => [u.packageName, u.newVersion])).toEqual([
+        ['literal', '0.2.0'],
+      ]);
+      expect(result.stderr).toContain(
+        "Skipping Rust package inheriting at crates/inheriting: it inherits its version from the workspace, which ReleaseKit doesn't support yet, so it won't be released",
+      );
+    },
+  );
+
+  it('should version a root crate beside a package.json without a name', () => {
+    write('package.json', JSON.stringify({ private: true, scripts: { lint: 'cargo clippy' } }));
+    write('Cargo.toml', '[package]\nname = "solo"\nversion = "1.0.0"\n');
     initGitRepo(tempDir);
-    createConventionalCommit(tempDir, 'feat', 'add feature');
-
-    const result = executeCliCommand('--json', tempDir);
-
-    expect(result.status).toBe(2);
-    expect(JSON.parse(result.stdout).errors).toEqual([
-      expect.objectContaining({
-        code: 'CARGO_INHERITED_VERSION',
-        message: `Workspace-inherited crate versions aren't supported yet: inheriting (${dir}crates/inheriting/Cargo.toml)`,
-      }),
-    ]);
-  });
-
-  it('should leave out a crate that inherits publish = false from its workspace', () => {
-    write(
-      'Cargo.toml',
-      '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\npublish = false\n',
-    );
-    write('crates/literal/Cargo.toml', '[package]\nname = "literal"\nversion = "0.1.0"\npublish = true\n');
-    write(
-      'crates/internal/Cargo.toml',
-      '[package]\nname = "internal"\nversion.workspace = true\npublish.workspace = true\n',
-    );
-    initGitRepo(tempDir);
-    createConventionalCommit(tempDir, 'feat', 'add feature');
+    createConventionalCommit(tempDir, 'fix', 'fix bug');
 
     const output = runVersionJson(tempDir);
 
-    expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['literal', '0.2.0']]);
+    expect(output.updates.map((u) => [u.packageName, u.newVersion, relativeFiles(u.files)])).toEqual([
+      ['solo', '1.0.1', ['Cargo.toml']],
+    ]);
   });
 
   it.each([
@@ -156,6 +148,7 @@ describe('Dart-only repo', () => {
     expect(output.updates.map((u) => [u.packageName, u.newVersion, relativeFiles(u.files)])).toEqual([
       ['solo_dart', '1.3.0', ['pubspec.yaml']],
     ]);
+    expect(output.updates[0].isRoot).toBeUndefined();
     expect(output.tags).toEqual(['v1.3.0']);
   });
 });

@@ -113,7 +113,7 @@ describe('internal Cargo dependents', () => {
   it.each([
     ['publish = false', 'version = "1.0.0"\npublish = false\n'],
     ['an inherited version', 'version.workspace = true\n'],
-  ])("should raise a dependent with %s that isn't releasing", (_, driverPackage) => {
+  ])('should raise a dependent with %s, which releases never discover', (_, driverPackage) => {
     createRepo({ root: '\n[workspace.package]\nversion = "1.0.0"\n', driverPackage });
     commitTo('bridge', 'feat', 'replace the IPC API', true);
 

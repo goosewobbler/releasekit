@@ -11,20 +11,20 @@ export interface UpdatePackageVersionOptions {
   recordAs?: string;
 }
 
-/** Returns false when it leaves the manifest as it is. */
 export function updatePackageVersion(
   packagePath: string,
   version: string,
   dryRun = false,
   { isRoot = false, recordAs }: UpdatePackageVersionOptions = {},
-): boolean {
+): void {
   if (isCargoToml(packagePath)) {
-    return updateCargoVersion(packagePath, version, dryRun, { recordAs, isRoot });
+    updateCargoVersion(packagePath, version, dryRun, { recordAs, isRoot });
+    return;
   }
 
   if (isPubspecYaml(packagePath)) {
     updatePubVersion(packagePath, version, dryRun, { recordAs, isRoot });
-    return true;
+    return;
   }
 
   try {
@@ -41,7 +41,6 @@ export function updatePackageVersion(
       `${dryRun ? '[DRY RUN] Would update' : 'Updated'} package.json at ${packagePath} to version ${version}`,
       'success',
     );
-    return true;
   } catch (error) {
     log(`Failed to update package.json at ${packagePath}`, 'error');
     if (error instanceof Error) {
