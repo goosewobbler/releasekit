@@ -1,5 +1,5 @@
 /**
- * Runs the built version engine against a temp git repo, the way release does on a re-run.
+ * Runs the built VersionEngine API against a temp git repo, with skipTaggedAfter set as release sets it on a re-run.
  * Requires `pnpm build` in @releasekit/version first.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -46,9 +46,14 @@ function runVersionEngine(skipTaggedAfter: string, strategy = 'async'): VersionO
     await engine.run(await engine.getWorkspacePackages());
     process.stdout.write(JSON.stringify(getJsonData()));
   `;
-  const result = spawnSync('node', ['--input-type=module', '-e', script], { cwd: tempDir, encoding: 'utf8' });
+  const result = spawnSync('node', ['--input-type=module', '-e', script], {
+    cwd: tempDir,
+    encoding: 'utf8',
+    timeout: 60_000,
+  });
   if (result.status !== 0) {
-    throw new Error(`version engine failed:\n${result.stderr}`);
+    const cause = result.error?.message ?? result.signal ?? `exit status ${result.status}`;
+    throw new Error(`version engine failed (${cause}):\n${result.stderr}`);
   }
   return JSON.parse(result.stdout) as VersionOutput;
 }
@@ -99,8 +104,8 @@ describe('skipTaggedAfter', () => {
     });
     tag('pkg-a@v1.0.0');
     commitTo('pkg-a', 'correct a typo in a');
+    release('pkg-a', '1.0.1');
     const runCommit = git('rev-parse', 'HEAD');
-    tag('pkg-a@v1.0.1');
     commitTo('pkg-a', 'correct another typo in a');
 
     const output = runVersionEngine(runCommit, strategy);
