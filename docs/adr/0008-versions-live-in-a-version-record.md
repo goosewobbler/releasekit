@@ -8,23 +8,23 @@ Accepted. Implementation tracked in [#1066](https://github.com/goosewobbler/rele
 
 ## Context
 
-ReleaseKit finds a package's current version, and where its last release was, by searching git tags, with the manifest as a fallback. Tag names come from configurable templates, and tags get moved, sanitized or left behind by earlier tooling, so the search has many edge cases and each versioning strategy resolves them differently. `mismatchStrategy`, `baselineTagTemplate` and `strictReachable` exist to work around it.
+ReleaseKit finds each package's current version and last release by searching git tags, falling back to the manifest. Tag names come from configurable templates, and tags get moved, sanitized or left behind by earlier tooling, so the search has many edge cases that each strategy handles differently. `mismatchStrategy`, `baselineTagTemplate` and `strictReachable` exist to work around it.
 
-The ecosystems on the roadmap make this harder: tag-only ecosystems such as Go have no manifest version to fall back to. release-please keeps versions in a committed file; recording each release's commit as well is new here.
+Planned tag-only ecosystems, such as Go, have no manifest version to fall back to. release-please keeps versions in a committed file; this ADR also records each release's commit.
 
 ## Decision
 
-**A committed version record, `releasekit.versions.json`, is the source of each package's current version and of where its last release was.**
+**A committed record, `releasekit.versions.json`, holds each package's current version and where its last release was.**
 
-- Each entry records a package's version and the base-branch commit its release was computed at, and a prerelease entry also records its last stable release's version and commit. Past releases since migration come from the record's history; backfill still reads tags for earlier ones.
+- Each entry holds the package's version and the base-branch commit its release was computed at. A prerelease entry also holds its last stable release's version and commit. Past releases come from the record's history.
 - The version step updates the record in the release commit, alongside the manifest bumps.
-- Tags are never read to compute a package's next version or its commit range. Migration seeds each entry from the package's last release: the version today's tag search resolves, and the commit of its last tag.
+- Tags are never read to compute the next version or its commit range. Migration seeds each entry with the version and commit today's tag search resolves, and backfill still reads tags for releases made before migration.
 
 ## Consequences
 
-- After migration, versions and release ranges no longer depend on tag naming or moved tags, and the settings that work around the tag search go or change. Ranges depend instead on each recorded commit being in the clone's history; a clone without it, such as a shallow one, fails the version step.
+- After migration, tag naming and moved tags no longer affect versions or ranges, and the settings that work around the tag search go or change. A recorded commit that isn't an ancestor of `HEAD`, as in a shallow clone, fails the version step.
 - Every ecosystem works the same way, including those with no manifest version and packages with more than one manifest.
-- Each repo migrates once to create the record; migration can later add a package that already has releases.
-- In standing-PR mode, a commit that lands on `main` after the standing PR's last update ships with that release but appears in the next release's changelog and bump. Today such a commit ships without ever being counted.
-- Each branch carries its own copy of the record, so a maintenance branch releases from its own entries. Merging it back means reconciling the two records, as [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies.
-- [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies the record's format and the rules that keep it consistent.
+- Each repo migrates once; migration can later add a package that already has releases.
+- In standing-PR mode, a commit that lands on `main` after the standing PR's last update ships in that release but is counted in the next one. Today it ships uncounted.
+- Each branch keeps its own record, so a maintenance branch releases from its own entries, and merging it back reconciles the two records.
+- [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies the record's format, how records are reconciled, and the rules that keep it consistent.
