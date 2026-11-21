@@ -45,13 +45,11 @@ export function updateNativeManifests(
   options: NativeManifestOptions = {},
 ): string[] {
   const { dryRun = false, recordAs, isRoot } = options;
-  const manifestPaths = nativeManifestsToBump(packageDir, config, options);
-  for (const manifestPath of manifestPaths) {
+  return nativeManifestsToBump(packageDir, config, options).filter((manifestPath) => {
     // A manifest reached through `paths` is its own update, so it keeps its own name.
     const record = isInPackageDir(manifestPath, packageDir) ? { recordAs, isRoot } : {};
-    updatePackageVersion(manifestPath, version, dryRun, record);
-  }
-  return manifestPaths;
+    return updatePackageVersion(manifestPath, version, dryRun, record);
+  });
 }
 
 function isInPackageDir(manifestPath: string, packageDir: string): boolean {

@@ -74,11 +74,17 @@ describe('Rust-only repo', () => {
     expect(output.tags).toEqual(['v1.0.1']);
   });
 
-  it('should fail naming a releasing crate that inherits its version from the workspace', () => {
-    write('Cargo.toml', '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\n');
-    write('crates/literal/Cargo.toml', '[package]\nname = "literal"\nversion = "0.1.0"\n');
-    write('crates/inheriting/Cargo.toml', '[package]\nname = "inheriting"\nversion.workspace = true\n');
-    write('crates/internal/Cargo.toml', '[package]\nname = "internal"\nversion.workspace = true\npublish = false\n');
+  it.each([
+    ['the repo root', ''],
+    ['a nested directory', 'src-tauri/'],
+  ])('should fail naming a releasing crate that inherits its version from a workspace at %s', (_, dir) => {
+    write(`${dir}Cargo.toml`, '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\n');
+    write(`${dir}crates/literal/Cargo.toml`, '[package]\nname = "literal"\nversion = "0.1.0"\n');
+    write(`${dir}crates/inheriting/Cargo.toml`, '[package]\nname = "inheriting"\nversion.workspace = true\n');
+    write(
+      `${dir}crates/internal/Cargo.toml`,
+      '[package]\nname = "internal"\nversion.workspace = true\npublish = false\n',
+    );
     initGitRepo(tempDir);
     createConventionalCommit(tempDir, 'feat', 'add feature');
 
@@ -88,9 +94,52 @@ describe('Rust-only repo', () => {
     expect(JSON.parse(result.stdout).errors).toEqual([
       expect.objectContaining({
         code: 'CARGO_INHERITED_VERSION',
-        message: "Workspace-inherited crate versions aren't supported yet: inheriting (crates/inheriting/Cargo.toml)",
+        message: `Workspace-inherited crate versions aren't supported yet: inheriting (${dir}crates/inheriting/Cargo.toml)`,
       }),
     ]);
+  });
+
+  it('should leave out a crate that inherits publish = false from its workspace', () => {
+    write(
+      'Cargo.toml',
+      '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\npublish = false\n',
+    );
+    write('crates/literal/Cargo.toml', '[package]\nname = "literal"\nversion = "0.1.0"\npublish = true\n');
+    write(
+      'crates/internal/Cargo.toml',
+      '[package]\nname = "internal"\nversion.workspace = true\npublish.workspace = true\n',
+    );
+    initGitRepo(tempDir);
+    createConventionalCommit(tempDir, 'feat', 'add feature');
+
+    const output = runVersionJson(tempDir);
+
+    expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['literal', '0.2.0']]);
+  });
+
+  it.each([
+    ['a named', { name: 'home', version: '1.0.0' }],
+    ['a nameless', { private: true }],
+  ])('should ignore %s package.json above the project directory', (_, packageJson) => {
+    write('package.json', JSON.stringify(packageJson));
+    write('project/releasekit.config.json', quickstartConfig('rust.md', 'Quickstart — Rust-only repo'));
+    write('project/Cargo.toml', '[package]\nname = "solo"\nversion = "1.0.0"\n');
+    const project = join(tempDir, 'project');
+    initGitRepo(project);
+    createConventionalCommit(project, 'fix', 'fix bug');
+
+    const output = runVersionJson(project);
+
+    expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['solo', '1.0.1']]);
+  });
+
+  it('should fail when the project directory has no package to version', () => {
+    initGitRepo(tempDir);
+
+    const result = executeCliCommand('--json', tempDir);
+
+    expect(result.status).toBe(2);
+    expect(JSON.parse(result.stdout).errors).toEqual([expect.objectContaining({ code: 'PACKAGES_NOT_FOUND' })]);
   });
 });
 
@@ -108,5 +157,20 @@ describe('Dart-only repo', () => {
       ['solo_dart', '1.3.0', ['pubspec.yaml']],
     ]);
     expect(output.tags).toEqual(['v1.3.0']);
+  });
+});
+
+describe('npm project inside an outer npm workspace', () => {
+  it("should version only the project's own package.json", () => {
+    write('package.json', JSON.stringify({ name: 'outer', version: '1.0.0', private: true, workspaces: ['project'] }));
+    write('project/package.json', JSON.stringify({ name: 'project', version: '1.0.0' }));
+    write('project/releasekit.config.json', JSON.stringify({ version: { preset: 'conventionalcommits' } }));
+    const project = join(tempDir, 'project');
+    initGitRepo(project);
+    createConventionalCommit(project, 'feat', 'add feature');
+
+    const output = runVersionJson(project);
+
+    expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['project', '1.1.0']]);
   });
 });

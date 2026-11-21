@@ -60,8 +60,8 @@ export function createVersionError(code: VersionErrorCode, details?: string): Ve
       'Remove any leading ../ segments or absolute paths that point outside the project',
     ],
     [VersionErrorCode.CARGO_INHERITED_VERSION]: [
-      'Give each listed crate a literal version in its Cargo.toml [package] section',
-      'Or leave it out of the release with version.packages, or set publish = false',
+      'Give the crate a literal version in its Cargo.toml [package] section',
+      "Or set publish = false in its Cargo.toml if it isn't published",
     ],
   };
 

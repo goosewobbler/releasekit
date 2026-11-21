@@ -60,22 +60,64 @@ export function isVersionedCrate(cargoPath: string): boolean {
   return !!cargo.package?.name;
 }
 
-/** Both TOML spellings, `version.workspace = true` and `version = { workspace = true }`, parse to this table. */
+/** Both TOML spellings, `key.workspace = true` and `key = { workspace = true }`, parse to this table. */
+function isInheritedFromWorkspace(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && (value as { workspace?: unknown }).workspace === true;
+}
+
 export function inheritsWorkspaceVersion(cargo: CargoManifest): boolean {
-  const version: unknown = cargo.package?.version;
-  return typeof version === 'object' && version !== null && (version as { workspace?: unknown }).workspace === true;
+  return isInheritedFromWorkspace(cargo.package?.version);
+}
+
+/** Cargo's workspace root for a crate: the nearest Cargo.toml with `[workspace]`, starting at the crate's own. */
+function findWorkspaceManifest(cargoPath: string, cargo: CargoManifest): CargoManifest | undefined {
+  if (cargo.workspace) {
+    return cargo;
+  }
+  let dir = path.dirname(path.resolve(cargoPath));
+  while (path.dirname(dir) !== dir) {
+    dir = path.dirname(dir);
+    const candidate = path.join(dir, 'Cargo.toml');
+    if (fs.existsSync(candidate)) {
+      const manifest = parseCargoToml(candidate);
+      if (manifest.workspace) {
+        return manifest;
+      }
+    }
+  }
+  return undefined;
+}
+
+/** The crate's manifest with a `version` or `publish` it inherits replaced by its workspace's value. */
+export function resolveWorkspaceInheritance(cargoPath: string, cargo: CargoManifest): CargoManifest {
+  const pkg = cargo.package;
+  if (!pkg || !(isInheritedFromWorkspace(pkg.version) || isInheritedFromWorkspace(pkg.publish))) {
+    return cargo;
+  }
+  const inherited = (findWorkspaceManifest(cargoPath, cargo)?.workspace?.package ?? {}) as {
+    version?: unknown;
+    publish?: boolean | string[];
+  };
+  const resolved = { ...pkg };
+  if (isInheritedFromWorkspace(pkg.version)) {
+    resolved.version = typeof inherited.version === 'string' ? inherited.version : undefined;
+  }
+  if (isInheritedFromWorkspace(pkg.publish)) {
+    resolved.publish = inherited.publish;
+  }
+  return { ...cargo, package: resolved };
 }
 
 /**
  * Records the bump for the end-of-run Cargo.lock sync. Every version-step bump goes through here, so no
- * strategy can skip the sync.
+ * strategy can skip the sync. Returns false when it leaves the manifest as it is.
  */
 export function updateCargoVersion(
   cargoPath: string,
   version: string,
   dryRun = false,
   { recordAs, isRoot }: { recordAs?: string; isRoot?: boolean } = {},
-): void {
+): boolean {
   try {
     const cargo = parseCargoToml(cargoPath);
     const packageName = cargo.package?.name;
@@ -85,14 +127,14 @@ export function updateCargoVersion(
     }
 
     if (inheritsWorkspaceVersion(cargo)) {
-      if (isCratePublishable(cargo)) {
+      if (isCratePublishable(resolveWorkspaceInheritance(cargoPath, cargo))) {
         throw createVersionError(
           VersionErrorCode.CARGO_INHERITED_VERSION,
           `${packageName} (${path.relative(process.cwd(), cargoPath)})`,
         );
       }
       log(`Not bumping ${cargoPath}: ${packageName} inherits its version from the workspace`, 'warning');
-      return;
+      return false;
     }
 
     if (!cargo.package) {
@@ -109,6 +151,7 @@ export function updateCargoVersion(
     recordCargoBump({ cargoTomlPath: cargoPath, name: packageName, version });
 
     log(`${dryRun ? '[DRY RUN] Would update' : 'Updated'} Cargo.toml at ${cargoPath} to version ${version}`, 'success');
+    return true;
   } catch (error) {
     log(`Failed to update Cargo.toml at ${cargoPath}`, 'error');
     if (error instanceof Error) {

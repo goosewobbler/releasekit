@@ -222,6 +222,18 @@ describe('Cargo Handler', () => {
       expect(recordCargoBump).not.toHaveBeenCalled();
     });
 
+    it('should leave a crate untouched without failing when it inherits publish = false from its workspace', async () => {
+      const { parse } = await vi.importActual<typeof import('smol-toml')>('smol-toml');
+      vi.mocked(parseCargoToml, { partial: true }).mockImplementation((cargoPath: string) =>
+        path.resolve(cargoPath) === path.resolve(mockCargoPath)
+          ? parse('[package]\nname = "internal"\nversion.workspace = true\npublish.workspace = true\n')
+          : parse('[workspace]\nmembers = ["*"]\n\n[workspace.package]\nversion = "1.0.0"\npublish = false\n'),
+      );
+
+      expect(updateCargoVersion(mockCargoPath, '2.0.0')).toBe(false);
+      expect(jsonOutput.writeVersionFile).not.toHaveBeenCalled();
+    });
+
     it('should create package section if missing', () => {
       vi.mocked(parseCargoToml, { partial: true }).mockReturnValue({});
 

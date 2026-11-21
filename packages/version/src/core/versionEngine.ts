@@ -13,7 +13,7 @@ import {
 import { isPrivatePackageJson, shouldMatchPackageTargets } from '@releasekit/core';
 import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
-import { inheritsWorkspaceVersion } from '../cargo/cargoHandler.js';
+import { resolveWorkspaceInheritance } from '../cargo/cargoHandler.js';
 import { clearCargoBumps, syncCargoLockfiles } from '../cargo/cargoLock.js';
 import { raiseCargoDependentRequirements } from '../cargo/dependentRequirements.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
@@ -123,35 +123,47 @@ export class VersionEngine {
   }
 
   private discoverNpmPackages(workspaceRoot: string): PackagesWithRoot {
+    const none: PackagesWithRoot = {
+      packages: [],
+      root: workspaceRoot,
+      // biome-ignore lint/suspicious/noExplicitAny: Tool type from @manypkg doesn't support repos without package.json
+      tool: 'pnpm' as any,
+      rootDir: workspaceRoot,
+    };
+    let found: PackagesWithRoot;
     try {
-      return getPackagesSync(workspaceRoot) as PackagesWithRoot;
+      found = getPackagesSync(workspaceRoot) as PackagesWithRoot;
     } catch (error) {
-      // @manypkg/get-packages doesn't re-export the class, so match it by name.
-      if (!(error instanceof Error) || error.constructor.name !== 'NoPkgJsonFound') {
+      // @manypkg searches upwards, so without a package.json of its own the project's npm root can only be outside it.
+      if (fs.existsSync(path.join(workspaceRoot, 'package.json'))) {
         throw error;
       }
-      log('No package.json found, so no npm packages to discover', 'debug');
-      return {
-        packages: [],
-        root: workspaceRoot,
-        // biome-ignore lint/suspicious/noExplicitAny: Tool type from @manypkg doesn't support repos without package.json
-        tool: 'pnpm' as any,
-        rootDir: workspaceRoot,
-      };
+      log(`No npm packages to discover: ${error instanceof Error ? error.message : String(error)}`, 'debug');
+      return none;
     }
+    const fromProject = found.rootDir ? path.relative(path.resolve(workspaceRoot), path.resolve(found.rootDir)) : '';
+    if (fromProject === '..' || fromProject.startsWith(`..${path.sep}`) || path.isAbsolute(fromProject)) {
+      log(`Ignoring the npm workspace at ${found.rootDir}: it's outside ${workspaceRoot}`, 'debug');
+      const ownPackageJson = path.join(workspaceRoot, 'package.json');
+      if (!fs.existsSync(ownPackageJson)) {
+        return none;
+      }
+      const rootPackage: Package = {
+        dir: workspaceRoot,
+        relativeDir: '.',
+        packageJson: JSON.parse(fs.readFileSync(ownPackageJson, 'utf-8')),
+      };
+      return { ...none, packages: [rootPackage], rootPackage };
+    }
+    return found;
   }
 
   private discoverCargoTomlPackages(workspaceRoot: string): PackagesWithRoot {
     let workspaceMembers: string[] | null = null;
-    let workspaceVersion: string | undefined;
     const rootCargoPath = path.join(workspaceRoot, 'Cargo.toml');
     if (fs.existsSync(rootCargoPath)) {
       try {
         const rootCargo = parseCargoToml(rootCargoPath);
-        const workspacePackage = rootCargo.workspace?.package as { version?: unknown } | undefined;
-        if (typeof workspacePackage?.version === 'string') {
-          workspaceVersion = workspacePackage.version;
-        }
         if (Array.isArray(rootCargo.workspace?.members) && rootCargo.workspace.members.length > 0) {
           workspaceMembers = rootCargo.workspace.members;
           log(`Cargo workspace members detected: ${workspaceMembers.join(', ')}`, 'debug');
@@ -199,15 +211,15 @@ export class VersionEngine {
           continue;
         }
 
-        const cargoData = parseCargoToml(fullCargoPath);
+        // An inheriting crate is discovered so that bumping it fails by name instead of skipping it silently.
+        const cargoData = resolveWorkspaceInheritance(fullCargoPath, parseCargoToml(fullCargoPath));
 
         if (!isCratePublishable(cargoData)) {
           log(`Skipping Rust package at ${packageDir}: publish = false`, 'debug');
           continue;
         }
 
-        // An inheriting crate is discovered so that bumping it fails by name instead of skipping it silently.
-        const version = inheritsWorkspaceVersion(cargoData) ? workspaceVersion : cargoData.package?.version;
+        const version = cargoData.package?.version;
         if (cargoData.package?.name && typeof version === 'string') {
           const relativePath = path.relative(workspaceRoot, packageDir);
           const pathParts = relativePath.split(path.sep);
@@ -420,7 +432,7 @@ export class VersionEngine {
     const cargoPath = path.join(packageDir, 'Cargo.toml');
     if (this.config.cargo?.enabled !== false && fs.existsSync(cargoPath)) {
       try {
-        const pkg = parseCargoToml(cargoPath).package;
+        const pkg = resolveWorkspaceInheritance(cargoPath, parseCargoToml(cargoPath)).package;
         const publish = pkg?.publish;
         if (pkg?.name && publish !== false && !(Array.isArray(publish) && publish.length === 0)) {
           return true;
@@ -455,6 +467,12 @@ export class VersionEngine {
       const dartPackages = this.discoverPubspecPackages(workspaceRoot);
 
       const workspacePackages = this.mergePackageLists(this.mergePackageLists(npmPackages, rustPackages), dartPackages);
+      if (workspacePackages.packages.length === 0) {
+        throw createVersionError(
+          VersionErrorCode.PACKAGES_NOT_FOUND,
+          `no npm, Cargo or pub package found in ${workspaceRoot}`,
+        );
+      }
       const enabled = (discovered: PackagesWithRoot, ecosystem: { enabled?: boolean } | undefined) =>
         ecosystem?.enabled === false ? { ...discovered, packages: [] } : discovered;
       const mergedPackages = this.mergePackageLists(
@@ -603,6 +621,9 @@ export class VersionEngine {
 
       return mergedPackages;
     } catch (error) {
+      if (error instanceof VersionError) {
+        throw error;
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       log(`Failed to get packages information: ${errorMessage}`, 'error');
       log(inspect(error), 'error');
