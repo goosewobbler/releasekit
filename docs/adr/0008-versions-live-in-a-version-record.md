@@ -18,13 +18,13 @@ The ecosystems on the roadmap make this harder: tag-only ecosystems such as Go h
 
 - Each entry records a package's version and the base-branch commit its release was computed at, and a prerelease entry also records its last stable release's version and commit. Past releases since migration come from the record's history; backfill still reads tags for earlier ones.
 - The version step updates the record in the release commit, alongside the manifest bumps.
-- Tags are never read to compute a package's next version or its commit range. Migration seeds the record from the versions today's tag search resolves.
+- Tags are never read to compute a package's next version or its commit range. Migration seeds each entry from the package's last release: the version today's tag search resolves, and the commit of its last tag.
 
 ## Consequences
 
 - After migration, versions and release ranges no longer depend on tag naming or moved tags, and the settings that work around the tag search go or change. Ranges depend instead on each recorded commit being in the clone's history; a clone without it, such as a shallow one, fails the version step.
 - Every ecosystem works the same way, including those with no manifest version and packages with more than one manifest.
-- Each repo migrates once to create the record.
+- Each repo migrates once to create the record; migration can later add a package that already has releases.
 - In standing-PR mode, a commit that lands on `main` after the standing PR's last update ships with that release but appears in the next release's changelog and bump. Today such a commit ships without ever being counted.
 - Each branch carries its own copy of the record, so a maintenance branch releases from its own entries. Merging it back means reconciling the two records, as [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies.
 - [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies the record's format and the rules that keep it consistent.
