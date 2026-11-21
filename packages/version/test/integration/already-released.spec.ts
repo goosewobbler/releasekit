@@ -13,14 +13,15 @@ import { cleanupTempDir } from '../utils/tempFixture.js';
 import { createWorkspaceRepo } from '../utils/workspace.js';
 
 let tempDir: string;
+let tagDay = 1;
 
 const git = (...args: string[]) => execFileSync('git', args, { cwd: tempDir, encoding: 'utf8' }).trim();
 
 /** Dated a day apart, so tags created in the same second don't tie on creation time. */
-function tag(name: string, day: number) {
+function tag(name: string) {
   execFileSync('git', ['tag', '-a', '-m', 'release', name], {
     cwd: tempDir,
-    env: { ...process.env, GIT_COMMITTER_DATE: `2020-01-0${day}T00:00:00Z` },
+    env: { ...process.env, GIT_COMMITTER_DATE: `2020-01-${String(tagDay++).padStart(2, '0')}T00:00:00Z` },
   });
 }
 
@@ -31,8 +32,8 @@ function commitTo(pkg: string, message: string) {
 
 function release(pkg: string, version: string) {
   createPackageJson(join(tempDir, 'packages', pkg), pkg, version);
-  git('commit', '-qam', `chore: release ${pkg} v${version}`);
-  tag(`${pkg}@v${version}`, 2);
+  git('commit', '-qam', `chore: release ${pkg} v${version}`, '--no-verify');
+  tag(`${pkg}@v${version}`);
 }
 
 function runVersionEngine(skipTaggedAfter: string): VersionOutput {
@@ -54,6 +55,7 @@ function runVersionEngine(skipTaggedAfter: string): VersionOutput {
 describe('skipTaggedAfter', () => {
   afterEach(() => {
     cleanupTempDir(tempDir);
+    tagDay = 1;
   });
 
   it("should skip a package already released after the run's commit and bump one released before it", () => {
@@ -68,8 +70,8 @@ describe('skipTaggedAfter', () => {
         tagTemplate: '${packageName}@v${version}',
       },
     });
-    tag('pkg-a@v1.0.0', 1);
-    tag('pkg-b@v1.0.0', 1);
+    tag('pkg-a@v1.0.0');
+    tag('pkg-b@v1.0.0');
     commitTo('pkg-a', 'correct a typo in a');
     commitTo('pkg-b', 'correct a typo in b');
     const runCommit = git('rev-parse', 'HEAD');
@@ -80,5 +82,28 @@ describe('skipTaggedAfter', () => {
 
     expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['pkg-b', '1.0.1']]);
     expect(output.tags).toEqual(['pkg-b@v1.0.1']);
+  });
+
+  it("should not skip a package released at the run's own commit", () => {
+    tempDir = createWorkspaceRepo('rk-released-', {
+      packages: { 'pkg-a': 'pkg-a' },
+      version: '1.0.0',
+      config: {
+        preset: 'conventionalcommits',
+        sync: false,
+        versionPrefix: 'v',
+        packageSpecificTags: true,
+        tagTemplate: '${packageName}@v${version}',
+      },
+    });
+    tag('pkg-a@v1.0.0');
+    commitTo('pkg-a', 'correct a typo in a');
+    const runCommit = git('rev-parse', 'HEAD');
+    tag('pkg-a@v1.0.1');
+    commitTo('pkg-a', 'correct another typo in a');
+
+    const output = runVersionEngine(runCommit);
+
+    expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['pkg-a', '1.0.2']]);
   });
 });

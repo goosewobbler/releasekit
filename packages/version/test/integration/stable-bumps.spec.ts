@@ -41,7 +41,8 @@ describe('stable-line bumps', () => {
     ['patch', '1.4.3'],
   ])('should give a stable version for --bump %s on 1.4.2 (%s)', (bump, expected) => {
     createRepoAt('1.4.2');
-    commitToCore('fix', 'correct a typo');
+    // A docs commit doesn't bump on its own, so the version comes from --bump alone.
+    commitToCore('docs', 'correct a typo in the readme');
 
     expect(newVersion(`--bump ${bump}`)).toBe(expected);
   });
