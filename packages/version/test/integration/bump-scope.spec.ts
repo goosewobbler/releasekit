@@ -278,4 +278,15 @@ describe('bump scope', () => {
     const targeted = runVersionJson(tempDir, '--target app --include-prerequisites');
     expect(targeted.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['app', '1.0.1']]);
   });
+
+  it('should leave a changed package in version.skip out of the release', () => {
+    createRepo({ version: { skip: ['pkg-b'] } });
+    commitTo('packages/pkg-a', 'feat', 'add a flag');
+    commitTo('packages/pkg-b', 'fix', 'correct a typo');
+
+    const output = runVersionJson(tempDir);
+
+    expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['pkg-a', '1.1.0']]);
+    expect(output.tags).toEqual(['pkg-a@v1.1.0']);
+  });
 });
