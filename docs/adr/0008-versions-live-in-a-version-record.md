@@ -1,4 +1,4 @@
-# 8. Versions live in a committed version record, not in tags
+# 8. Versions live in a committed version record
 
 Date: 2026-11-20
 
@@ -14,16 +14,17 @@ The ecosystems on the roadmap make this harder: tag-only ecosystems such as Go h
 
 ## Decision
 
-**A committed version record, `releasekit.versions.json`, is the source of each package's current version and of where its last release was. Tags and package manifests are outputs.**
+**A committed version record, `releasekit.versions.json`, is the source of each package's current version and of where its last release was.**
 
-- Each entry records a package's version and the base-branch commit its release was computed at. The next release counts the package's commits after that one.
-- Tags are written for consumers and GitHub Releases, but never read to work out a version or a release range. The exception is migration, which seeds the record from tags once.
+- Each entry records a package's version and the base-branch commit its release was computed at.
+- The version step updates the record in the release commit, alongside the manifest bumps.
+- Tags are never read to work out a version or a release range, except by migration, which seeds the record from them once.
 
 ## Consequences
 
 - Versions and release ranges no longer depend on tag naming or moved tags, and the settings that work around the tag search go or change.
 - Every ecosystem works the same way, including those with no manifest version and packages with more than one manifest.
 - Each repo migrates once to create the record.
-- The record is per-branch state, so releasing from more than one branch (a maintenance branch, say) needs a design of its own.
-- In standing-PR mode, commits that land on `main` after the standing PR's last update ship in that release without informing its version, and are counted in the next one. Today they ship and are never counted.
+- In standing-PR mode, a commit that lands on `main` after the standing PR's last update ships with that release but counts towards the next one. Today such a commit ships without ever being counted.
+- ReleaseKit releases from one branch. Releasing from several would mean reconciling their records, which needs its own design.
 - [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies the record's format and the rules that keep it consistent.
