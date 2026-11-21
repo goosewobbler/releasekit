@@ -5,6 +5,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { VersionOutput } from '@releasekit/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createConventionalCommit } from '../utils/git.js';
@@ -36,12 +37,12 @@ function release(pkg: string, version: string) {
   tag(`${pkg}@v${version}`);
 }
 
-function runVersionEngine(skipTaggedAfter: string): VersionOutput {
+function runVersionEngine(skipTaggedAfter: string, strategy = 'async'): VersionOutput {
   const script = `
-    import { VersionEngine, enableJsonOutput, getJsonData, loadConfig } from ${JSON.stringify(join(process.cwd(), 'dist/index.js'))};
+    import { VersionEngine, enableJsonOutput, getJsonData, loadConfig } from ${JSON.stringify(pathToFileURL(join(process.cwd(), 'dist/index.js')).href)};
     enableJsonOutput(true);
     const engine = new VersionEngine(loadConfig(), { dryRun: true, skipTaggedAfter: ${JSON.stringify(skipTaggedAfter)} });
-    engine.setStrategy('async');
+    engine.setStrategy(${JSON.stringify(strategy)});
     await engine.run(await engine.getWorkspacePackages());
     process.stdout.write(JSON.stringify(getJsonData()));
   `;
@@ -84,7 +85,7 @@ describe('skipTaggedAfter', () => {
     expect(output.tags).toEqual(['pkg-b@v1.0.1']);
   });
 
-  it("should not skip a package released at the run's own commit", () => {
+  it.each(['async', 'single'])("should not skip a package released at the run's own commit (%s)", (strategy) => {
     tempDir = createWorkspaceRepo('rk-released-', {
       packages: { 'pkg-a': 'pkg-a' },
       version: '1.0.0',
@@ -102,7 +103,7 @@ describe('skipTaggedAfter', () => {
     tag('pkg-a@v1.0.1');
     commitTo('pkg-a', 'correct another typo in a');
 
-    const output = runVersionEngine(runCommit);
+    const output = runVersionEngine(runCommit, strategy);
 
     expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['pkg-a', '1.0.2']]);
   });
