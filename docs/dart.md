@@ -34,7 +34,6 @@ Minimum `releasekit.config.json`:
 {
   "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
   "version": {
-    "packages": ["./"],
     "pub": {
       "enabled": true
     }
@@ -46,6 +45,8 @@ Minimum `releasekit.config.json`:
   }
 }
 ```
+
+With `version.packages` unset, releasekit versions every Dart package it discovers, whether that's one package at the repo root or the packages of a Dart workspace. The repo doesn't need a `package.json`.
 
 `version.pub.enabled` and `publish.pub.enabled` both default to `true`, so those keys are optional but make intent explicit. Set `publish.pub.enabled` to `false` to version and tag without publishing to pub.dev.
 

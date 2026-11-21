@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { cwd } from 'node:process';
 import { inspect } from 'node:util';
-import { getPackagesSync, type Package, type Packages } from '@manypkg/get-packages';
+import { getPackagesSync, type Package, PackageJsonMissingNameError, type Packages } from '@manypkg/get-packages';
 import {
   filterPackagesByConfig,
   isCratePublishable,
@@ -31,6 +31,16 @@ import { buildWorkspaceGraph } from './workspaceGraph.js';
 
 export interface PackagesWithRoot extends Packages {
   root: string;
+}
+
+/** A tooling-only package.json without a name isn't an npm package, so it leaves a native manifest beside it alone. */
+function hasNamedPackageJson(dir: string): boolean {
+  const packageJsonPath = path.join(dir, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    return false;
+  }
+  const name: unknown = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')).name;
+  return typeof name === 'string' && name !== '';
 }
 
 /** pnpm globs may start with `./`, and a `!` entry excludes what the others include. */
@@ -121,6 +131,51 @@ export class VersionEngine {
     this.currentStrategy = createStrategy(effective);
   }
 
+  private discoverNpmPackages(workspaceRoot: string): PackagesWithRoot {
+    const none: PackagesWithRoot = {
+      packages: [],
+      root: workspaceRoot,
+      // biome-ignore lint/suspicious/noExplicitAny: Tool type from @manypkg doesn't support repos without package.json
+      tool: 'pnpm' as any,
+      rootDir: workspaceRoot,
+    };
+    const ownPackageJsonPath = path.join(workspaceRoot, 'package.json');
+    // The project's own package.json alone, or nothing when it has none or a tooling-only one without a name.
+    const ownPackageOnly = (): PackagesWithRoot => {
+      if (!fs.existsSync(ownPackageJsonPath)) {
+        return none;
+      }
+      const packageJson = JSON.parse(fs.readFileSync(ownPackageJsonPath, 'utf-8'));
+      if (typeof packageJson.name !== 'string' || !packageJson.name) {
+        log(`No npm packages to discover: ${ownPackageJsonPath} has no name`, 'debug');
+        return none;
+      }
+      const rootPackage: Package = { dir: workspaceRoot, relativeDir: '.', packageJson };
+      return { ...none, packages: [rootPackage], rootPackage };
+    };
+
+    let found: PackagesWithRoot;
+    try {
+      found = getPackagesSync(workspaceRoot) as PackagesWithRoot;
+    } catch (error) {
+      if (error instanceof PackageJsonMissingNameError && error.directories.every((file) => file === 'package.json')) {
+        return ownPackageOnly();
+      }
+      // @manypkg searches upwards, so without a package.json of its own the project's npm root can only be outside it.
+      if (fs.existsSync(ownPackageJsonPath)) {
+        throw error;
+      }
+      log(`No npm packages to discover: ${error instanceof Error ? error.message : String(error)}`, 'debug');
+      return none;
+    }
+    const fromProject = found.rootDir ? path.relative(path.resolve(workspaceRoot), path.resolve(found.rootDir)) : '';
+    if (fromProject === '..' || fromProject.startsWith(`..${path.sep}`) || path.isAbsolute(fromProject)) {
+      log(`Ignoring the npm workspace at ${found.rootDir}: it's outside ${workspaceRoot}`, 'debug');
+      return ownPackageOnly();
+    }
+    return found;
+  }
+
   private discoverCargoTomlPackages(workspaceRoot: string): PackagesWithRoot {
     let workspaceMembers: string[] | null = null;
     const rootCargoPath = path.join(workspaceRoot, 'Cargo.toml');
@@ -170,7 +225,7 @@ export class VersionEngine {
         const packageDir = path.dirname(fullCargoPath);
 
         // package.json directories are discovered by @manypkg.
-        if (fs.existsSync(path.join(packageDir, 'package.json'))) {
+        if (hasNamedPackageJson(packageDir)) {
           continue;
         }
 
@@ -181,7 +236,11 @@ export class VersionEngine {
           continue;
         }
 
-        if (cargoData.package?.name && typeof cargoData.package?.version === 'string') {
+        const version: unknown = cargoData.package?.version;
+        // `version.workspace = true` and `version = { workspace = true }` both parse to this table.
+        const inheritsVersion =
+          typeof version === 'object' && version !== null && (version as { workspace?: unknown }).workspace === true;
+        if (cargoData.package?.name && (typeof version === 'string' || inheritsVersion)) {
           const relativePath = path.relative(workspaceRoot, packageDir);
           const pathParts = relativePath.split(path.sep);
           if (pathParts.includes('target') || pathParts.includes('node_modules')) {
@@ -203,10 +262,19 @@ export class VersionEngine {
             }
           }
 
+          if (typeof version !== 'string') {
+            log(
+              `Skipping Rust package ${cargoData.package.name} at ${relativePath}: it inherits its version from the ` +
+                "workspace, which ReleaseKit doesn't support yet, so it won't be released",
+              'warning',
+            );
+            continue;
+          }
+
           rustPackages.push({
             packageJson: {
               name: cargoData.package.name,
-              version: cargoData.package.version,
+              version,
             },
             dir: packageDir,
             relativeDir: relativePath,
@@ -288,7 +356,7 @@ export class VersionEngine {
         const fullPubspecPath = path.join(workspaceRoot, pubspecPath);
         const packageDir = path.dirname(fullPubspecPath);
 
-        if (fs.existsSync(path.join(packageDir, 'package.json'))) {
+        if (hasNamedPackageJson(packageDir)) {
           continue;
         }
 
@@ -419,7 +487,7 @@ export class VersionEngine {
         return this.workspaceCache;
       }
 
-      const npmPackages = getPackagesSync(workspaceRoot) as PackagesWithRoot;
+      const npmPackages = this.discoverNpmPackages(workspaceRoot);
       if (!npmPackages?.packages) {
         throw createVersionError(VersionErrorCode.PACKAGES_NOT_FOUND);
       }
@@ -428,6 +496,15 @@ export class VersionEngine {
       const dartPackages = this.discoverPubspecPackages(workspaceRoot);
 
       const workspacePackages = this.mergePackageLists(this.mergePackageLists(npmPackages, rustPackages), dartPackages);
+      const hasManifest = ['package.json', 'Cargo.toml', 'pubspec.yaml'].some((file) =>
+        fs.existsSync(path.join(workspaceRoot, file)),
+      );
+      if (workspacePackages.packages.length === 0 && !hasManifest) {
+        throw createVersionError(
+          VersionErrorCode.PACKAGES_NOT_FOUND,
+          `no package.json, Cargo.toml or pubspec.yaml found in ${workspaceRoot}`,
+        );
+      }
       const enabled = (discovered: PackagesWithRoot, ecosystem: { enabled?: boolean } | undefined) =>
         ecosystem?.enabled === false ? { ...discovered, packages: [] } : discovered;
       const mergedPackages = this.mergePackageLists(
@@ -576,6 +653,9 @@ export class VersionEngine {
 
       return mergedPackages;
     } catch (error) {
+      if (error instanceof VersionError) {
+        throw error;
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       log(`Failed to get packages information: ${errorMessage}`, 'error');
       log(inspect(error), 'error');
