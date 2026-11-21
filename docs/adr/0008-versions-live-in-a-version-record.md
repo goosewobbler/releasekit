@@ -22,9 +22,9 @@ The ecosystems on the roadmap make this harder: tag-only ecosystems such as Go h
 
 ## Consequences
 
-- Versions and release ranges no longer depend on tag naming or moved tags, and the settings that work around the tag search go or change. Ranges depend instead on each recorded commit staying in the clone's history.
+- After migration, versions and release ranges no longer depend on tag naming or moved tags, and the settings that work around the tag search go or change. Ranges depend instead on each recorded commit being in the clone's history; a clone without it, such as a shallow one, fails the version step.
 - Every ecosystem works the same way, including those with no manifest version and packages with more than one manifest.
 - Each repo migrates once to create the record.
 - In standing-PR mode, a commit that lands on `main` after the standing PR's last update ships with that release but appears in the next release's changelog and bump. Today such a commit ships without ever being counted.
-- Each branch carries its own copy of the record, so a maintenance branch releases from its own entries. Merging it back means resolving the record by keeping the higher of each recorded version, an entry's last stable release included.
+- Each branch carries its own copy of the record, so a maintenance branch releases from its own entries. Merging it back means reconciling the two records, as #1066 specifies.
 - [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies the record's format and the rules that keep it consistent.

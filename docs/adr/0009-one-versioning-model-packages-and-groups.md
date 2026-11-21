@@ -34,5 +34,5 @@ The version step has four strategies, each with its own code path: sync, single,
 - Four code paths become one.
 - `sync: true` becomes the implicit fixed group of every package that its description already claims, with a repo-wide commit scope and sync's outputs, which a declared fixed group doesn't have. It still takes precedence over `version.groups`.
 - The single strategy goes. A run that resolves one package with `sync: false` and no groups reports `async` instead of `single`, and [#1066](https://github.com/goosewobbler/releasekit/issues/1066) lists its other changes, such as its default commit message and what `mainPackage` means there.
-- `mainPackage` no longer chooses where sync's version comes from.
+- `mainPackage` no longer chooses where sync's version comes from, but still names sync's changelog and tags.
 - [#1066](https://github.com/goosewobbler/releasekit/issues/1066) specifies the outputs each kind of release keeps and how old manifests are read.
