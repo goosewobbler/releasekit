@@ -16,7 +16,7 @@ The ecosystems on the roadmap make this harder: tag-only ecosystems such as Go h
 
 **A committed version record, `releasekit.versions.json`, is the source of each package's current version and of where its last release was.**
 
-- Each entry records a package's version and the base-branch commit its release was computed at, and a prerelease entry also records its last stable release. Past releases since migration come from the record's history; backfill still reads tags for earlier ones.
+- Each entry records a package's version and the base-branch commit its release was computed at, and a prerelease entry also records its last stable release's version and commit. Past releases since migration come from the record's history; backfill still reads tags for earlier ones.
 - The version step updates the record in the release commit, alongside the manifest bumps.
 - Tags are never read to compute a package's next version or its commit range. Migration seeds the record from the versions today's tag search resolves.
 
