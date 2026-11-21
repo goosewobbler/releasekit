@@ -24,8 +24,8 @@ The version step has four strategies, each with its own code path: sync, single,
 
 | Config | Today | Under this ADR | `strategy` |
 |---|---|---|---|
-| `sync: true` (the default), with or without `version.groups` | sync strategy | one `fixed` group of every package, counting commits anywhere in the repo, with sync's outputs | `sync` |
-| `sync: false`, `version.groups` set | group strategy | the declared groups | `group` |
+| `sync: true` (the default) or `--sync`, with or without `version.groups` | sync strategy | one `fixed` group of every package, counting commits anywhere in the repo, with sync's outputs | `sync` |
+| `sync: false`, `version.groups` set | group strategy | the declared groups, and every other package on its own | `group` |
 | `sync: false`, no groups, several packages | async strategy | each package on its own | `async` |
 | `sync: false`, no groups, one package | single strategy | that package on its own | `async` |
 
