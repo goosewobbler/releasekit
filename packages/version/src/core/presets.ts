@@ -9,7 +9,7 @@ const HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!?: (.+)$/;
 const BREAKING_HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!: (.+)$/;
 const REVERTED_HASH_PATTERN = /^This reverts commit (\w+)/m;
 const REVERT_LAYER_PATTERN = /^(Revert|Reapply) "(.*)"$/;
-const SQUASH_SUFFIX_PATTERN = / \(#\d+\)$/;
+const SQUASH_SUFFIX_PATTERN = /(?: \(#\d+\))+$/;
 
 type RevertFields = Pick<Commit, 'header' | 'body' | 'footer' | 'revert'> & { hash?: string | null };
 
