@@ -222,14 +222,11 @@ export class VersionEngine {
           }
 
           if (typeof version !== 'string') {
-            // A root crate is still bumped by the sync root pass, so only a member is left out.
-            if (relativePath !== '') {
-              log(
-                `${cargoData.package.name} at ${relativePath} isn't released as its own package: ReleaseKit doesn't ` +
-                  'support workspace-inherited versions yet. Give it a literal version to release it.',
-                'warning',
-              );
-            }
+            log(
+              `${cargoData.package.name} at ${relativePath || '.'} isn't released: ReleaseKit doesn't support ` +
+                'workspace-inherited versions yet. Give it a literal version to release it.',
+              this.config.cargo?.enabled === false ? 'debug' : 'warning',
+            );
             continue;
           }
 
@@ -457,9 +454,6 @@ export class VersionEngine {
         tool: 'pnpm' as any,
         rootDir: workspaceRoot,
       };
-      if (!npmPackages?.packages) {
-        throw createVersionError(VersionErrorCode.PACKAGES_NOT_FOUND);
-      }
 
       const rustPackages = this.discoverCargoTomlPackages(workspaceRoot);
       const dartPackages = this.discoverPubspecPackages(workspaceRoot);

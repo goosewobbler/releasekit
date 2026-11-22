@@ -1150,7 +1150,7 @@ describe('Version Engine', () => {
     });
 
     it.each([['version.workspace = true'], ['version = { workspace = true }']])(
-      'should skip a member crate with %s, warning that it is not released',
+      'should skip crates with %s, warning that they are not released',
       async (spelling) => {
         const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-inherit-'));
         try {
@@ -1173,7 +1173,11 @@ describe('Version Engine', () => {
           expect(result.packages.map((p) => p.packageJson.name)).toEqual(['literal']);
           expect(vi.mocked(log).mock.calls.filter(([, level]) => level === 'warning')).toEqual([
             [
-              `inheriting at ${path.join('crates', 'inheriting')} isn't released as its own package: ReleaseKit doesn't support workspace-inherited versions yet. Give it a literal version to release it.`,
+              "root at . isn't released: ReleaseKit doesn't support workspace-inherited versions yet. Give it a literal version to release it.",
+              'warning',
+            ],
+            [
+              `inheriting at ${path.join('crates', 'inheriting')} isn't released: ReleaseKit doesn't support workspace-inherited versions yet. Give it a literal version to release it.`,
               'warning',
             ],
           ]);
