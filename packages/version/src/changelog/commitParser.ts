@@ -145,8 +145,8 @@ function parserFor(preset: Preset): CommitParser {
 }
 
 /**
- * Parses `%H|||%B` log output, newest first, dropping each commit reverted in the range along with its revert, and
- * reading a reapply whose revert isn't in the range as the commit it reapplies.
+ * Parses `%H|||%B` log output, newest first. A commit reverted in the range is dropped with its revert, and a reapply
+ * whose revert isn't in the range is read as the commit it reapplies.
  */
 function parseLog(output: string, preset: Preset): CommitWithHash[] {
   const commits = output.split('---COMMIT_DELIMITER---').flatMap((raw) => {

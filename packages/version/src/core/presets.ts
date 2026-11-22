@@ -68,7 +68,7 @@ export function filterRevertedCommits<T>(items: Iterable<T>, commitOf: (item: T)
 
 /**
  * Parses a reapply whose revert shipped in an earlier release as the commit it reapplies. Run it after
- * `filterRevertedCommits`: a reapply that names its revert and is still there has no revert in the range.
+ * `filterRevertedCommits`, which drops a reapply whose revert is in the range.
  */
 export function asReapplied(commit: Commit, parser: CommitParser): Commit {
   const { subject, reverts } = unwrapReverts(commit.header ?? '');
@@ -80,7 +80,7 @@ export function asReapplied(commit: Commit, parser: CommitParser): Commit {
 }
 
 /**
- * Peels `Revert "…"` and `Reapply "…"` titles, and the ` (#N)` a squash merge appends, down to the subject they wrap.
+ * Peels `Revert "…"` and `Reapply "…"` titles, and the ` (#N)` suffixes squash merges append, down to the subject.
  * Git titles a revert of a revert `Reapply`, so it counts twice: an even count means the change is back.
  */
 function unwrapReverts(header: string): { subject: string; reverts: number } {
