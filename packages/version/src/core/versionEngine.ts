@@ -126,7 +126,7 @@ export class VersionEngine {
     try {
       return getPackagesSync(workspaceRoot) as PackagesWithRoot;
     } catch (error) {
-      // @manypkg/get-packages doesn't re-export the class, so match it by name.
+      // @manypkg/get-packages doesn't re-export the class from @manypkg/find-root, so match it by name.
       if (!(error instanceof Error) || error.constructor.name !== 'NoPkgJsonFound') {
         throw error;
       }
@@ -222,11 +222,14 @@ export class VersionEngine {
           }
 
           if (typeof version !== 'string') {
-            log(
-              `${cargoData.package.name} at ${relativePath || '.'} isn't released: ReleaseKit doesn't support ` +
-                'workspace-inherited versions yet. Give it a literal version to release it.',
-              this.config.cargo?.enabled === false ? 'debug' : 'warning',
-            );
+            // A root crate is still bumped by the sync root pass, so only a member is left out.
+            if (relativePath !== '') {
+              log(
+                `${cargoData.package.name} at ${relativePath} isn't released as its own package: ReleaseKit doesn't ` +
+                  'support workspace-inherited versions yet. Give it a literal version to release it.',
+                this.config.cargo?.enabled === false ? 'debug' : 'warning',
+              );
+            }
             continue;
           }
 

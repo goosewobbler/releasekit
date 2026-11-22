@@ -56,8 +56,7 @@ export function isVersionedCrate(cargoPath: string): boolean {
   } catch (error) {
     throw new Error(`Cannot parse ${cargoPath}: ${error instanceof Error ? error.message : String(error)}`);
   }
-  // An inherited version is a table, and writing a literal over it would detach the crate from the workspace.
-  return !!cargo.package?.name && typeof cargo.package.version === 'string';
+  return !!cargo.package?.name;
 }
 
 /**

@@ -91,30 +91,10 @@ describe('Rust-only repo', () => {
         ['literal', '0.2.0'],
       ]);
       expect(result.stderr).toContain(
-        "inheriting at crates/inheriting isn't released: ReleaseKit doesn't support workspace-inherited versions yet. Give it a literal version to release it.",
+        "inheriting at crates/inheriting isn't released as its own package: ReleaseKit doesn't support workspace-inherited versions yet. Give it a literal version to release it.",
       );
     },
   );
-
-  it('should leave a root crate that inherits its version untouched, with a warning', () => {
-    const rootManifest =
-      '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\n\n[package]\nname = "root"\nversion.workspace = true\n';
-    write('Cargo.toml', rootManifest);
-    write('crates/literal/Cargo.toml', '[package]\nname = "literal"\nversion = "0.1.0"\n');
-    initGitRepo(tempDir);
-    createConventionalCommit(tempDir, 'feat', 'add feature');
-
-    const result = executeCliCommand('--json', tempDir, false);
-
-    expect(result.status).toBe(0);
-    expect(readVersionOutput(result.stdout).updates.map((u) => [u.packageName, u.newVersion])).toEqual([
-      ['literal', '0.2.0'],
-    ]);
-    expect(readFileSync(join(tempDir, 'Cargo.toml'), 'utf-8')).toBe(rootManifest);
-    expect(result.stderr).toContain(
-      "root at . isn't released: ReleaseKit doesn't support workspace-inherited versions yet. Give it a literal version to release it.",
-    );
-  });
 
   it('should fail when the project directory has no package to version', () => {
     initGitRepo(tempDir);
