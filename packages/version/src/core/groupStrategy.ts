@@ -159,32 +159,32 @@ interface GroupComputation {
   hasChange: boolean;
 }
 
-/** A fixed/linked group shares one version and channel, so graduating ANY member graduates the group. */
 /** Prerequisites keep their own commit-driven bump, so a group with no member in the override scope isn't forced. */
 function inOverrideScope(group: ResolvedGroup, config: Config): boolean {
   const scope = config.overrideScope;
   return !scope?.length || group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, scope));
 }
 
+/** A fixed/linked group shares one version and channel, so graduating ANY member graduates the group. */
 function isGroupGraduating(group: ResolvedGroup, config: Config): boolean {
-  if (!config.stableOnly || !inOverrideScope(group, config)) {
+  if (!config.stableOnly) {
     return false;
   }
   const scope = config.graduateScope;
   if (!scope || scope.length === 0) {
-    return true;
+    return inOverrideScope(group, config);
   }
   return group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, scope));
 }
 
 /** Twin of {@link isGroupGraduating}: a single scoped member pulls the whole group onto the prerelease line. */
 function isGroupPrereleasing(group: ResolvedGroup, config: Config): boolean {
-  if (!config.isPrerelease || !inOverrideScope(group, config)) {
+  if (!config.isPrerelease) {
     return false;
   }
   const scope = config.prereleaseScope;
   if (!scope || scope.length === 0) {
-    return true;
+    return inOverrideScope(group, config);
   }
   return group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, scope));
 }

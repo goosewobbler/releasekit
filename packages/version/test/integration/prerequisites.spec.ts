@@ -72,19 +72,28 @@ describe('--include-prerequisites', () => {
         libs: { packages: ['lib', 'util'], sync: 'fixed' },
       },
     });
-    addDependencies();
+    writeFileSync(
+      join(tempDir, 'packages', 'app', 'package.json'),
+      JSON.stringify({
+        name: 'app',
+        version: '1.1.0-next.0',
+        dependencies: { lib: 'workspace:*', util: 'workspace:*' },
+      }),
+    );
     for (const name of ['lib', 'util']) {
       writeFileSync(join(tempDir, 'packages', name, 'package.json'), JSON.stringify({ name, version: '1.1.0-next.0' }));
     }
-    createConventionalCommit(tempDir, 'chore', 'release libs 1.1.0-next.0', undefined, false, ['packages']);
-    execFileSync('git', ['tag', 'lib@v1.1.0-next.0'], { cwd: tempDir });
-    execFileSync('git', ['tag', 'util@v1.1.0-next.0'], { cwd: tempDir });
+    createConventionalCommit(tempDir, 'chore', 'release 1.1.0-next.0', undefined, false, ['packages']);
+    for (const name of ['app', 'lib', 'util']) {
+      execFileSync('git', ['tag', `${name}@v1.1.0-next.0`], { cwd: tempDir });
+    }
     commitTo('app', 'feat', 'add a command');
     commitTo('lib', 'fix', 'correct a typo');
 
     const output = runVersionJson(tempDir, '--target app --include-prerequisites --stable');
 
     expect(Object.fromEntries(output.updates.map((u) => [u.packageName, u.newVersion]))).toEqual({
+      app: '1.1.0',
       lib: '1.1.0-next.1',
       util: '1.1.0-next.1',
     });
