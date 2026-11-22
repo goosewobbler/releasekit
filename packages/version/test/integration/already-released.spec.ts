@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import type { VersionOutput } from '@releasekit/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createConventionalCommit } from '../utils/git.js';
-import { createPackageJson } from '../utils/package.js';
+import { mockVersionUpdates } from '../utils/package.js';
 import { cleanupTempDir } from '../utils/tempFixture.js';
 import { createWorkspaceRepo } from '../utils/workspace.js';
 
@@ -20,7 +20,7 @@ const git = (...args: string[]) => execFileSync('git', args, { cwd: tempDir, enc
 
 /** Dated a day apart, so tags created in the same second don't tie on creation time. */
 function tag(name: string) {
-  execFileSync('git', ['tag', '-a', '-m', 'release', name], {
+  execFileSync('git', ['tag', '-a', '--no-sign', '-m', 'release', name], {
     cwd: tempDir,
     env: { ...process.env, GIT_COMMITTER_DATE: `2020-01-${String(tagDay++).padStart(2, '0')}T00:00:00Z` },
   });
@@ -32,7 +32,7 @@ function commitTo(pkg: string, message: string) {
 }
 
 function release(pkg: string, version: string) {
-  createPackageJson(join(tempDir, 'packages', pkg), pkg, version);
+  mockVersionUpdates(join(tempDir, 'packages', pkg), version);
   git('commit', '-qam', `chore: release ${pkg} v${version}`, '--no-verify');
   tag(`${pkg}@v${version}`);
 }
@@ -46,11 +46,7 @@ function runVersionEngine(skipTaggedAfter: string, strategy = 'async'): VersionO
     await engine.run(await engine.getWorkspacePackages());
     process.stdout.write(JSON.stringify(getJsonData()));
   `;
-  const result = spawnSync('node', ['--input-type=module', '-e', script], {
-    cwd: tempDir,
-    encoding: 'utf8',
-    timeout: 60_000,
-  });
+  const result = spawnSync('node', ['--input-type=module', '-e', script], { cwd: tempDir, encoding: 'utf8' });
   if (result.status !== 0) {
     const cause = result.error?.message ?? result.signal ?? `exit status ${result.status}`;
     throw new Error(`version engine failed (${cause}):\n${result.stderr}`);
