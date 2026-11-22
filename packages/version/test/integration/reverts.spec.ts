@@ -95,7 +95,7 @@ describe('reverted commits', () => {
   it.each([
     'Reapply "feat!: drop Node 18"',
     'Reapply "feat!: drop Node 18" (#14)',
-    'Revert "Revert "feat!: drop Node 18""',
+    'Revert "Revert "feat!: drop Node 18" (#13)" (#15)',
   ])('should release %s whose revert shipped in an earlier release as the commit it reapplies', (title) => {
     tempDir = createWorkspaceRepo('rk-reverts-', {
       packages: { core: '@test/core' },

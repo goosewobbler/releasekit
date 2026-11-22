@@ -8,7 +8,8 @@ import type { Preset as BumperPreset } from 'conventional-recommended-bump';
 const HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!?: (.+)$/;
 const BREAKING_HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!: (.+)$/;
 const REVERTED_HASH_PATTERN = /^This reverts commit (\w+)/m;
-const REAPPLIED_HEADER_PATTERN = /^(?:Reapply "(.+)"|Revert "Revert "(.+)"")(?: \(#\d+\))?$/;
+const REVERT_LAYER_PATTERN = /^(Revert|Reapply) "(.*)"$/;
+const SQUASH_SUFFIX_PATTERN = / \(#\d+\)$/;
 
 type RevertFields = Pick<Commit, 'header' | 'body' | 'footer' | 'revert'> & { hash?: string | null };
 
@@ -60,32 +61,50 @@ export function createPreset(name: Preset): BumperPreset {
 export function filterRevertedCommits<T>(items: Iterable<T>, commitOf: (item: T) => RevertFields): T[] {
   const keyed = [...items].map((item) => {
     const commit = commitOf(item);
-    return { item, header: commit.header, hash: commit.hash, revert: commit.revert ?? reappliedRevert(commit) };
+    return { item, header: commit.header, hash: commit.hash, revert: revertOf(commit) ?? commit.revert };
   });
   return [...filterRevertedCommitsSync(keyed)].map(({ item }) => item);
 }
 
 /**
  * Parses a commit that reapplies a reverted one as the commit it reapplies. Run it after `filterRevertedCommits`, which
- * pairs the reapply with its revert by its own header.
+ * drops a reapply whose revert is in the same range.
  */
 export function asReapplied(commit: Commit, parser: CommitParser): Commit {
-  const match = commit.header?.match(REAPPLIED_HEADER_PATTERN);
-  if (!match) {
+  const { subject, reverts } = unwrapReverts(commit.header ?? '');
+  if (!isReapply(reverts)) {
     return commit;
   }
-  const message = [match[1] ?? match[2], commit.body, commit.footer].filter(Boolean).join('\n\n');
+  const message = [subject, commit.body, commit.footer].filter(Boolean).join('\n\n');
   return { ...commit, ...parser.parse(message) };
 }
 
 /**
- * Git 2.43+ titles a revert of a revert `Reapply "<subject>"`, which the presets' `revertPattern` doesn't match, so
- * read it as a revert of the commit it names.
+ * Peels `Revert "…"` and `Reapply "…"` titles, and the ` (#N)` a squash merge appends, down to the subject they wrap.
+ * Git titles a revert of a revert `Reapply`, so it counts twice: an even count means the change is back.
  */
-function reappliedRevert({ header, body, footer }: RevertFields): Commit['revert'] {
-  if (!header?.startsWith('Reapply "')) {
+function unwrapReverts(header: string): { subject: string; reverts: number } {
+  let subject = header;
+  let reverts = 0;
+  for (;;) {
+    const match = subject.replace(SQUASH_SUFFIX_PATTERN, '').match(REVERT_LAYER_PATTERN);
+    if (!match) {
+      return { subject, reverts };
+    }
+    reverts += match[1] === 'Reapply' ? 2 : 1;
+    subject = match[2];
+  }
+}
+
+function isReapply(reverts: number): boolean {
+  return reverts > 0 && reverts % 2 === 0;
+}
+
+/** Pairs a reapply with the revert it undoes by hash alone, since squash merges change the titles git quotes. */
+function revertOf({ header, body, footer }: RevertFields): Commit['revert'] {
+  if (!isReapply(unwrapReverts(header ?? '').reverts)) {
     return null;
   }
   const hash = `${body ?? ''}\n${footer ?? ''}`.match(REVERTED_HASH_PATTERN)?.[1];
-  return hash ? { header: `Revert${header.slice('Reapply'.length)}`, hash } : null;
+  return hash ? { hash } : null;
 }
