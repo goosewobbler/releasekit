@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPubspecYaml, parsePubspec } from '../../src/pubspec.js';
+import { isPubspecReleasable, isPubspecYaml, type PubspecManifest, parsePubspec } from '../../src/pubspec.js';
 
 describe('parsePubspec', () => {
   it('should parse name, version and publish_to from content', () => {
@@ -13,6 +13,17 @@ describe('parsePubspec', () => {
 
   it('should return an empty manifest for a comment-only document', () => {
     expect(parsePubspec('pubspec.yaml', '# just a comment\n')).toEqual({});
+  });
+});
+
+describe('isPubspecReleasable', () => {
+  it.each([
+    ['a named, versioned package', { name: 'pkg', version: '1.0.0' }, true],
+    ['a Dart workspace root', { name: 'workspace', workspace: ['packages/a'] }, false],
+    ['a publish_to: none package', { name: 'app', version: '1.0.0+7', publish_to: 'none' }, false],
+    ['a numeric version', { name: 'pkg', version: 1.0 }, false],
+  ])('should treat %s as releasable: %s', (_label, manifest, expected) => {
+    expect(isPubspecReleasable(manifest as PubspecManifest)).toBe(expected);
   });
 });
 

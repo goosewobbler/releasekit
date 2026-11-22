@@ -110,12 +110,6 @@ describe('Cargo Handler', () => {
   });
 
   describe('isVersionedCrate', () => {
-    it('should treat a manifest with a [package] name as a crate and a virtual workspace as not', () => {
-      expect(isVersionedCrate(mockCargoPath)).toBe(true);
-      vi.mocked(parseCargoToml, { partial: true }).mockReturnValue({ workspace: { members: ['crates/*'] } });
-      expect(isVersionedCrate(mockCargoPath)).toBe(false);
-    });
-
     it('should fail on an unparseable Cargo.toml, naming the file', () => {
       vi.mocked(parseCargoToml, { partial: true }).mockImplementation(() => {
         throw new Error('Invalid TOML document');

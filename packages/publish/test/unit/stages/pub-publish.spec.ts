@@ -272,6 +272,26 @@ describe('pub-publish stage', () => {
     expect(ctx.output.pub).toHaveLength(0);
   });
 
+  it('should skip a versionless pubspec, such as a Dart workspace root beside a package.json', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const dir = createTmpDir();
+    fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"root","version":"1.0.0"}');
+    fs.writeFileSync(path.join(dir, 'pubspec.yaml'), 'name: workspace\nworkspace:\n  - packages/my_package\n');
+
+    const ctx = createContext(dir, {
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'root', newVersion: '1.1.0', filePath: 'package.json' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+    await runPubPublishStage(ctx);
+
+    expect(execCommand).not.toHaveBeenCalled();
+    expect(ctx.output.pub).toHaveLength(0);
+  });
+
   it('should configure PUB_TOKEN when hasPubTokenAuth returns true', async () => {
     const { execCommand, hasPubTokenAuth } = await Promise.all([
       import('../../../src/utils/exec.js'),

@@ -17,6 +17,13 @@ export function parsePubspec(pubspecPath: string, content?: string): PubspecMani
   return (yaml.parse(src) ?? {}) as PubspecManifest;
 }
 
+/** False for a Dart workspace root, a versionless app manifest and a `publish_to: none` package. */
+export function isPubspecReleasable(
+  manifest: PubspecManifest,
+): manifest is PubspecManifest & { name: string; version: string } {
+  return !!manifest.name && typeof manifest.version === 'string' && manifest.publish_to !== 'none';
+}
+
 export function isPubspecYaml(filePath: string): boolean {
   return path.basename(filePath) === 'pubspec.yaml';
 }

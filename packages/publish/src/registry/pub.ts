@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { isPubspecReleasable } from '@releasekit/config';
 import type { VersionPackageUpdate } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
@@ -89,7 +90,7 @@ function findPubPackages(cwd: string, updates: VersionPackageUpdate[]): PubTarge
 
     try {
       const pubspec = parsePubspec(pubspecPath);
-      if (!pubspec.name || pubspec.publish_to === 'none') {
+      if (!isPubspecReleasable(pubspec)) {
         continue;
       }
 
