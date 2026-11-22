@@ -134,9 +134,10 @@ async function seedFrom(lookup: ReleaseLookup, config: Config, root: string): Pr
  * Seeds `releasekit.versions.json` with each package's last release as a version run resolves it today, keeping any
  * entry the record already has. Writes the file only when it seeds something.
  */
-export async function migrateVersionRecord(options: { cwd: string; configPath?: string }): Promise<MigrationResult> {
-  const config = loadConfig({ cwd: options.cwd, configPath: options.configPath });
-  const workspace = await new VersionEngine(config, { dryRun: true }).getWorkspacePackages(options.cwd);
+/** Seeds the record of the project in the working directory, where the tag lookups run. */
+export async function migrateVersionRecord(options: { configPath?: string } = {}): Promise<MigrationResult> {
+  const config = loadConfig({ configPath: options.configPath });
+  const workspace = await new VersionEngine(config, { dryRun: true }).getWorkspacePackages();
   const root = workspace.root;
   const packages = workspace.packages.filter(
     (pkg) =>

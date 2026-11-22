@@ -52,7 +52,7 @@ export async function runMigrate(options: MigrateOptions): Promise<void> {
   await assertNoPendingRelease(options);
 
   const { migrateVersionRecord, VERSION_RECORD_FILE } = await import('@releasekit/version');
-  const result = await migrateVersionRecord({ cwd: options.projectDir, configPath: options.config });
+  const result = await migrateVersionRecord({ configPath: options.config });
 
   for (const { path, name, version, tag } of result.seeded) {
     info(`Seeded ${path} (${name}) at ${version} from ${tag}`);

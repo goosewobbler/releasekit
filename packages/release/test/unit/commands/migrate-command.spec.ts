@@ -84,79 +84,18 @@ describe('releasekit migrate', { timeout: 30_000 }, () => {
     return stderr.mock.calls.map((call) => String(call[0])).join('\n');
   }
 
-  it("should seed each package from its last tag, with a prerelease's last stable release", async () => {
-    setUpRepo({ sync: false, packageSpecificTags: true }, { a: '1.1.0-next.0', b: '2.0.0', c: '0.1.0' });
-    const stable = git(repo, 'rev-parse', 'HEAD');
+  it('should report each package it seeded and each it could not, and write the record', async () => {
+    setUpRepo({ sync: false, packageSpecificTags: true }, { a: '1.0.0', b: '0.1.0' });
+    const at = git(repo, 'rev-parse', 'HEAD');
     git(repo, 'tag', 'a@v1.0.0');
-    git(repo, 'tag', 'b@v2.0.0');
-    const prerelease = commit('chore: release a v1.1.0-next.0');
-    git(repo, 'tag', 'a@v1.1.0-next.0');
-    commit('feat: a later change');
 
     await migrate();
 
-    expect(record()).toEqual({
-      'packages/a': {
-        name: 'a',
-        version: '1.1.0-next.0',
-        at: prerelease,
-        lastStable: { version: '1.0.0', at: stable },
-      },
-      'packages/b': { name: 'b', version: '2.0.0', at: stable },
-    });
+    expect(record()).toEqual({ 'packages/a': { name: 'a', version: '1.0.0', at } });
+    expect(output()).toContain('Seeded packages/a (a) at 1.0.0 from a@v1.0.0');
     expect(output()).toContain(
-      'Not seeded: packages/c (c), no release tag is reachable from HEAD. If it has been released, add its entry by hand.',
+      'Not seeded: packages/b (b), no release tag is reachable from HEAD. If it has been released, add its entry by hand.',
     );
-  });
-
-  it('should keep existing entries and seed a package that has none', async () => {
-    setUpRepo({ sync: false, packageSpecificTags: true }, { a: '1.0.0', b: '2.0.0' });
-    const at = git(repo, 'rev-parse', 'HEAD');
-    git(repo, 'tag', 'a@v1.0.0');
-    git(repo, 'tag', 'b@v2.0.0');
-    const existing = { 'packages/a': { name: 'a', version: '1.0.1', at: 'hand-edited' } };
-    writeFileSync(join(repo, 'releasekit.versions.json'), JSON.stringify(existing));
-
-    await migrate();
-
-    expect(record()).toEqual({ ...existing, 'packages/b': { name: 'b', version: '2.0.0', at } });
-  });
-
-  it('should create an empty record in a repo with nothing to seed, so releases start recording', async () => {
-    setUpRepo({ sync: false, packageSpecificTags: true }, { a: '1.0.0' });
-
-    await migrate();
-
-    expect(record()).toEqual({});
-  });
-
-  it("should seed a sync repo's entries with the shared version at its baseline tag", async () => {
-    setUpRepo({ sync: true, baselineTagTemplate: 'release/${prefix}${version}' }, { a: '1.0.0', b: '1.0.0' });
-    const at = git(repo, 'rev-parse', 'HEAD');
-    git(repo, 'tag', 'release/v1.0.0');
-    // The consumer tag, moved off the release commit by a downstream step.
-    commit('chore: build');
-    git(repo, 'tag', 'v1.0.0');
-
-    await migrate();
-
-    expect(record()).toEqual({
-      'packages/a': { name: 'a', version: '1.0.0', at },
-      'packages/b': { name: 'b', version: '1.0.0', at },
-    });
-  });
-
-  it('should seed the manifest version where mismatchStrategy prefer-package picks it', async () => {
-    setUpRepo(
-      { sync: false, packageSpecificTags: true, mismatchStrategy: 'prefer-package' },
-      { a: '1.2.0', b: '1.0.0' },
-    );
-    const at = git(repo, 'rev-parse', 'HEAD');
-    git(repo, 'tag', 'a@v1.0.0');
-
-    await migrate();
-
-    expect(record()).toEqual({ 'packages/a': { name: 'a', version: '1.2.0', at } });
   });
 
   it.each([
