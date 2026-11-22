@@ -8,10 +8,7 @@ export function copyFixtureToTemp(fixturePath: string): string {
   return tempDir;
 }
 
-export function cleanupTempDir(tempDir: string | undefined) {
-  if (!tempDir) {
-    return;
-  }
+export function cleanupTempDir(tempDir: string) {
   rmSync(tempDir, { recursive: true, force: true });
 }
 

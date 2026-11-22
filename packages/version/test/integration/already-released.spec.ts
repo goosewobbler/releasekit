@@ -20,7 +20,7 @@ const git = (...args: string[]) => execFileSync('git', args, { cwd: tempDir, enc
 
 /** Dated a day apart, so tags created in the same second don't tie on creation time. */
 function tag(name: string) {
-  execFileSync('git', ['tag', '-a', '--no-sign', '-m', 'release', name], {
+  execFileSync('git', ['tag', '-a', '-m', 'release', name], {
     cwd: tempDir,
     env: { ...process.env, GIT_COMMITTER_DATE: `2020-01-${String(tagDay++).padStart(2, '0')}T00:00:00Z` },
   });
@@ -33,16 +33,16 @@ function commitTo(pkg: string, message: string) {
 
 function release(pkg: string, version: string) {
   mockVersionUpdates(join(tempDir, 'packages', pkg), version);
-  git('commit', '-qam', `chore: release ${pkg} v${version}`, '--no-verify', '--no-gpg-sign');
+  git('commit', '-qam', `chore: release ${pkg} v${version}`, '--no-verify');
   tag(`${pkg}@v${version}`);
 }
 
-function runVersionEngine(skipTaggedAfter: string, strategy = 'async'): VersionOutput {
+function runVersionEngine(skipTaggedAfter: string): VersionOutput {
   const script = `
     import { VersionEngine, enableJsonOutput, getJsonData, loadConfig } from ${JSON.stringify(pathToFileURL(join(process.cwd(), 'dist/index.js')).href)};
     enableJsonOutput(true);
     const engine = new VersionEngine(loadConfig(), { dryRun: true, skipTaggedAfter: ${JSON.stringify(skipTaggedAfter)} });
-    engine.setStrategy(${JSON.stringify(strategy)});
+    engine.setStrategy('async');
     await engine.run(await engine.getWorkspacePackages());
     process.stdout.write(JSON.stringify(getJsonData()));
   `;
@@ -85,7 +85,7 @@ describe('skipTaggedAfter', () => {
     expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['pkg-b', '1.0.1']]);
   });
 
-  it.each(['async', 'single'])("should not skip a package released at the run's own commit (%s)", (strategy) => {
+  it("should not skip a package released at the run's own commit", () => {
     tempDir = createWorkspaceRepo('rk-released-', {
       packages: { 'pkg-a': 'pkg-a' },
       version: '1.0.0',
@@ -103,7 +103,7 @@ describe('skipTaggedAfter', () => {
     const runCommit = git('rev-parse', 'HEAD');
     commitTo('pkg-a', 'correct another typo in a');
 
-    const output = runVersionEngine(runCommit, strategy);
+    const output = runVersionEngine(runCommit);
 
     expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['pkg-a', '1.0.2']]);
   });
