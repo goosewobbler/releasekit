@@ -84,7 +84,7 @@ export function recordRelease(
 }
 
 /**
- * Records each released package at HEAD, the commit its release was computed at, in `record`. A name that isn't a
+ * Records each released package in `record` at `at`, the commit its release was computed at. A name that isn't a
  * package, such as a monorepo's root manifest, gets no entry. Nothing is written when nothing was released.
  */
 export async function writeReleasedVersions(

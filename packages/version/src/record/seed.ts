@@ -113,8 +113,8 @@ async function seedFrom(lookup: ReleaseLookup, config: Config, root: string): Pr
 }
 
 /**
- * Seeds each package the record has no entry for with its last release as a version run resolves it from tags today.
- * A package with no reachable tag stays unseeded and starts from its manifest.
+ * Gives each package without an entry its last release, found with the tag lookup a version run uses today. A package
+ * with no reachable tag gets no entry and starts from its manifest.
  */
 export async function seedMissingEntries(
   record: VersionRecord,
