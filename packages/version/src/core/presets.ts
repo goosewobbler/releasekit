@@ -65,28 +65,28 @@ export function resolveReverts<T, C extends RevertFields>(
 ): Array<{ item: T; commit: C }> {
   const keyed = [...items].map((item) => {
     const commit = commitOf(item);
-    const reapply = reapplyOf(commit);
-    // A reapply pairs by hash alone, since a squash merge's ` (#N)` suffix breaks the preset's title match.
-    const revert = reapply ? { hash: reapply.hash } : commit.revert;
-    return { item, commit, reapply, header: commit.header, hash: commit.hash, revert };
+    const reverting = revertOf(commit);
+    // Pairs by hash alone, since a squash merge's ` (#N)` suffix breaks the preset's title match.
+    const revert = reverting ? { hash: reverting.hash } : commit.revert;
+    return { item, commit, reverting, header: commit.header, hash: commit.hash, revert };
   });
-  return [...filterRevertedCommitsSync(keyed)].map(({ item, commit, reapply }) => {
-    if (!reapply) {
+  return [...filterRevertedCommitsSync(keyed)].map(({ item, commit, reverting }) => {
+    if (!reverting?.reapply) {
       return { item, commit };
     }
-    const message = [reapply.subject, commit.body, commit.footer].filter(Boolean).join('\n\n');
+    const message = [reverting.subject, commit.body, commit.footer].filter(Boolean).join('\n\n');
     return { item, commit: { ...commit, ...parser.parse(message) } as C };
   });
 }
 
-/** A reapply that names the revert it undoes, with the subject it reapplies. */
-function reapplyOf({ header, body, footer }: RevertFields): { hash: string; subject: string } | null {
+/** A revert or reapply that names the commit it undoes, with the subject it wraps. */
+function revertOf({ header, body, footer }: RevertFields): { hash: string; subject: string; reapply: boolean } | null {
   const { subject, reverts } = unwrapReverts(header ?? '');
-  if (reverts === 0 || reverts % 2 !== 0) {
+  if (reverts === 0) {
     return null;
   }
   const hash = `${body ?? ''}\n${footer ?? ''}`.match(REVERTED_HASH_PATTERN)?.[1];
-  return hash ? { hash, subject } : null;
+  return hash ? { hash, subject, reapply: reverts % 2 === 0 } : null;
 }
 
 /** `Reapply` is git's title for a revert of a revert, so it counts as two: an even count means the change is back. */
