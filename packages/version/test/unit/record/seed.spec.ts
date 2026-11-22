@@ -82,7 +82,7 @@ describe('seedMissingEntries', { timeout: 30_000 }, () => {
       },
       'packages/b': { name: 'b', version: '2.0.0', at: stable },
     });
-    expect(unseeded).toEqual([{ name: 'c', reason: 'no release tag is reachable from HEAD' }]);
+    expect(unseeded).toEqual([{ name: 'c', reason: 'no release tag of its own is reachable from HEAD' }]);
   });
 
   it("should keep an existing record's entries, seed the missing ones and record a release in the same file", async () => {

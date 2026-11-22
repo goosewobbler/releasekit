@@ -98,7 +98,7 @@ async function packageLookup(config: Config, pkg: Package, mode: Exclude<SeedMod
 
 async function seedFrom(lookup: ReleaseLookup, config: Config, root: string): Promise<Seed> {
   if (!lookup.tag) {
-    return { reason: 'no release tag is reachable from HEAD' };
+    return { reason: 'no release tag of its own is reachable from HEAD' };
   }
   let version: string | null;
   try {
