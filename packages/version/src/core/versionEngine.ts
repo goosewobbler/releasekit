@@ -41,6 +41,21 @@ function matchesWorkspaceGlobs(relativePath: string, globs: string[]): boolean {
   return included && !globs.filter((glob) => glob.startsWith('!')).some((glob) => matches(glob.slice(1)));
 }
 
+function findNestedPackageJson(dir: string): string | undefined {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || ['node_modules', '.git', 'target'].includes(entry.name)) {
+      continue;
+    }
+    const sub = path.join(dir, entry.name);
+    const manifest = path.join(sub, 'package.json');
+    const found = fs.existsSync(manifest) ? manifest : findNestedPackageJson(sub);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
 export class VersionEngine {
   private config: Config;
   private workspaceCache: PackagesWithRoot | null = null;
@@ -129,6 +144,14 @@ export class VersionEngine {
       // @manypkg/get-packages doesn't re-export the class from @manypkg/find-root, so match it by name.
       if (!(error instanceof Error) || error.constructor.name !== 'NoPkgJsonFound') {
         throw error;
+      }
+      const nested = findNestedPackageJson(workspaceRoot);
+      if (nested) {
+        throw createVersionError(
+          VersionErrorCode.WORKSPACE_ERROR,
+          `found ${path.relative(workspaceRoot, nested)} but no package.json at the project root; npm packages are ` +
+            'discovered from a root package.json',
+        );
       }
       log('No package.json found, so no npm packages to discover', 'debug');
       return null;

@@ -96,6 +96,20 @@ describe('Rust-only repo', () => {
     },
   );
 
+  it('should fail instead of skipping npm packages when there is no root package.json', () => {
+    write('Cargo.toml', '[package]\nname = "core"\nversion = "0.1.0"\n');
+    write('packages/js/package.json', JSON.stringify({ name: '@x/js', version: '0.1.0' }));
+    initGitRepo(tempDir);
+    createConventionalCommit(tempDir, 'feat', 'add feature');
+
+    const result = executeCliCommand('--json', tempDir);
+
+    expect(result.status).toBe(2);
+    expect(JSON.parse(result.stdout).errors[0].message).toContain(
+      `found ${join('packages', 'js', 'package.json')} but no package.json at the project root`,
+    );
+  });
+
   it('should fail when the project directory has no package to version', () => {
     initGitRepo(tempDir);
 

@@ -50,7 +50,7 @@ Minimum `releasekit.config.json`:
 }
 ```
 
-With `version.packages` unset, releasekit versions every crate it discovers, whether that's one crate at the repo root or the members of a Cargo workspace. The repo doesn't need a `package.json`.
+With `version.packages` unset, releasekit versions every crate it discovers: the members of a Cargo workspace, or without one every `Cargo.toml` in the repo. In a single-crate repo with nested crates such as test fixtures, set `"packages": ["./"]` or mark them `publish = false`. The repo doesn't need a `package.json`, but npm packages need one at the root.
 
 `version.cargo.enabled` and `publish.cargo.enabled` both default to `true`, so those keys are optional but make intent explicit. Set `publish.cargo.enabled` to `false` to version and tag without publishing to crates.io.
 
