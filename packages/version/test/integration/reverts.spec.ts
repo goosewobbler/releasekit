@@ -139,6 +139,31 @@ describe('reverted commits', () => {
     ]);
   });
 
+  it('should keep a squash of several reverts and the commits it reverts', () => {
+    tempDir = createWorkspaceRepo('rk-reverts-', {
+      packages: { core: '@test/core' },
+      version: '1.4.2',
+      config: { preset: 'conventionalcommits', sync: true, versionPrefix: 'v' },
+      tags: ['v1.4.2'],
+    });
+    commitChange('feat', 'add a flag');
+    const a = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tempDir, encoding: 'utf-8' }).trim();
+    commitChange('feat', 'add an option');
+    const b = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tempDir, encoding: 'utf-8' }).trim();
+    writeFileSync(join(tempDir, 'packages/core/index.js'), '// reverted\n');
+    execFileSync('git', ['add', 'packages/core'], { cwd: tempDir });
+    const message = `Revert "feat: add an option" (#20)\n\nThis reverts commit ${b}.\n\nThis reverts commit ${a}.`;
+    execFileSync('git', ['commit', '-q', '-m', message], { cwd: tempDir });
+
+    const output = runVersionJson(tempDir);
+    const entries = output.changelogs.flatMap((c) => c.entries);
+    expect(entries.map((e) => e.description)).toEqual([
+      'Revert "feat: add an option" (#20)',
+      'add an option',
+      'add a flag',
+    ]);
+  });
+
   it('should keep a revert of a commit from an earlier release', () => {
     tempDir = createWorkspaceRepo('rk-reverts-', {
       packages: { core: '@test/core' },

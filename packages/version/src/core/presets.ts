@@ -7,7 +7,7 @@ import type { Preset as BumperPreset } from 'conventional-recommended-bump';
 
 const HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!?: (.+)$/;
 const BREAKING_HEADER_PATTERN = /^(\w+)(?:\(([^)]+)\))?!: (.+)$/;
-const REVERTED_HASH_PATTERN = /^This reverts commit (\w+)/m;
+const REVERTED_HASH_PATTERN = /^This reverts commit (\w+)/gm;
 const REVERT_LAYER_PATTERN = /^(Revert|Reapply) "(.*)"$/;
 const SQUASH_SUFFIX_PATTERN = /(?: \(#\d+\))+$/;
 
@@ -55,7 +55,7 @@ export function createPreset(name: Preset): BumperPreset {
 
 /**
  * Drops each commit that a revert in `items` (newest first) undoes, along with the revert, and treats `Reapply "X"` as
- * `X` when X's revert was released earlier, so it bumps like the original change. Returns the items left with their
+ * `X` when its revert isn't in `items`, so it bumps like the original change. Returns the items left with their
  * commits. `commitOf` must return the item's parsed commit with its `hash`.
  */
 export function resolveReverts<T, C extends RevertFields>(
@@ -85,8 +85,9 @@ function revertOf({ header, body, footer }: RevertFields): { hash: string; subje
   if (reverts === 0) {
     return null;
   }
-  const hash = `${body ?? ''}\n${footer ?? ''}`.match(REVERTED_HASH_PATTERN)?.[1];
-  return hash ? { hash, subject, reapply: reverts % 2 === 0 } : null;
+  // A squash of several reverts names several commits, which one hash can't pair, so it keeps the preset's matching.
+  const hashes = [...`${body ?? ''}\n${footer ?? ''}`.matchAll(REVERTED_HASH_PATTERN)].map((match) => match[1]);
+  return hashes.length === 1 ? { hash: hashes[0], subject, reapply: reverts % 2 === 0 } : null;
 }
 
 /** `Reapply` is git's title for a revert of a revert, so it counts as two: an even count means the change is back. */
