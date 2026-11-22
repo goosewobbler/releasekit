@@ -92,30 +92,30 @@ describe('reverted commits', () => {
     expect(entries.find((e) => e.description === 'drop Node 18')?.breaking).toBe(true);
   });
 
-  // Git 2.43+ titles a revert of a revert `Reapply "…"`; older git titles it `Revert "Revert "…""`.
-  it.each(['Reapply "feat!: drop Node 18"', 'Revert "Revert "feat!: drop Node 18""'])(
-    'should release %s whose revert shipped in an earlier release as the commit it reapplies',
-    (title) => {
-      tempDir = createWorkspaceRepo('rk-reverts-', {
-        packages: { core: '@test/core' },
-        version: '1.4.2',
-        config: { preset: 'conventionalcommits', sync: true, versionPrefix: 'v' },
-      });
-      commitChange('feat', 'drop Node 18', true);
-      revertHead();
-      execSync('git tag v1.4.2', { cwd: tempDir });
-      const revert = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tempDir, encoding: 'utf-8' }).trim();
-      writeFileSync(join(tempDir, 'packages/core/index.js'), '// reapplied\n');
-      execFileSync('git', ['add', 'packages/core'], { cwd: tempDir });
-      execFileSync('git', ['commit', '-q', '-m', `${title}\n\nThis reverts commit ${revert}.`], { cwd: tempDir });
+  it.each([
+    'Reapply "feat!: drop Node 18"',
+    'Reapply "feat!: drop Node 18" (#14)',
+    'Revert "Revert "feat!: drop Node 18""',
+  ])('should release %s whose revert shipped in an earlier release as the commit it reapplies', (title) => {
+    tempDir = createWorkspaceRepo('rk-reverts-', {
+      packages: { core: '@test/core' },
+      version: '1.4.2',
+      config: { preset: 'conventionalcommits', sync: true, versionPrefix: 'v' },
+    });
+    commitChange('feat', 'drop Node 18', true);
+    revertHead();
+    execSync('git tag v1.4.2', { cwd: tempDir });
+    const revert = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tempDir, encoding: 'utf-8' }).trim();
+    writeFileSync(join(tempDir, 'packages/core/index.js'), '// reapplied\n');
+    execFileSync('git', ['add', 'packages/core'], { cwd: tempDir });
+    execFileSync('git', ['commit', '-q', '-m', `${title}\n\nThis reverts commit ${revert}.`], { cwd: tempDir });
 
-      const output = runVersionJson(tempDir);
-      expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('2.0.0');
-      expect(output.changelogs.flatMap((c) => c.entries)).toMatchObject([
-        { type: 'added', description: 'drop Node 18', breaking: true },
-      ]);
-    },
-  );
+    const output = runVersionJson(tempDir);
+    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('2.0.0');
+    expect(output.changelogs.flatMap((c) => c.entries)).toMatchObject([
+      { type: 'added', description: 'drop Node 18', breaking: true },
+    ]);
+  });
 
   it('should keep a revert of a commit from an earlier release', () => {
     tempDir = createWorkspaceRepo('rk-reverts-', {
