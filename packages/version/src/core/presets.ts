@@ -67,8 +67,7 @@ export function filterRevertedCommits<T>(items: Iterable<T>, commitOf: (item: T)
 
 /**
  * Treats `Reapply "X"` as `X`, to ensure that a change reapplied after it was reverted in a previous release bumps like
- * the original change. Call it after `filterRevertedCommits`, which removes a reapply and its revert when both are in
- * the range.
+ * the original change. Only call it once reverts that cancel out within the range have been removed.
  */
 export function asReapplied(commit: Commit, parser: CommitParser): Commit {
   const { subject, reverts } = unwrapReverts(commit.header ?? '');
