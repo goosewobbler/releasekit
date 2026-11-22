@@ -159,6 +159,12 @@ interface GroupComputation {
   hasChange: boolean;
 }
 
+/** Prerequisites keep their own channel, so a group with no member in the override scope isn't forced onto the target's. */
+function inOverrideScope(group: ResolvedGroup, config: Config): boolean {
+  const scope = config.overrideScope;
+  return !scope?.length || group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, scope));
+}
+
 /** A fixed/linked group shares one version and channel, so graduating ANY member graduates the group. */
 function isGroupGraduating(group: ResolvedGroup, config: Config): boolean {
   if (!config.stableOnly) {
@@ -166,7 +172,7 @@ function isGroupGraduating(group: ResolvedGroup, config: Config): boolean {
   }
   const scope = config.graduateScope;
   if (!scope || scope.length === 0) {
-    return true;
+    return inOverrideScope(group, config);
   }
   return group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, scope));
 }
@@ -178,7 +184,7 @@ function isGroupPrereleasing(group: ResolvedGroup, config: Config): boolean {
   }
   const scope = config.prereleaseScope;
   if (!scope || scope.length === 0) {
-    return true;
+    return inOverrideScope(group, config);
   }
   return group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, scope));
 }
