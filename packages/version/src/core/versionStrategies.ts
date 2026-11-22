@@ -179,7 +179,8 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         const rootNativeFiles = updateNativeManifests(packages.root, nextVersion, config, {
           dryRun,
           repoRoot,
-          isRoot: true,
+          // A root that is itself a discovered package releases like any other, so only a non-package root is flagged.
+          isRoot: !rootPackage,
           recordAs: rootPackage?.packageJson.name,
         });
         // Track a native-only root bump: the loop skips this path in a single-package repo, so the early

@@ -34,7 +34,6 @@ Minimum `releasekit.config.json`:
 {
   "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
   "version": {
-    "packages": ["./"],
     "pub": {
       "enabled": true
     }
@@ -46,6 +45,8 @@ Minimum `releasekit.config.json`:
   }
 }
 ```
+
+With `version.packages` unset, releasekit versions every Dart package it discovers in the repo. A single-package repo with nested packages, such as examples, should set `"packages": ["./"]` or mark them `publish_to: none`. The repo doesn't need a `package.json`.
 
 `version.pub.enabled` and `publish.pub.enabled` both default to `true`, so those keys are optional but make intent explicit. Set `publish.pub.enabled` to `false` to version and tag without publishing to pub.dev.
 
@@ -74,7 +75,7 @@ List npm and Dart package directories together in `version.packages`:
 }
 ```
 
-releasekit discovers a Dart package from its `pubspec.yaml`, within your `pnpm-workspace.yaml` globs if you have one. A `pubspec.yaml` beside a `package.json` is versioned with that package. With `version.pub.enabled: false` it's neither versioned nor published.
+releasekit discovers a Dart package from its `pubspec.yaml`, within your `pnpm-workspace.yaml` globs if you have one. A `pubspec.yaml` beside a `package.json` is versioned with that npm package, which is only discovered when the repo has a root `package.json`. With `version.pub.enabled: false` it's neither versioned nor published.
 
 ---
 

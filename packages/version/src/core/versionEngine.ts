@@ -122,6 +122,20 @@ export class VersionEngine {
     this.currentStrategy = createStrategy(effective);
   }
 
+  /** Null when no package.json exists from the project directory upwards. */
+  private discoverNpmPackages(workspaceRoot: string): PackagesWithRoot | null {
+    try {
+      return getPackagesSync(workspaceRoot) as PackagesWithRoot;
+    } catch (error) {
+      // @manypkg/get-packages doesn't re-export the class from @manypkg/find-root, so match it by name.
+      if (!(error instanceof Error) || error.constructor.name !== 'NoPkgJsonFound') {
+        throw error;
+      }
+      log('No package.json found, so no npm packages to discover', 'debug');
+      return null;
+    }
+  }
+
   private discoverCargoTomlPackages(workspaceRoot: string): PackagesWithRoot {
     let workspaceMembers: string[] | null = null;
     const rootCargoPath = path.join(workspaceRoot, 'Cargo.toml');
@@ -182,7 +196,11 @@ export class VersionEngine {
           continue;
         }
 
-        if (cargoData.package?.name && typeof cargoData.package?.version === 'string') {
+        const version: unknown = cargoData.package?.version;
+        // `version.workspace = true` and `version = { workspace = true }` both parse to this table.
+        const inheritsVersion =
+          typeof version === 'object' && version !== null && (version as { workspace?: unknown }).workspace === true;
+        if (cargoData.package?.name && (typeof version === 'string' || inheritsVersion)) {
           const relativePath = path.relative(workspaceRoot, packageDir);
           const pathParts = relativePath.split(path.sep);
           if (pathParts.includes('target') || pathParts.includes('node_modules')) {
@@ -204,10 +222,22 @@ export class VersionEngine {
             }
           }
 
+          if (typeof version !== 'string') {
+            // No warning for a root crate: the sync root pass still writes its version.
+            if (relativePath !== '') {
+              log(
+                `${cargoData.package.name} at ${relativePath} isn't released as its own package: ReleaseKit doesn't ` +
+                  'support workspace-inherited versions yet. Give it a literal version to release it.',
+                'warning',
+              );
+            }
+            continue;
+          }
+
           rustPackages.push({
             packageJson: {
               name: cargoData.package.name,
-              version: cargoData.package.version,
+              version,
             },
             dir: packageDir,
             relativeDir: relativePath,
@@ -420,15 +450,25 @@ export class VersionEngine {
         return this.workspaceCache;
       }
 
-      const npmPackages = getPackagesSync(workspaceRoot) as PackagesWithRoot;
-      if (!npmPackages?.packages) {
-        throw createVersionError(VersionErrorCode.PACKAGES_NOT_FOUND);
-      }
+      const discoveredNpm = this.discoverNpmPackages(workspaceRoot);
+      const npmPackages: PackagesWithRoot = discoveredNpm ?? {
+        packages: [],
+        root: path.resolve(workspaceRoot),
+        // biome-ignore lint/suspicious/noExplicitAny: Tool type from @manypkg doesn't support repos without package.json
+        tool: 'pnpm' as any,
+        rootDir: path.resolve(workspaceRoot),
+      };
 
       const rustPackages = this.discoverCargoTomlPackages(workspaceRoot);
       const dartPackages = this.discoverPubspecPackages(workspaceRoot);
 
       const workspacePackages = this.mergePackageLists(this.mergePackageLists(npmPackages, rustPackages), dartPackages);
+      if (!discoveredNpm && workspacePackages.packages.length === 0) {
+        throw createVersionError(
+          VersionErrorCode.PACKAGES_NOT_FOUND,
+          `no package.json, Cargo.toml or pubspec.yaml package found in ${workspaceRoot}`,
+        );
+      }
       const enabled = (discovered: PackagesWithRoot, ecosystem: { enabled?: boolean } | undefined) =>
         ecosystem?.enabled === false ? { ...discovered, packages: [] } : discovered;
       const mergedPackages = this.mergePackageLists(
@@ -584,6 +624,9 @@ export class VersionEngine {
 
       return mergedPackages;
     } catch (error) {
+      if (error instanceof VersionError) {
+        throw error;
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       log(`Failed to get packages information: ${errorMessage}`, 'error');
       log(inspect(error), 'error');
