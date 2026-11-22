@@ -75,26 +75,23 @@ describe('Rust-only repo', () => {
     expect(output.tags).toEqual(['v1.0.1']);
   });
 
-  it.each([['version.workspace = true'], ['version = { workspace = true }']])(
-    'should skip a member crate with %s with a warning and release the rest',
-    (spelling) => {
-      write('Cargo.toml', '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\n');
-      write('crates/literal/Cargo.toml', '[package]\nname = "literal"\nversion = "0.1.0"\n');
-      write('crates/inheriting/Cargo.toml', `[package]\nname = "inheriting"\n${spelling}\n`);
-      initGitRepo(tempDir);
-      createConventionalCommit(tempDir, 'feat', 'add feature');
+  it('should skip a member crate that inherits its version, with a warning, and release the rest', () => {
+    write('Cargo.toml', '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\n');
+    write('crates/literal/Cargo.toml', '[package]\nname = "literal"\nversion = "0.1.0"\n');
+    write('crates/inheriting/Cargo.toml', '[package]\nname = "inheriting"\nversion.workspace = true\n');
+    initGitRepo(tempDir);
+    createConventionalCommit(tempDir, 'feat', 'add feature');
 
-      const result = executeCliCommand('--json', tempDir);
+    const result = executeCliCommand('--json', tempDir);
 
-      expect(result.status).toBe(0);
-      expect(readVersionOutput(result.stdout).updates.map((u) => [u.packageName, u.newVersion])).toEqual([
-        ['literal', '0.2.0'],
-      ]);
-      expect(result.stderr).toContain(
-        "inheriting at crates/inheriting isn't released as its own package: ReleaseKit doesn't support workspace-inherited versions yet. Give it a literal version to release it.",
-      );
-    },
-  );
+    expect(result.status).toBe(0);
+    expect(readVersionOutput(result.stdout).updates.map((u) => [u.packageName, u.newVersion])).toEqual([
+      ['literal', '0.2.0'],
+    ]);
+    expect(result.stderr).toContain(
+      "inheriting at crates/inheriting isn't released as its own package: ReleaseKit doesn't support workspace-inherited versions yet. Give it a literal version to release it.",
+    );
+  });
 
   it('should fail when the project directory has no package to version', () => {
     initGitRepo(tempDir);

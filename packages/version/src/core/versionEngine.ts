@@ -222,12 +222,12 @@ export class VersionEngine {
           }
 
           if (typeof version !== 'string') {
-            // In sync mode the root pass still writes a root crate's version.
-            if (relativePath !== '' || !this.config.sync) {
+            // A root crate is still bumped by the sync root pass, so only a member is left out.
+            if (relativePath !== '') {
               log(
-                `${cargoData.package.name} at ${relativePath || '.'} isn't released as its own package: ReleaseKit doesn't ` +
+                `${cargoData.package.name} at ${relativePath} isn't released as its own package: ReleaseKit doesn't ` +
                   'support workspace-inherited versions yet. Give it a literal version to release it.',
-                this.config.cargo?.enabled === false ? 'debug' : 'warning',
+                'warning',
               );
             }
             continue;
