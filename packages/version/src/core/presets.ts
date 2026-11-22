@@ -49,8 +49,8 @@ export function createPreset(name: Preset): BumperPreset {
 }
 
 /**
- * Drops each commit reverted in `items`, newest first, along with its revert. The bump and the changelog both filter
- * with it. `commitOf` gives an item's parsed commit, with its `hash` set.
+ * Drops each commit that a revert in `items` (newest first) undoes, and the revert with it. `commitOf` must return the
+ * item's parsed commit with its `hash`.
  */
 export function filterRevertedCommits<T>(items: Iterable<T>, commitOf: (item: T) => RevertFields): T[] {
   const keyed = [...items].map((item) => {
@@ -61,8 +61,8 @@ export function filterRevertedCommits<T>(items: Iterable<T>, commitOf: (item: T)
 }
 
 /**
- * Git titles a revert of `Revert "<subject>"` as `Reapply "<subject>"`, which the presets' `revertPattern` doesn't
- * match. It reverts the commit it names, whose header has `Revert` in place of `Reapply`.
+ * Git 2.43+ titles a revert of a revert `Reapply "<subject>"`, which the presets' `revertPattern` doesn't match, so
+ * read it as a revert of the commit it names.
  */
 function reappliedRevert({ header, body, footer }: RevertFields): Commit['revert'] {
   if (!header?.startsWith('Reapply "')) {
