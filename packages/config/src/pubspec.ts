@@ -17,7 +17,7 @@ export function parsePubspec(pubspecPath: string, content?: string): PubspecMani
   return (yaml.parse(src) ?? {}) as PubspecManifest;
 }
 
-/** False for a Dart workspace root, a versionless app manifest and a `publish_to: none` package. */
+/** A versionless pubspec is a Dart workspace root or an app manifest, not a package. */
 export function isPubspecReleasable(
   manifest: PubspecManifest,
 ): manifest is PubspecManifest & { name: string; version: string } {
