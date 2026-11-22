@@ -10,6 +10,8 @@ export { BaseVersionError } from './errors/baseError.js';
 export { createVersionError, VersionErrorCode } from './errors/versionError.js';
 export { listGlobalTags, listPackageTags } from './git/tagsAndBranches.js';
 export { PackageProcessor } from './package/packageProcessor.js';
+export { type MigrationResult, migrateVersionRecord } from './record/migrate.js';
+export { VERSION_RECORD_FILE } from './record/versionRecord.js';
 export type { Config, VersionConfigBase, VersionRunOptions } from './types.js';
 export { resolveCommitScope } from './utils/commitScope.js';
 export { globalTagPrefix } from './utils/formatting.js';

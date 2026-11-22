@@ -18,10 +18,17 @@ import { raiseCargoDependentRequirements } from '../cargo/dependentRequirements.
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
 import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { isReleasablePubspec } from '../pub/pubHandler.js';
+import { writeReleasedVersions } from '../record/versionRecord.js';
 import type { Config, VersionRunOptions } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
-import { getJsonData, isJsonOutputMode, tagPrerequisiteRoles } from '../utils/jsonOutput.js';
+import {
+  clearReleasedVersions,
+  getJsonData,
+  getReleasedVersions,
+  isJsonOutputMode,
+  tagPrerequisiteRoles,
+} from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { recordBundledReleases } from './bundling.js';
 import { isGroupMode } from './groupResolution.js';
@@ -638,6 +645,7 @@ export class VersionEngine {
   public async run(packages: PackagesWithRoot, targets: string[] = []): Promise<void> {
     try {
       clearCargoBumps();
+      clearReleasedVersions();
       // Callers pass the targets they were given, which the prerequisite expansion has since widened.
       await this.currentStrategy(packages, this.targetsExpanded ? this.runtimeTargets : targets);
       await raiseCargoDependentRequirements(packages.root ?? cwd(), this.config.dryRun ?? false);
@@ -645,6 +653,12 @@ export class VersionEngine {
       if (Object.keys(this.prerequisiteOf).length > 0) {
         tagPrerequisiteRoles(this.config.overrideScope ?? [], this.prerequisiteOf);
       }
+      await writeReleasedVersions(
+        getReleasedVersions(),
+        packages.packages,
+        packages.root ?? cwd(),
+        this.config.dryRun ?? false,
+      );
       if (isJsonOutputMode()) {
         // Bundled sections only enrich notes, so a failure here mustn't stop the release.
         await recordBundledReleases(getJsonData(), this.discoveredPackages, this.config, packages.root ?? cwd()).catch(

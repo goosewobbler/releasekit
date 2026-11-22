@@ -21,7 +21,7 @@ function findDraftManifestComment(forge: Forge, issueNumber: number): Promise<Tr
   return findTrustedComment(forge, issueNumber, DRAFT_MANIFEST_MARKER, 'release-draft manifest');
 }
 
-async function findReusableDraft(forge: Forge): Promise<number | undefined> {
+export async function findReusableDraft(forge: Forge): Promise<number | undefined> {
   for (const issue of await forge.listOpenIssuesByLabel(DRAFT_LABEL)) {
     const { comment } = await findDraftManifestComment(forge, issue.number);
     if (comment && isReleaseManifestComment(comment.body)) {

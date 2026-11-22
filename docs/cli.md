@@ -6,7 +6,7 @@ ReleaseKit ships a unified `releasekit` command plus three standalone binaries. 
 
 | Binary | Provided by | Commands |
 |---|---|---|
-| `releasekit` | `@releasekit/release` | `preview` (default), `release`, `gate`, `standing-pr`, `refresh-after-release`, `backfill`, `init`, `labels`, `version`, `notes`, `publish` |
+| `releasekit` | `@releasekit/release` | `preview` (default), `release`, `gate`, `standing-pr`, `refresh-after-release`, `backfill`, `init`, `labels`, `migrate`, `version`, `notes`, `publish` |
 | `releasekit-release` | `@releasekit/release` | `preview` (default), `release`, [`gate`](#releasekit-release-gate), `standing-pr`, `refresh-after-release`, [`backfill`](#releasekit-release-backfill) |
 | `releasekit-version` | `@releasekit/version` | `version` |
 | `releasekit-notes` | `@releasekit/notes` | `notes` |
@@ -305,6 +305,33 @@ Create a default `releasekit.config.json`. Detects whether the project is a mono
 ```bash
 releasekit init
 releasekit init --labels   # also create the GitHub labels (needs GITHUB_TOKEN)
+```
+
+---
+
+## `releasekit migrate`
+
+Seed `releasekit.versions.json`, the version record, with each package's last release. Each entry takes the version a release resolves today (the tag, or the manifest where `mismatchStrategy: prefer-package` picks it) and the commit of the package's last tag (its baseline tag where `baselineTagTemplate` is set). A prerelease entry also gets its last stable tag's version and commit. A sync repo's entries all get the shared version. Entries already in the record are kept, so you can run it again to add a package.
+
+It refuses while a standing PR or an unpublished release draft is open, so it needs a GitHub token (`GITHUB_TOKEN`, then `GH_TOKEN`). A package whose tag can't be found from `HEAD` is listed in the output; if it has been released, add its entry by hand. Commit the file afterwards. Releases only update an existing record; without one they write none.
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-c, --config <path>` | string | auto-discovered | Path to config file |
+| `--project-dir <path>` | string | `cwd` | Project directory to run commands in |
+| `--repo <owner/repo>` | string | auto | Repository (auto-detected from `GITHUB_REPOSITORY` or the `origin` remote) |
+
+Entries are keyed by package path; `at` is the commit the release was computed at:
+
+```json
+{
+  "packages/core": {
+    "name": "@scope/core",
+    "version": "2.1.0-next.1",
+    "at": "<commit sha>",
+    "lastStable": { "version": "2.0.0", "at": "<commit sha>" }
+  }
+}
 ```
 
 ---
