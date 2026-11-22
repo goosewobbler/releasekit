@@ -8,7 +8,7 @@ export interface PrerequisiteTargets {
   targets: string[];
   /** The packages the bump/prerelease/stable override applies to (the group-expanded explicit set). */
   overrideScope: string[];
-  /** For each derived prerequisite, the (group-expanded) target(s) that pulled it in. */
+  /** For each derived prerequisite, the package(s) that pulled it in; an atomic group-mate shares its member's. */
   prerequisiteOf: Record<string, string[]>;
 }
 
@@ -36,14 +36,40 @@ export function resolvePrerequisiteTargets(
     }
   }
 
-  const candidateDeps = new Set<string>();
-  for (const name of overrideSet) {
-    for (const dep of graph.transitiveDependencies(name)) {
-      candidateDeps.add(dep);
+  const targets = new Set(overrideSet);
+  const prerequisiteOf: Record<string, string[]> = {};
+  let frontier = [...overrideSet];
+  while (frontier.length > 0) {
+    const changed = frontier
+      .flatMap((name) => [...graph.transitiveDependencies(name)])
+      .filter((name) => !targets.has(name) && isChanged(name));
+    const resolved = resolvePrerequisites(graph, frontier, changed);
+    const added: string[] = [];
+    for (const name of resolved.targetSet) {
+      if (!targets.has(name)) {
+        targets.add(name);
+        added.push(name);
+        prerequisiteOf[name] = resolved.prerequisiteOf[name];
+      }
     }
+    // The group strategy releases an atomic group whole, so a prerequisite's group-mates release too and their own
+    // dependencies need the same walk.
+    for (const name of [...added]) {
+      const group = resolution.groupOf(name);
+      if (!group || group.sync === 'linked') {
+        continue;
+      }
+      for (const member of group.members) {
+        const mate = member.packageJson.name;
+        if (!targets.has(mate)) {
+          targets.add(mate);
+          added.push(mate);
+          prerequisiteOf[mate] = prerequisiteOf[name];
+        }
+      }
+    }
+    frontier = added;
   }
-  const changed = [...candidateDeps].filter((name) => isChanged(name));
 
-  const { targetSet, prerequisiteOf } = resolvePrerequisites(graph, [...overrideSet], changed);
-  return { targets: [...targetSet], overrideScope: [...overrideSet], prerequisiteOf };
+  return { targets: [...targets], overrideScope: [...overrideSet], prerequisiteOf };
 }

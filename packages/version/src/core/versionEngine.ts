@@ -568,7 +568,7 @@ export class VersionEngine {
 
       // The targets matched nothing, and the filters above read an empty list as every package.
       if (this.targetsExpanded && this.runtimeTargets.length === 0) {
-        log('Prerequisites: the targets match no package, so nothing is released', 'warning');
+        log('Prerequisites: the targets match no releasable package, so nothing is released', 'warning');
         mergedPackages.packages = [];
       }
 

@@ -13,8 +13,7 @@ import { createWorkspaceRepo } from '../utils/workspace.js';
 
 let tempDir: string;
 
-function createRepo(config: Record<string, unknown> = {}) {
-  const names = ['app', 'lib', 'util'];
+function createRepo(config: Record<string, unknown> = {}, names = ['app', 'lib', 'util']) {
   tempDir = createWorkspaceRepo('rk-prerequisites-', {
     packages: Object.fromEntries(names.map((name) => [name, name])),
     version: '1.0.0',
@@ -30,12 +29,18 @@ function createRepo(config: Record<string, unknown> = {}) {
   });
 }
 
-function addDependencies() {
-  writeFileSync(
-    join(tempDir, 'packages', 'app', 'package.json'),
-    JSON.stringify({ name: 'app', version: '1.0.0', dependencies: { lib: 'workspace:*', util: 'workspace:*' } }),
-  );
-  createConventionalCommit(tempDir, 'chore', 'depend on lib and util', undefined, false, ['packages/app']);
+function addDependencies(dependencies: Record<string, string[]> = { app: ['lib', 'util'] }) {
+  for (const [name, deps] of Object.entries(dependencies)) {
+    writeFileSync(
+      join(tempDir, 'packages', name, 'package.json'),
+      JSON.stringify({
+        name,
+        version: '1.0.0',
+        dependencies: Object.fromEntries(deps.map((dep) => [dep, 'workspace:*'])),
+      }),
+    );
+  }
+  createConventionalCommit(tempDir, 'chore', 'add workspace dependencies', undefined, false, ['packages']);
 }
 
 function commitTo(name: string, type: string, message: string) {
@@ -97,6 +102,32 @@ describe('--include-prerequisites', () => {
       lib: '1.1.0-next.1',
       util: '1.1.0-next.1',
     });
+  });
+
+  it("should release the changed dependencies of a prerequisite's group-mates", () => {
+    createRepo(
+      {
+        groups: {
+          apps: { packages: ['app'], sync: 'fixed' },
+          libs: { packages: ['lib', 'util'], sync: 'fixed' },
+        },
+      },
+      ['app', 'lib', 'util', 'base'],
+    );
+    addDependencies({ app: ['lib'], util: ['base'] });
+    commitTo('app', 'feat', 'add a command');
+    commitTo('lib', 'fix', 'correct a typo');
+    commitTo('base', 'fix', 'correct another typo');
+
+    const output = runVersionJson(tempDir, '--target app --include-prerequisites');
+
+    expect(Object.fromEntries(output.updates.map((u) => [u.packageName, u.newVersion]))).toEqual({
+      app: '1.1.0',
+      lib: '1.0.1',
+      util: '1.0.1',
+      base: '1.0.1',
+    });
+    expect(output.updates.find((u) => u.packageName === 'util')?.role).toBe('prerequisite');
   });
 
   it.each([
