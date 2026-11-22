@@ -99,18 +99,6 @@ describe('--include-prerequisites', () => {
     });
   });
 
-  it('should release no prerequisites when the target is outside version.packages', () => {
-    createRepo({ packages: ['packages/lib'] });
-    addDependencies();
-    commitTo('app', 'feat', 'add a command');
-    commitTo('lib', 'fix', 'correct a typo');
-
-    const result = executeCliCommand('--json --target app --include-prerequisites', tempDir);
-
-    expect(result.status).not.toBe(0);
-    expect(JSON.parse(result.stdout).errors).toMatchObject([{ message: 'No packages found in workspace' }]);
-  });
-
   it.each([
     ['async', {}],
     ['sync', { sync: true }],

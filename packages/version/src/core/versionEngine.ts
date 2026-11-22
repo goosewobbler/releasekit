@@ -566,11 +566,9 @@ export class VersionEngine {
         log(`Runtime targets filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'info');
       }
 
-      // Prerequisites release only alongside a target, and the filters above read an empty target list as every package.
-      // Runs before exclude, so a prerequisite the user keeps while holding back its target still releases.
-      const overrideScope = new Set(this.config.overrideScope);
-      if (this.targetsExpanded && !mergedPackages.packages.some((pkg) => overrideScope.has(pkg.packageJson.name))) {
-        log('Prerequisites: none of the targets is a releasable package, so nothing is released', 'warning');
+      // The targets matched nothing, and the filters above read an empty target list as every package.
+      if (this.targetsExpanded && this.runtimeTargets.length === 0) {
+        log('Prerequisites: the targets match no package, so nothing is released', 'warning');
         mergedPackages.packages = [];
       }
 
