@@ -665,7 +665,7 @@ export class VersionEngine {
       .filter((key) => !existing[key])
       .map((key) => record[key].name);
     if (seededNames.length > 0) {
-      log(`Seeding ${VERSION_RECORD_FILE} from release tags: ${seededNames.join(', ')}`, 'info');
+      log(`Seeding ${VERSION_RECORD_FILE} from release tags: ${seededNames.join(', ')}`, 'debug');
     }
     for (const { name, reason } of unseeded) {
       log(`Not seeding ${name} in ${VERSION_RECORD_FILE} (${reason}), so it starts from its manifest`, 'debug');
