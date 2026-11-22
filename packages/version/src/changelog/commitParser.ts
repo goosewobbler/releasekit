@@ -152,15 +152,13 @@ function parseLog(output: string, preset: Preset): CommitWithHash[] {
     if (!message) {
       return [];
     }
-    return [{ hash: hash.trim(), message, commit: parserFor(preset).parse(message) }];
+    return [Object.assign(parserFor(preset).parse(message), { hash: hash.trim(), message })];
   });
 
-  return resolveReverts(commits, ({ hash, commit }) => Object.assign({}, commit, { hash }), parserFor(preset)).flatMap(
-    ({ item: { hash, message }, commit }) => {
-      const entry = toChangelogEntry(message, commit);
-      return entry ? [{ hash, entry }] : [];
-    },
-  );
+  return resolveReverts(commits, parserFor(preset)).flatMap((commit) => {
+    const entry = toChangelogEntry(commit.message, commit);
+    return entry ? [{ hash: commit.hash, entry }] : [];
+  });
 }
 
 function toChangelogEntry(trimmedMessage: string, commit: Commit): ChangelogEntry | null {

@@ -45,37 +45,27 @@ export function createPreset(name: Preset): BumperPreset {
     // conventionalcommits' whatBump re-reads `!` from the raw header with its own greedy scope pattern. The
     // parser has already turned a `!` header into a note, so hiding the header leaves the parse to decide.
     whatBump: (commits) =>
-      preset.whatBump(
-        resolveReverts(commits, (commit) => commit, commitParser).map(
-          ({ commit }) => ({ ...commit, header: null }) as Commit,
-        ),
-      ),
+      preset.whatBump(resolveReverts(commits, commitParser).map((commit) => ({ ...commit, header: null }) as Commit)),
   };
 }
 
 /**
- * Drops each commit that a revert in `items` (newest first) undoes, along with the revert, and treats `Reapply "X"` as
- * `X` when its revert isn't in `items`, so it bumps like the original change. Returns the items left with their
- * commits. `commitOf` must return the item's parsed commit with its `hash`.
+ * Drops each commit that a revert in `commits` (newest first) undoes, along with the revert, and treats `Reapply "X"`
+ * as `X` when its revert isn't in `commits`, so it bumps like the original change. Each commit needs its `hash`.
  */
-export function resolveReverts<T, C extends RevertFields>(
-  items: Iterable<T>,
-  commitOf: (item: T) => C,
-  parser: CommitParser,
-): Array<{ item: T; commit: C }> {
-  const keyed = [...items].map((item) => {
-    const commit = commitOf(item);
+export function resolveReverts<C extends RevertFields>(commits: Iterable<C>, parser: CommitParser): C[] {
+  const keyed = [...commits].map((commit) => {
     const reverting = revertOf(commit);
     // Pairs by hash alone, since a squash merge's ` (#N)` suffix breaks the preset's title match.
     const revert = reverting ? { hash: reverting.hash } : commit.revert;
-    return { item, commit, reverting, header: commit.header, hash: commit.hash, revert };
+    return { commit, reverting, header: commit.header, hash: commit.hash, revert };
   });
-  return [...filterRevertedCommitsSync(keyed)].map(({ item, commit, reverting }) => {
+  return [...filterRevertedCommitsSync(keyed)].map(({ commit, reverting }) => {
     if (!reverting?.reapply) {
-      return { item, commit };
+      return commit;
     }
     const message = [reverting.subject, commit.body, commit.footer].filter(Boolean).join('\n\n');
-    return { item, commit: { ...commit, ...parser.parse(message) } as C };
+    return { ...commit, ...parser.parse(message) } as C;
   });
 }
 
