@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { basename, delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -263,7 +263,8 @@ describe.skipIf(!cargoAvailable())('Cargo.lock sync (real cargo)', () => {
     cargo(ws, warmCargoHome, 'generate-lockfile');
     commitWithChange(ws, ['crate-a', 'crate-b'], join(ws, 'crate-b'));
     const expected = join(dir, 'expected');
-    cpSync(ws, expected, { recursive: true });
+    // cargo needs only the manifests and the lock, and git can still be writing .git/objects in the background.
+    cpSync(ws, expected, { recursive: true, filter: (src) => basename(src) !== '.git' });
 
     releasekitVersion(ws, {});
 

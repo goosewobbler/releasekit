@@ -1,9 +1,8 @@
 import type { Preset } from '@releasekit/config';
 import type { VersionChangelogEntry } from '@releasekit/core';
 import { createGitCli, type Git } from '@releasekit/git';
-import { filterRevertedCommitsSync } from 'conventional-commits-filter';
 import { type Commit, CommitParser } from 'conventional-commits-parser';
-import { createPreset } from '../core/presets.js';
+import { createPreset, filterRevertedCommits } from '../core/presets.js';
 import { log } from '../utils/logging.js';
 
 type ChangelogEntry = VersionChangelogEntry;
@@ -145,31 +144,23 @@ function parserFor(preset: Preset): CommitParser {
   return parser;
 }
 
-interface LoggedCommit {
-  hash: string;
-  header: string | null;
-  message: string;
-  commit: Commit;
-  revert: Commit['revert'];
-}
-
 /** Parses `%H|||%B` log output, newest first, dropping each commit reverted in the range along with its revert. */
 function parseLog(output: string, preset: Preset): CommitWithHash[] {
-  const commits = output.split('---COMMIT_DELIMITER---').flatMap((raw): LoggedCommit[] => {
+  const commits = output.split('---COMMIT_DELIMITER---').flatMap((raw) => {
     const [hash, ...messageParts] = raw.split('|||');
     const message = messageParts.join('|||').trim();
     if (!message) {
       return [];
     }
-    const commit = parserFor(preset).parse(message);
-    // Header and hash, as the bump's filter matches.
-    return [{ hash: hash.trim(), header: commit.header, message, commit, revert: commit.revert }];
+    return [{ hash: hash.trim(), message, commit: parserFor(preset).parse(message) }];
   });
 
-  return [...filterRevertedCommitsSync(commits)].flatMap(({ hash, message, commit }) => {
-    const entry = toChangelogEntry(message, commit);
-    return entry ? [{ hash, entry }] : [];
-  });
+  return filterRevertedCommits(commits, ({ hash, commit }) => ({ ...commit, hash })).flatMap(
+    ({ hash, message, commit }) => {
+      const entry = toChangelogEntry(message, commit);
+      return entry ? [{ hash, entry }] : [];
+    },
+  );
 }
 
 function toChangelogEntry(trimmedMessage: string, commit: Commit): ChangelogEntry | null {
