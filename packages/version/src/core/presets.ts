@@ -67,12 +67,12 @@ export function filterRevertedCommits<T>(items: Iterable<T>, commitOf: (item: T)
 }
 
 /**
- * Parses a commit that reapplies a reverted one as the commit it reapplies. Run it after `filterRevertedCommits`, which
- * drops a reapply whose revert is in the same range.
+ * Parses a reapply whose revert shipped in an earlier release as the commit it reapplies. Run it after
+ * `filterRevertedCommits`: a reapply that names its revert and is still there has no revert in the range.
  */
 export function asReapplied(commit: Commit, parser: CommitParser): Commit {
   const { subject, reverts } = unwrapReverts(commit.header ?? '');
-  if (!isReapply(reverts)) {
+  if (!isReapply(reverts) || !revertOf(commit)) {
     return commit;
   }
   const message = [subject, commit.body, commit.footer].filter(Boolean).join('\n\n');
