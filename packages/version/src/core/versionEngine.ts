@@ -41,27 +41,6 @@ function matchesWorkspaceGlobs(relativePath: string, globs: string[]): boolean {
   return included && !globs.filter((glob) => glob.startsWith('!')).some((glob) => matches(glob.slice(1)));
 }
 
-function findNestedPackageJson(dir: string): string | undefined {
-  let entries: fs.Dirent[];
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return undefined;
-  }
-  for (const entry of entries) {
-    if (!entry.isDirectory() || ['node_modules', '.git', 'target'].includes(entry.name)) {
-      continue;
-    }
-    const sub = path.join(dir, entry.name);
-    const manifest = path.join(sub, 'package.json');
-    const found = fs.existsSync(manifest) ? manifest : findNestedPackageJson(sub);
-    if (found) {
-      return found;
-    }
-  }
-  return undefined;
-}
-
 export class VersionEngine {
   private config: Config;
   private workspaceCache: PackagesWithRoot | null = null;
@@ -150,14 +129,6 @@ export class VersionEngine {
       // @manypkg/get-packages doesn't re-export the class from @manypkg/find-root, so match it by name.
       if (!(error instanceof Error) || error.constructor.name !== 'NoPkgJsonFound') {
         throw error;
-      }
-      const nested = this.config.npm?.enabled === false ? undefined : findNestedPackageJson(workspaceRoot);
-      if (nested) {
-        log(
-          `${path.relative(workspaceRoot, nested)} isn't released: npm packages are discovered from a package.json at ` +
-            'the project root. Add one, or set version.npm.enabled to false.',
-          'warning',
-        );
       }
       log('No package.json found, so no npm packages to discover', 'debug');
       return null;

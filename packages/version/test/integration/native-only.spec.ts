@@ -96,21 +96,6 @@ describe('Rust-only repo', () => {
     },
   );
 
-  it('should warn about npm packages that have no root package.json', () => {
-    write('Cargo.toml', '[package]\nname = "core"\nversion = "0.1.0"\n');
-    write('packages/js/package.json', JSON.stringify({ name: '@x/js', version: '0.1.0' }));
-    initGitRepo(tempDir);
-    createConventionalCommit(tempDir, 'feat', 'add feature');
-
-    const result = executeCliCommand('--json', tempDir);
-
-    expect(result.status).toBe(0);
-    expect(readVersionOutput(result.stdout).updates.map((u) => u.packageName)).toEqual(['core']);
-    expect(result.stderr).toContain(
-      `${join('packages', 'js', 'package.json')} isn't released: npm packages are discovered from a package.json at the project root.`,
-    );
-  });
-
   it('should fail when the project directory has no package to version', () => {
     initGitRepo(tempDir);
 
