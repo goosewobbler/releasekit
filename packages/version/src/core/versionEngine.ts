@@ -566,19 +566,19 @@ export class VersionEngine {
         log(`Runtime targets filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'info');
       }
 
-      // Prerequisites release only alongside a target. The filters above also read an empty target list as every package.
-      const overrideScope = new Set(this.config.overrideScope);
-      if (this.targetsExpanded && !mergedPackages.packages.some((pkg) => overrideScope.has(pkg.packageJson.name))) {
-        log('Prerequisites: none of the targets is a releasable package, so nothing is released', 'warning');
-        mergedPackages.packages = [];
-      }
-
       // Last, so it overrides every inclusion above (see VersionRunOptions.exclude).
       if (this.excludePackages.length > 0) {
         const excluded = new Set(this.excludePackages);
         const beforeCount = mergedPackages.packages.length;
         mergedPackages.packages = mergedPackages.packages.filter((pkg) => !excluded.has(pkg.packageJson.name));
         log(`Exclude filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'info');
+      }
+
+      // Prerequisites release only alongside a target. The filters above also read an empty target list as every package.
+      const overrideScope = new Set(this.config.overrideScope);
+      if (this.targetsExpanded && !mergedPackages.packages.some((pkg) => overrideScope.has(pkg.packageJson.name))) {
+        log('Prerequisites: none of the targets is a releasable package, so nothing is released', 'warning');
+        mergedPackages.packages = [];
       }
 
       this.workspaceCache = mergedPackages;

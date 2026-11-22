@@ -2,9 +2,10 @@
  * Runs the built CLI against a temp git repo.
  * Requires `pnpm build` in @releasekit/version first.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { executeCliCommand, runVersionJson } from '../utils/cli.js';
 import { createConventionalCommit } from '../utils/git.js';
@@ -13,7 +14,8 @@ import { createWorkspaceRepo } from '../utils/workspace.js';
 
 let tempDir: string;
 
-function createRepo(config: Record<string, unknown> = {}, names = ['app', 'lib', 'util']) {
+function createRepo(config: Record<string, unknown> = {}) {
+  const names = ['app', 'lib', 'util'];
   tempDir = createWorkspaceRepo('rk-prerequisites-', {
     packages: Object.fromEntries(names.map((name) => [name, name])),
     version: '1.0.0',
@@ -29,18 +31,12 @@ function createRepo(config: Record<string, unknown> = {}, names = ['app', 'lib',
   });
 }
 
-function addDependencies(dependencies: Record<string, string[]> = { app: ['lib', 'util'] }) {
-  for (const [name, deps] of Object.entries(dependencies)) {
-    writeFileSync(
-      join(tempDir, 'packages', name, 'package.json'),
-      JSON.stringify({
-        name,
-        version: '1.0.0',
-        dependencies: Object.fromEntries(deps.map((dep) => [dep, 'workspace:*'])),
-      }),
-    );
-  }
-  createConventionalCommit(tempDir, 'chore', 'add workspace dependencies', undefined, false, ['packages']);
+function addDependencies() {
+  writeFileSync(
+    join(tempDir, 'packages', 'app', 'package.json'),
+    JSON.stringify({ name: 'app', version: '1.0.0', dependencies: { lib: 'workspace:*', util: 'workspace:*' } }),
+  );
+  createConventionalCommit(tempDir, 'chore', 'depend on lib and util', undefined, false, ['packages/app']);
 }
 
 function commitTo(name: string, type: string, message: string) {
@@ -104,58 +100,6 @@ describe('--include-prerequisites', () => {
     });
   });
 
-  it("should release the changed dependencies of a prerequisite's group-mates", () => {
-    createRepo(
-      {
-        groups: {
-          apps: { packages: ['app'], sync: 'fixed' },
-          libs: { packages: ['lib', 'util'], sync: 'fixed' },
-        },
-      },
-      ['app', 'lib', 'util', 'base'],
-    );
-    addDependencies({ app: ['lib'], util: ['base'] });
-    commitTo('app', 'feat', 'add a command');
-    commitTo('lib', 'fix', 'correct a typo');
-    commitTo('base', 'fix', 'correct another typo');
-
-    const output = runVersionJson(tempDir, '--target app --include-prerequisites');
-
-    expect(Object.fromEntries(output.updates.map((u) => [u.packageName, u.newVersion]))).toEqual({
-      app: '1.1.0',
-      lib: '1.0.1',
-      util: '1.0.1',
-      base: '1.0.1',
-    });
-    expect(output.updates.find((u) => u.packageName === 'util')?.role).toBe('prerequisite');
-    expect(output.updates.find((u) => u.packageName === 'base')?.prerequisiteOf).toEqual(['app']);
-  });
-
-  it("should walk only the changed members of a prerequisite's independent group", () => {
-    createRepo(
-      {
-        groups: {
-          apps: { packages: ['app'], sync: 'fixed' },
-          libs: { packages: ['lib', 'util'], sync: 'independent' },
-        },
-      },
-      ['app', 'lib', 'util', 'base'],
-    );
-    addDependencies({ app: ['lib'], util: ['base'] });
-    // util is released after it gains its dependency, so it's unchanged.
-    execFileSync('git', ['tag', '-f', 'util@v1.0.0'], { cwd: tempDir });
-    commitTo('app', 'feat', 'add a command');
-    commitTo('lib', 'fix', 'correct a typo');
-    commitTo('base', 'fix', 'correct another typo');
-
-    const output = runVersionJson(tempDir, '--target app --include-prerequisites');
-
-    expect(Object.fromEntries(output.updates.map((u) => [u.packageName, u.newVersion]))).toEqual({
-      app: '1.1.0',
-      lib: '1.0.1',
-    });
-  });
-
   it('should release no prerequisites when the target is outside version.packages', () => {
     createRepo({ packages: ['packages/lib'] });
     addDependencies();
@@ -166,6 +110,23 @@ describe('--include-prerequisites', () => {
 
     expect(result.status).not.toBe(0);
     expect(JSON.parse(result.stdout).errors).toMatchObject([{ message: 'No packages found in workspace' }]);
+  });
+
+  it('should release no prerequisites when the target is excluded', () => {
+    createRepo({});
+    addDependencies();
+    commitTo('app', 'feat', 'add a command');
+    commitTo('lib', 'fix', 'correct a typo');
+    const script = `
+      import { VersionEngine, enableJsonOutput, loadConfig } from ${JSON.stringify(pathToFileURL(join(process.cwd(), 'dist/index.js')).href)};
+      enableJsonOutput(true);
+      const engine = new VersionEngine(loadConfig(), { dryRun: true, targets: ['app'], includePrerequisites: true, exclude: ['app'] });
+      process.stdout.write(JSON.stringify((await engine.getWorkspacePackages()).packages.map((p) => p.packageJson.name)));
+    `;
+
+    const result = spawnSync('node', ['--input-type=module', '-e', script], { cwd: tempDir, encoding: 'utf8' });
+
+    expect(JSON.parse(result.stdout)).toEqual([]);
   });
 
   it.each([

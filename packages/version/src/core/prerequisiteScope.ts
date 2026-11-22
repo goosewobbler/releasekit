@@ -8,7 +8,7 @@ export interface PrerequisiteTargets {
   targets: string[];
   /** The packages the bump/prerelease/stable override applies to (the group-expanded explicit set). */
   overrideScope: string[];
-  /** For each derived prerequisite, the package(s) that pulled it in; an atomic group-mate shares its member's. */
+  /** For each derived prerequisite, the (group-expanded) target(s) that pulled it in. */
   prerequisiteOf: Record<string, string[]>;
 }
 
@@ -36,44 +36,14 @@ export function resolvePrerequisiteTargets(
     }
   }
 
-  const targets = new Set(overrideSet);
-  const prerequisiteOf: Record<string, string[]> = {};
-  let frontier = [...overrideSet];
-  while (frontier.length > 0) {
-    const changed = frontier
-      .flatMap((name) => [...graph.transitiveDependencies(name)])
-      .filter((name) => !targets.has(name) && isChanged(name));
-    const resolved = resolvePrerequisites(graph, frontier, changed);
-    const added: string[] = [];
-    for (const name of resolved.targetSet) {
-      if (!targets.has(name)) {
-        targets.add(name);
-        added.push(name);
-        // Credit the explicit targets behind each package that pulled it in, not the package itself.
-        const via = resolved.prerequisiteOf[name] ?? [];
-        prerequisiteOf[name] = [
-          ...new Set(via.flatMap((from) => (overrideSet.has(from) ? [from] : prerequisiteOf[from]))),
-        ];
-      }
+  const candidateDeps = new Set<string>();
+  for (const name of overrideSet) {
+    for (const dep of graph.transitiveDependencies(name)) {
+      candidateDeps.add(dep);
     }
-    // The group strategy releases a fixed group whole and an independent group's changed members, so those
-    // group-mates release too and their own dependencies need the same walk.
-    for (const name of [...added]) {
-      const group = resolution.groupOf(name);
-      if (!group || group.sync === 'linked') {
-        continue;
-      }
-      for (const member of group.members) {
-        const mate = member.packageJson.name;
-        if (!targets.has(mate) && (group.sync === 'fixed' || isChanged(mate))) {
-          targets.add(mate);
-          added.push(mate);
-          prerequisiteOf[mate] = prerequisiteOf[name];
-        }
-      }
-    }
-    frontier = added;
   }
+  const changed = [...candidateDeps].filter((name) => isChanged(name));
 
-  return { targets: [...targets], overrideScope: [...overrideSet], prerequisiteOf };
+  const { targetSet, prerequisiteOf } = resolvePrerequisites(graph, [...overrideSet], changed);
+  return { targets: [...targetSet], overrideScope: [...overrideSet], prerequisiteOf };
 }
