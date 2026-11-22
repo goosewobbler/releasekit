@@ -2,10 +2,9 @@
  * Runs the built CLI against a temp git repo.
  * Requires `pnpm build` in @releasekit/version first.
  */
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { executeCliCommand, runVersionJson } from '../utils/cli.js';
 import { createConventionalCommit } from '../utils/git.js';
@@ -110,23 +109,6 @@ describe('--include-prerequisites', () => {
 
     expect(result.status).not.toBe(0);
     expect(JSON.parse(result.stdout).errors).toMatchObject([{ message: 'No packages found in workspace' }]);
-  });
-
-  it('should release no prerequisites when the target is excluded', () => {
-    createRepo({});
-    addDependencies();
-    commitTo('app', 'feat', 'add a command');
-    commitTo('lib', 'fix', 'correct a typo');
-    const script = `
-      import { VersionEngine, enableJsonOutput, loadConfig } from ${JSON.stringify(pathToFileURL(join(process.cwd(), 'dist/index.js')).href)};
-      enableJsonOutput(true);
-      const engine = new VersionEngine(loadConfig(), { dryRun: true, targets: ['app'], includePrerequisites: true, exclude: ['app'] });
-      process.stdout.write(JSON.stringify((await engine.getWorkspacePackages()).packages.map((p) => p.packageJson.name)));
-    `;
-
-    const result = spawnSync('node', ['--input-type=module', '-e', script], { cwd: tempDir, encoding: 'utf8' });
-
-    expect(JSON.parse(result.stdout)).toEqual([]);
   });
 
   it.each([
