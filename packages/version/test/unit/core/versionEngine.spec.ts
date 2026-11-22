@@ -171,6 +171,22 @@ describe('Version Engine', () => {
       expect(effective?.isPrerelease).toBe(true);
       expect(effective?.prereleaseScope).toBeUndefined();
     });
+
+    it('should fold graduate into stableOnly + graduateScope on effective config', () => {
+      new VersionEngine(defaultConfig as Config, { graduate: ['@scope/a'] });
+
+      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
+        expect.objectContaining({ stableOnly: true, graduateScope: ['@scope/a'] }),
+      );
+    });
+
+    it('should drop graduate when the global stable flag is also set - global wins', () => {
+      new VersionEngine(defaultConfig as Config, { stable: true, graduate: ['@scope/a'] });
+
+      const effective = vi.mocked(strategyModule.createStrategyMap).mock.calls[0]?.[0];
+      expect(effective?.stableOnly).toBe(true);
+      expect(effective?.graduateScope).toBeUndefined();
+    });
   });
 
   describe('getWorkspacePackages', () => {
