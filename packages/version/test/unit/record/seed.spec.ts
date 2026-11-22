@@ -1,12 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { devNull, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getPackagesSync } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../../../src/config.js';
+import { VersionRecord } from '../../../src/record/recordFile.js';
 import { seedMissingEntries } from '../../../src/record/seed.js';
-import type { VersionRecord } from '../../../src/record/versionRecord.js';
+import type { VersionRecordEntries } from '../../../src/record/versionRecord.js';
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf-8' }).trim();
@@ -57,7 +58,7 @@ describe('seedMissingEntries', { timeout: 30_000 }, () => {
     return git(repo, 'rev-parse', 'HEAD');
   }
 
-  function seed(record: VersionRecord = {}) {
+  function seed(record: VersionRecordEntries = {}) {
     return seedMissingEntries(record, getPackagesSync(repo).packages, loadConfig({ cwd: repo }), repo);
   }
 
@@ -84,16 +85,26 @@ describe('seedMissingEntries', { timeout: 30_000 }, () => {
     expect(unseeded).toEqual([{ name: 'c', reason: 'no release tag is reachable from HEAD' }]);
   });
 
-  it('should leave existing entries alone and seed a package that has none', async () => {
-    setUpRepo({ sync: false, packageSpecificTags: true }, { a: '1.0.0', b: '2.0.0' });
+  it("should keep an existing record's entries, seed the missing ones and record a release in the same file", async () => {
+    setUpRepo({ sync: false, packageSpecificTags: true }, { a: '1.0.0', b: '2.0.0', c: '3.0.0' });
     const at = git(repo, 'rev-parse', 'HEAD');
-    git(repo, 'tag', 'a@v1.0.0');
-    git(repo, 'tag', 'b@v2.0.0');
+    for (const tag of ['a@v1.0.0', 'b@v2.0.0', 'c@v3.0.0']) {
+      git(repo, 'tag', tag);
+    }
     const existing = { 'packages/a': { name: 'a', version: '1.0.1', at: 'hand-edited' } };
+    writeFileSync(join(repo, 'releasekit.versions.json'), JSON.stringify(existing));
+    const { packages } = getPackagesSync(repo);
 
-    const { record } = await seed(existing);
+    const record = VersionRecord.open(repo, 'head');
+    const { seeded } = await record.seed(packages, loadConfig({ cwd: repo }));
+    record.saveReleases(new Map([['c', '3.1.0']]), packages, false);
 
-    expect(record).toEqual({ ...existing, 'packages/b': { name: 'b', version: '2.0.0', at } });
+    expect(seeded).toEqual(['b', 'c']);
+    expect(JSON.parse(readFileSync(join(repo, 'releasekit.versions.json'), 'utf-8'))).toEqual({
+      ...existing,
+      'packages/b': { name: 'b', version: '2.0.0', at },
+      'packages/c': { name: 'c', version: '3.1.0', at: 'head' },
+    });
   });
 
   it("should seed a sync repo's entries with the shared version at its baseline tag", async () => {

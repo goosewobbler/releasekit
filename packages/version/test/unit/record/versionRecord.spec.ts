@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Package } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { readVersionRecord, recordRelease, writeReleasedVersions } from '../../../src/record/versionRecord.js';
+import { VersionRecord } from '../../../src/record/recordFile.js';
+import { readVersionRecord, recordRelease } from '../../../src/record/versionRecord.js';
 
 describe('version record', () => {
   let root: string;
@@ -62,22 +63,17 @@ describe('version record', () => {
     });
   });
 
-  describe('writeReleasedVersions', () => {
-    it('should update released packages, keep the rest and skip a name that is not a package', async () => {
-      const record = { 'packages/b': { name: 'b', version: '2.0.0', at: 'old' } };
+  describe('VersionRecord', () => {
+    const packages = () => [pkg('a', 'packages/a'), pkg('b', 'packages/b')];
+
+    it('should update an existing record, keeping entries a release leaves alone and skipping non-packages', () => {
+      writeFileSync(file(), JSON.stringify({ 'packages/b': { name: 'b', version: '2.0.0', at: 'old' } }));
       const released = new Map([
         ['a', '1.1.0'],
         ['monorepo', '1.1.0'],
       ]);
 
-      await writeReleasedVersions(
-        record,
-        'head',
-        released,
-        [pkg('a', 'packages/a'), pkg('b', 'packages/b')],
-        root,
-        false,
-      );
+      VersionRecord.open(root, 'head').saveReleases(released, packages(), false);
 
       expect(JSON.parse(readFileSync(file(), 'utf-8'))).toEqual({
         'packages/a': { name: 'a', version: '1.1.0', at: 'head' },
@@ -85,8 +81,16 @@ describe('version record', () => {
       });
     });
 
-    it('should write nothing when nothing was released', async () => {
-      await writeReleasedVersions({}, 'head', new Map(), [pkg('a', 'packages/a')], root, false);
+    it("should create the file when it doesn't exist", () => {
+      VersionRecord.open(root, 'head').saveReleases(new Map([['a', '1.1.0']]), packages(), false);
+
+      expect(JSON.parse(readFileSync(file(), 'utf-8'))).toEqual({
+        'packages/a': { name: 'a', version: '1.1.0', at: 'head' },
+      });
+    });
+
+    it('should write nothing when nothing was released', () => {
+      VersionRecord.open(root, 'head').saveReleases(new Map(), packages(), false);
 
       expect(existsSync(file())).toBe(false);
     });

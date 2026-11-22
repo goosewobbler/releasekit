@@ -1,9 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Package } from '@manypkg/get-packages';
 import semver from 'semver';
 import { z } from 'zod';
-import { writeVersionFile } from '../utils/jsonOutput.js';
 
 export const VERSION_RECORD_FILE = 'releasekit.versions.json';
 
@@ -25,7 +23,7 @@ export interface VersionRecordEntry {
 }
 
 /** Entries keyed by package path relative to the project root, `.` for a package at the root. */
-export type VersionRecord = Record<string, VersionRecordEntry>;
+export type VersionRecordEntries = Record<string, VersionRecordEntry>;
 
 export function versionRecordPath(root: string): string {
   return path.join(root, VERSION_RECORD_FILE);
@@ -36,7 +34,7 @@ export function versionRecordKey(root: string, packageDir: string): string {
 }
 
 /** An empty record when the file doesn't exist. */
-export function readVersionRecord(root: string): VersionRecord {
+export function readVersionRecord(root: string): VersionRecordEntries {
   const file = versionRecordPath(root);
   if (!fs.existsSync(file)) {
     return {};
@@ -55,7 +53,7 @@ export function readVersionRecord(root: string): VersionRecord {
   return result.data;
 }
 
-export function serializeVersionRecord(record: VersionRecord): string {
+export function serializeVersionRecord(record: VersionRecordEntries): string {
   const sorted = Object.fromEntries(
     Object.keys(record)
       .sort()
@@ -81,30 +79,4 @@ export function recordRelease(
     }
   }
   return entry;
-}
-
-/**
- * Records each released package in `record` at `at`, the commit its release was computed at. A name that isn't a
- * package, such as a monorepo's root manifest, gets no entry. Nothing is written when nothing was released.
- */
-export async function writeReleasedVersions(
-  record: VersionRecord,
-  at: string,
-  releasedVersions: ReadonlyMap<string, string>,
-  packages: Package[],
-  root: string,
-  dryRun: boolean,
-): Promise<void> {
-  const released = [...releasedVersions].flatMap(([name, version]) => {
-    const pkg = packages.find((p) => p.packageJson.name === name);
-    return pkg ? [{ key: versionRecordKey(root, pkg.dir), name, version }] : [];
-  });
-  if (released.length === 0) {
-    return;
-  }
-  const updated = { ...record };
-  for (const { key, name, version } of released) {
-    updated[key] = recordRelease(updated[key], name, version, at);
-  }
-  writeVersionFile(versionRecordPath(root), serializeVersionRecord(updated), dryRun);
 }

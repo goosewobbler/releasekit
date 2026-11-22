@@ -14,7 +14,7 @@ import { getVersionFromManifests } from '../utils/manifestHelpers.js';
 import { hasManifestToBump } from '../utils/manifestUpdates.js';
 import { versionFromTag } from '../utils/versionAction.js';
 import { getBestVersionSource } from '../utils/versionUtils.js';
-import { type VersionRecord, type VersionRecordEntry, versionRecordKey } from './versionRecord.js';
+import { type VersionRecordEntries, type VersionRecordEntry, versionRecordKey } from './versionRecord.js';
 
 /** The tag a version run resolves as a package's last release, and where its last stable tag is looked up. */
 interface ReleaseLookup {
@@ -31,12 +31,32 @@ async function tagCommit(tag: string, cwd: string): Promise<string> {
   return (await createGitCli().log({ range: `refs/tags/${tag}`, format: '%H', extraArgs: ['-1'], cwd })).trim();
 }
 
+type SeedMode = 'sync' | 'group' | 'single' | 'async';
+
+function seedMode(config: Config, packageCount: number): SeedMode {
+  if (config.sync) {
+    return 'sync';
+  }
+  if (Object.keys(config.groups ?? {}).length > 0) {
+    return 'group';
+  }
+  return packageCount === 1 ? 'single' : 'async';
+}
+
+/** The prefix of the repo-wide tags a lookup falls back to, or none when tags are per package. */
+function repoTagPrefix(config: Config, formattedPrefix: string, name?: string): string | undefined {
+  if (config.packageSpecificTags) {
+    return undefined;
+  }
+  return deriveBaselineTagPrefix(config.tagTemplate, formattedPrefix, name);
+}
+
 /** Mirrors the sync strategy's lookup: one tag for the whole release, read through its version-source package. */
 async function syncLookup(config: Config, packages: Package[], root: string): Promise<ReleaseLookup> {
   const formattedPrefix = formatVersionPrefix(config.versionPrefix);
   const globalPrefix =
     deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, config.mainPackage) ??
-    (config.packageSpecificTags ? undefined : deriveBaselineTagPrefix(config.tagTemplate, formattedPrefix));
+    repoTagPrefix(config, formattedPrefix);
   const source = config.mainPackage ? packages.find((p) => p.packageJson.name === config.mainPackage) : packages[0];
   const sourceName = source?.packageJson.name;
   const lookup = { globalPrefix, sourceName, sourceDir: source?.dir ?? root };
@@ -56,7 +76,7 @@ async function syncLookup(config: Config, packages: Package[], root: string): Pr
  * Mirrors the group, single and async strategies' lookups. A group with `baselineTagTemplate` reads only the baseline
  * tags, and an async package without its own tag falls back to its manifest, so it has no tag to seed from.
  */
-async function packageLookup(config: Config, pkg: Package, mode: 'group' | 'single' | 'async'): Promise<ReleaseLookup> {
+async function packageLookup(config: Config, pkg: Package, mode: Exclude<SeedMode, 'sync'>): Promise<ReleaseLookup> {
   const formattedPrefix = formatVersionPrefix(config.versionPrefix);
   const name = pkg.packageJson.name;
   const lookup = { sourceName: name, sourceDir: pkg.dir };
@@ -71,11 +91,8 @@ async function packageLookup(config: Config, pkg: Package, mode: 'group' | 'sing
   }
   const globalPrefix =
     mode === 'group'
-      ? (deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix) ??
-        (config.packageSpecificTags ? undefined : deriveBaselineTagPrefix(config.tagTemplate, formattedPrefix)))
-      : config.packageSpecificTags
-        ? undefined
-        : deriveBaselineTagPrefix(config.tagTemplate, formattedPrefix, name);
+      ? (deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix) ?? repoTagPrefix(config, formattedPrefix))
+      : repoTagPrefix(config, formattedPrefix, name);
   return { ...lookup, globalPrefix, tag: await getLatestTag(globalPrefix), packageTag: false };
 }
 
@@ -117,18 +134,12 @@ async function seedFrom(lookup: ReleaseLookup, config: Config, root: string): Pr
  * with no reachable tag gets no entry and starts from its manifest.
  */
 export async function seedMissingEntries(
-  record: VersionRecord,
+  record: VersionRecordEntries,
   packages: Package[],
   config: Config,
   root: string,
-): Promise<{ record: VersionRecord; unseeded: Array<{ name: string; reason: string }> }> {
-  const mode = config.sync
-    ? 'sync'
-    : Object.keys(config.groups ?? {}).length > 0
-      ? 'group'
-      : packages.length === 1
-        ? 'single'
-        : 'async';
+): Promise<{ record: VersionRecordEntries; unseeded: Array<{ name: string; reason: string }> }> {
+  const mode = seedMode(config, packages.length);
   // Group mode bumps only a package's own manifests, so cargo.paths and pub.paths don't make it versionable.
   const missing = packages.filter(
     (pkg) =>
@@ -137,7 +148,7 @@ export async function seedMissingEntries(
       hasManifestToBump(pkg.dir, config, { repoRoot: root, ignorePaths: mode === 'group' }),
   );
 
-  const seeded: VersionRecord = { ...record };
+  const seeded: VersionRecordEntries = { ...record };
   const unseeded: Array<{ name: string; reason: string }> = [];
   let syncSeed: Seed | undefined;
   for (const pkg of missing) {
