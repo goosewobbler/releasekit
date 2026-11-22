@@ -146,7 +146,6 @@ export function addPackageUpdate(packageName: string, newVersion: string, filePa
   _jsonData.updates.push(update);
 }
 
-/** Each package name a manifest bump recorded since the last {@link clearReleasedVersions}, with its new version. */
 export function getReleasedVersions(): ReadonlyMap<string, string> {
   return _releasedVersions;
 }

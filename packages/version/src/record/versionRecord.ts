@@ -8,11 +8,11 @@ import { writeVersionFile } from '../utils/jsonOutput.js';
 
 export const VERSION_RECORD_FILE = 'releasekit.versions.json';
 
-const VersionRecordEntrySchema = z.strictObject({
+const VersionRecordEntrySchema = z.looseObject({
   name: z.string(),
   version: z.string(),
   at: z.string(),
-  lastStable: z.strictObject({ version: z.string(), at: z.string() }).optional(),
+  lastStable: z.looseObject({ version: z.string(), at: z.string() }).optional(),
 });
 
 const VersionRecordSchema = z.record(z.string(), VersionRecordEntrySchema);

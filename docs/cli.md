@@ -313,7 +313,7 @@ releasekit init --labels   # also create the GitHub labels (needs GITHUB_TOKEN)
 
 Seed `releasekit.versions.json`, the version record, with each package's last release. Each entry takes the version a release resolves today (the tag, or the manifest where `mismatchStrategy: prefer-package` picks it) and the commit of the package's last tag (its baseline tag where `baselineTagTemplate` is set). A prerelease entry also gets its last stable tag's version and commit. A sync repo's entries all get the shared version. Entries already in the record are kept, so you can run it again to add a package.
 
-It refuses while a standing PR or an unpublished release draft is open, so it needs a GitHub token (`GITHUB_TOKEN`, then `GH_TOKEN`). A package whose tag can't be found from `HEAD` is listed in the output; if it has been released, add its entry by hand. Commit the file afterwards. Releases only update an existing record; without one they write none.
+It refuses while a standing PR or an unpublished release draft is open, so it needs a GitHub token (`GITHUB_TOKEN`, then `GH_TOKEN`). Run it after your last release has published: a manifest ahead of its tag seeds that unreleased version. A package whose tag can't be found from `HEAD` is listed in the output; if it has been released, add its entry by hand. Commit the file afterwards. Releases only update an existing record; without one they write none.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
