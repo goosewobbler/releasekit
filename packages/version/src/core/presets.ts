@@ -34,8 +34,7 @@ export function createPreset(name: Preset): BumperPreset {
     ...preset.parser,
     headerPattern: HEADER_PATTERN,
     breakingHeaderPattern: BREAKING_HEADER_PATTERN,
-    // The bump's git log appends only a `-hash-` field. The parser's default pattern would read any `-word-`
-    // body line as a field marker, swallowing the lines after it or throwing on `-notes-`.
+    // The bump's git log marks only `-hash-`, and the default pattern reads any `-word-` body line as a field marker.
     fieldPattern: /^-(hash)-$/,
   };
   const commitParser = new CommitParser(parser);
@@ -67,8 +66,8 @@ export function filterRevertedCommits<T>(items: Iterable<T>, commitOf: (item: T)
 }
 
 /**
- * Parses a reapply whose revert shipped in an earlier release as the commit it reapplies. Run it after
- * `filterRevertedCommits`, which drops a reapply whose revert is in the range.
+ * Reads a reapply whose revert shipped in an earlier release as the commit it reapplies. Call it after
+ * `filterRevertedCommits`, which has already dropped any reapply whose revert is in the range.
  */
 export function asReapplied(commit: Commit, parser: CommitParser): Commit {
   const { subject, reverts } = unwrapReverts(commit.header ?? '');
@@ -79,10 +78,7 @@ export function asReapplied(commit: Commit, parser: CommitParser): Commit {
   return { ...commit, ...parser.parse(message) };
 }
 
-/**
- * Peels `Revert "…"` and `Reapply "…"` titles, and the ` (#N)` suffixes squash merges append, down to the subject.
- * Git titles a revert of a revert `Reapply`, so it counts twice: an even count means the change is back.
- */
+/** `Reapply` is git's title for a revert of a revert, so it counts as two: an even count means the change is back. */
 function unwrapReverts(header: string): { subject: string; reverts: number } {
   let subject = header;
   let reverts = 0;
@@ -100,7 +96,7 @@ function isReapply(reverts: number): boolean {
   return reverts > 0 && reverts % 2 === 0;
 }
 
-/** Pairs a reapply with the revert it undoes by hash alone, since squash merges change the titles git quotes. */
+/** Matches by hash alone, since a squash merge's ` (#N)` suffix breaks the preset's title match. */
 function revertOf({ header, body, footer }: RevertFields): Commit['revert'] {
   if (!isReapply(unwrapReverts(header ?? '').reverts)) {
     return null;
