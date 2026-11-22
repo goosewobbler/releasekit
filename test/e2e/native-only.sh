@@ -1,5 +1,5 @@
 #!/bin/bash
-# E2E tests for Rust-only and Dart-only repos (no package.json), using the docs/rust.md and docs/dart.md quickstarts
+# E2E tests for Rust-only and Dart-only repos (no package.json); the configs mirror the docs/rust.md and docs/dart.md quickstarts
 
 set -euo pipefail
 

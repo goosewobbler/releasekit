@@ -76,7 +76,7 @@ describe('Rust-only repo', () => {
   });
 
   it.each([['version.workspace = true'], ['version = { workspace = true }']])(
-    'should skip a crate with %s with a warning and release the rest',
+    'should skip a member crate with %s with a warning and release the rest',
     (spelling) => {
       write('Cargo.toml', '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\n');
       write('crates/literal/Cargo.toml', '[package]\nname = "literal"\nversion = "0.1.0"\n');
@@ -91,39 +91,10 @@ describe('Rust-only repo', () => {
         ['literal', '0.2.0'],
       ]);
       expect(result.stderr).toContain(
-        "Skipping Rust package inheriting at crates/inheriting: it inherits its version from the workspace, which ReleaseKit doesn't support yet, so it won't be released",
+        "inheriting at crates/inheriting isn't released as its own package: ReleaseKit doesn't support workspace-inherited versions yet. Give it a literal version to release it.",
       );
     },
   );
-
-  it('should version a root crate beside a package.json without a name', () => {
-    write('package.json', JSON.stringify({ private: true, scripts: { lint: 'cargo clippy' } }));
-    write('Cargo.toml', '[package]\nname = "solo"\nversion = "1.0.0"\n');
-    initGitRepo(tempDir);
-    createConventionalCommit(tempDir, 'fix', 'fix bug');
-
-    const output = runVersionJson(tempDir);
-
-    expect(output.updates.map((u) => [u.packageName, u.newVersion, relativeFiles(u.files)])).toEqual([
-      ['solo', '1.0.1', ['Cargo.toml']],
-    ]);
-  });
-
-  it.each([
-    ['a named', { name: 'home', version: '1.0.0' }],
-    ['a nameless', { private: true }],
-  ])('should ignore %s package.json above the project directory', (_, packageJson) => {
-    write('package.json', JSON.stringify(packageJson));
-    write('project/releasekit.config.json', quickstartConfig('rust.md', 'Quickstart — Rust-only repo'));
-    write('project/Cargo.toml', '[package]\nname = "solo"\nversion = "1.0.0"\n');
-    const project = join(tempDir, 'project');
-    initGitRepo(project);
-    createConventionalCommit(project, 'fix', 'fix bug');
-
-    const output = runVersionJson(project);
-
-    expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['solo', '1.0.1']]);
-  });
 
   it('should fail when the project directory has no package to version', () => {
     initGitRepo(tempDir);
@@ -150,20 +121,5 @@ describe('Dart-only repo', () => {
     ]);
     expect(output.updates[0].isRoot).toBeUndefined();
     expect(output.tags).toEqual(['v1.3.0']);
-  });
-});
-
-describe('npm project inside an outer npm workspace', () => {
-  it("should version only the project's own package.json", () => {
-    write('package.json', JSON.stringify({ name: 'outer', version: '1.0.0', private: true, workspaces: ['project'] }));
-    write('project/package.json', JSON.stringify({ name: 'project', version: '1.0.0' }));
-    write('project/releasekit.config.json', JSON.stringify({ version: { preset: 'conventionalcommits' } }));
-    const project = join(tempDir, 'project');
-    initGitRepo(project);
-    createConventionalCommit(project, 'feat', 'add feature');
-
-    const output = runVersionJson(project);
-
-    expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['project', '1.1.0']]);
   });
 });

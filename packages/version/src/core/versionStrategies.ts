@@ -160,14 +160,8 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
       if (packages.root) {
         const rootPkgPath = path.join(packages.root, 'package.json');
-        // In a single-package repo the root is the package, so its manifests take the name discovery knows it by.
-        const rootPackage = packages.packages.find((p) => p.dir === packages.root);
         try {
-          // A package.json beside a native root package that doesn't carry its name is tooling-only.
-          const isToolingOnly = () =>
-            rootPackage !== undefined &&
-            JSON.parse(fs.readFileSync(rootPkgPath, 'utf-8')).name !== rootPackage.packageJson.name;
-          if (config.npm?.enabled !== false && fs.existsSync(rootPkgPath) && !isToolingOnly()) {
+          if (config.npm?.enabled !== false && fs.existsSync(rootPkgPath)) {
             // Flag as root so consumers (preview, standing PR) exclude it from package counts - it isn't publishable.
             updatePackageVersion(rootPkgPath, nextVersion, dryRun, { isRoot: true });
             updatedPackages.push('root');
@@ -180,9 +174,12 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         // packages.root === packages[0].dir) - otherwise its native manifests are versioned twice.
         processedPaths.add(rootPkgPath);
 
+        // In a single-package repo the root is the package, so its manifests take the name discovery knows it by.
+        const rootPackage = packages.packages.find((p) => p.dir === packages.root);
         const rootNativeFiles = updateNativeManifests(packages.root, nextVersion, config, {
           dryRun,
           repoRoot,
+          // A root that is itself a discovered package releases like any other, so only a non-package root is flagged.
           isRoot: !rootPackage,
           recordAs: rootPackage?.packageJson.name,
         });
