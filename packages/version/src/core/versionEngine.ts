@@ -42,7 +42,13 @@ function matchesWorkspaceGlobs(relativePath: string, globs: string[]): boolean {
 }
 
 function findNestedPackageJson(dir: string): string | undefined {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return undefined;
+  }
+  for (const entry of entries) {
     if (!entry.isDirectory() || ['node_modules', '.git', 'target'].includes(entry.name)) {
       continue;
     }
@@ -145,12 +151,12 @@ export class VersionEngine {
       if (!(error instanceof Error) || error.constructor.name !== 'NoPkgJsonFound') {
         throw error;
       }
-      const nested = findNestedPackageJson(workspaceRoot);
+      const nested = this.config.npm?.enabled === false ? undefined : findNestedPackageJson(workspaceRoot);
       if (nested) {
-        throw createVersionError(
-          VersionErrorCode.WORKSPACE_ERROR,
-          `found ${path.relative(workspaceRoot, nested)} but no package.json at the project root; npm packages are ` +
-            'discovered from a root package.json',
+        log(
+          `${path.relative(workspaceRoot, nested)} isn't released: npm packages are discovered from a package.json at ` +
+            'the project root. Add one, or set version.npm.enabled to false.',
+          'warning',
         );
       }
       log('No package.json found, so no npm packages to discover', 'debug');
@@ -245,10 +251,10 @@ export class VersionEngine {
           }
 
           if (typeof version !== 'string') {
-            // A root crate is still bumped by the sync root pass, so only a member is left out.
-            if (relativePath !== '') {
+            // In sync mode the root pass still writes a root crate's version.
+            if (relativePath !== '' || !this.config.sync) {
               log(
-                `${cargoData.package.name} at ${relativePath} isn't released as its own package: ReleaseKit doesn't ` +
+                `${cargoData.package.name} at ${relativePath || '.'} isn't released as its own package: ReleaseKit doesn't ` +
                   'support workspace-inherited versions yet. Give it a literal version to release it.',
                 this.config.cargo?.enabled === false ? 'debug' : 'warning',
               );

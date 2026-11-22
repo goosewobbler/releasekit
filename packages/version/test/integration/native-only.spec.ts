@@ -96,7 +96,7 @@ describe('Rust-only repo', () => {
     },
   );
 
-  it('should fail instead of skipping npm packages when there is no root package.json', () => {
+  it('should warn about npm packages that have no root package.json', () => {
     write('Cargo.toml', '[package]\nname = "core"\nversion = "0.1.0"\n');
     write('packages/js/package.json', JSON.stringify({ name: '@x/js', version: '0.1.0' }));
     initGitRepo(tempDir);
@@ -104,9 +104,10 @@ describe('Rust-only repo', () => {
 
     const result = executeCliCommand('--json', tempDir);
 
-    expect(result.status).toBe(2);
-    expect(JSON.parse(result.stdout).errors[0].message).toContain(
-      `found ${join('packages', 'js', 'package.json')} but no package.json at the project root`,
+    expect(result.status).toBe(0);
+    expect(readVersionOutput(result.stdout).updates.map((u) => u.packageName)).toEqual(['core']);
+    expect(result.stderr).toContain(
+      `${join('packages', 'js', 'package.json')} isn't released: npm packages are discovered from a package.json at the project root.`,
     );
   });
 
