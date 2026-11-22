@@ -1,5 +1,5 @@
 /**
- * Runs the built VersionEngine API against a temp git repo, with skipTaggedAfter set as release sets it on a re-run.
+ * Runs the built VersionEngine API against a temp git repo, with skipTaggedAfter set the way release sets it on a re-run.
  * Requires `pnpm build` in @releasekit/version first.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -18,7 +18,7 @@ let tagDay = 1;
 
 const git = (...args: string[]) => execFileSync('git', args, { cwd: tempDir, encoding: 'utf8' }).trim();
 
-/** Dated a day apart, so tags created in the same second don't tie on creation time. */
+/** The latest tag is picked by creation date, so tags are dated a day apart rather than tying within a second. */
 function tag(name: string) {
   execFileSync('git', ['tag', '-a', '-m', 'release', name], {
     cwd: tempDir,
