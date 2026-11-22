@@ -2,7 +2,7 @@ import type { Preset } from '@releasekit/config';
 import type { VersionChangelogEntry } from '@releasekit/core';
 import { createGitCli, type Git } from '@releasekit/git';
 import { type Commit, CommitParser } from 'conventional-commits-parser';
-import { createPreset, filterRevertedCommits } from '../core/presets.js';
+import { createPreset, resolveReverts } from '../core/presets.js';
 import { log } from '../utils/logging.js';
 
 type ChangelogEntry = VersionChangelogEntry;
@@ -144,7 +144,7 @@ function parserFor(preset: Preset): CommitParser {
   return parser;
 }
 
-/** Parses `%H|||%B` log output, newest first, dropping each commit reverted in the range along with its revert. */
+/** Parses `%H|||%B` log output, newest first, resolving reverts in the range. */
 function parseLog(output: string, preset: Preset): CommitWithHash[] {
   const commits = output.split('---COMMIT_DELIMITER---').flatMap((raw) => {
     const [hash, ...messageParts] = raw.split('|||');
@@ -152,15 +152,13 @@ function parseLog(output: string, preset: Preset): CommitWithHash[] {
     if (!message) {
       return [];
     }
-    return [{ hash: hash.trim(), message, commit: parserFor(preset).parse(message) }];
+    return [Object.assign(parserFor(preset).parse(message), { hash: hash.trim(), message })];
   });
 
-  return filterRevertedCommits(commits, ({ hash, commit }) => ({ ...commit, hash })).flatMap(
-    ({ hash, message, commit }) => {
-      const entry = toChangelogEntry(message, commit);
-      return entry ? [{ hash, entry }] : [];
-    },
-  );
+  return resolveReverts(commits, parserFor(preset)).flatMap((commit) => {
+    const entry = toChangelogEntry(commit.message, commit);
+    return entry ? [{ hash: commit.hash, entry }] : [];
+  });
 }
 
 function toChangelogEntry(trimmedMessage: string, commit: Commit): ChangelogEntry | null {

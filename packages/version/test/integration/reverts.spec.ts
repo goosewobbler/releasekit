@@ -72,13 +72,14 @@ describe('reverted commits', () => {
     },
   );
 
-  it('should keep a squash-merged revert, as the bump does', () => {
+  it('should drop a squash-merged revert with the commit it reverts', () => {
     tempDir = createWorkspaceRepo('rk-reverts-', {
       packages: { core: '@test/core' },
       version: '1.4.2',
       config: { preset: 'conventionalcommits', sync: true, versionPrefix: 'v' },
       tags: ['v1.4.2'],
     });
+    commitChange('fix', 'handle empty input');
     commitChange('feat', 'drop Node 18 (#12)', true);
     const reverted = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tempDir, encoding: 'utf-8' }).trim();
     writeFileSync(join(tempDir, 'packages/core/index.js'), '// reverted\n');
@@ -87,9 +88,80 @@ describe('reverted commits', () => {
     execFileSync('git', ['commit', '-q', '-m', message], { cwd: tempDir });
 
     const output = runVersionJson(tempDir);
-    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('2.0.0');
+    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('1.4.3');
     const entries = output.changelogs.flatMap((c) => c.entries);
-    expect(entries.find((e) => e.description === 'drop Node 18')?.breaking).toBe(true);
+    expect(entries.map((e) => e.description)).toEqual(['handle empty input']);
+  });
+
+  it.each([
+    'Reapply "feat!: drop Node 18"',
+    'Reapply "feat!: drop Node 18" (#13) (#14)',
+    'Revert "Revert "feat!: drop Node 18" (#13)" (#15)',
+  ])('should release %s whose revert shipped in an earlier release as the commit it reapplies', (title) => {
+    tempDir = createWorkspaceRepo('rk-reverts-', {
+      packages: { core: '@test/core' },
+      version: '1.4.2',
+      config: { preset: 'conventionalcommits', sync: true, versionPrefix: 'v' },
+    });
+    commitChange('feat', 'drop Node 18', true);
+    revertHead();
+    execSync('git tag v1.4.2', { cwd: tempDir });
+    const revert = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tempDir, encoding: 'utf-8' }).trim();
+    writeFileSync(join(tempDir, 'packages/core/index.js'), '// reapplied\n');
+    execFileSync('git', ['add', 'packages/core'], { cwd: tempDir });
+    execFileSync('git', ['commit', '-q', '-m', `${title}\n\nThis reverts commit ${revert}.`], { cwd: tempDir });
+
+    const output = runVersionJson(tempDir);
+    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('2.0.0');
+    expect(output.changelogs.flatMap((c) => c.entries)).toMatchObject([
+      { type: 'added', description: 'drop Node 18', breaking: true },
+    ]);
+  });
+
+  it('should release a change reapplied a second time, after its third toggle shipped', () => {
+    tempDir = createWorkspaceRepo('rk-reverts-', {
+      packages: { core: '@test/core' },
+      version: '1.4.2',
+      config: { preset: 'conventionalcommits', sync: true, versionPrefix: 'v' },
+    });
+    commitChange('feat', 'drop Node 18', true);
+    for (let i = 0; i < 3; i++) {
+      revertHead();
+    }
+    execSync('git tag v1.4.2', { cwd: tempDir });
+    // Git 2.43+ titles it `Reapply "Reapply "feat!: drop Node 18""`.
+    revertHead();
+
+    const output = runVersionJson(tempDir);
+    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('2.0.0');
+    expect(output.changelogs.flatMap((c) => c.entries)).toMatchObject([
+      { type: 'added', description: 'drop Node 18', breaking: true },
+    ]);
+  });
+
+  it('should keep a squash of several reverts and the commits it reverts', () => {
+    tempDir = createWorkspaceRepo('rk-reverts-', {
+      packages: { core: '@test/core' },
+      version: '1.4.2',
+      config: { preset: 'conventionalcommits', sync: true, versionPrefix: 'v' },
+      tags: ['v1.4.2'],
+    });
+    commitChange('feat', 'add a flag');
+    const a = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tempDir, encoding: 'utf-8' }).trim();
+    commitChange('feat', 'add an option');
+    const b = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tempDir, encoding: 'utf-8' }).trim();
+    writeFileSync(join(tempDir, 'packages/core/index.js'), '// reverted\n');
+    execFileSync('git', ['add', 'packages/core'], { cwd: tempDir });
+    const message = `Revert "feat: add an option" (#20)\n\nThis reverts commit ${b}.\n\nThis reverts commit ${a}.`;
+    execFileSync('git', ['commit', '-q', '-m', message], { cwd: tempDir });
+
+    const output = runVersionJson(tempDir);
+    const entries = output.changelogs.flatMap((c) => c.entries);
+    expect(entries.map((e) => e.description)).toEqual([
+      'Revert "feat: add an option" (#20)',
+      'add an option',
+      'add a flag',
+    ]);
   });
 
   it('should keep a revert of a commit from an earlier release', () => {
