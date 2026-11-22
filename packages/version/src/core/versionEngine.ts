@@ -6,6 +6,8 @@ import { getPackagesSync, type Package, type Packages } from '@manypkg/get-packa
 import {
   filterPackagesByConfig,
   isCratePublishable,
+  isCrateVersioned,
+  isPubspecReleasable,
   matchesDirectoryExactly,
   parseCargoToml,
   parsePubspec,
@@ -200,7 +202,7 @@ export class VersionEngine {
         // `version.workspace = true` and `version = { workspace = true }` both parse to this table.
         const inheritsVersion =
           typeof version === 'object' && version !== null && (version as { workspace?: unknown }).workspace === true;
-        if (cargoData.package?.name && (typeof version === 'string' || inheritsVersion)) {
+        if (isCrateVersioned(cargoData) && (typeof version === 'string' || inheritsVersion)) {
           const relativePath = path.relative(workspaceRoot, packageDir);
           const pathParts = relativePath.split(path.sep);
           if (pathParts.includes('target') || pathParts.includes('node_modules')) {
@@ -325,30 +327,27 @@ export class VersionEngine {
 
         const pubData = parsePubspec(fullPubspecPath);
 
-        if (pubData.publish_to === 'none') {
-          log(`Skipping Dart package at ${packageDir}: publish_to: none`, 'debug');
+        if (!isPubspecReleasable(pubData)) {
+          log(`Skipping ${fullPubspecPath}: not a package releasekit versions`, 'debug');
           continue;
         }
 
-        // A versionless pubspec is a Dart workspace root or app manifest, not a publishable package.
-        if (pubData.name && typeof pubData.version === 'string') {
-          const relativePath = path.relative(workspaceRoot, packageDir);
+        const relativePath = path.relative(workspaceRoot, packageDir);
 
-          if (pnpmWorkspaceGlobs !== null && !matchesWorkspaceGlobs(relativePath, pnpmWorkspaceGlobs)) {
-            log(`Skipping Dart package ${pubData.name} at ${relativePath}: not in pnpm workspace globs`, 'debug');
-            continue;
-          }
-
-          dartPackages.push({
-            packageJson: {
-              name: pubData.name,
-              version: pubData.version,
-            },
-            dir: packageDir,
-            relativeDir: relativePath,
-          });
-          log(`Discovered Dart package: ${pubData.name} at ${packageDir}`, 'debug');
+        if (pnpmWorkspaceGlobs !== null && !matchesWorkspaceGlobs(relativePath, pnpmWorkspaceGlobs)) {
+          log(`Skipping Dart package ${pubData.name} at ${relativePath}: not in pnpm workspace globs`, 'debug');
+          continue;
         }
+
+        dartPackages.push({
+          packageJson: {
+            name: pubData.name,
+            version: pubData.version,
+          },
+          dir: packageDir,
+          relativeDir: relativePath,
+        });
+        log(`Discovered Dart package: ${pubData.name} at ${packageDir}`, 'debug');
       } catch (error) {
         log(`Failed to parse pubspec.yaml at ${pubspecPath}: ${error}`, 'warning');
       }
@@ -424,9 +423,8 @@ export class VersionEngine {
     const cargoPath = path.join(packageDir, 'Cargo.toml');
     if (this.config.cargo?.enabled !== false && fs.existsSync(cargoPath)) {
       try {
-        const pkg = parseCargoToml(cargoPath).package;
-        const publish = pkg?.publish;
-        if (pkg?.name && publish !== false && !(Array.isArray(publish) && publish.length === 0)) {
+        const cargo = parseCargoToml(cargoPath);
+        if (isCrateVersioned(cargo) && isCratePublishable(cargo)) {
           return true;
         }
       } catch {

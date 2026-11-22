@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { isCargoToml, parseCargoToml } from '../../src/cargo.js';
+import { isCargoToml, isCrateVersioned, parseCargoToml } from '../../src/cargo.js';
 
 vi.mock('node:fs', () => ({
   readFileSync: vi.fn(),
@@ -75,6 +75,13 @@ describe('parseCargoToml', () => {
     parseCargoToml('/custom/path/Cargo.toml');
 
     expect(mockedFs.readFileSync).toHaveBeenCalledWith('/custom/path/Cargo.toml', 'utf-8');
+  });
+});
+
+describe('isCrateVersioned', () => {
+  it('should treat a manifest with a [package] name as a crate and a virtual workspace as not', () => {
+    expect(isCrateVersioned({ package: { name: 'my-crate' } })).toBe(true);
+    expect(isCrateVersioned({ workspace: { members: ['crates/*'] } })).toBe(false);
   });
 });
 

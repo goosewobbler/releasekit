@@ -1,4 +1,4 @@
-export { type CargoManifest, isCargoToml, isCratePublishable, parseCargoToml } from './cargo.js';
+export { type CargoManifest, isCargoToml, isCratePublishable, isCrateVersioned, parseCargoToml } from './cargo.js';
 export { ConfigError } from './errors.js';
 export { runFormatCommand } from './formatCommand.js';
 export {
@@ -16,7 +16,7 @@ export {
 export { deepMerge, mergeGitConfig } from './merge.js';
 export { filterPackagesByConfig, matchesDirectoryExactly } from './packageFiltering.js';
 export { parseJsonc } from './parse.js';
-export { isPubspecYaml, type PubspecManifest, parsePubspec } from './pubspec.js';
+export { isPubspecReleasable, isPubspecYaml, type PubspecManifest, parsePubspec } from './pubspec.js';
 export {
   type CargoPublishConfig,
   type ChangelogConfig,

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { CargoManifest } from '@releasekit/config';
-import { isCargoToml, parseCargoToml } from '@releasekit/config';
+import { isCargoToml, isCrateVersioned, parseCargoToml } from '@releasekit/config';
 import * as TOML from 'smol-toml';
 import { addPackageUpdate, writeVersionFile } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
@@ -48,7 +48,6 @@ export function getCargoInfo(cargoPath: string, content?: string): CargoInfo {
   }
 }
 
-/** False for a virtual workspace manifest, which has no [package]. */
 export function isVersionedCrate(cargoPath: string): boolean {
   let cargo: CargoManifest;
   try {
@@ -56,7 +55,7 @@ export function isVersionedCrate(cargoPath: string): boolean {
   } catch (error) {
     throw new Error(`Cannot parse ${cargoPath}: ${error instanceof Error ? error.message : String(error)}`);
   }
-  return !!cargo.package?.name;
+  return isCrateVersioned(cargo);
 }
 
 /**

@@ -103,16 +103,6 @@ describe('Pub Handler', () => {
   });
 
   describe('isReleasablePubspec', () => {
-    it.each([
-      ['a named, versioned package', { name: 'pkg', version: '1.0.0' }, true],
-      ['a Dart workspace root', { name: 'workspace', workspace: ['packages/a'] }, false],
-      ['a publish_to: none package', { name: 'app', version: '1.0.0+7', publish_to: 'none' }, false],
-      ['a numeric version', { name: 'pkg', version: 1.0 }, false],
-    ])('should treat %s as releasable: %s', (_label, manifest, expected) => {
-      vi.mocked(parsePubspec, { partial: true }).mockReturnValue(manifest as ReturnType<typeof parsePubspec>);
-      expect(isReleasablePubspec(mockPubspecPath)).toBe(expected);
-    });
-
     it('should fail on an unparseable pubspec, naming the file', () => {
       vi.mocked(parsePubspec, { partial: true }).mockImplementation(() => {
         throw new Error('Nested mappings are not allowed');

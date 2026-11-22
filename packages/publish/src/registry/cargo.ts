@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { isCratePublishable } from '@releasekit/config';
+import { isCratePublishable, isCrateVersioned } from '@releasekit/config';
 import {
   buildDependencyGraph,
   debug,
@@ -128,7 +128,7 @@ function findCrates(cwd: string, updates: VersionPackageUpdate[]): CargoTarget[]
     try {
       const cargo = parseCargoToml(cargoPath);
 
-      if (!cargo.package?.name) {
+      if (!isCrateVersioned(cargo)) {
         continue;
       }
       if (!isCratePublishable(cargo)) {

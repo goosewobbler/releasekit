@@ -13,6 +13,13 @@ export function parseCargoToml(cargoPath: string, content?: string): CargoManife
   return TOML.parse(content ?? fs.readFileSync(cargoPath, 'utf-8')) as CargoManifest;
 }
 
+/** False for a virtual workspace manifest, which has no [package]. */
+export function isCrateVersioned(
+  manifest: CargoManifest,
+): manifest is CargoManifest & { package: NonNullable<CargoManifest['package']> & { name: string } } {
+  return !!manifest.package?.name;
+}
+
 export function isCratePublishable(manifest: CargoManifest): boolean {
   const publish = manifest.package?.publish;
   const noRegistries = Array.isArray(publish) && publish.length === 0;
