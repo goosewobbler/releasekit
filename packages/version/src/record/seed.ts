@@ -1,10 +1,7 @@
-import fs from 'node:fs';
 import type { Package } from '@manypkg/get-packages';
 import { shouldProcessPackage } from '@releasekit/core';
 import { createGitCli } from '@releasekit/git';
 import semver from 'semver';
-import { loadConfig } from '../config.js';
-import { VersionEngine } from '../core/versionEngine.js';
 import {
   getLatestStableTag,
   getLatestStableTagForPackage,
@@ -17,22 +14,7 @@ import { getVersionFromManifests } from '../utils/manifestHelpers.js';
 import { hasManifestToBump } from '../utils/manifestUpdates.js';
 import { versionFromTag } from '../utils/versionAction.js';
 import { getBestVersionSource } from '../utils/versionUtils.js';
-import {
-  readVersionRecord,
-  serializeVersionRecord,
-  type VersionRecordEntry,
-  versionRecordKey,
-  versionRecordPath,
-} from './versionRecord.js';
-
-export interface MigrationResult {
-  file: string;
-  written: boolean;
-  seeded: Array<{ path: string; name: string; version: string; tag: string }>;
-  kept: Array<{ path: string; name: string }>;
-  /** Packages to seed by hand if they've been released. */
-  unseeded: Array<{ path: string; name: string; reason: string }>;
-}
+import { type VersionRecord, type VersionRecordEntry, versionRecordKey } from './versionRecord.js';
 
 /** The tag a version run resolves as a package's last release, and where its last stable tag is looked up. */
 interface ReleaseLookup {
@@ -43,7 +25,7 @@ interface ReleaseLookup {
   sourceDir: string;
 }
 
-type Seed = { entry: Omit<VersionRecordEntry, 'name'>; tag: string } | { reason: string };
+type Seed = { entry: Omit<VersionRecordEntry, 'name'> } | { reason: string };
 
 async function tagCommit(tag: string, cwd: string): Promise<string> {
   return (await createGitCli().log({ range: `refs/tags/${tag}`, format: '%H', extraArgs: ['-1'], cwd })).trim();
@@ -127,60 +109,51 @@ async function seedFrom(lookup: ReleaseLookup, config: Config, root: string): Pr
       entry.lastStable = { version: stableVersion, at: await tagCommit(stableTag, root) };
     }
   }
-  return { entry, tag: lookup.tag };
+  return { entry };
 }
 
 /**
- * Seeds `releasekit.versions.json` for the project in the working directory, where the tag lookups run, with each
- * package's last release as a version run resolves it today. Keeps any entry the record already has.
+ * Seeds each package the record has no entry for with its last release as a version run resolves it from tags today.
+ * A package with no reachable tag stays unseeded and starts from its manifest.
  */
-export async function migrateVersionRecord(options: { configPath?: string } = {}): Promise<MigrationResult> {
-  const config = loadConfig({ configPath: options.configPath });
-  const workspace = await new VersionEngine(config, { dryRun: true }).getWorkspacePackages();
-  const root = workspace.root;
+export async function seedMissingEntries(
+  record: VersionRecord,
+  packages: Package[],
+  config: Config,
+  root: string,
+): Promise<{ record: VersionRecord; unseeded: Array<{ name: string; reason: string }> }> {
   const mode = config.sync
     ? 'sync'
     : Object.keys(config.groups ?? {}).length > 0
       ? 'group'
-      : workspace.packages.length === 1
+      : packages.length === 1
         ? 'single'
         : 'async';
   // Group mode bumps only a package's own manifests, so cargo.paths and pub.paths don't make it versionable.
-  const packages = workspace.packages.filter(
+  const missing = packages.filter(
     (pkg) =>
+      !record[versionRecordKey(root, pkg.dir)] &&
       shouldProcessPackage(pkg.packageJson.name, config.skip) &&
       hasManifestToBump(pkg.dir, config, { repoRoot: root, ignorePaths: mode === 'group' }),
   );
 
-  const record = readVersionRecord(root);
-  const result: MigrationResult = { file: versionRecordPath(root), written: false, seeded: [], kept: [], unseeded: [] };
+  const seeded: VersionRecord = { ...record };
+  const unseeded: Array<{ name: string; reason: string }> = [];
   let syncSeed: Seed | undefined;
-  for (const pkg of packages) {
+  for (const pkg of missing) {
     const name = pkg.packageJson.name;
-    const path = versionRecordKey(root, pkg.dir);
-    if (record[path]) {
-      result.kept.push({ path, name });
-      continue;
-    }
     let seed: Seed;
     if (mode === 'sync') {
-      syncSeed ??= await seedFrom(await syncLookup(config, workspace.packages, root), config, root);
+      syncSeed ??= await seedFrom(await syncLookup(config, packages, root), config, root);
       seed = syncSeed;
     } else {
       seed = await seedFrom(await packageLookup(config, pkg, mode), config, root);
     }
     if ('reason' in seed) {
-      result.unseeded.push({ path, name, reason: seed.reason });
-      continue;
+      unseeded.push({ name, reason: seed.reason });
+    } else {
+      seeded[versionRecordKey(root, pkg.dir)] = { name, ...seed.entry };
     }
-    record[path] = { name, ...seed.entry };
-    result.seeded.push({ path, name, version: seed.entry.version, tag: seed.tag });
   }
-
-  // Written even when empty: releases only update a record that exists, so a repo with nothing to seed yet starts here.
-  if (result.seeded.length > 0 || !fs.existsSync(result.file)) {
-    fs.writeFileSync(result.file, serializeVersionRecord(record));
-    result.written = true;
-  }
-  return result;
+  return { record: seeded, unseeded };
 }

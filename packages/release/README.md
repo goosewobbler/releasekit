@@ -65,7 +65,7 @@ In GitHub Actions it first reads the labels of the merged PR the pushed commit c
 
 ## CLI Reference
 
-Flags for every command are in the [CLI reference](../../docs/cli.md): [`release`](../../docs/cli.md#releasekit-release), [`preview`](../../docs/cli.md#releasekit-preview), [`gate`](../../docs/cli.md#releasekit-release-gate), [`standing-pr`](../../docs/cli.md#releasekit-standing-pr), [`refresh-after-release`](../../docs/cli.md#releasekit-refresh-after-release), [`backfill`](../../docs/cli.md#releasekit-release-backfill), [`init`](../../docs/cli.md#releasekit-init), [`labels`](../../docs/cli.md#releasekit-labels) and [`migrate`](../../docs/cli.md#releasekit-migrate).
+Flags for every command are in the [CLI reference](../../docs/cli.md): [`release`](../../docs/cli.md#releasekit-release), [`preview`](../../docs/cli.md#releasekit-preview), [`gate`](../../docs/cli.md#releasekit-release-gate), [`standing-pr`](../../docs/cli.md#releasekit-standing-pr), [`refresh-after-release`](../../docs/cli.md#releasekit-refresh-after-release), [`backfill`](../../docs/cli.md#releasekit-release-backfill), [`init`](../../docs/cli.md#releasekit-init) and [`labels`](../../docs/cli.md#releasekit-labels).
 
 ## Usage Examples
 

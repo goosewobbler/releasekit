@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { devNull, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createFakeForge } from '@releasekit/forge';
@@ -22,8 +22,10 @@ describe('the version record in a release', { timeout: 30_000 }, () => {
   let root: string;
   let repo: string;
   let remote: string;
+  let previousCwd: string;
 
   beforeEach(() => {
+    previousCwd = process.cwd();
     vi.stubEnv('GIT_CONFIG_GLOBAL', devNull);
     vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
     vi.stubEnv('GITHUB_EVENT_NAME', '');
@@ -38,13 +40,14 @@ describe('the version record in a release', { timeout: 30_000 }, () => {
   });
 
   afterEach(() => {
+    process.chdir(previousCwd);
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
     rmSync(root, { recursive: true, force: true });
   });
 
-  /** Returns the record `releasekit migrate` committed, or undefined for a repo that hasn't migrated. */
-  function setUpRepo(config: Record<string, unknown>, { migrated = true } = {}): Record<string, unknown> | undefined {
+  /** Returns the record committed before the releases, or undefined for a repo without one. */
+  function setUpRepo(config: Record<string, unknown>, { withRecord = true } = {}): Record<string, unknown> | undefined {
     git(root, 'init', '-q', '--bare', '-b', 'main', remote);
     mkdirSync(repo);
     writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'monorepo', version: '0.0.0', private: true }));
@@ -70,7 +73,7 @@ describe('the version record in a release', { timeout: 30_000 }, () => {
     git(repo, 'tag', 'a@v1.0.0');
     git(repo, 'tag', 'b@v1.0.0');
     let record: Record<string, unknown> | undefined;
-    if (migrated) {
+    if (withRecord) {
       const at = git(repo, 'rev-parse', 'HEAD');
       record = {
         'packages/a': { name: 'a', version: '1.0.0', at },
@@ -78,7 +81,7 @@ describe('the version record in a release', { timeout: 30_000 }, () => {
       };
       writeFileSync(join(repo, 'releasekit.versions.json'), JSON.stringify(record));
       git(repo, 'add', '-A');
-      git(repo, 'commit', '-q', '-m', 'chore: migrate to the version record');
+      git(repo, 'commit', '-q', '-m', 'chore: add the version record');
     }
     git(repo, 'remote', 'add', 'origin', remote);
     git(repo, 'push', '-q', 'origin', 'main', '--tags');
@@ -110,12 +113,12 @@ describe('the version record in a release', { timeout: 30_000 }, () => {
 
   it("should record each released package in the release commit, keeping a prerelease's last stable release", async () => {
     vi.stubEnv('GITHUB_REPOSITORY', '');
-    const migrated = setUpRepo({ publish: { npm: { enabled: false } } });
+    const existing = setUpRepo({ publish: { npm: { enabled: false } } });
 
     const stableAt = changeA('feat: add a feature');
     await release();
     expect(recordAt('HEAD')).toEqual({
-      ...migrated,
+      ...existing,
       'packages/a': { name: 'a', version: '1.1.0', at: stableAt },
     });
 
@@ -124,7 +127,7 @@ describe('the version record in a release', { timeout: 30_000 }, () => {
 
     expect(git(repo, 'log', '-1', '--format=%s')).toMatch(/^chore: release /);
     expect(recordAt('HEAD')).toEqual({
-      ...migrated,
+      ...existing,
       'packages/a': {
         name: 'a',
         version: '1.1.1-next.0',
@@ -135,15 +138,19 @@ describe('the version record in a release', { timeout: 30_000 }, () => {
     expect(git(repo, 'status', '--porcelain')).toBe('');
   });
 
-  it('should write no record in a release from a repo that has not migrated', async () => {
+  it("should seed the record in a repo's first release", async () => {
     vi.stubEnv('GITHUB_REPOSITORY', '');
-    setUpRepo({ publish: { npm: { enabled: false } } }, { migrated: false });
-    changeA('feat: add a feature');
+    setUpRepo({ publish: { npm: { enabled: false } } }, { withRecord: false });
+    const tagged = git(repo, 'rev-parse', 'HEAD');
+    const at = changeA('feat: add a feature');
 
     await release();
 
     expect(git(repo, 'log', '-1', '--format=%s')).toMatch(/^chore: release /);
-    expect(existsSync(join(repo, 'releasekit.versions.json'))).toBe(false);
+    expect(recordAt('HEAD')).toEqual({
+      'packages/a': { name: 'a', version: '1.1.0', at },
+      'packages/b': { name: 'b', version: '1.0.0', at: tagged },
+    });
     expect(git(repo, 'status', '--porcelain')).toBe('');
   });
 
@@ -151,14 +158,14 @@ describe('the version record in a release', { timeout: 30_000 }, () => {
     vi.stubEnv('GITHUB_REPOSITORY', 'owner/repo');
     vi.stubEnv('GITHUB_TOKEN', 'token');
     vi.mocked(forgeFor).mockReturnValue(createFakeForge());
-    const migrated = setUpRepo({ ci: { releaseStrategy: 'standing-pr' } });
+    const existing = setUpRepo({ ci: { releaseStrategy: 'standing-pr' } });
     const at = changeA('feat: add a feature');
     git(repo, 'push', '-q', 'origin', 'main');
 
     await createStandingPRCommand().parseAsync(['node', 'standing-pr', 'update', '--project-dir', repo]);
 
     expect(recordAt('release/next', remote)).toEqual({
-      ...migrated,
+      ...existing,
       'packages/a': { name: 'a', version: '1.1.0', at },
     });
   });

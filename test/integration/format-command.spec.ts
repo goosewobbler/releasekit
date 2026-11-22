@@ -114,6 +114,7 @@ describe('git.formatCommand in a direct release', () => {
       'packages/napi/Cargo.lock',
       'packages/napi/Cargo.toml',
       'packages/napi/package.json',
+      'releasekit.versions.json',
     ]);
     expect(git(repo, 'show', 'HEAD:packages/napi/package.json')).toBe(
       '{\n\t"name": "rk-napi",\n\t"version": "0.2.0"\n}\n',

@@ -24,12 +24,12 @@ describe('the version record', () => {
       config: { versionPrefix: 'v', sync: false, packageSpecificTags: true },
       tags: ['pkg-a@v0.1.0', 'pkg-b@v0.1.0'],
     });
-    const migratedAt = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tempDir, encoding: 'utf-8' }).trim();
-    const migrated = {
-      'packages/pkg-a': { name: 'pkg-a', version: '0.1.0', at: migratedAt },
-      'packages/pkg-b': { name: 'pkg-b', version: '0.1.0', at: migratedAt },
+    const recordedAt = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tempDir, encoding: 'utf-8' }).trim();
+    const existing = {
+      'packages/pkg-a': { name: 'pkg-a', version: '0.1.0', at: recordedAt },
+      'packages/pkg-b': { name: 'pkg-b', version: '0.1.0', at: recordedAt },
     };
-    writeFileSync(join(tempDir, 'releasekit.versions.json'), JSON.stringify(migrated));
+    writeFileSync(join(tempDir, 'releasekit.versions.json'), JSON.stringify(existing));
     writeFileSync(join(tempDir, 'packages', 'pkg-a', 'index.js'), '// changed\n');
     createConventionalCommit(tempDir, 'feat', 'add a feature', undefined, false, [
       'packages/pkg-a',
@@ -41,7 +41,7 @@ describe('the version record', () => {
 
     expect(result.status).toBe(0);
     expect(JSON.parse(readFileSync(join(tempDir, 'releasekit.versions.json'), 'utf-8'))).toEqual({
-      ...migrated,
+      ...existing,
       'packages/pkg-a': { name: 'pkg-a', version: '0.2.0', at },
     });
   });

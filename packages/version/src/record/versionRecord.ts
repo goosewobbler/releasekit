@@ -85,11 +85,11 @@ export function recordRelease(
 }
 
 /**
- * Records each released package at HEAD, the commit its release was computed at. Only `releasekit migrate` creates the
- * record, so a repo without one is left alone. A name that isn't a package, such as a monorepo's root manifest, gets no
- * entry.
+ * Records each released package at HEAD, the commit its release was computed at, in `record`. A name that isn't a
+ * package, such as a monorepo's root manifest, gets no entry. Nothing is written when nothing was released.
  */
 export async function writeReleasedVersions(
+  record: VersionRecord,
   releasedVersions: ReadonlyMap<string, string>,
   packages: Package[],
   root: string,
@@ -99,13 +99,13 @@ export async function writeReleasedVersions(
     const pkg = packages.find((p) => p.packageJson.name === name);
     return pkg ? [{ key: versionRecordKey(root, pkg.dir), name, version }] : [];
   });
-  if (released.length === 0 || !fs.existsSync(versionRecordPath(root))) {
+  if (released.length === 0) {
     return;
   }
   const at = await createGitCli().headSha(root);
-  const record = readVersionRecord(root);
+  const updated = { ...record };
   for (const { key, name, version } of released) {
-    record[key] = recordRelease(record[key], name, version, at);
+    updated[key] = recordRelease(updated[key], name, version, at);
   }
-  writeVersionFile(versionRecordPath(root), serializeVersionRecord(record), dryRun);
+  writeVersionFile(versionRecordPath(root), serializeVersionRecord(updated), dryRun);
 }

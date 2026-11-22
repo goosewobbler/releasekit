@@ -10,7 +10,6 @@ import { createBackfillCommand } from './commands/backfill-command.js';
 import { createGateCommand } from './commands/gate-command.js';
 import { createInitCommand } from './commands/init-command.js';
 import { createLabelsCommand } from './commands/labels-command.js';
-import { createMigrateCommand } from './commands/migrate-command.js';
 import { createPreviewCommand } from './commands/preview-command.js';
 import { createRefreshAfterReleaseCommand } from './commands/refresh-after-release-command.js';
 import { createReleaseCommand } from './commands/release-command.js';
@@ -29,7 +28,6 @@ export function createDispatcherProgram(): Command {
   program.addCommand(createBackfillCommand());
   program.addCommand(createInitCommand());
   program.addCommand(createLabelsCommand());
-  program.addCommand(createMigrateCommand());
   program.addCommand(createVersionCommand());
   program.addCommand(createNotesCommand());
   program.addCommand(createPublishCommand());

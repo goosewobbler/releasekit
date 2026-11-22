@@ -1,22 +1,25 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { devNull, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { getPackagesSync } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { migrateVersionRecord } from '../../../src/record/migrate.js';
+import { loadConfig } from '../../../src/config.js';
+import { seedMissingEntries } from '../../../src/record/seed.js';
+import type { VersionRecord } from '../../../src/record/versionRecord.js';
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf-8' }).trim();
 }
 
-describe('migrateVersionRecord', { timeout: 30_000 }, () => {
+describe('seedMissingEntries', { timeout: 30_000 }, () => {
   let repo: string;
   let previousCwd: string;
 
   beforeEach(() => {
     vi.stubEnv('GIT_CONFIG_GLOBAL', devNull);
     vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
-    repo = realpathSync(mkdtempSync(join(tmpdir(), 'rk-migrate-')));
+    repo = realpathSync(mkdtempSync(join(tmpdir(), 'rk-seed-')));
     previousCwd = process.cwd();
     process.chdir(repo);
   });
@@ -54,8 +57,8 @@ describe('migrateVersionRecord', { timeout: 30_000 }, () => {
     return git(repo, 'rev-parse', 'HEAD');
   }
 
-  function record(): unknown {
-    return JSON.parse(readFileSync(join(repo, 'releasekit.versions.json'), 'utf-8'));
+  function seed(record: VersionRecord = {}) {
+    return seedMissingEntries(record, getPackagesSync(repo).packages, loadConfig({ cwd: repo }), repo);
   }
 
   it("should seed each package from its last tag, with a prerelease's last stable release", async () => {
@@ -67,9 +70,9 @@ describe('migrateVersionRecord', { timeout: 30_000 }, () => {
     git(repo, 'tag', 'a@v1.1.0-next.0');
     commit('feat: a later change');
 
-    const result = await migrateVersionRecord();
+    const { record, unseeded } = await seed();
 
-    expect(record()).toEqual({
+    expect(record).toEqual({
       'packages/a': {
         name: 'a',
         version: '1.1.0-next.0',
@@ -78,30 +81,19 @@ describe('migrateVersionRecord', { timeout: 30_000 }, () => {
       },
       'packages/b': { name: 'b', version: '2.0.0', at: stable },
     });
-    expect(result.unseeded).toEqual([
-      { path: 'packages/c', name: 'c', reason: 'no release tag is reachable from HEAD' },
-    ]);
+    expect(unseeded).toEqual([{ name: 'c', reason: 'no release tag is reachable from HEAD' }]);
   });
 
-  it('should keep existing entries and seed a package that has none', async () => {
+  it('should leave existing entries alone and seed a package that has none', async () => {
     setUpRepo({ sync: false, packageSpecificTags: true }, { a: '1.0.0', b: '2.0.0' });
     const at = git(repo, 'rev-parse', 'HEAD');
     git(repo, 'tag', 'a@v1.0.0');
     git(repo, 'tag', 'b@v2.0.0');
     const existing = { 'packages/a': { name: 'a', version: '1.0.1', at: 'hand-edited' } };
-    writeFileSync(join(repo, 'releasekit.versions.json'), JSON.stringify(existing));
 
-    await migrateVersionRecord();
+    const { record } = await seed(existing);
 
-    expect(record()).toEqual({ ...existing, 'packages/b': { name: 'b', version: '2.0.0', at } });
-  });
-
-  it('should create an empty record in a repo with nothing to seed, so releases start recording', async () => {
-    setUpRepo({ sync: false, packageSpecificTags: true }, { a: '1.0.0' });
-
-    await migrateVersionRecord();
-
-    expect(record()).toEqual({});
+    expect(record).toEqual({ ...existing, 'packages/b': { name: 'b', version: '2.0.0', at } });
   });
 
   it("should seed a sync repo's entries with the shared version at its baseline tag", async () => {
@@ -112,9 +104,9 @@ describe('migrateVersionRecord', { timeout: 30_000 }, () => {
     commit('chore: build');
     git(repo, 'tag', 'v1.0.0');
 
-    await migrateVersionRecord();
+    const { record } = await seed();
 
-    expect(record()).toEqual({
+    expect(record).toEqual({
       'packages/a': { name: 'a', version: '1.0.0', at },
       'packages/b': { name: 'b', version: '1.0.0', at },
     });
@@ -128,8 +120,8 @@ describe('migrateVersionRecord', { timeout: 30_000 }, () => {
     const at = git(repo, 'rev-parse', 'HEAD');
     git(repo, 'tag', 'a@v1.0.0');
 
-    await migrateVersionRecord();
+    const { record } = await seed();
 
-    expect(record()).toEqual({ 'packages/a': { name: 'a', version: '1.2.0', at } });
+    expect(record).toEqual({ 'packages/a': { name: 'a', version: '1.2.0', at } });
   });
 });

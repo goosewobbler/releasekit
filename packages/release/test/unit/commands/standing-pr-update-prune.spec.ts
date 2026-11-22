@@ -16,7 +16,8 @@ function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf-8' }).trim();
 }
 
-describe('standing-pr update after the release branch was deleted on the remote', () => {
+// Runs the real version engine three times, which can exceed the 5s default under a full turbo run.
+describe('standing-pr update after the release branch was deleted on the remote', { timeout: 30_000 }, () => {
   let root: string;
   let repo: string;
   let remote: string;
