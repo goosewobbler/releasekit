@@ -117,6 +117,27 @@ describe('reverted commits', () => {
     ]);
   });
 
+  it('should release a change reapplied a second time, after its third toggle shipped', () => {
+    tempDir = createWorkspaceRepo('rk-reverts-', {
+      packages: { core: '@test/core' },
+      version: '1.4.2',
+      config: { preset: 'conventionalcommits', sync: true, versionPrefix: 'v' },
+    });
+    commitChange('feat', 'drop Node 18', true);
+    for (let i = 0; i < 3; i++) {
+      revertHead();
+    }
+    execSync('git tag v1.4.2', { cwd: tempDir });
+    // Git 2.43+ titles it `Reapply "Reapply "feat!: drop Node 18""`.
+    revertHead();
+
+    const output = runVersionJson(tempDir);
+    expect(output.updates.find((u) => u.packageName === '@test/core')?.newVersion).toBe('2.0.0');
+    expect(output.changelogs.flatMap((c) => c.entries)).toMatchObject([
+      { type: 'added', description: 'drop Node 18', breaking: true },
+    ]);
+  });
+
   it('should keep a revert of a commit from an earlier release', () => {
     tempDir = createWorkspaceRepo('rk-reverts-', {
       packages: { core: '@test/core' },
