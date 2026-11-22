@@ -25,7 +25,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 - OIDC / trusted publishing for crates.io — token-based auth only via `CARGO_REGISTRY_TOKEN`
 - Nested Cargo workspaces — only the repo-root `Cargo.toml`'s `[workspace] members` scope crate discovery
 - `[patch]`, in `Cargo.toml` or `.cargo/config.toml`, when syncing `Cargo.lock` — a lock whose workspace reaches a bumped crate only through a patch keeps the old version, without an error, and `cargo build --locked` there fails until you run `cargo update --workspace` in that workspace and commit the lock
-- Workspace-inherited versions (`version.workspace = true`): a workspace member that inherits its version is skipped with a warning and isn't released as its own package. Give it a literal `version` to release it
+- Workspace-inherited versions (`version.workspace = true`): such a member crate is skipped with a warning and not released. Give it a literal `version` to release it
 - Comment and formatting preservation in `Cargo.toml` — the file is rewritten with `smol-toml`'s serialiser on a version bump or a raised requirement; whitespace, comments, and key order may change
 
 ---
@@ -50,7 +50,7 @@ Minimum `releasekit.config.json`:
 }
 ```
 
-With `version.packages` unset, releasekit versions every crate it discovers: the members of a Cargo workspace, or without one every `Cargo.toml` in the repo. In a single-crate repo with nested crates such as test fixtures, set `"packages": ["./"]` or mark them `publish = false`. The repo doesn't need a `package.json`, but npm packages need one at the root.
+With `version.packages` unset, releasekit versions every crate it discovers: a Cargo workspace's members, or every `Cargo.toml` in the repo if there's no workspace. A single-crate repo with nested crates, such as test fixtures, should set `"packages": ["./"]` or mark them `publish = false`. The repo doesn't need a `package.json`.
 
 `version.cargo.enabled` and `publish.cargo.enabled` both default to `true`, so those keys are optional but make intent explicit. Set `publish.cargo.enabled` to `false` to version and tag without publishing to crates.io.
 
@@ -79,7 +79,7 @@ List npm package and crate directories together in `version.packages`:
 }
 ```
 
-releasekit discovers a crate from its `Cargo.toml`, within the repo-root `Cargo.toml`'s `[workspace] members` if it has any. A `Cargo.toml` beside a `package.json` is versioned with that package, which needs a `package.json` at the repo root to be discovered. With `version.cargo.enabled: false` it's neither versioned nor published.
+releasekit discovers a crate from its `Cargo.toml`, within the repo-root `Cargo.toml`'s `[workspace] members` if it has any. A `Cargo.toml` beside a `package.json` is versioned with that npm package, which is only discovered when the repo has a root `package.json`. With `version.cargo.enabled: false` it's neither versioned nor published.
 
 ---
 

@@ -222,7 +222,7 @@ export class VersionEngine {
           }
 
           if (typeof version !== 'string') {
-            // A root crate is still bumped by the sync root pass, so only a member is left out.
+            // No warning for a root crate: the sync root pass still writes its version.
             if (relativePath !== '') {
               log(
                 `${cargoData.package.name} at ${relativePath} isn't released as its own package: ReleaseKit doesn't ` +
