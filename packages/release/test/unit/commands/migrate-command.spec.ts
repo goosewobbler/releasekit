@@ -122,6 +122,14 @@ describe('releasekit migrate', { timeout: 30_000 }, () => {
     expect(record()).toEqual({ ...existing, 'packages/b': { name: 'b', version: '2.0.0', at } });
   });
 
+  it('should create an empty record in a repo with nothing to seed, so releases start recording', async () => {
+    setUpRepo({ sync: false, packageSpecificTags: true }, { a: '1.0.0' });
+
+    await migrate();
+
+    expect(record()).toEqual({});
+  });
+
   it("should seed a sync repo's entries with the shared version at its baseline tag", async () => {
     setUpRepo({ sync: true, baselineTagTemplate: 'release/${prefix}${version}' }, { a: '1.0.0', b: '1.0.0' });
     const at = git(repo, 'rev-parse', 'HEAD');

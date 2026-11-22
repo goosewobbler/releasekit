@@ -27,6 +27,7 @@ import {
 
 export interface MigrationResult {
   file: string;
+  written: boolean;
   seeded: Array<{ path: string; name: string; version: string; tag: string }>;
   kept: Array<{ path: string; name: string }>;
   /** Packages to seed by hand if they've been released. */
@@ -150,7 +151,7 @@ export async function migrateVersionRecord(options: { cwd: string; configPath?: 
         : 'async';
 
   const record = readVersionRecord(root);
-  const result: MigrationResult = { file: versionRecordPath(root), seeded: [], kept: [], unseeded: [] };
+  const result: MigrationResult = { file: versionRecordPath(root), written: false, seeded: [], kept: [], unseeded: [] };
   let syncSeed: Seed | undefined;
   for (const pkg of packages) {
     const name = pkg.packageJson.name;
@@ -174,8 +175,10 @@ export async function migrateVersionRecord(options: { cwd: string; configPath?: 
     result.seeded.push({ path, name, version: seed.entry.version, tag: seed.tag });
   }
 
-  if (result.seeded.length > 0) {
+  // Written even when empty: releases only update a record that exists, so a repo with nothing to seed yet starts here.
+  if (result.seeded.length > 0 || !fs.existsSync(result.file)) {
     fs.writeFileSync(result.file, serializeVersionRecord(record));
+    result.written = true;
   }
   return result;
 }

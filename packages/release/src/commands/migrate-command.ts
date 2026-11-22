@@ -63,7 +63,7 @@ export async function runMigrate(options: MigrateOptions): Promise<void> {
   for (const { path, name, reason } of result.unseeded) {
     warn(`Not seeded: ${path} (${name}), ${reason}. If it has been released, add its entry by hand.`);
   }
-  if (result.seeded.length > 0) {
+  if (result.written) {
     success(`Wrote ${VERSION_RECORD_FILE}. Commit it to finish migrating.`);
   } else {
     info(`Nothing to seed, so ${VERSION_RECORD_FILE} is unchanged.`);
