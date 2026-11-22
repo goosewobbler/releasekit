@@ -160,8 +160,14 @@ interface GroupComputation {
 }
 
 /** A fixed/linked group shares one version and channel, so graduating ANY member graduates the group. */
+/** Prerequisites keep their own commit-driven bump, so a group with no member in the override scope isn't forced. */
+function inOverrideScope(group: ResolvedGroup, config: Config): boolean {
+  const scope = config.overrideScope;
+  return !scope?.length || group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, scope));
+}
+
 function isGroupGraduating(group: ResolvedGroup, config: Config): boolean {
-  if (!config.stableOnly) {
+  if (!config.stableOnly || !inOverrideScope(group, config)) {
     return false;
   }
   const scope = config.graduateScope;
@@ -173,7 +179,7 @@ function isGroupGraduating(group: ResolvedGroup, config: Config): boolean {
 
 /** Twin of {@link isGroupGraduating}: a single scoped member pulls the whole group onto the prerelease line. */
 function isGroupPrereleasing(group: ResolvedGroup, config: Config): boolean {
-  if (!config.isPrerelease) {
+  if (!config.isPrerelease || !inOverrideScope(group, config)) {
     return false;
   }
   const scope = config.prereleaseScope;

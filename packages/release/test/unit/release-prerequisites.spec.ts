@@ -48,6 +48,8 @@ function createRepo(versionConfig: Record<string, unknown>): string {
   git(projectDir, 'init', '-q');
   git(projectDir, 'config', 'user.email', 'test@example.com');
   git(projectDir, 'config', 'user.name', 'Test');
+  git(projectDir, 'config', 'commit.gpgsign', 'false');
+  git(projectDir, 'config', 'tag.gpgsign', 'false');
   git(projectDir, 'add', '.');
   git(projectDir, 'commit', '-qm', 'chore: initial commit');
   for (const name of ['app', 'lib', 'util']) {

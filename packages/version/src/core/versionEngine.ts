@@ -566,6 +566,12 @@ export class VersionEngine {
         log(`Runtime targets filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'info');
       }
 
+      // The targets matched nothing, and the filters above read an empty list as every package.
+      if (this.targetsExpanded && this.runtimeTargets.length === 0) {
+        log('Prerequisites: the targets match no package, so nothing is released', 'warning');
+        mergedPackages.packages = [];
+      }
+
       // Last, so it overrides every inclusion above (see VersionRunOptions.exclude).
       if (this.excludePackages.length > 0) {
         const excluded = new Set(this.excludePackages);
@@ -589,10 +595,8 @@ export class VersionEngine {
   public async run(packages: PackagesWithRoot, targets: string[] = []): Promise<void> {
     try {
       clearCargoBumps();
-      // Callers pass the targets they were given, which the prerequisite expansion has since widened. An empty
-      // expansion means the targets matched nothing, and an empty list would read as every package.
-      const expanded = this.targetsExpanded && this.runtimeTargets.length > 0;
-      await this.currentStrategy(packages, expanded ? this.runtimeTargets : targets);
+      // Callers pass the targets they were given, which the prerequisite expansion has since widened.
+      await this.currentStrategy(packages, this.targetsExpanded ? this.runtimeTargets : targets);
       await raiseCargoDependentRequirements(packages.root ?? cwd(), this.config.dryRun ?? false);
       await syncCargoLockfiles(packages.root ?? cwd(), this.config.dryRun ?? false);
       if (Object.keys(this.prerequisiteOf).length > 0) {
