@@ -128,6 +128,44 @@ describe('--include-prerequisites', () => {
       base: '1.0.1',
     });
     expect(output.updates.find((u) => u.packageName === 'util')?.role).toBe('prerequisite');
+    expect(output.updates.find((u) => u.packageName === 'base')?.prerequisiteOf).toEqual(['app']);
+  });
+
+  it("should walk only the changed members of a prerequisite's independent group", () => {
+    createRepo(
+      {
+        groups: {
+          apps: { packages: ['app'], sync: 'fixed' },
+          libs: { packages: ['lib', 'util'], sync: 'independent' },
+        },
+      },
+      ['app', 'lib', 'util', 'base'],
+    );
+    addDependencies({ app: ['lib'], util: ['base'] });
+    // util is released after it gains its dependency, so it's unchanged.
+    execFileSync('git', ['tag', '-f', 'util@v1.0.0'], { cwd: tempDir });
+    commitTo('app', 'feat', 'add a command');
+    commitTo('lib', 'fix', 'correct a typo');
+    commitTo('base', 'fix', 'correct another typo');
+
+    const output = runVersionJson(tempDir, '--target app --include-prerequisites');
+
+    expect(Object.fromEntries(output.updates.map((u) => [u.packageName, u.newVersion]))).toEqual({
+      app: '1.1.0',
+      lib: '1.0.1',
+    });
+  });
+
+  it('should release no prerequisites when the target is outside version.packages', () => {
+    createRepo({ packages: ['packages/lib'] });
+    addDependencies();
+    commitTo('app', 'feat', 'add a command');
+    commitTo('lib', 'fix', 'correct a typo');
+
+    const result = executeCliCommand('--json --target app --include-prerequisites', tempDir);
+
+    expect(result.status).not.toBe(0);
+    expect(JSON.parse(result.stdout).errors).toMatchObject([{ message: 'No packages found in workspace' }]);
   });
 
   it.each([

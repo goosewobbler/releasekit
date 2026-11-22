@@ -566,9 +566,10 @@ export class VersionEngine {
         log(`Runtime targets filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'info');
       }
 
-      // The targets matched nothing, and the filters above read an empty list as every package.
-      if (this.targetsExpanded && this.runtimeTargets.length === 0) {
-        log('Prerequisites: the targets match no releasable package, so nothing is released', 'warning');
+      // Prerequisites release only alongside a target. The filters above also read an empty target list as every package.
+      const overrideScope = new Set(this.config.overrideScope);
+      if (this.targetsExpanded && !mergedPackages.packages.some((pkg) => overrideScope.has(pkg.packageJson.name))) {
+        log('Prerequisites: none of the targets is a releasable package, so nothing is released', 'warning');
         mergedPackages.packages = [];
       }
 

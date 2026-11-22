@@ -49,11 +49,15 @@ export function resolvePrerequisiteTargets(
       if (!targets.has(name)) {
         targets.add(name);
         added.push(name);
-        prerequisiteOf[name] = resolved.prerequisiteOf[name];
+        // Credit the explicit targets behind each package that pulled it in, not the package itself.
+        const via = resolved.prerequisiteOf[name] ?? [];
+        prerequisiteOf[name] = [
+          ...new Set(via.flatMap((from) => (overrideSet.has(from) ? [from] : prerequisiteOf[from]))),
+        ];
       }
     }
-    // The group strategy releases an atomic group whole, so a prerequisite's group-mates release too and their own
-    // dependencies need the same walk.
+    // The group strategy releases a fixed group whole and an independent group's changed members, so those
+    // group-mates release too and their own dependencies need the same walk.
     for (const name of [...added]) {
       const group = resolution.groupOf(name);
       if (!group || group.sync === 'linked') {
@@ -61,7 +65,7 @@ export function resolvePrerequisiteTargets(
       }
       for (const member of group.members) {
         const mate = member.packageJson.name;
-        if (!targets.has(mate)) {
+        if (!targets.has(mate) && (group.sync === 'fixed' || isChanged(mate))) {
           targets.add(mate);
           added.push(mate);
           prerequisiteOf[mate] = prerequisiteOf[name];
