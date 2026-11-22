@@ -159,7 +159,7 @@ interface GroupComputation {
   hasChange: boolean;
 }
 
-/** Prerequisites keep their own commit-driven bump, so a group with no member in the override scope isn't forced. */
+/** Prerequisites keep their own channel, so a group with no member in the override scope isn't forced onto the target's. */
 function inOverrideScope(group: ResolvedGroup, config: Config): boolean {
   const scope = config.overrideScope;
   return !scope?.length || group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, scope));
