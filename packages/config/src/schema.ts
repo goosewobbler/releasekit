@@ -135,7 +135,7 @@ const VersionConfigBaseSchema = z.strictObject({
     .array(z.string())
     .default([])
     .describe(
-      'Packages to include in versioning. Empty includes every discovered package. `./` matches only a package at the repository root, not workspace members.',
+      'Packages to include in versioning. Empty includes every discovered package. `./` matches only a package at the repository root.',
     ),
   sharedPackages: z
     .array(z.string())
