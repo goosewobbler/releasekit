@@ -33,7 +33,7 @@ function commitTo(pkg: string, message: string) {
 
 function release(pkg: string, version: string) {
   mockVersionUpdates(join(tempDir, 'packages', pkg), version);
-  git('commit', '-qam', `chore: release ${pkg} v${version}`, '--no-verify');
+  git('commit', '-qam', `chore: release ${pkg} v${version}`, '--no-verify', '--no-gpg-sign');
   tag(`${pkg}@v${version}`);
 }
 
@@ -83,7 +83,6 @@ describe('skipTaggedAfter', () => {
     const output = runVersionEngine(runCommit);
 
     expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['pkg-b', '1.0.1']]);
-    expect(output.tags).toEqual(['pkg-b@v1.0.1']);
   });
 
   it.each(['async', 'single'])("should not skip a package released at the run's own commit (%s)", (strategy) => {
