@@ -18,7 +18,12 @@ const VersionRecordEntrySchema = z.looseObject({
 const VersionRecordSchema = z.record(z.string(), VersionRecordEntrySchema);
 
 /** `lastStable` is set only on a prerelease entry whose package has had a stable release. */
-export type VersionRecordEntry = z.infer<typeof VersionRecordEntrySchema>;
+export interface VersionRecordEntry {
+  name: string;
+  version: string;
+  at: string;
+  lastStable?: { version: string; at: string };
+}
 
 /** Entries keyed by package path relative to the project root, `.` for a package at the root. */
 export type VersionRecord = Record<string, VersionRecordEntry>;
