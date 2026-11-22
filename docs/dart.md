@@ -75,7 +75,7 @@ List npm and Dart package directories together in `version.packages`:
 }
 ```
 
-releasekit discovers a Dart package from its `pubspec.yaml`, within your `pnpm-workspace.yaml` globs if you have one. A `pubspec.yaml` beside a `package.json` is versioned with that package. With `version.pub.enabled: false` it's neither versioned nor published.
+releasekit discovers a Dart package from its `pubspec.yaml`, within your `pnpm-workspace.yaml` globs if you have one. A `pubspec.yaml` beside a `package.json` is versioned with that package, which needs a `package.json` at the repo root to be discovered. With `version.pub.enabled: false` it's neither versioned nor published.
 
 ---
 

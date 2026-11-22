@@ -452,10 +452,10 @@ export class VersionEngine {
       const discoveredNpm = this.discoverNpmPackages(workspaceRoot);
       const npmPackages: PackagesWithRoot = discoveredNpm ?? {
         packages: [],
-        root: workspaceRoot,
+        root: path.resolve(workspaceRoot),
         // biome-ignore lint/suspicious/noExplicitAny: Tool type from @manypkg doesn't support repos without package.json
         tool: 'pnpm' as any,
-        rootDir: workspaceRoot,
+        rootDir: path.resolve(workspaceRoot),
       };
 
       const rustPackages = this.discoverCargoTomlPackages(workspaceRoot);
