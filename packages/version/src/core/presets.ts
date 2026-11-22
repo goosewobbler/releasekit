@@ -46,36 +46,47 @@ export function createPreset(name: Preset): BumperPreset {
     // parser has already turned a `!` header into a note, so hiding the header leaves the parse to decide.
     whatBump: (commits) =>
       preset.whatBump(
-        filterRevertedCommits(commits, (commit) => commit).map(
-          (commit) => ({ ...asReapplied(commit, commitParser), header: null }) as Commit,
+        resolveReverts(commits, (commit) => commit, commitParser).map(
+          ({ commit }) => ({ ...commit, header: null }) as Commit,
         ),
       ),
   };
 }
 
 /**
- * Drops each commit that a revert in `items` (newest first) undoes, and the revert with it. `commitOf` must return the
- * item's parsed commit with its `hash`.
+ * Drops each commit that a revert in `items` (newest first) undoes, along with the revert, and treats `Reapply "X"` as
+ * `X` when X's revert was released earlier, so it bumps like the original change. Returns the items left with their
+ * commits. `commitOf` must return the item's parsed commit with its `hash`.
  */
-export function filterRevertedCommits<T>(items: Iterable<T>, commitOf: (item: T) => RevertFields): T[] {
+export function resolveReverts<T, C extends RevertFields>(
+  items: Iterable<T>,
+  commitOf: (item: T) => C,
+  parser: CommitParser,
+): Array<{ item: T; commit: C }> {
   const keyed = [...items].map((item) => {
     const commit = commitOf(item);
-    return { item, header: commit.header, hash: commit.hash, revert: revertOf(commit) ?? commit.revert };
+    const reapply = reapplyOf(commit);
+    // A reapply pairs by hash alone, since a squash merge's ` (#N)` suffix breaks the preset's title match.
+    const revert = reapply ? { hash: reapply.hash } : commit.revert;
+    return { item, commit, reapply, header: commit.header, hash: commit.hash, revert };
   });
-  return [...filterRevertedCommitsSync(keyed)].map(({ item }) => item);
+  return [...filterRevertedCommitsSync(keyed)].map(({ item, commit, reapply }) => {
+    if (!reapply) {
+      return { item, commit };
+    }
+    const message = [reapply.subject, commit.body, commit.footer].filter(Boolean).join('\n\n');
+    return { item, commit: { ...commit, ...parser.parse(message) } as C };
+  });
 }
 
-/**
- * Treats `Reapply "X"` as `X`, to ensure that a change reapplied after it was reverted in a previous release bumps like
- * the original change. Only call it once reverts that cancel out within the range have been removed.
- */
-export function asReapplied(commit: Commit, parser: CommitParser): Commit {
-  const { subject, reverts } = unwrapReverts(commit.header ?? '');
-  if (!isReapply(reverts) || !revertOf(commit)) {
-    return commit;
+/** A reapply that names the revert it undoes, with the subject it reapplies. */
+function reapplyOf({ header, body, footer }: RevertFields): { hash: string; subject: string } | null {
+  const { subject, reverts } = unwrapReverts(header ?? '');
+  if (reverts === 0 || reverts % 2 !== 0) {
+    return null;
   }
-  const message = [subject, commit.body, commit.footer].filter(Boolean).join('\n\n');
-  return { ...commit, ...parser.parse(message) };
+  const hash = `${body ?? ''}\n${footer ?? ''}`.match(REVERTED_HASH_PATTERN)?.[1];
+  return hash ? { hash, subject } : null;
 }
 
 /** `Reapply` is git's title for a revert of a revert, so it counts as two: an even count means the change is back. */
@@ -90,17 +101,4 @@ function unwrapReverts(header: string): { subject: string; reverts: number } {
     reverts += match[1] === 'Reapply' ? 2 : 1;
     subject = match[2];
   }
-}
-
-function isReapply(reverts: number): boolean {
-  return reverts > 0 && reverts % 2 === 0;
-}
-
-/** Matches by hash alone, since a squash merge's ` (#N)` suffix breaks the preset's title match. */
-function revertOf({ header, body, footer }: RevertFields): Commit['revert'] {
-  if (!isReapply(unwrapReverts(header ?? '').reverts)) {
-    return null;
-  }
-  const hash = `${body ?? ''}\n${footer ?? ''}`.match(REVERTED_HASH_PATTERN)?.[1];
-  return hash ? { hash } : null;
 }
