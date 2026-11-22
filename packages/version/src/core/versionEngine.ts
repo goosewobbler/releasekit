@@ -11,6 +11,7 @@ import {
   parsePubspec,
 } from '@releasekit/config';
 import { isPrivatePackageJson, shouldMatchPackageTargets } from '@releasekit/core';
+import { createGitCli } from '@releasekit/git';
 import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
 import { clearCargoBumps, syncCargoLockfiles } from '../cargo/cargoLock.js';
@@ -19,7 +20,12 @@ import { createVersionError, VersionError, VersionErrorCode } from '../errors/ve
 import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { isReleasablePubspec } from '../pub/pubHandler.js';
 import { seedMissingEntries } from '../record/seed.js';
-import { readVersionRecord, VERSION_RECORD_FILE, writeReleasedVersions } from '../record/versionRecord.js';
+import {
+  readVersionRecord,
+  VERSION_RECORD_FILE,
+  type VersionRecord,
+  writeReleasedVersions,
+} from '../record/versionRecord.js';
 import type { Config, VersionRunOptions } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
@@ -643,29 +649,38 @@ export class VersionEngine {
     }
   }
 
+  private async seedRecord(root: string): Promise<VersionRecord> {
+    // Read before the strategy writes anything, so a malformed record fails the run with nothing touched.
+    const existing = readVersionRecord(root);
+    // Every package the version step can release, whatever this run targets: private packages and those outside
+    // version.packages never release, and sync mode reads its shared version from the first of these.
+    const releasable = new Set(this.config.releasablePackageDirs ?? []);
+    const { record, unseeded } = await seedMissingEntries(
+      existing,
+      this.discoveredPackages.filter((pkg) => releasable.has(pkg.dir)),
+      this.config,
+      root,
+    );
+    const seededNames = Object.keys(record)
+      .filter((key) => !existing[key])
+      .map((key) => record[key].name);
+    if (seededNames.length > 0) {
+      log(`Seeding ${VERSION_RECORD_FILE} from release tags: ${seededNames.join(', ')}`, 'info');
+    }
+    for (const { name, reason } of unseeded) {
+      log(`Not seeding ${name} in ${VERSION_RECORD_FILE} (${reason}), so it starts from its manifest`, 'debug');
+    }
+    return record;
+  }
+
   public async run(packages: PackagesWithRoot, targets: string[] = []): Promise<void> {
     try {
       const root = packages.root ?? cwd();
-      // Read before the strategy writes anything, so a malformed record fails the run with nothing touched.
-      const existing = readVersionRecord(root);
-      // Every package the version step can release, whatever this run targets: private packages and those outside
-      // version.packages never release, and sync mode reads its shared version from the first of these.
-      const releasable = new Set(this.config.releasablePackageDirs ?? []);
-      const { record, unseeded } = await seedMissingEntries(
-        existing,
-        this.discoveredPackages.filter((pkg) => releasable.has(pkg.dir)),
-        this.config,
-        root,
-      );
-      const seededNames = Object.keys(record)
-        .filter((key) => !existing[key])
-        .map((key) => record[key].name);
-      if (seededNames.length > 0) {
-        log(`Seeding ${VERSION_RECORD_FILE} from release tags: ${seededNames.join(', ')}`, 'info');
-      }
-      for (const { name, reason } of unseeded) {
-        log(`Not seeding ${name} in ${VERSION_RECORD_FILE} (${reason}), so it starts from its manifest`, 'debug');
-      }
+      // A record needs a commit to point at, so a project with no history gets none.
+      const at = await createGitCli()
+        .headSha(root)
+        .catch(() => undefined);
+      const record = at ? await this.seedRecord(root) : undefined;
       clearCargoBumps();
       clearReleasedVersions();
       // Callers pass the targets they were given, which the prerequisite expansion has since widened.
@@ -675,7 +690,16 @@ export class VersionEngine {
       if (Object.keys(this.prerequisiteOf).length > 0) {
         tagPrerequisiteRoles(this.config.overrideScope ?? [], this.prerequisiteOf);
       }
-      await writeReleasedVersions(record, getReleasedVersions(), packages.packages, root, this.config.dryRun ?? false);
+      if (record && at) {
+        await writeReleasedVersions(
+          record,
+          at,
+          getReleasedVersions(),
+          packages.packages,
+          root,
+          this.config.dryRun ?? false,
+        );
+      }
       if (isJsonOutputMode()) {
         // Bundled sections only enrich notes, so a failure here mustn't stop the release.
         await recordBundledReleases(getJsonData(), this.discoveredPackages, this.config, packages.root ?? cwd()).catch(

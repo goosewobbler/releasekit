@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
-import { createGitCli } from '@releasekit/git';
 import semver from 'semver';
 import { z } from 'zod';
 import { writeVersionFile } from '../utils/jsonOutput.js';
@@ -90,6 +89,7 @@ export function recordRelease(
  */
 export async function writeReleasedVersions(
   record: VersionRecord,
+  at: string,
   releasedVersions: ReadonlyMap<string, string>,
   packages: Package[],
   root: string,
@@ -102,7 +102,6 @@ export async function writeReleasedVersions(
   if (released.length === 0) {
     return;
   }
-  const at = await createGitCli().headSha(root);
   const updated = { ...record };
   for (const { key, name, version } of released) {
     updated[key] = recordRelease(updated[key], name, version, at);

@@ -182,12 +182,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     fs.writeFileSync(fixtureLock, appLock({ alpha: '1.0.0', beta: '1.0.0' }));
 
     git(root, 'init', '-q');
-    git(root, 'config', 'user.email', 'test@example.com');
-    git(root, 'config', 'user.name', 'Test');
-    git(root, 'config', 'commit.gpgsign', 'false');
     git(root, 'add', '-A');
-    // The version record is written at HEAD.
-    git(root, 'commit', '-qm', 'init');
   });
 
   afterEach(() => {
@@ -233,21 +228,6 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     writeCrate(path.join(appDir, 'src-tauri'), 'desktop', '0.4.0');
     fs.writeFileSync(crateLock, 'version = 4\n\n[[package]]\nname = "desktop"\nversion = "0.4.0"\n');
     const app = { dir: appDir, relativeDir: '.', packageJson: { name: 'desktop', version: '0.4.0' } } as unknown;
-    git(appDir, 'init', '-q');
-    git(
-      appDir,
-      '-c',
-      'user.name=Test',
-      '-c',
-      'user.email=test@example.com',
-      '-c',
-      'commit.gpgsign=false',
-      'commit',
-      '-q',
-      '--allow-empty',
-      '-m',
-      'init',
-    );
     bump({ desktop: '0.5.0' });
 
     try {
