@@ -61,7 +61,12 @@ describe('the version record in a release', { timeout: 30_000 }, () => {
     git(repo, 'config', 'user.email', 'test@example.com');
     git(repo, 'config', 'user.name', 'Test');
     git(repo, 'add', '-A');
-    git(repo, 'commit', '-q', '-m', 'chore: init');
+    // Tags sort by creation date, so the setup tags predate the ones the releases create.
+    const date = '2020-01-01T00:00:00Z';
+    execFileSync('git', ['commit', '-q', '-m', 'chore: init'], {
+      cwd: repo,
+      env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
+    });
     git(repo, 'tag', 'a@v1.0.0');
     git(repo, 'tag', 'b@v1.0.0');
     let record: Record<string, unknown> | undefined;

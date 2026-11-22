@@ -131,18 +131,13 @@ async function seedFrom(lookup: ReleaseLookup, config: Config, root: string): Pr
 }
 
 /**
- * Seeds `releasekit.versions.json` with each package's last release as a version run resolves it today, keeping any
- * entry the record already has. Writes the file only when it seeds something.
+ * Seeds `releasekit.versions.json` for the project in the working directory, where the tag lookups run, with each
+ * package's last release as a version run resolves it today. Keeps any entry the record already has.
  */
-/** Seeds the record of the project in the working directory, where the tag lookups run. */
 export async function migrateVersionRecord(options: { configPath?: string } = {}): Promise<MigrationResult> {
   const config = loadConfig({ configPath: options.configPath });
   const workspace = await new VersionEngine(config, { dryRun: true }).getWorkspacePackages();
   const root = workspace.root;
-  const packages = workspace.packages.filter(
-    (pkg) =>
-      shouldProcessPackage(pkg.packageJson.name, config.skip) && hasManifestToBump(pkg.dir, config, { repoRoot: root }),
-  );
   const mode = config.sync
     ? 'sync'
     : Object.keys(config.groups ?? {}).length > 0
@@ -150,6 +145,12 @@ export async function migrateVersionRecord(options: { configPath?: string } = {}
       : workspace.packages.length === 1
         ? 'single'
         : 'async';
+  // Group mode bumps only a package's own manifests, so cargo.paths and pub.paths don't make it versionable.
+  const packages = workspace.packages.filter(
+    (pkg) =>
+      shouldProcessPackage(pkg.packageJson.name, config.skip) &&
+      hasManifestToBump(pkg.dir, config, { repoRoot: root, ignorePaths: mode === 'group' }),
+  );
 
   const record = readVersionRecord(root);
   const result: MigrationResult = { file: versionRecordPath(root), written: false, seeded: [], kept: [], unseeded: [] };
