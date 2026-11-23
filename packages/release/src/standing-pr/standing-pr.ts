@@ -295,6 +295,9 @@ async function commitAndForcePush(
   await git.push({ remote: 'origin', ref: branch, forceWithLease: true, cwd });
 }
 
+/** A release tag is already on the remote at another commit. */
+export class TagCollisionError extends Error {}
+
 /**
  * Standing-PR publish sets `skipGitCommit: true` to avoid duplicating the squash-merge commit, which also skips the
  * pipeline's tag creation. Mirrors `runGitCommitStage`'s idempotency (packages/publish/src/stages/git-commit.ts).
@@ -319,7 +322,7 @@ export async function createReleaseTags(tags: string[], cwd: string, remote: str
   const remoteTags = await git.remoteTags(remote, cwd);
   const taken = tags.filter((tag) => remoteTags[tag] !== undefined && remoteTags[tag] !== headSha);
   if (taken.length > 0) {
-    throw new Error(
+    throw new TagCollisionError(
       `Can't tag this release at ${headSha}: ${taken.map((tag) => `${tag} is at ${remoteTags[tag]}`).join(', ')} ` +
         'on the remote, so that version was already released. Leave the tags and roll forward with the next release.',
     );
@@ -1993,6 +1996,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
             prNumber,
             standingPrNumber: prNumber,
             retryLabelAvailable: true,
+            alreadyReleased: err.cause instanceof TagCollisionError,
           },
           manifest.versionOutput,
           err,

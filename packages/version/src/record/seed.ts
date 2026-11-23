@@ -25,7 +25,7 @@ interface ReleaseLookup {
   sourceDir: string;
 }
 
-type Seed = { entry: Omit<VersionRecordEntry, 'name'> } | { reason: string };
+type Seed = { entry: Omit<VersionRecordEntry, 'name'> } | { reason: string } | { mismatch: VersionMismatchError };
 
 async function tagCommit(tag: string, cwd: string): Promise<string> {
   return (await createGitCli().log({ range: `refs/tags/${tag}`, format: '%H', extraArgs: ['-1'], cwd })).trim();
@@ -106,9 +106,8 @@ async function seedFrom(lookup: ReleaseLookup, config: Config, root: string): Pr
     const source = await getBestVersionSource(lookup.tag, manifestVersion, lookup.sourceDir, config.mismatchStrategy);
     version = source.source === 'git' ? versionFromTag(lookup.tag) : source.version;
   } catch (error) {
-    // Under `mismatchStrategy: 'error'` a mismatch fails the run, as the lookup did before the record.
     if (error instanceof VersionMismatchError) {
-      throw error;
+      return { mismatch: error };
     }
     return { reason: error instanceof Error ? error.message : String(error) };
   }
@@ -133,6 +132,13 @@ async function seedFrom(lookup: ReleaseLookup, config: Config, root: string): Pr
   return { entry };
 }
 
+export interface SeedResult {
+  record: VersionRecordEntries;
+  unseeded: Array<{ name: string; reason: string }>;
+  /** Under `mismatchStrategy: 'error'`, each package whose tag and manifest disagree, by entry key. */
+  mismatches: Record<string, VersionMismatchError>;
+}
+
 /**
  * Gives each package without an entry its last release, found with the tag lookup a version run uses today. A package
  * with no reachable tag gets no entry and starts from its manifest.
@@ -142,7 +148,7 @@ export async function seedMissingEntries(
   packages: Package[],
   config: Config,
   root: string,
-): Promise<{ record: VersionRecordEntries; unseeded: Array<{ name: string; reason: string }> }> {
+): Promise<SeedResult> {
   const mode = seedMode(config, packages.length);
   // Group mode bumps only a package's own manifests, so cargo.paths and pub.paths don't make it versionable.
   const missing = packages.filter(
@@ -154,6 +160,7 @@ export async function seedMissingEntries(
 
   const seeded: VersionRecordEntries = { ...record };
   const unseeded: Array<{ name: string; reason: string }> = [];
+  const mismatches: Record<string, VersionMismatchError> = {};
   let syncSeed: Seed | undefined;
   for (const pkg of missing) {
     const name = pkg.packageJson.name;
@@ -164,11 +171,13 @@ export async function seedMissingEntries(
     } else {
       seed = await seedFrom(await packageLookup(config, pkg, mode), config, root);
     }
-    if ('reason' in seed) {
+    if ('mismatch' in seed) {
+      mismatches[versionRecordKey(root, pkg.dir)] = seed.mismatch;
+    } else if ('reason' in seed) {
       unseeded.push({ name, reason: seed.reason });
     } else {
       seeded[versionRecordKey(root, pkg.dir)] = { name, ...seed.entry };
     }
   }
-  return { record: seeded, unseeded };
+  return { record: seeded, unseeded, mismatches };
 }

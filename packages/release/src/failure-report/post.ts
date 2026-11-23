@@ -23,6 +23,8 @@ export interface PostFailureReportContext {
   prNumber?: number;
   standingPrNumber?: number;
   retryLabelAvailable?: boolean;
+  /** See RecoveryContext.alreadyReleased. */
+  alreadyReleased?: boolean;
 }
 
 export async function postFailureReport(
@@ -39,6 +41,7 @@ export async function postFailureReport(
       mode: ctx.mode,
       standingPrNumber: ctx.standingPrNumber,
       retryLabelAvailable: ctx.retryLabelAvailable,
+      alreadyReleased: ctx.alreadyReleased,
     },
   });
 

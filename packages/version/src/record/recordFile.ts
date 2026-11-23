@@ -23,6 +23,8 @@ const INITIAL_VERSION = '0.1.0';
 export class VersionRecord {
   /** Entries whose path no longer holds a package, dropped when the record is next written. */
   private orphans: string[] = [];
+  /** Under `mismatchStrategy: 'error'`, seeding's tag and manifest mismatches, raised when the package is versioned. */
+  private mismatches: Record<string, Error> = {};
   /** Versions the remote base branch's record released at or after the run's commit, by entry key. */
   private releasedAfterRun = new Map<string, string>();
 
@@ -43,8 +45,8 @@ export class VersionRecord {
   }
 
   /**
-   * Moves each entry whose path no longer holds one of `discovered` to a package with no entry and the same name.
-   * Any other such entry is removed when the record is next written. Returns the names moved.
+   * Moves each entry whose path no longer holds one of `discovered` to the one package with no entry and the same
+   * name. Any other such entry is removed when the record is next written. Returns the names moved.
    */
   reconcile(discovered: Package[]): string[] {
     const byKey = new Map(discovered.map((pkg) => [versionRecordKey(this.root, pkg.dir), pkg]));
@@ -54,9 +56,11 @@ export class VersionRecord {
         continue;
       }
       delete this.entries[key];
-      const target = discovered.find(
+      const candidates = discovered.filter(
         (pkg) => pkg.packageJson.name === entry.name && !this.entries[versionRecordKey(this.root, pkg.dir)],
       );
+      // Several packages with the name, say an npm package and a crate, leave it unclear which one moved.
+      const target = candidates.length === 1 ? candidates[0] : undefined;
       if (target) {
         this.entries[versionRecordKey(this.root, target.dir)] = entry;
         moved.push(entry.name);
@@ -92,7 +96,8 @@ export class VersionRecord {
     packages: Package[],
     config: Config,
   ): Promise<{ seeded: string[]; unseeded: Array<{ name: string; reason: string }> }> {
-    const { record, unseeded } = await seedMissingEntries(this.entries, packages, config, this.root);
+    const { record, unseeded, mismatches } = await seedMissingEntries(this.entries, packages, config, this.root);
+    this.mismatches = mismatches;
     const seeded = Object.keys(record)
       .filter((key) => !this.entries[key])
       .map((key) => record[key].name);
@@ -127,6 +132,10 @@ export class VersionRecord {
   /** The package's entry, else `fallback`, else its first enabled ecosystem's manifest version, else 0.1.0. */
   current(pkg: Package, config: Config, fallback?: CurrentVersion): CurrentVersion {
     const key = versionRecordKey(this.root, pkg.dir);
+    const mismatch = this.mismatches[key];
+    if (mismatch) {
+      throw mismatch;
+    }
     const entry = this.entries[key];
     const releasedAfterRun = this.releasedAfterRun.get(key);
     if (entry) {

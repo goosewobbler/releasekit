@@ -5064,7 +5064,10 @@ describe('runStandingPRPublish', () => {
     ).rejects.toThrow(`${tag} is at othersha on the remote`);
 
     expect(runPublishStep).not.toHaveBeenCalled();
-    expect(forge.comments.filter((c) => c.body.startsWith(FAILURE_MARKER))).toHaveLength(1);
+    const reports = forge.comments.filter((c) => c.body.startsWith(FAILURE_MARKER));
+    expect(reports).toHaveLength(1);
+    expect(reports[0]?.body).toContain('Roll forward with the next release');
+    expect(reports[0]?.body).not.toContain('release:retry');
   });
 
   describe('on a push', () => {
