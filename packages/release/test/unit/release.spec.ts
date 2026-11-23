@@ -84,6 +84,9 @@ vi.mock('@releasekit/publish', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/publish')>();
   return {
     PipelineError: actual.PipelineError,
+    BasePublishError: actual.BasePublishError,
+    PublishErrorCode: actual.PublishErrorCode,
+    createPublishError: actual.createPublishError,
     runPipeline: (...args: unknown[]) => mockPublishRunPipeline(...args),
     loadConfig: (...args: unknown[]) => mockPublishLoadConfig(...args),
     resolvePushRemote: async (git: { remote: string }) => git.remote,
@@ -838,6 +841,25 @@ describe('runRelease', () => {
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('Not checking whether this commit was already released'),
       );
+    });
+
+    it('should tell the PR to roll forward, not re-run, when the remote already has a release tag', async () => {
+      const publish = await import('@releasekit/publish');
+      const collision = publish.createPublishError(
+        publish.PublishErrorCode.GIT_TAG_EXISTS,
+        'Tag v1.1.0 already exists',
+      );
+      const output = { ...mockPublishOutput, git: { committed: false, tags: [], pushed: false }, pub: [] };
+      mockPublishRunPipeline.mockRejectedValueOnce(
+        new publish.PipelineError(collision.message, 'git-commit', output, collision),
+      );
+      merge({ number: 123, labels: ['bump:minor'] });
+
+      await expect(runRelease(noTarget)).rejects.toThrow('This version was already released');
+
+      const report = forge.comments.find((c) => c.prNumber === 123 && c.body.startsWith(FAILURE_MARKER))?.body;
+      expect(report).toContain('Roll forward with the next release');
+      expect(report).not.toContain('Re-run failed jobs');
     });
 
     it('should release only the scope of a merged PR with a scope label', async () => {

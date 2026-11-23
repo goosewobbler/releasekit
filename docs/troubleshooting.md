@@ -164,7 +164,7 @@ env:
 
 **Cause:** The remote already has the tag at another commit, so that version was released before. Tags are created locally before publishing; a local tag that isn't on the remote, such as one a failed batch run left behind, is replaced instead.
 
-**Fix:** Do not delete a tag whose version was published. Confirm with `git ls-remote --tags origin`. Re-run a batch publish (already-published versions are skipped) or roll forward — see [Recovering from a failed publish](#recovering-from-a-failed-publish).
+**Fix:** Roll forward with the next release, which bumps past this one. Don't delete or move the remote tag; confirm where it points with `git ls-remote --tags origin`. See [Recovering from a failed publish](#recovering-from-a-failed-publish).
 
 ---
 

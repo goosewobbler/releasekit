@@ -148,7 +148,7 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
       const remoteSha = remoteTags?.[tag];
       if (remoteSha !== undefined && remoteSha !== headSha) {
         throw createPublishError(
-          PublishErrorCode.GIT_TAG_ERROR,
+          PublishErrorCode.GIT_TAG_EXISTS,
           `Tag ${tag} already exists on ${config.git.remote} at a different commit (${remoteSha}) than HEAD (${headSha})`,
         );
       }

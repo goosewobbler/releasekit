@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import type { VersionOutput } from '@releasekit/core';
 import { info, warn } from '@releasekit/core';
 import { type Forge, type ForgeComment, isBotComment } from '@releasekit/forge';
-import type { PipelineError } from '@releasekit/publish';
+import { BasePublishError, type PipelineError, PublishErrorCode } from '@releasekit/publish';
 import { postOrUpdateComment } from '../github.js';
 import { findTrustedComment, type TrustedCommentLookup } from '../trusted-comment.js';
 import {
@@ -25,6 +25,11 @@ export interface PostFailureReportContext {
   retryLabelAvailable?: boolean;
   /** See RecoveryContext.alreadyReleased. */
   alreadyReleased?: boolean;
+}
+
+/** A release tag already on the remote at another commit: a retry fails the same way. */
+export function isTagCollision(err: PipelineError): boolean {
+  return err.cause instanceof BasePublishError && err.cause.code === PublishErrorCode.GIT_TAG_EXISTS;
 }
 
 export async function postFailureReport(

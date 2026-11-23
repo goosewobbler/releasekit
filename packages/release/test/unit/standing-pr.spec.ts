@@ -270,6 +270,17 @@ describe('createReleaseTags', () => {
     expect(fakeGit.tagged).toEqual([{ name: 'v1.2.3', message: 'Release v1.2.3', force: true }]);
   });
 
+  it('should fail when replacing a stale tag fails, rather than push it at its old commit', async () => {
+    fakeGit = new ControllableGit({ headSha: 'abc123', existingRefs: ['refs/tags/v1.2.3'] });
+    fakeGit.subjects = ['feat: some feature'];
+    fakeGit.tagCommitSha = 'othersha';
+    vi.spyOn(fakeGit, 'tag').mockRejectedValue(new Error('cannot lock ref'));
+
+    await expect(createReleaseTags(['v1.2.3'], '/tmp/test', 'origin')).rejects.toThrow(
+      'Failed to create tag v1.2.3: cannot lock ref',
+    );
+  });
+
   it('should fail without tagging when origin has a tag at a different commit', async () => {
     fakeGit = new ControllableGit({ headSha: 'abc123', remoteTags: { origin: { 'v1.2.3': 'othersha' } } });
 

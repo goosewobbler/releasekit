@@ -34,7 +34,6 @@ export interface GitCommitOptions {
 export interface GitTagOptions {
   /** Makes the tag annotated; omitted, the tag is lightweight. */
   message?: string;
-  /** Replaces a tag of the same name. */
   force?: boolean;
   cwd?: string;
 }
@@ -100,7 +99,6 @@ export interface Git {
   isRepository(cwd?: string): Promise<boolean>;
   currentBranch(cwd?: string): Promise<string>;
   headSha(cwd?: string): Promise<string>;
-  /** Whether the repository is a shallow clone. */
   isShallow(cwd?: string): Promise<boolean>;
   remoteUrl(remote: string, cwd?: string): Promise<string | null>;
   listTags(opts?: GitListTagsOptions): Promise<string[]>;
