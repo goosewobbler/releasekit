@@ -4,7 +4,7 @@ Date: 2026-11-20
 
 ## Status
 
-Accepted. Implementation tracked in [#1066](https://github.com/goosewobbler/releasekit/issues/1066) and [#958](https://github.com/goosewobbler/releasekit/issues/958).
+Accepted. Implementation tracked in [#1066](https://github.com/goosewobbler/releasekit/issues/1066) and [#958](https://github.com/goosewobbler/releasekit/issues/958). Amended by [0010](./0010-seeding-the-version-record-is-temporary.md): seeding is temporary, and records on different branches aren't reconciled automatically.
 
 ## Context
 
