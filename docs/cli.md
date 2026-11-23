@@ -334,6 +334,21 @@ Version a package or packages based on configuration and conventional commits. A
 releasekit version --json --dry-run
 ```
 
+### Version record
+
+Releases record each package's version in `releasekit.versions.json` at the project root, keyed by package path, in the release commit. An entry holds its `version` and `at`, the commit the release was computed from, and a prerelease entry also holds its last stable release. A package without an entry is seeded from its last release tag, with `at` the commit the tag points to, so the first release after upgrading writes a full record. A package with no tag gets no entry.
+
+```json
+{
+  "packages/core": {
+    "name": "@scope/core",
+    "version": "2.1.0-next.1",
+    "at": "<commit sha>",
+    "lastStable": { "version": "2.0.0", "at": "<commit sha>" }
+  }
+}
+```
+
 ---
 
 ## `releasekit notes`

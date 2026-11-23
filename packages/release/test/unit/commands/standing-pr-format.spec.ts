@@ -26,7 +26,8 @@ for (const file of files) {
 }
 `;
 
-describe('git.formatCommand in a standing-PR update', () => {
+// Runs the real version engine three times, which can exceed the 5s default under a full turbo run.
+describe('git.formatCommand in a standing-PR update', { timeout: 30_000 }, () => {
   let root: string;
   let repo: string;
   let remote: string;
@@ -113,7 +114,11 @@ describe('git.formatCommand in a standing-PR update', () => {
     const envelope = await update();
 
     expect(envelope).toMatchObject({ status: 'success', data: { action: 'created' } });
-    expect(readFileSync(log, 'utf-8').split('\n').filter(Boolean).sort()).toEqual(['CHANGELOG.md', 'package.json']);
+    expect(readFileSync(log, 'utf-8').split('\n').filter(Boolean).sort()).toEqual([
+      'CHANGELOG.md',
+      'package.json',
+      'releasekit.versions.json',
+    ]);
     expect(git(remote, 'show', 'release/next:package.json')).toBe('{\n\t"name": "rk-pkg",\n\t"version": "1.1.0"\n}');
     expect(git(remote, 'show', 'release/next:CHANGELOG.md')).toMatch(/1\.1\.0[\s\S]*# formatted$/);
     expect(git(repo, 'status', '--porcelain')).toBe('');

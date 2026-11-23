@@ -19,6 +19,8 @@ let _jsonOutputMode = false;
 
 const _pendingWrites: Array<{ path: string; content: string }> = [];
 const _writtenFiles = new Set<string>();
+/** Collected in every mode, since the version record is updated with or without `--json`. */
+const _releasedVersions = new Map<string, string>();
 
 const _jsonData: VersionOutput = {
   dryRun: false,
@@ -111,6 +113,7 @@ export function setVersioningStrategy(strategy: 'sync' | 'single' | 'async' | 'g
  * native sibling's write surfaces it twice downstream under its crate/pub name.
  */
 export function addPackageUpdate(packageName: string, newVersion: string, filePath: string, isRoot?: boolean): void {
+  _releasedVersions.set(packageName, newVersion);
   if (!_jsonOutputMode) {
     return;
   }
@@ -141,6 +144,14 @@ export function addPackageUpdate(packageName: string, newVersion: string, filePa
   }
 
   _jsonData.updates.push(update);
+}
+
+export function getReleasedVersions(): ReadonlyMap<string, string> {
+  return _releasedVersions;
+}
+
+export function clearReleasedVersions(): void {
+  _releasedVersions.clear();
 }
 
 export function setPackageUpdateTag(packageName: string, tag: string): void {

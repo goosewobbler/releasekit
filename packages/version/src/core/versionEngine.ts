@@ -13,6 +13,7 @@ import {
   parsePubspec,
 } from '@releasekit/config';
 import { isPrivatePackageJson, shouldMatchPackageTargets } from '@releasekit/core';
+import { createGitCli } from '@releasekit/git';
 import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
 import { clearCargoBumps, syncCargoLockfiles } from '../cargo/cargoLock.js';
@@ -20,10 +21,18 @@ import { raiseCargoDependentRequirements } from '../cargo/dependentRequirements.
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
 import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { isReleasablePubspec } from '../pub/pubHandler.js';
+import { VersionRecord } from '../record/recordFile.js';
+import { VERSION_RECORD_FILE } from '../record/versionRecord.js';
 import type { Config, VersionRunOptions } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
-import { getJsonData, isJsonOutputMode, tagPrerequisiteRoles } from '../utils/jsonOutput.js';
+import {
+  clearReleasedVersions,
+  getJsonData,
+  getReleasedVersions,
+  isJsonOutputMode,
+  tagPrerequisiteRoles,
+} from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { recordBundledReleases } from './bundling.js';
 import { isGroupMode } from './groupResolution.js';
@@ -633,9 +642,35 @@ export class VersionEngine {
     }
   }
 
+  private async openRecord(root: string, at: string): Promise<VersionRecord> {
+    // Opened before the strategy writes anything, so a malformed record fails the run with nothing touched.
+    const record = VersionRecord.open(root, at);
+    // Every package the version step can release, whatever this run targets: private packages and those outside
+    // version.packages never release, and sync mode reads its shared version from the first of these.
+    const releasable = new Set(this.config.releasablePackageDirs ?? []);
+    const { seeded, unseeded } = await record.seed(
+      this.discoveredPackages.filter((pkg) => releasable.has(pkg.dir)),
+      this.config,
+    );
+    if (seeded.length > 0) {
+      log(`Seeding ${VERSION_RECORD_FILE} from release tags: ${seeded.join(', ')}`, 'debug');
+    }
+    for (const { name, reason } of unseeded) {
+      log(`Not seeding ${name} in ${VERSION_RECORD_FILE} (${reason}), so it starts from its manifest`, 'debug');
+    }
+    return record;
+  }
+
   public async run(packages: PackagesWithRoot, targets: string[] = []): Promise<void> {
     try {
+      const root = packages.root ?? cwd();
+      // A record needs a commit to point at, so a project with no history gets none.
+      const at = await createGitCli()
+        .headSha(root)
+        .catch(() => undefined);
+      const record = at ? await this.openRecord(root, at) : undefined;
       clearCargoBumps();
+      clearReleasedVersions();
       // Callers pass the targets they were given, which the prerequisite expansion has since widened.
       await this.currentStrategy(packages, this.targetsExpanded ? this.runtimeTargets : targets);
       await raiseCargoDependentRequirements(packages.root ?? cwd(), this.config.dryRun ?? false);
@@ -643,6 +678,7 @@ export class VersionEngine {
       if (Object.keys(this.prerequisiteOf).length > 0) {
         tagPrerequisiteRoles(this.config.overrideScope ?? [], this.prerequisiteOf);
       }
+      record?.saveReleases(getReleasedVersions(), packages.packages, this.config.dryRun ?? false);
       if (isJsonOutputMode()) {
         // Bundled sections only enrich notes, so a failure here mustn't stop the release.
         await recordBundledReleases(getJsonData(), this.discoveredPackages, this.config, packages.root ?? cwd()).catch(
