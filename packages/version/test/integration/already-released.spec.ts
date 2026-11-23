@@ -57,10 +57,10 @@ function release(pkg: string, version: string, others: string[]) {
   git('tag', `${pkg}@v${version}`);
 }
 
-/** Pushes the branch and checks out `commit`, as a re-run of that commit's workflow does. */
+/** Pushes the branch and checks out `commit` as actions/checkout does on a re-run, with origin/main at that commit. */
 function rerunAt(commit: string) {
   git('push', '-q', 'origin', 'HEAD:refs/heads/main');
-  git('fetch', '-q', 'origin');
+  git('update-ref', 'refs/remotes/origin/main', commit);
   git('checkout', '-q', commit);
 }
 
@@ -68,7 +68,7 @@ function runVersionEngine(commit: string): VersionOutput {
   const script = `
     import { VersionEngine, enableJsonOutput, getJsonData, loadConfig } from ${JSON.stringify(pathToFileURL(join(process.cwd(), 'dist/index.js')).href)};
     enableJsonOutput(true);
-    const skipReleasedAfter = { commit: ${JSON.stringify(commit)}, remoteBranch: 'origin/main' };
+    const skipReleasedAfter = { commit: ${JSON.stringify(commit)}, remote: 'origin', branch: 'main' };
     const engine = new VersionEngine(loadConfig(), { dryRun: true, skipReleasedAfter });
     engine.setStrategy('async');
     await engine.run(await engine.getWorkspacePackages());
@@ -88,7 +88,7 @@ describe('skipReleasedAfter', () => {
     cleanupTempDir(remoteDir);
   });
 
-  it("should skip a package the remote branch's record released at the run's commit, though the checkout is behind it", () => {
+  it("should skip a package the remote branch's record released at the run's commit, though the checkout and origin/main are behind it", () => {
     setUp({ 'pkg-a': 'pkg-a', 'pkg-b': 'pkg-b' });
     commitTo('pkg-a', 'correct a typo in a');
     commitTo('pkg-b', 'correct a typo in b');

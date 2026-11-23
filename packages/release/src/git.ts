@@ -17,20 +17,17 @@ export async function tagAfter(sha: string, cwd?: string): Promise<string | null
 }
 
 /**
- * The remote-tracking branch a release lands on: `branch`, else the checked-out branch, else the workflow's branch.
- * Null when none is known, as in a detached checkout outside a branch workflow.
+ * The branch a release lands on: `branch`, else the checked-out branch, else the workflow's branch. Null when none is
+ * known, as in a detached checkout for a tag push.
  */
-export async function releaseBranchRef(
-  remote: string,
-  branch: string | undefined,
-  cwd?: string,
-): Promise<string | null> {
+export async function releaseBranch(branch: string | undefined, cwd?: string): Promise<string | null> {
+  if (branch) {
+    return branch;
+  }
   const current = await createGitCli()
     .currentBranch(cwd)
     .catch(() => 'HEAD');
-  const fromWorkflow = process.env.GITHUB_REF?.match(/^refs\/heads\/(.+)$/)?.[1];
-  const resolved = branch ?? (current === 'HEAD' ? fromWorkflow : current);
-  return resolved ? `${remote}/${resolved}` : null;
+  return current === 'HEAD' ? (process.env.GITHUB_REF?.match(/^refs\/heads\/(.+)$/)?.[1] ?? null) : current;
 }
 
 async function headLog(format: string, cwd?: string): Promise<string | null> {

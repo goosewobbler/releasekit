@@ -20,7 +20,7 @@ import {
   type StandingPullRequest,
 } from '@releasekit/forge';
 import { createGitCli, isCommitSha } from '@releasekit/git';
-import { PipelineError } from '@releasekit/publish';
+import { loadConfig as loadPublishConfig, PipelineError, resolvePushRemote } from '@releasekit/publish';
 import { z } from 'zod';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
@@ -301,7 +301,7 @@ async function commitAndForcePush(
  * Throws only for a tag that already exists on the remote at another commit; otherwise the pipeline's `--tags` push
  * publishes whatever tags were created.
  */
-export async function createReleaseTags(tags: string[], cwd: string): Promise<void> {
+export async function createReleaseTags(tags: string[], cwd: string, remote: string): Promise<void> {
   if (tags.length === 0) {
     return;
   }
@@ -316,12 +316,12 @@ export async function createReleaseTags(tags: string[], cwd: string): Promise<vo
     return;
   }
 
-  const remoteTags = await git.remoteTags('origin', cwd);
+  const remoteTags = await git.remoteTags(remote, cwd);
   const taken = tags.filter((tag) => remoteTags[tag] !== undefined && remoteTags[tag] !== headSha);
   if (taken.length > 0) {
     throw new Error(
       `Can't tag this release at ${headSha}: ${taken.map((tag) => `${tag} is at ${remoteTags[tag]}`).join(', ')} ` +
-        'on origin. Move or delete those tags, then retry.',
+        'on the remote, so that version was already released. Leave the tags and roll forward with the next release.',
     );
   }
 
@@ -349,6 +349,35 @@ export async function createReleaseTags(tags: string[], cwd: string): Promise<vo
       warn(`Failed to create tag ${tag}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
+}
+
+/** Tags the merge commit for the pipeline to push; a failure is reported as its git stage, with nothing published. */
+async function createStandingReleaseTags(
+  versionOutput: VersionOutput,
+  cwd: string,
+  configPath: string | undefined,
+): Promise<void> {
+  try {
+    const remote = await resolvePushRemote(loadPublishConfig({ cwd, configPath }).git, cwd);
+    await createReleaseTags([...versionOutput.tags, ...(versionOutput.baselineTags ?? [])], cwd, remote);
+  } catch (err) {
+    throw taggingFailure(err);
+  }
+}
+
+function taggingFailure(err: unknown): PipelineError {
+  const output = {
+    dryRun: false,
+    git: { committed: false, tags: [], pushed: false },
+    npm: [],
+    cargo: [],
+    pub: [],
+    verification: [],
+    githubReleases: [],
+    publishSucceeded: false,
+  };
+  const cause = err instanceof Error ? err : undefined;
+  return new PipelineError(err instanceof Error ? err.message : String(err), 'git-commit', output, cause);
 }
 
 async function deleteReleaseBranch(releaseBranch: string, cwd: string, expectedTipSha: string): Promise<void> {
@@ -1931,8 +1960,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     info(`Using the reviewed release notes for ${Object.keys(regionNotes).length} package(s) from the PR body.`);
   }
 
-  await createReleaseTags([...manifest.versionOutput.tags, ...(manifest.versionOutput.baselineTags ?? [])], cwd);
-
   const publishOptions: ReleaseOptions = {
     config: options.config,
     dryRun: false,
@@ -1952,6 +1979,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   let publishOutput: ReleaseOutput['publishOutput'];
   try {
+    await createStandingReleaseTags(manifest.versionOutput, cwd, options.config);
     publishOutput = await runPublishStep(manifest.versionOutput, publishOptions, releaseNotes);
   } catch (err) {
     // Versions are already on main (roll-forward), so report what landed and how to retry. A reporting failure must

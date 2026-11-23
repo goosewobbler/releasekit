@@ -160,7 +160,7 @@ env:
 
 ### Tag vX.Y.Z already exists on the remote
 
-**Symptom:** The publish stage fails with `Tag vX.Y.Z already exists on origin at a different commit` when creating git tags.
+**Symptom:** The publish stage fails with `Tag vX.Y.Z already exists on origin at a different commit` when creating git tags, or a standing-PR publish fails with `Can't tag this release at <sha>: vX.Y.Z is at <sha> on the remote`.
 
 **Cause:** The remote already has the tag at another commit, so that version was released before. Tags are created locally before publishing; a local tag that isn't on the remote, such as one a failed batch run left behind, is replaced instead.
 

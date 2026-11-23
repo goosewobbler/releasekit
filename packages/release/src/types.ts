@@ -48,7 +48,7 @@ export interface ReleaseOptions {
    * Skip a package the remote branch's version record released at or after this commit. Set from the merged PR's commit;
    * not a CLI flag.
    */
-  skipReleasedAfter?: { commit: string; remoteBranch: string };
+  skipReleasedAfter?: { commit: string; remote: string; branch: string };
 }
 
 export interface ReleaseOutput {

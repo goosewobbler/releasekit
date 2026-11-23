@@ -86,6 +86,7 @@ vi.mock('@releasekit/publish', async (importOriginal) => {
     PipelineError: actual.PipelineError,
     runPipeline: (...args: unknown[]) => mockPublishRunPipeline(...args),
     loadConfig: (...args: unknown[]) => mockPublishLoadConfig(...args),
+    resolvePushRemote: async (git: { remote: string }) => git.remote,
   };
 });
 
@@ -808,14 +809,35 @@ describe('runRelease', () => {
     );
 
     it("should have the version step skip what the release branch's remote record released after the pushed commit", async () => {
-      mockLoadReleaseKitConfig.mockReturnValue({ git: { remote: 'upstream', branch: 'release-line' } });
+      mockPublishLoadConfig.mockReturnValueOnce({
+        ...mockPublishConfig,
+        git: { ...mockPublishConfig.git, remote: 'upstream', branch: 'release-line' },
+      });
       merge({ number: 123, labels: ['bump:minor'] });
 
       await runRelease(noTarget);
 
       expect(versionRunOptions()).toMatchObject({
-        skipReleasedAfter: { commit: 'sha-123', remoteBranch: 'upstream/release-line' },
+        skipReleasedAfter: { commit: 'sha-123', remote: 'upstream', branch: 'release-line' },
       });
+    });
+
+    it('should release without the re-run check, and say why, from a detached checkout of a tag push', async () => {
+      vi.stubEnv('GITHUB_REF', 'refs/tags/v1.0.0');
+      mockPublishLoadConfig.mockReturnValueOnce({
+        ...mockPublishConfig,
+        git: { ...mockPublishConfig.git, branch: undefined },
+      });
+      merge({ number: 123, labels: ['bump:minor'] });
+      fakeGit = new FakeGit({ currentBranch: 'HEAD', nearestTag: 'v1.0.0', commits: { '*': 'feat: some feature\n' } });
+
+      const result = await runRelease(noTarget);
+
+      expect(result).not.toBeNull();
+      expect(versionRunOptions().skipReleasedAfter).toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Not checking whether this commit was already released'),
+      );
     });
 
     it('should release only the scope of a merged PR with a scope label', async () => {

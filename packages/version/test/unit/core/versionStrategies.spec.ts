@@ -378,7 +378,7 @@ describe('Version Strategies', () => {
       );
 
       expect(logging.log).toHaveBeenCalledWith(
-        "Main package 'package-z' not found. Using root package for version determination.",
+        "Main package 'package-z' not found. Using the root package for the changelog.",
         'warning',
       );
     });

@@ -6,6 +6,7 @@ import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { runGit } from '../utils/git.js';
 import { updateManifests } from '../utils/manifests.js';
+import { resolvePushRemote } from './git-push.js';
 
 async function hasStagedChanges(git: Git, cwd: string): Promise<boolean> {
   try {
@@ -44,7 +45,7 @@ async function assertHeadIsReleaseCommit(git: Git, commitMessage: string, cwd: s
 async function readRemoteTags(git: Git, ctx: PipelineContext): Promise<Record<string, string>> {
   const { remote } = ctx.config.git;
   try {
-    return await git.remoteTags(remote, ctx.cwd);
+    return await git.remoteTags(await resolvePushRemote(ctx.config.git, ctx.cwd), ctx.cwd);
   } catch (error) {
     throw createPublishError(
       PublishErrorCode.GIT_TAG_ERROR,
@@ -152,9 +153,8 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
         );
       }
       if (await git.refExists(`refs/tags/${tag}`, cwd)) {
-        // The seam can't resolve a tag's commit directly, so go via log. A log failure resolves to '' and
-        // falls through to the GIT_TAG_ERROR throw rather than letting a raw GitError escape the
-        // PublishError contract.
+        // The seam can't resolve a tag's commit directly, so go via log. A log failure resolves to '', so the tag is
+        // replaced, or with no remote tags read, fails as GIT_TAG_ERROR rather than as a raw GitError.
         const tagCommitSha = await git
           .log({ range: tag, format: '%H', extraArgs: ['-1'], cwd })
           .then((out) => out.trim())

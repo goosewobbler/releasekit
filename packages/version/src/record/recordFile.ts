@@ -101,20 +101,22 @@ export class VersionRecord {
   }
 
   /**
-   * Reads the record on the remote base branch, which a re-run's checkout may be behind, for the packages released
-   * at or after the run's commit.
+   * Reads the record at the remote base branch's tip, which a re-run's checkout and its remote-tracking branch may be
+   * behind, for the packages released at or after the run's commit.
    */
-  async loadReleasedAfter({ commit, remoteBranch }: ReleasedAfter): Promise<void> {
+  async loadReleasedAfter({ commit, remote, branch }: ReleasedAfter): Promise<void> {
     const git = createGitCli();
-    const ref = `refs/remotes/${remoteBranch}`;
-    if (!(await git.refExists(ref, this.root))) {
+    try {
+      await git.fetch(remote, { ref: `refs/heads/${branch}`, cwd: this.root });
+    } catch (error) {
       throw new Error(
-        `Can't check what ${remoteBranch} has already released: the checkout has no ${remoteBranch}. Fetch it first.`,
+        `Can't fetch ${branch} to check what it has already released: ${error instanceof Error ? error.message : error}`,
       );
     }
-    const content = await git.readFileAt(ref, VERSION_RECORD_FILE, this.root);
-    const remote = content === null ? {} : parseVersionRecord(content);
-    for (const [key, entry] of Object.entries(remote)) {
+    const tip = (await git.log({ range: 'FETCH_HEAD', format: '%H', extraArgs: ['-1'], cwd: this.root })).trim();
+    const content = await git.readFileAt(tip, VERSION_RECORD_FILE, this.root);
+    const remoteEntries = content === null ? {} : parseVersionRecord(content);
+    for (const [key, entry] of Object.entries(remoteEntries)) {
       // An entry at the run's own commit counts: the remote only has it once that run's release landed.
       if (await git.isAncestor(commit, entry.at, this.root)) {
         this.releasedAfterRun.set(key, entry.version);

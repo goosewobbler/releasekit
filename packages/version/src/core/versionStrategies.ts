@@ -97,15 +97,14 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           mainPkgName = mainPkg.packageJson.name;
           versionSourcePath = mainPkgPath;
           versionSourceName = mainPkgName;
-          log(`Using ${mainPkgName} as primary package for version determination`, 'info');
+          log(`Using ${mainPkgName} as the primary package for the changelog and tag lookup`, 'info');
         } else {
-          log(`Main package '${mainPackage}' not found. Using root package for version determination.`, 'warning');
+          log(`Main package '${mainPackage}' not found. Using the root package for the changelog.`, 'warning');
         }
       } else if (packages.packages.length > 0) {
-        // Read a real version rather than the root package.json's placeholder (e.g. 0.0.0).
         versionSourcePath = packages.packages[0].dir;
         versionSourceName = packages.packages[0].packageJson.name;
-        log(`No mainPackage specified; using ${versionSourceName} as sync version source`, 'info');
+        log(`No mainPackage specified; using ${versionSourceName} for the tag lookup`, 'info');
       }
 
       if (!mainPkgPath) {

@@ -102,7 +102,7 @@ async function seedFrom(lookup: ReleaseLookup, config: Config, root: string): Pr
   }
   let version: string | null;
   try {
-    const manifestVersion = getVersionFromManifests(lookup.sourceDir).version ?? undefined;
+    const manifestVersion = getVersionFromManifests(lookup.sourceDir, config).version ?? undefined;
     const source = await getBestVersionSource(lookup.tag, manifestVersion, lookup.sourceDir, config.mismatchStrategy);
     version = source.source === 'git' ? versionFromTag(lookup.tag) : source.version;
   } catch (error) {

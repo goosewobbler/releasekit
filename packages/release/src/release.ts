@@ -6,7 +6,7 @@ import type { Forge } from '@releasekit/forge';
 import { PipelineError } from '@releasekit/publish';
 import { postFailureReport, resolveFailureReportIfPresent } from './failure-report/post.js';
 import { decideFromMergedPRs, type GateOutput } from './gate/gate.js';
-import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern, releaseBranchRef } from './git.js';
+import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern, releaseBranch } from './git.js';
 import { findMergedPRsForCommit, forgeFor } from './github.js';
 import { resolveScopeToTarget } from './label-utils.js';
 import { markFeederPreviewsStale } from './preview/stale.js';
@@ -101,6 +101,25 @@ function applyVerdict(options: ReleaseOptions, verdict: GateOutput): void {
   options.target ??= verdict.target;
 }
 
+/** What the re-run guard checks: the pushed commit and the branch the release lands on, read as a push reads it. */
+async function releasedAfterGuard(
+  commit: string,
+  options: ReleaseOptions,
+): Promise<ReleaseOptions['skipReleasedAfter']> {
+  const { loadConfig: loadPublishConfig, resolvePushRemote } = await import('@releasekit/publish');
+  const gitConfig = loadPublishConfig({ cwd: options.projectDir, configPath: options.config }).git;
+  const branch = await releaseBranch(options.branch ?? gitConfig.branch, options.projectDir);
+  if (!branch) {
+    warn(
+      "Not checking whether this commit was already released: the checkout is detached and the workflow didn't run " +
+        'for a branch. Set git.branch in your config or pass --branch <name> to check.',
+    );
+    return undefined;
+  }
+  const cwd = options.projectDir ?? process.cwd();
+  return { commit, remote: await resolvePushRemote(gitConfig, cwd), branch };
+}
+
 /** Config can only add skips, never undo a CLI flag. */
 function applyStepOverrides(options: ReleaseOptions, releaseConfig: ReleaseConfig | undefined): void {
   if (releaseConfig?.steps) {
@@ -171,18 +190,8 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     info(`Not releasing: ${verdict.reason}`);
     return null;
   }
-  const pushedSha = getGitHubContext()?.sha;
-  if (verdict && pushedSha) {
+  if (verdict) {
     applyVerdict(options, verdict);
-    const branch = options.branch ?? releaseKitConfig.git?.branch;
-    const remoteBranch = await releaseBranchRef(releaseKitConfig.git?.remote ?? 'origin', branch, options.projectDir);
-    if (!remoteBranch) {
-      throw new Error(
-        "Can't tell which branch this release lands on, to check what it has already released: the checkout is " +
-          'detached. Set git.branch in your config or pass --branch <name>.',
-      );
-    }
-    options.skipReleasedAfter = { commit: pushedSha, remoteBranch };
   }
 
   if (releaseConfig?.ci?.skipPatterns?.length) {
@@ -194,6 +203,11 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
         return null;
       }
     }
+  }
+
+  const pushedSha = getGitHubContext()?.sha;
+  if (verdict && pushedSha) {
+    options.skipReleasedAfter = await releasedAfterGuard(pushedSha, options);
   }
 
   applyStepOverrides(options, releaseConfig);

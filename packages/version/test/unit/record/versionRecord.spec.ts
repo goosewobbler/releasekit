@@ -170,12 +170,12 @@ describe('version record', () => {
       await expect(VersionRecord.open(root, head).assertAncestors()).rejects.toThrow(`a (packages/a) at ${missing}`);
     });
 
-    it("should fail the re-run guard when the checkout doesn't have the remote branch", async () => {
+    it("should fail the re-run guard when the remote branch can't be fetched", async () => {
       const head = git('rev-parse', 'HEAD');
 
       await expect(
-        VersionRecord.open(root, head).loadReleasedAfter({ commit: head, remoteBranch: 'origin/main' }),
-      ).rejects.toThrow('the checkout has no origin/main');
+        VersionRecord.open(root, head).loadReleasedAfter({ commit: head, remote: 'origin', branch: 'main' }),
+      ).rejects.toThrow("Can't fetch main to check what it has already released");
     });
   });
 });

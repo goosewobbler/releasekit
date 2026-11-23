@@ -47,10 +47,9 @@ describe('direct release after a merged PR', () => {
     rmSync(remote, { recursive: true, force: true });
   });
 
-  /** Pushes the branch to `origin`, as a release that landed would, and updates the checkout's view of it. */
+  /** Pushes the branch to `origin`, as a release that landed would. */
   function pushBranch(): void {
     git(repo, 'push', '-q', 'origin', 'HEAD');
-    git(repo, 'fetch', '-q', 'origin');
   }
 
   /** Two packages that both change in the merged PR's commit, configured with `ci` and `version`. Returns that commit. */

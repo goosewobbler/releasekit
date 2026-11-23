@@ -56,16 +56,19 @@ export interface VersionRunOptions {
    */
   exclude?: string[];
   /**
-   * The commit this run releases, and the remote base branch. A package whose entry in that branch's version record
-   * has an `at` at or after the commit is skipped, so a re-run of an older workflow doesn't release it again.
+   * The commit this run releases, and the base branch on the remote. A package whose entry in the version record at
+   * that branch's tip has an `at` at or after the commit is skipped, so a re-run of an older workflow doesn't release
+   * it again.
    */
   skipReleasedAfter?: ReleasedAfter;
 }
 
-/** The commit a re-run releases, and the remote-tracking branch, such as `origin/main`, whose record it checks. */
+/** The commit a run releases, and the remote branch whose tip's version record it checks. */
 export interface ReleasedAfter {
   commit: string;
-  remoteBranch: string;
+  /** A remote name or URL, as a push would use. */
+  remote: string;
+  branch: string;
 }
 
 /** The version a package releases from. */
