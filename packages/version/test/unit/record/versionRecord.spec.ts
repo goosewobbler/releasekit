@@ -45,6 +45,12 @@ describe('version record', () => {
 
       expect(() => readVersionRecord(root)).toThrow('releasekit.versions.json is malformed at "packages/a.version"');
     });
+
+    it('should keep a version with build metadata, as a pubspec carries it', () => {
+      writeFileSync(file(), JSON.stringify({ 'packages/a': { name: 'a', version: '1.2.3+4', at: 'sha' } }));
+
+      expect(readVersionRecord(root)['packages/a'].version).toBe('1.2.3+4');
+    });
   });
 
   describe('recordRelease', () => {
