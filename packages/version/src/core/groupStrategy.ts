@@ -1,7 +1,7 @@
 /**
  * A fixed/linked group's version is `bump(max member baseline)` applied once, using the largest bump
  * any member earned. Members below it (never released, or an older package joining a higher family)
- * adopt it, and a member with no entry in the version record starts from the group's version.
+ * adopt it.
  */
 
 import fs from 'node:fs';
@@ -225,8 +225,8 @@ function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config)
   const creatingPrerelease = bumpType !== 'prerelease' && !semver.prerelease(maxBaseline) && wantsPrerelease;
 
   // Advance within an existing prerelease line (1.0.0-next.0 -> 1.0.0-next.1) - graduation requires
-  // stable=true. Otherwise a prerelease rank re-emits the published baseline (the `bumpType === 'prerelease'`
-  // branch returns it unchanged), which never-regress can't recover when a member's ownNext sits below it.
+  // stable=true. Otherwise a prerelease rank re-emits the published baseline unchanged, which never-regress
+  // can't recover when a member's ownNext sits below it.
   const stayOnPrereleaseLine = !!semver.prerelease(maxBaseline) && wantsPrerelease;
 
   let groupVersion: string;

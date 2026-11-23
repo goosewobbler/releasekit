@@ -657,7 +657,7 @@ export class VersionEngine {
     }
     await record.assertAncestors();
     // Every package the version step can release, whatever this run targets: private packages and those outside
-    // version.packages never release, and sync mode reads its shared version from the first of these.
+    // version.packages never release, and sync mode seeds every entry from mainPackage or the first of these.
     const releasable = new Set(this.config.releasablePackageDirs ?? []);
     const { seeded, unseeded } = await record.seed(
       this.discoveredPackages.filter((pkg) => releasable.has(pkg.dir)),

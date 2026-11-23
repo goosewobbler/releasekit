@@ -168,7 +168,7 @@
         },
         "mainPackage": {
           "type": "string",
-          "description": "The package a single-mode release versions. In sync mode, the release carries its name without packageSpecificTags; the version comes from the version record. The changelog still lists every commit in the release."
+          "description": "The package a single-mode release versions. In sync mode without packageSpecificTags, the release is named after it, but its version comes from the version record. The changelog still lists every commit in the release."
         },
         "skip": {
           "type": "array",

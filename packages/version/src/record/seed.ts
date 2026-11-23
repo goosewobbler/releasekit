@@ -106,7 +106,7 @@ async function seedFrom(lookup: ReleaseLookup, config: Config, root: string): Pr
     const source = await getBestVersionSource(lookup.tag, manifestVersion, lookup.sourceDir, config.mismatchStrategy);
     version = source.source === 'git' ? versionFromTag(lookup.tag) : source.version;
   } catch (error) {
-    // Under mismatchStrategy: error, a tag and manifest that disagree fail the run.
+    // Under mismatchStrategy: error, a mismatch fails the run rather than leaving the package unseeded.
     if (error instanceof VersionMismatchError) {
       throw error;
     }

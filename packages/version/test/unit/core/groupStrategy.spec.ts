@@ -404,8 +404,8 @@ describe('createGroupStrategy', () => {
     });
 
     it('should still advance the prerelease when no prereleaseIdentifier is configured', async () => {
-      // A lower member changing would otherwise re-emit the group's recorded prerelease, which never-regress
-      // can't catch since its ownNext sits below it.
+      // Without the prerelease-line rule, a change in the lower member re-emits the group's recorded prerelease,
+      // and never-regress can't catch it because that member's ownNext sits below it.
       const service = mkPackage('@wdio/flutter-service', '1.0.0-next.0');
       const contract = mkPackage('wdio_flutter', '0.0.1');
 

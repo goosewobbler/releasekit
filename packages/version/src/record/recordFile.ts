@@ -20,7 +20,6 @@ const INITIAL_VERSION = '0.1.0';
 
 /** A version run's `releasekit.versions.json`: the file's entries if it exists, else none, saved when a run releases. */
 export class VersionRecord {
-  /** Entries whose path no longer holds a package, dropped when the record is next written. */
   private orphans: string[] = [];
 
   private constructor(
@@ -54,7 +53,7 @@ export class VersionRecord {
       const candidates = discovered.filter(
         (pkg) => pkg.packageJson.name === entry.name && !this.entries[versionRecordKey(this.root, pkg.dir)],
       );
-      // Several packages with the name, say an npm package and a crate, leave it unclear which one moved.
+      // An npm package and a crate can share a name, and then it's unclear which one moved.
       const target = candidates.length === 1 ? candidates[0] : undefined;
       if (target) {
         this.entries[versionRecordKey(this.root, target.dir)] = entry;
@@ -66,7 +65,7 @@ export class VersionRecord {
     return moved;
   }
 
-  /** Fails when an entry's commit isn't in the history of `HEAD`, as in a shallow clone or a reverted record. */
+  /** Fails when an entry's commit isn't in the history of `HEAD`, as with a record from another branch. */
   async assertAncestors(): Promise<void> {
     const git = createGitCli();
     const notAncestors: string[] = [];

@@ -13,7 +13,7 @@ export interface ManifestVersionResult {
   manifestType: 'package.json' | 'Cargo.toml' | 'pubspec.yaml' | null;
 }
 
-/** With `ecosystems`, a manifest whose ecosystem it turns off is passed over. */
+/** Skips the manifests of ecosystems that `ecosystems` turns off. */
 export function getVersionFromManifests(
   packageDir: string,
   ecosystems: Pick<Config, 'npm' | 'cargo' | 'pub'> = {},
