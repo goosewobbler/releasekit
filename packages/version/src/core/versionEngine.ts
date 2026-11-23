@@ -670,7 +670,7 @@ export class VersionEngine {
       log(`Not seeding ${name} in ${VERSION_RECORD_FILE} (${reason}), so it starts from its manifest`, 'debug');
     }
     if (this.config.skipReleasedAfter) {
-      await record.loadReleasedAfter(this.config.skipReleasedAfter);
+      await record.loadReleasedAfter(this.config.skipReleasedAfter, this.config);
     }
     return record;
   }

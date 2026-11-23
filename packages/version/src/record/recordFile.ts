@@ -2,6 +2,7 @@ import type { Package } from '@manypkg/get-packages';
 import { createGitCli } from '@releasekit/git';
 import semver from 'semver';
 import type { Config, CurrentVersion, ReleasedAfter } from '../types.js';
+import { formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import { writeVersionFile } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
@@ -18,6 +19,12 @@ import {
 } from './versionRecord.js';
 
 const INITIAL_VERSION = '0.1.0';
+
+/** The tag a strategy gives `name`'s release at `version`: sync without per-package tags shares one. */
+function releaseTag(name: string, version: string, config: Config): string {
+  const packageName = config.sync && !config.packageSpecificTags ? null : name;
+  return formatTag(version, formatVersionPrefix(config.versionPrefix), packageName, config.tagTemplate);
+}
 
 /** A version run's `releasekit.versions.json`: the file's entries if it exists, else none, saved when a run releases. */
 export class VersionRecord {
@@ -109,23 +116,38 @@ export class VersionRecord {
    * Reads the record at the remote base branch's tip, which a re-run's checkout and its remote-tracking branch may be
    * behind, for the packages released at or after the run's commit.
    */
-  async loadReleasedAfter({ commit, remote, branch }: ReleasedAfter): Promise<void> {
+  async loadReleasedAfter({ commit, remote, branch }: ReleasedAfter, config: Config): Promise<void> {
     const git = createGitCli();
+    const failure = (what: string, error: unknown) =>
+      new Error(
+        `Can't ${what} to check what it has already released: ${error instanceof Error ? error.message : error}`,
+      );
     try {
       await git.fetch(remote, { ref: `refs/heads/${branch}`, cwd: this.root });
     } catch (error) {
-      throw new Error(
-        `Can't fetch ${branch} to check what it has already released: ${error instanceof Error ? error.message : error}`,
-      );
+      throw failure(`fetch ${branch}`, error);
     }
     const tip = (await git.log({ range: 'FETCH_HEAD', format: '%H', extraArgs: ['-1'], cwd: this.root })).trim();
     const content = await git.readFileAt(tip, VERSION_RECORD_FILE, this.root);
     const remoteEntries = content === null ? {} : parseVersionRecord(content);
+    let remoteTags: Record<string, string> | undefined;
     for (const [key, entry] of Object.entries(remoteEntries)) {
-      // An entry at the run's own commit counts: the remote only has it once that run's release landed.
-      if (await git.isAncestor(commit, entry.at, this.root)) {
-        this.releasedAfterRun.set(key, entry.version);
+      if (!(await git.isAncestor(commit, entry.at, this.root))) {
+        continue;
       }
+      // A release computed at the run's own commit lands its record with the first package's tag, before the rest
+      // publish, so only a package whose tag reached the remote counts: a re-run retries the others.
+      if (await git.isAncestor(entry.at, commit, this.root)) {
+        try {
+          remoteTags ??= await git.remoteTags(remote, this.root);
+        } catch (error) {
+          throw failure('list the remote tags', error);
+        }
+        if (!Object.hasOwn(remoteTags, releaseTag(entry.name, entry.version, config))) {
+          continue;
+        }
+      }
+      this.releasedAfterRun.set(key, entry.version);
     }
   }
 

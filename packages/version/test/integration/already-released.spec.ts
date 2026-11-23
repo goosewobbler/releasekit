@@ -57,9 +57,9 @@ function release(pkg: string, version: string, others: string[]) {
   git('tag', `${pkg}@v${version}`);
 }
 
-/** Pushes the branch and checks out `commit` as actions/checkout does on a re-run, with origin/main at that commit. */
+/** Pushes the branch and tags, and checks out `commit` as actions/checkout does on a re-run, with origin/main at that commit. */
 function rerunAt(commit: string) {
-  git('push', '-q', 'origin', 'HEAD:refs/heads/main');
+  git('push', '-q', '--tags', 'origin', 'HEAD:refs/heads/main');
   git('update-ref', 'refs/remotes/origin/main', commit);
   git('checkout', '-q', commit);
 }
