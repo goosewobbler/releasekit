@@ -6,6 +6,7 @@ import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { runGit } from '../utils/git.js';
 import { updateManifests } from '../utils/manifests.js';
+import { resolvePushRemote } from './git-push.js';
 
 async function hasStagedChanges(git: Git, cwd: string): Promise<boolean> {
   try {
@@ -37,6 +38,18 @@ async function assertHeadIsReleaseCommit(git: Git, commitMessage: string, cwd: s
     throw createPublishError(
       PublishErrorCode.GIT_COMMIT_ERROR,
       `Nothing to commit, and HEAD ("${headSubject}") is not the release commit ("${subject}")`,
+    );
+  }
+}
+
+async function readRemoteTags(git: Git, ctx: PipelineContext): Promise<Record<string, string>> {
+  const { remote } = ctx.config.git;
+  try {
+    return await git.remoteTags(await resolvePushRemote(ctx.config.git, ctx.cwd), ctx.cwd);
+  } catch (error) {
+    throw createPublishError(
+      PublishErrorCode.GIT_TAG_ERROR,
+      `Couldn't list the tags on ${remote}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
@@ -127,34 +140,50 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
 
   // Baseline tags share the release commit but stay separate on VersionOutput so github-release can skip them.
   const allTags = [...input.tags, ...(input.baselineTags ?? [])];
+  const remoteTags = !dryRun && allTags.length > 0 && config.git.push ? await readRemoteTags(git, ctx) : undefined;
+  const headSha = ctx.output.git.commitSha;
+  const taken = allTags.filter((tag) => remoteTags?.[tag] !== undefined && remoteTags[tag] !== headSha);
+  if (taken.length > 0) {
+    throw createPublishError(
+      PublishErrorCode.GIT_TAG_EXISTS,
+      taken
+        .map(
+          (tag) =>
+            `Tag ${tag} already exists on ${config.git.remote} at a different commit (${remoteTags?.[tag]}) than HEAD (${headSha})`,
+        )
+        .join('; '),
+    );
+  }
   for (const tag of allTags) {
+    let replace = false;
     if (!dryRun) {
       if (await git.refExists(`refs/tags/${tag}`, cwd)) {
-        // The seam can't resolve a tag's commit directly, so go via log. A log failure resolves to '' and
-        // falls through to the GIT_TAG_ERROR throw rather than letting a raw GitError escape the
-        // PublishError contract.
-        const [tagCommitSha, headSha] = await Promise.all([
-          git
-            .log({ range: tag, format: '%H', extraArgs: ['-1'], cwd })
-            .then((out) => out.trim())
-            .catch(() => ''),
-          git.headSha(cwd),
-        ]);
+        // The seam can't resolve a tag's commit directly, so go via log. A log failure resolves to '', so the tag is
+        // replaced, or with no remote tags read, fails as GIT_TAG_ERROR rather than as a raw GitError.
+        const tagCommitSha = await git
+          .log({ range: tag, format: '%H', extraArgs: ['-1'], cwd })
+          .then((out) => out.trim())
+          .catch(() => '');
         if (tagCommitSha === headSha) {
           info(`Tag ${tag} already exists at current commit, skipping`);
           ctx.output.git.tags.push(tag);
           continue;
         }
-        throw createPublishError(
-          PublishErrorCode.GIT_TAG_ERROR,
-          `Tag ${tag} already exists at a different commit (${tagCommitSha}) than current HEAD (${headSha})`,
-        );
+        // Without the remote's tags, a local tag can't be told apart from a released one.
+        if (!remoteTags) {
+          throw createPublishError(
+            PublishErrorCode.GIT_TAG_ERROR,
+            `Tag ${tag} already exists at a different commit (${tagCommitSha}) than current HEAD (${headSha})`,
+          );
+        }
+        info(`Replacing tag ${tag} at ${tagCommitSha}, which was never pushed`);
+        replace = true;
       }
     }
 
     try {
       const tagMessage = `Release ${tag}`;
-      await runGit(dryRun, `git tag ${tag}`, () => git.tag(tag, { message: tagMessage, cwd }));
+      await runGit(dryRun, `git tag ${tag}`, () => git.tag(tag, { message: tagMessage, force: replace, cwd }));
       ctx.output.git.tags.push(tag);
       if (!dryRun) {
         success(`Created tag: ${tag}`);

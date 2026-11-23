@@ -155,6 +155,8 @@ export interface RecoveryContext {
   mode: FailureReportMode;
   standingPrNumber?: number;
   retryLabelAvailable?: boolean;
+  /** A release tag is already on the remote at another commit, so a retry fails the same way. */
+  alreadyReleased?: boolean;
 }
 
 const SAFE_RETRY_NOTE =
@@ -271,6 +273,14 @@ function renderRecovery(
   publishOutput: PublishOutput | undefined,
 ): string[] {
   const lines: string[] = ['### How to recover', ''];
+  if (ctx.alreadyReleased) {
+    lines.push(
+      "Retrying won't help: the remote already has this release's tag at another commit, so that version was released before, and a retry fails the same way.",
+      '',
+      "Raise the version in `releasekit.versions.json` to at least the last released one (`git ls-remote --tags origin` lists the release tags), then release again. Don't delete or move the tags.",
+    );
+    return lines;
+  }
   const pushed = publishOutput?.git.pushed === true;
   const perPackage = pushesPerPackage(versionOutput) && pushed;
   if (ctx.mode === 'standing-pr') {
@@ -311,7 +321,8 @@ export function renderFailureReport(input: FailureReportInput): string {
   const lines: string[] = [
     FAILURE_MARKER,
     STATUS_FIELD.encode('unresolved'),
-    DATA_FIELD.encode({ label, published, total }),
+    // A collision published nothing and a retry fails the same way, so the next standing PR treats it as a refusal.
+    DATA_FIELD.encode({ label, published, total, ...(recovery.alreadyReleased ? { refused: true } : {}) }),
     '',
     `## ❌ Release of ${label} did not complete`,
     '',

@@ -326,6 +326,12 @@ describe('GitCli mutations', () => {
     expect(calls[0].args).toEqual(['tag', 'v1.0.0']);
   });
 
+  it('should replace an existing tag with force', async () => {
+    const { run, calls } = makeRunner();
+    await new GitCli(run).tag('v1.0.0', { message: 'release v1.0.0', force: true });
+    expect(calls[0].args).toEqual(['tag', '-f', '-a', 'v1.0.0', '-m', 'release v1.0.0']);
+  });
+
   it('should fetch from the named remote', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).fetch('origin', { cwd: '/r' });

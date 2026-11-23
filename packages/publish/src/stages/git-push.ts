@@ -1,7 +1,7 @@
 import { info, success } from '@releasekit/core';
 import { createGitCli } from '@releasekit/git';
 import { createPublishError, PublishError, PublishErrorCode } from '../errors/index.js';
-import type { PipelineContext } from '../types.js';
+import type { GitConfig, PipelineContext } from '../types.js';
 import { detectGitPushMethod } from '../utils/auth.js';
 import { runGit } from '../utils/git.js';
 
@@ -34,6 +34,29 @@ export interface PushSetup {
   branch?: string;
 }
 
+/**
+ * The remote a push goes to: `git.remote`, or its URL with the `httpsTokenEnv` token for an HTTPS GitHub remote, so
+ * reads of the remote authenticate as the push does.
+ */
+export async function resolvePushRemote(gitConfig: GitConfig, cwd: string): Promise<string> {
+  const { remote } = gitConfig;
+  let pushMethod = gitConfig.pushMethod;
+  if (pushMethod === 'auto') {
+    try {
+      pushMethod = await detectGitPushMethod(remote, cwd);
+    } catch {
+      pushMethod = 'https';
+    }
+  }
+
+  const httpsToken = gitConfig.httpsTokenEnv ? process.env[gitConfig.httpsTokenEnv] : undefined;
+  if (pushMethod === 'https' && httpsToken) {
+    const remoteUrl = (await createGitCli().remoteUrl(remote, cwd)) ?? '';
+    return toGithubAuthedUrl(remoteUrl, httpsToken) ?? remote;
+  }
+  return remote;
+}
+
 export async function preparePushSetup(ctx: PipelineContext): Promise<PushSetup | null> {
   const { config, cwd } = ctx;
 
@@ -43,26 +66,7 @@ export async function preparePushSetup(ctx: PipelineContext): Promise<PushSetup 
 
   const { remote } = config.git;
   const git = createGitCli();
-
-  let pushMethod = config.git.pushMethod;
-  if (pushMethod === 'auto') {
-    try {
-      pushMethod = await detectGitPushMethod(remote, cwd);
-    } catch {
-      pushMethod = 'https';
-    }
-  }
-
-  const httpsToken = config.git.httpsTokenEnv ? process.env[config.git.httpsTokenEnv] : undefined;
-
-  let pushRemote: string = remote;
-  if (pushMethod === 'https' && httpsToken) {
-    const remoteUrl = (await git.remoteUrl(remote, cwd)) ?? '';
-    const authed = toGithubAuthedUrl(remoteUrl, httpsToken);
-    if (authed) {
-      pushRemote = authed;
-    }
-  }
+  const pushRemote = await resolvePushRemote(config.git, cwd);
 
   let branch: string | undefined;
   if (pushesBranch(ctx)) {
@@ -140,28 +144,9 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
   const { remote } = config.git;
   const git = createGitCli();
 
-  let pushMethod = config.git.pushMethod;
-  if (pushMethod === 'auto') {
-    try {
-      pushMethod = await detectGitPushMethod(remote, cwd);
-    } catch {
-      pushMethod = 'https';
-    }
-  }
-
-  const httpsTokenEnv = config.git.httpsTokenEnv;
-  const httpsToken = httpsTokenEnv ? process.env[httpsTokenEnv] : undefined;
-
   try {
     // An authed push URL avoids workflow-specific remote rewriting.
-    let pushRemote: string = remote;
-    if (pushMethod === 'https' && httpsToken) {
-      const remoteUrl = (await git.remoteUrl(remote, cwd)) ?? '';
-      const authed = toGithubAuthedUrl(remoteUrl, httpsToken);
-      if (authed) {
-        pushRemote = authed;
-      }
-    }
+    const pushRemote = await resolvePushRemote(config.git, cwd);
 
     // Branch before tags, so a tag never points at a commit absent from the branch and a branch rejected by a
     // concurrent push or ruleset aborts before any tag lands (orphan tags with `git.pushed` false get no GitHub

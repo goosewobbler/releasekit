@@ -240,12 +240,12 @@ describe('createReleaseTags', () => {
   });
 
   it('should be a no-op for an empty tag list', async () => {
-    await createReleaseTags([], '/tmp/test');
+    await createReleaseTags([], '/tmp/test', 'origin');
     expect(fakeGit.tagged).toHaveLength(0);
   });
 
   it('should create a tag when none exists', async () => {
-    await createReleaseTags(['v1.2.3'], '/tmp/test');
+    await createReleaseTags(['v1.2.3'], '/tmp/test', 'origin');
 
     expect(fakeGit.tagged).toContainEqual({ name: 'v1.2.3', message: 'Release v1.2.3' });
   });
@@ -255,18 +255,38 @@ describe('createReleaseTags', () => {
     fakeGit = new ControllableGit({ headSha: 'abc123', existingRefs: ['refs/tags/v1.2.3'] });
     fakeGit.subjects = ['feat: some feature'];
 
-    await createReleaseTags(['v1.2.3'], '/tmp/test');
+    await createReleaseTags(['v1.2.3'], '/tmp/test', 'origin');
 
     expect(fakeGit.tagged).toHaveLength(0);
   });
 
-  it('should not recreate a tag that points at a different commit', async () => {
+  it("should replace a tag at a different commit that origin doesn't have", async () => {
     fakeGit = new ControllableGit({ headSha: 'abc123', existingRefs: ['refs/tags/v1.2.3'] });
     fakeGit.subjects = ['feat: some feature'];
     fakeGit.tagCommitSha = 'othersha';
 
-    await createReleaseTags(['v1.2.3'], '/tmp/test');
+    await createReleaseTags(['v1.2.3'], '/tmp/test', 'origin');
 
+    expect(fakeGit.tagged).toEqual([{ name: 'v1.2.3', message: 'Release v1.2.3', force: true }]);
+  });
+
+  it('should fail when replacing a stale tag fails, rather than push it at its old commit', async () => {
+    fakeGit = new ControllableGit({ headSha: 'abc123', existingRefs: ['refs/tags/v1.2.3'] });
+    fakeGit.subjects = ['feat: some feature'];
+    fakeGit.tagCommitSha = 'othersha';
+    vi.spyOn(fakeGit, 'tag').mockRejectedValue(new Error('cannot lock ref'));
+
+    await expect(createReleaseTags(['v1.2.3'], '/tmp/test', 'origin')).rejects.toThrow(
+      'Failed to create tag v1.2.3: cannot lock ref',
+    );
+  });
+
+  it('should fail without tagging when origin has a tag at a different commit', async () => {
+    fakeGit = new ControllableGit({ headSha: 'abc123', remoteTags: { origin: { 'v1.2.3': 'othersha' } } });
+
+    await expect(createReleaseTags(['v1.2.3'], '/tmp/test', 'origin')).rejects.toThrow(
+      'v1.2.3 is at othersha on the remote, so that version was already released',
+    );
     expect(fakeGit.tagged).toHaveLength(0);
   });
 
@@ -275,7 +295,7 @@ describe('createReleaseTags', () => {
     fakeGit = new ControllableGit({ headSha: 'abc123', existingRefs: ['refs/tags/@scope/pkg@v1.2.3'] });
     fakeGit.subjects = ['feat: some feature'];
 
-    await createReleaseTags(['v1.2.3', '@scope/pkg@v1.2.3'], '/tmp/test');
+    await createReleaseTags(['v1.2.3', '@scope/pkg@v1.2.3'], '/tmp/test', 'origin');
 
     expect(fakeGit.tagged).toEqual([{ name: 'v1.2.3', message: 'Release v1.2.3' }]);
   });
@@ -283,14 +303,14 @@ describe('createReleaseTags', () => {
   it('should not throw when tag creation fails', async () => {
     vi.spyOn(fakeGit, 'tag').mockRejectedValue(new Error('git tag failed'));
 
-    await expect(createReleaseTags(['v1.2.3'], '/tmp/test')).resolves.toBeUndefined();
+    await expect(createReleaseTags(['v1.2.3'], '/tmp/test', 'origin')).resolves.toBeUndefined();
   });
 
   it('should not throw when HEAD lookup fails', async () => {
     vi.spyOn(fakeGit, 'headSha').mockRejectedValue(new Error('fatal: not a git repository'));
     const tagSpy = vi.spyOn(fakeGit, 'tag');
 
-    await expect(createReleaseTags(['v1.2.3'], '/tmp/test')).resolves.toBeUndefined();
+    await expect(createReleaseTags(['v1.2.3'], '/tmp/test', 'origin')).resolves.toBeUndefined();
     expect(tagSpy).not.toHaveBeenCalled();
   });
 });
@@ -5035,6 +5055,30 @@ describe('runStandingPRPublish', () => {
     expect(fakeGit.tagged.map((t) => t.name)).toEqual(baseManifest.versionOutput.tags);
     const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
     expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
+  });
+
+  it('should report a release tag origin already has at another commit on the PR, and publish nothing', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
+      }),
+    );
+    const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    const [tag] = baseManifest.versionOutput.tags;
+    setupGit({ remoteTags: { origin: { [tag]: 'othersha' } } });
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(`${tag} is at othersha on the remote`);
+
+    expect(runPublishStep).not.toHaveBeenCalled();
+    const reports = forge.comments.filter((c) => c.body.startsWith(FAILURE_MARKER));
+    expect(reports).toHaveLength(1);
+    expect(reports[0]?.body).toContain('Raise the version in `releasekit.versions.json`');
+    expect(reports[0]?.body).not.toContain('release:retry');
   });
 
   describe('on a push', () => {

@@ -23,6 +23,7 @@ function inferStageName(error: unknown): string {
       CARGO_TOML_ERROR: 'prepare',
       GIT_COMMIT_ERROR: 'git-commit',
       GIT_TAG_ERROR: 'git-commit',
+      GIT_TAG_EXISTS: 'git-commit',
       NPM_PUBLISH_ERROR: 'npm-publish',
       NPM_AUTH_ERROR: 'npm-publish',
       CARGO_PUBLISH_ERROR: 'cargo-publish',
