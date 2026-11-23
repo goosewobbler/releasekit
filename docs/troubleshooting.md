@@ -158,13 +158,16 @@ env:
 
 ---
 
-### Tag vX.Y.Z already exists on the remote
+### error: tag vX.Y.Z already exists
 
-**Symptom:** The publish stage fails with `Tag vX.Y.Z already exists on origin at a different commit` when creating git tags, or a standing-PR publish fails with `Can't tag this release at <sha>: vX.Y.Z is at <sha> on the remote`.
+**Symptom:** The publish stage fails with `error: tag vX.Y.Z already exists` when creating git tags.
 
-**Cause:** The remote already has the tag at another commit, so that version was released before. Tags are created locally before publishing; a local tag that isn't on the remote, such as one a failed batch run left behind, is replaced instead.
+**Cause:** A previous run already created the tag. Tags are created locally before publishing. In batch mode a failed run leaves them local only. In per-package mode a package that published has already had its tag pushed.
 
-**Fix:** Roll forward with the next release, which bumps past this one. Don't delete or move the remote tag; confirm where it points with `git ls-remote --tags origin`. See [Recovering from a failed publish](#recovering-from-a-failed-publish).
+**Fix:** Do not delete a tag whose version was published. Confirm with `git ls-remote --tags origin`.
+
+- **Tag only exists locally** (batch failure before the push): delete that local tag (`git tag -d vX.Y.Z`) if it points at a different commit, then re-run **`publish`** with the original version output. Do not re-run `release` on that commit: its subject matches `release.ci.skipPatterns` (`chore: release `), so `release` exits before publishing. Re-running the failed workflow job checks out the pre-release commit and is the right direct-mode retry.
+- **Tag exists on the remote:** the version was published. Leave the tag. Re-run a batch publish (already-published versions are skipped) or roll forward — see [Recovering from a failed publish](#recovering-from-a-failed-publish).
 
 ---
 

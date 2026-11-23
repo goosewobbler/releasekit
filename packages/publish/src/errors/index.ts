@@ -40,7 +40,6 @@ export enum PublishErrorCode {
   CONFIG_ERROR = 'CONFIG_ERROR',
   GIT_COMMIT_ERROR = 'GIT_COMMIT_ERROR',
   GIT_TAG_ERROR = 'GIT_TAG_ERROR',
-  GIT_TAG_EXISTS = 'GIT_TAG_EXISTS',
   GIT_PUSH_ERROR = 'GIT_PUSH_ERROR',
   NPM_PUBLISH_ERROR = 'NPM_PUBLISH_ERROR',
   NPM_AUTH_ERROR = 'NPM_AUTH_ERROR',
@@ -63,7 +62,6 @@ export function createPublishError(code: PublishErrorCode, details?: string): Pu
     [PublishErrorCode.CONFIG_ERROR]: 'Invalid publish configuration',
     [PublishErrorCode.GIT_COMMIT_ERROR]: 'Failed to create git commit',
     [PublishErrorCode.GIT_TAG_ERROR]: 'Failed to create git tag',
-    [PublishErrorCode.GIT_TAG_EXISTS]: 'This version was already released',
     [PublishErrorCode.GIT_PUSH_ERROR]: 'Failed to push to remote',
     [PublishErrorCode.NPM_PUBLISH_ERROR]: 'Failed to publish to npm',
     [PublishErrorCode.NPM_AUTH_ERROR]: 'NPM authentication failed',
@@ -103,7 +101,6 @@ export function createPublishError(code: PublishErrorCode, details?: string): Pu
       'Check if the tag already exists: git tag -l <tag>',
       'Delete existing tag if needed: git tag -d <tag>',
     ],
-    [PublishErrorCode.GIT_TAG_EXISTS]: ["Roll forward with the next release; don't delete or move the remote tag"],
     [PublishErrorCode.GIT_PUSH_ERROR]: [
       'Verify remote repository access',
       'Check SSH key or deploy key configuration',

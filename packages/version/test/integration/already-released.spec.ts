@@ -1,10 +1,9 @@
 /**
- * Runs the built VersionEngine API against a temp git repo with a remote, with skipReleasedAfter set the way release
- * sets it on a re-run. Requires `pnpm build` in @releasekit/version first.
+ * Runs the built VersionEngine API against a temp git repo, with skipTaggedAfter set the way release sets it on a re-run.
+ * Requires `pnpm build` in @releasekit/version first.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { VersionOutput } from '@releasekit/core';
@@ -15,26 +14,16 @@ import { cleanupTempDir } from '../utils/tempFixture.js';
 import { createWorkspaceRepo } from '../utils/workspace.js';
 
 let tempDir: string;
-let remoteDir: string;
+let tagDay = 1;
 
 const git = (...args: string[]) => execFileSync('git', args, { cwd: tempDir, encoding: 'utf8' }).trim();
 
-function setUp(packages: Record<string, string>) {
-  tempDir = createWorkspaceRepo('rk-released-', {
-    packages,
-    version: '1.0.0',
-    config: {
-      preset: 'conventionalcommits',
-      sync: false,
-      versionPrefix: 'v',
-      packageSpecificTags: true,
-      tagTemplate: '${packageName}@v${version}',
-    },
-    tags: Object.values(packages).map((name) => `${name}@v1.0.0`),
+/** The latest tag is picked by creation date, so tags are dated a day apart rather than tying within a second. */
+function tag(name: string) {
+  execFileSync('git', ['tag', '-a', '-m', 'release', name], {
+    cwd: tempDir,
+    env: { ...process.env, GIT_COMMITTER_DATE: `2020-01-${String(tagDay++).padStart(2, '0')}T00:00:00Z` },
   });
-  remoteDir = mkdtempSync(join(tmpdir(), 'rk-released-remote-'));
-  execFileSync('git', ['init', '--bare', '-q', remoteDir]);
-  git('remote', 'add', 'origin', remoteDir);
 }
 
 function commitTo(pkg: string, message: string) {
@@ -42,34 +31,17 @@ function commitTo(pkg: string, message: string) {
   createConventionalCommit(tempDir, 'fix', message, undefined, false, [`packages/${pkg}`]);
 }
 
-/** Releases `pkg` as a run at the current commit would, recording it with every other package at its first tag. */
-function release(pkg: string, version: string, others: string[]) {
-  const at = git('rev-parse', 'HEAD');
-  const initial = git('rev-list', '--max-parents=0', 'HEAD');
-  const record = Object.fromEntries([
-    [`packages/${pkg}`, { name: pkg, version, at }],
-    ...others.map((name) => [`packages/${name}`, { name, version: '1.0.0', at: initial }]),
-  ]);
-  writeFileSync(join(tempDir, 'releasekit.versions.json'), JSON.stringify(record));
+function release(pkg: string, version: string) {
   mockVersionUpdates(join(tempDir, 'packages', pkg), version);
-  git('add', '-A', 'packages', 'releasekit.versions.json');
-  git('commit', '-qm', `chore: release ${pkg} v${version}`, '--no-verify');
-  git('tag', `${pkg}@v${version}`);
+  git('commit', '-qam', `chore: release ${pkg} v${version}`, '--no-verify');
+  tag(`${pkg}@v${version}`);
 }
 
-/** Pushes the branch and tags, and checks out `commit` as actions/checkout does on a re-run, with origin/main at that commit. */
-function rerunAt(commit: string) {
-  git('push', '-q', '--tags', 'origin', 'HEAD:refs/heads/main');
-  git('update-ref', 'refs/remotes/origin/main', commit);
-  git('checkout', '-q', commit);
-}
-
-function runVersionEngine(commit: string): VersionOutput {
+function runVersionEngine(skipTaggedAfter: string): VersionOutput {
   const script = `
     import { VersionEngine, enableJsonOutput, getJsonData, loadConfig } from ${JSON.stringify(pathToFileURL(join(process.cwd(), 'dist/index.js')).href)};
     enableJsonOutput(true);
-    const skipReleasedAfter = { commit: ${JSON.stringify(commit)}, remote: 'origin', branch: 'main' };
-    const engine = new VersionEngine(loadConfig(), { dryRun: true, skipReleasedAfter });
+    const engine = new VersionEngine(loadConfig(), { dryRun: true, skipTaggedAfter: ${JSON.stringify(skipTaggedAfter)} });
     engine.setStrategy('async');
     await engine.run(await engine.getWorkspacePackages());
     process.stdout.write(JSON.stringify(getJsonData()));
@@ -82,22 +54,57 @@ function runVersionEngine(commit: string): VersionOutput {
   return JSON.parse(result.stdout) as VersionOutput;
 }
 
-describe('skipReleasedAfter', () => {
+describe('skipTaggedAfter', () => {
   afterEach(() => {
     cleanupTempDir(tempDir);
-    cleanupTempDir(remoteDir);
+    tagDay = 1;
   });
 
-  it("should skip a package the remote branch's record released at the run's commit, though the checkout and origin/main are behind it", () => {
-    setUp({ 'pkg-a': 'pkg-a', 'pkg-b': 'pkg-b' });
+  it("should skip a package already released after the run's commit and bump one released before it", () => {
+    tempDir = createWorkspaceRepo('rk-released-', {
+      packages: { 'pkg-a': 'pkg-a', 'pkg-b': 'pkg-b' },
+      version: '1.0.0',
+      config: {
+        preset: 'conventionalcommits',
+        sync: false,
+        versionPrefix: 'v',
+        packageSpecificTags: true,
+        tagTemplate: '${packageName}@v${version}',
+      },
+    });
+    tag('pkg-a@v1.0.0');
+    tag('pkg-b@v1.0.0');
     commitTo('pkg-a', 'correct a typo in a');
     commitTo('pkg-b', 'correct a typo in b');
     const runCommit = git('rev-parse', 'HEAD');
-    release('pkg-a', '1.0.1', ['pkg-b']);
-    rerunAt(runCommit);
+    release('pkg-a', '1.0.1');
+    commitTo('pkg-a', 'correct another typo in a');
 
     const output = runVersionEngine(runCommit);
 
     expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['pkg-b', '1.0.1']]);
+  });
+
+  it("should not skip a package released at the run's own commit", () => {
+    tempDir = createWorkspaceRepo('rk-released-', {
+      packages: { 'pkg-a': 'pkg-a' },
+      version: '1.0.0',
+      config: {
+        preset: 'conventionalcommits',
+        sync: false,
+        versionPrefix: 'v',
+        packageSpecificTags: true,
+        tagTemplate: '${packageName}@v${version}',
+      },
+    });
+    tag('pkg-a@v1.0.0');
+    commitTo('pkg-a', 'correct a typo in a');
+    release('pkg-a', '1.0.1');
+    const runCommit = git('rev-parse', 'HEAD');
+    commitTo('pkg-a', 'correct another typo in a');
+
+    const output = runVersionEngine(runCommit);
+
+    expect(output.updates.map((u) => [u.packageName, u.newVersion])).toEqual([['pkg-a', '1.0.2']]);
   });
 });

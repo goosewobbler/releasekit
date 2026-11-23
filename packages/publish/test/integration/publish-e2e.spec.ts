@@ -366,61 +366,6 @@ describe('Publish pipeline e2e (non-dry-run guards)', () => {
   });
 });
 
-describe('Publish pipeline e2e (release tags)', () => {
-  /** A committed package at 1.0.0 with `main` pushed to a bare remote, bumped to 1.0.1 on disk as the version step leaves it. */
-  function releaseRepo(prefix: string): { dir: string; remote: string } {
-    const dir = mkTemp(prefix);
-    writeNpmPackage(dir, 'releasekit-e2e-tags', '1.0.0');
-    initGitRepo(dir);
-    const remote = mkTemp(`${prefix}-remote`);
-    git(['init', '--bare', remote], ORIGINAL_CWD);
-    git(['remote', 'add', 'origin', remote], dir);
-    git(['push', '-q', 'origin', 'main'], dir);
-    writeNpmPackage(dir, 'releasekit-e2e-tags', '1.0.1');
-    process.chdir(dir);
-    return { dir, remote };
-  }
-
-  function release() {
-    const config = makeConfig((c) => {
-      c.git.branch = 'main';
-    });
-    const input = {
-      dryRun: false,
-      updates: [{ packageName: 'releasekit-e2e-tags', newVersion: '1.0.1', filePath: 'package.json' }],
-      changelogs: [],
-      commitMessage: 'chore: release v1.0.1',
-      tags: ['v1.0.1'],
-    };
-    return runPipeline(input, config, makeCliOptions({ skipPublish: true, skipGithubRelease: true }));
-  }
-
-  const tagCommit = (tag: string, cwd: string) =>
-    execFileSync('git', ['rev-parse', `${tag}^{commit}`], { cwd, encoding: 'utf-8' }).trim();
-
-  // Each test runs a dozen git processes, which can take more than the default 5s under the full parallel gate.
-  it('should fail when the remote already has the tag at another commit', { timeout: 30_000 }, async () => {
-    const { dir, remote } = releaseRepo('tag-on-remote');
-    git(['tag', 'v1.0.1'], dir);
-    git(['push', '-q', 'origin', 'v1.0.1'], dir);
-    git(['tag', '-d', 'v1.0.1'], dir);
-    const released = tagCommit('v1.0.1', remote);
-
-    await expect(release()).rejects.toThrow(/Tag v1\.0\.1 already exists on origin at a different commit/);
-    expect(tagCommit('v1.0.1', remote)).toBe(released);
-  });
-
-  it('should replace a tag a failed batch run left unpushed, and push it', { timeout: 30_000 }, async () => {
-    const { dir, remote } = releaseRepo('tag-left-local');
-    git(['tag', 'v1.0.1'], dir);
-
-    await release();
-
-    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf-8' }).trim();
-    expect(tagCommit('v1.0.1', remote)).toBe(head);
-  });
-});
-
 // ===========================================================================
 // Heavy path - real `npm publish` against the in-process registry. Opt-in.
 // ===========================================================================

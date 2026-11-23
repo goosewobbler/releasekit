@@ -44,11 +44,8 @@ export interface ReleaseOptions {
   editedNotes?: Record<string, string>;
   /** Ignore the gate's decision on the merged PR's labels. Set by preview and draft; not a CLI flag. */
   skipGate?: boolean;
-  /**
-   * Skip a package the remote branch's version record released at or after this commit. Set from the merged PR's commit;
-   * not a CLI flag.
-   */
-  skipReleasedAfter?: { commit: string; remote: string; branch: string };
+  /** Skip a package whose latest tag comes after this commit. Set from the merged PR's commit; not a CLI flag. */
+  skipTaggedAfter?: string;
 }
 
 export interface ReleaseOutput {

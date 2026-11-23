@@ -56,19 +56,10 @@ export interface VersionRunOptions {
    */
   exclude?: string[];
   /**
-   * The commit this run releases, and the base branch on the remote. A package whose entry in the version record at
-   * that branch's tip has an `at` at or after the commit is skipped, so a re-run of an older workflow doesn't release
-   * it again.
+   * The commit this run releases. A package whose latest tag is reachable from HEAD and comes after it is skipped,
+   * so a re-run checked out past that commit's release doesn't release the package again.
    */
-  skipReleasedAfter?: ReleasedAfter;
-}
-
-/** The commit a run releases, and the remote branch whose tip's version record it checks. */
-export interface ReleasedAfter {
-  commit: string;
-  /** A remote name or URL, as a push would use. */
-  remote: string;
-  branch: string;
+  skipTaggedAfter?: string;
 }
 
 /** The version a package releases from. */
@@ -76,8 +67,6 @@ export interface CurrentVersion {
   version: string;
   /** False when the package has no entry, so this is its first release. */
   recorded: boolean;
-  /** The version the remote base branch's record released at or after the run's commit, if any. */
-  releasedAfterRun?: string;
 }
 
 export interface VersionConfigBase {
@@ -121,8 +110,8 @@ export interface Config extends VersionConfigBase {
   baseRef?: string;
   /** Runtime override - see VersionRunOptions.overrideScope. */
   overrideScope?: string[];
-  /** Runtime override - see VersionRunOptions.skipReleasedAfter. */
-  skipReleasedAfter?: ReleasedAfter;
+  /** Runtime override - see VersionRunOptions.skipTaggedAfter. */
+  skipTaggedAfter?: string;
   /** Runtime override (see VersionRunOptions.graduate), always set together with `stableOnly`. Empty
    *  with `stableOnly` set graduates every prerelease. */
   graduateScope?: string[];

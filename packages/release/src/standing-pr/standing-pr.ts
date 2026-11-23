@@ -20,23 +20,12 @@ import {
   type StandingPullRequest,
 } from '@releasekit/forge';
 import { createGitCli, isCommitSha } from '@releasekit/git';
-import {
-  createPublishError,
-  loadConfig as loadPublishConfig,
-  PipelineError,
-  PublishErrorCode,
-  resolvePushRemote,
-} from '@releasekit/publish';
+import { PipelineError } from '@releasekit/publish';
 import { z } from 'zod';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
-import {
-  detectUnresolvedFailure,
-  isTagCollision,
-  postFailureReport,
-  resolveFailureReportIfPresent,
-} from '../failure-report/post.js';
+import { detectUnresolvedFailure, postFailureReport, resolveFailureReportIfPresent } from '../failure-report/post.js';
 import { getHeadCommitMessage, matchesSkipPattern, requireGitHubContext } from '../git.js';
 import { findMergedPRsForCommit, forgeFor } from '../github.js';
 import { readGitHubEvent } from '../github-event.js';
@@ -309,10 +298,9 @@ async function commitAndForcePush(
 /**
  * Standing-PR publish sets `skipGitCommit: true` to avoid duplicating the squash-merge commit, which also skips the
  * pipeline's tag creation. Mirrors `runGitCommitStage`'s idempotency (packages/publish/src/stages/git-commit.ts).
- * Throws only for a tag that already exists on the remote at another commit; otherwise the pipeline's `--tags` push
- * publishes whatever tags were created.
+ * Never throws: the pipeline's `--tags` push publishes whatever tags were created.
  */
-export async function createReleaseTags(tags: string[], cwd: string, remote: string): Promise<void> {
+export async function createReleaseTags(tags: string[], cwd: string): Promise<void> {
   if (tags.length === 0) {
     return;
   }
@@ -327,74 +315,29 @@ export async function createReleaseTags(tags: string[], cwd: string, remote: str
     return;
   }
 
-  const remoteTags = await git.remoteTags(remote, cwd);
-  const taken = tags.filter((tag) => remoteTags[tag] !== undefined && remoteTags[tag] !== headSha);
-  if (taken.length > 0) {
-    throw createPublishError(
-      PublishErrorCode.GIT_TAG_EXISTS,
-      `Can't tag this release at ${headSha}: ${taken.map((tag) => `${tag} is at ${remoteTags[tag]}`).join(', ')} ` +
-        'on the remote, so that version was already released. Leave the tags and roll forward with the next release.',
-    );
-  }
-
   for (const tag of tags) {
-    let replace = false;
     if (await git.refExists(`refs/tags/${tag}`, cwd)) {
       let existing = '';
       try {
         existing = (await git.log({ range: tag, format: '%H', extraArgs: ['-1'], cwd })).trim();
       } catch {
-        // Unresolvable: replaced below like any other tag that isn't on the remote.
+        // Unresolvable: fall through to the warn below.
       }
       if (existing === headSha) {
         info(`Tag ${tag} already exists at HEAD, skipping`);
         continue;
       }
-      info(`Replacing tag ${tag} at ${existing}, which was never pushed`);
-      replace = true;
+      warn(`Tag ${tag} exists at ${existing} but HEAD is ${headSha} — skipping (re-tag manually if intended)`);
+      continue;
     }
 
     try {
-      await git.tag(tag, { message: `Release ${tag}`, force: replace, cwd });
+      await git.tag(tag, { message: `Release ${tag}`, cwd });
       success(`Created tag: ${tag}`);
     } catch (err) {
-      const message = `Failed to create tag ${tag}: ${err instanceof Error ? err.message : String(err)}`;
-      // The push would send the stale tag at its old commit.
-      if (replace) {
-        throw new Error(message);
-      }
-      warn(message);
+      warn(`Failed to create tag ${tag}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
-}
-
-/** Tags the merge commit for the pipeline to push; a failure is reported as its git stage, with nothing published. */
-async function createStandingReleaseTags(
-  versionOutput: VersionOutput,
-  cwd: string,
-  configPath: string | undefined,
-): Promise<void> {
-  try {
-    const remote = await resolvePushRemote(loadPublishConfig({ cwd, configPath }).git, cwd);
-    await createReleaseTags([...versionOutput.tags, ...(versionOutput.baselineTags ?? [])], cwd, remote);
-  } catch (err) {
-    throw taggingFailure(err);
-  }
-}
-
-function taggingFailure(err: unknown): PipelineError {
-  const output = {
-    dryRun: false,
-    git: { committed: false, tags: [], pushed: false },
-    npm: [],
-    cargo: [],
-    pub: [],
-    verification: [],
-    githubReleases: [],
-    publishSucceeded: false,
-  };
-  const cause = err instanceof Error ? err : undefined;
-  return new PipelineError(err instanceof Error ? err.message : String(err), 'git-commit', output, cause);
 }
 
 async function deleteReleaseBranch(releaseBranch: string, cwd: string, expectedTipSha: string): Promise<void> {
@@ -1977,6 +1920,8 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     info(`Using the reviewed release notes for ${Object.keys(regionNotes).length} package(s) from the PR body.`);
   }
 
+  await createReleaseTags([...manifest.versionOutput.tags, ...(manifest.versionOutput.baselineTags ?? [])], cwd);
+
   const publishOptions: ReleaseOptions = {
     config: options.config,
     dryRun: false,
@@ -1996,7 +1941,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   let publishOutput: ReleaseOutput['publishOutput'];
   try {
-    await createStandingReleaseTags(manifest.versionOutput, cwd, options.config);
     publishOutput = await runPublishStep(manifest.versionOutput, publishOptions, releaseNotes);
   } catch (err) {
     // Versions are already on main (roll-forward), so report what landed and how to retry. A reporting failure must
@@ -2010,7 +1954,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
             prNumber,
             standingPrNumber: prNumber,
             retryLabelAvailable: true,
-            alreadyReleased: isTagCollision(err),
           },
           manifest.versionOutput,
           err,

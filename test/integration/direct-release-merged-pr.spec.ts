@@ -35,22 +35,12 @@ function write(path: string, content: string): void {
 
 describe('direct release after a merged PR', () => {
   let repo: string;
-  let remote: string;
 
   beforeEach(() => {
     repo = mkdtempSync(join(tmpdir(), 'rk-merged-pr-'));
-    remote = mkdtempSync(join(tmpdir(), 'rk-merged-pr-remote-'));
   });
 
-  afterEach(() => {
-    rmSync(repo, { recursive: true, force: true });
-    rmSync(remote, { recursive: true, force: true });
-  });
-
-  /** Pushes the branch and its tags to `origin`, as a release that landed would. */
-  function pushBranch(): void {
-    git(repo, 'push', '-q', '--tags', 'origin', 'HEAD');
-  }
+  afterEach(() => rmSync(repo, { recursive: true, force: true }));
 
   /** Two packages that both change in the merged PR's commit, configured with `ci` and `version`. Returns that commit. */
   function mergePR(ci: Record<string, unknown>, version: Record<string, unknown> = {}): string {
@@ -86,9 +76,6 @@ describe('direct release after a merged PR', () => {
       write(join(repo, 'packages', name, 'index.js'), '// feature\n');
     }
     commitInPast(repo, '-qam', 'feat: add features (#7)');
-    git(remote, 'init', '-q', '--bare');
-    git(repo, 'remote', 'add', 'origin', remote);
-    pushBranch();
     return git(repo, 'rev-parse', 'HEAD');
   }
 
@@ -165,7 +152,6 @@ describe('direct release after a merged PR', () => {
       { sync: false },
     );
     expect(first.status, `${first.stdout}\n${first.stderr}`).toBe(0);
-    pushBranch();
     const tip = mergeUnrelatedPR();
 
     const rerun = release(mergeSha, ['bump:major']);
@@ -176,40 +162,12 @@ describe('direct release after a merged PR', () => {
     expect(git(repo, 'tag', '--list', '*@v3*')).toBe('');
   });
 
-  it("should retry only the packages whose tags didn't reach the remote after a per-package publish failed", () => {
+  it('should release a package tagged before the pushed commit when another was tagged after it', () => {
     const mergeSha = mergePR({ releaseStrategy: 'direct', releaseTrigger: 'label' }, { sync: false });
-    for (const name of ['a', 'b']) {
-      write(join(repo, 'packages', name, 'package.json'), `{ "name": "rk-${name}", "version": "2.0.0" }\n`);
-    }
-    const released = { name: '', version: '2.0.0', at: mergeSha };
-    write(
-      join(repo, 'releasekit.versions.json'),
-      JSON.stringify({ 'packages/a': { ...released, name: 'rk-a' }, 'packages/b': { ...released, name: 'rk-b' } }),
-    );
-    git(repo, 'add', '-A');
-    git(repo, 'commit', '-qm', 'chore: release rk-a, rk-b v2.0.0');
-    git(repo, 'tag', 'rk-a@v2.0.0');
-    pushBranch();
-    git(repo, 'reset', '-q', '--hard', mergeSha);
-
-    const rerun = release(mergeSha, ['bump:major']);
-
-    expect(rerun.status, `${rerun.stdout}\n${rerun.stderr}`).toBe(0);
-    expect(git(repo, 'tag', '--points-at', 'HEAD')).toBe('rk-b@v2.0.0');
-  });
-
-  it('should release a package the remote record released before the pushed commit when another was released after it', () => {
-    const mergeSha = mergePR({ releaseStrategy: 'direct', releaseTrigger: 'label' }, { sync: false });
-    const releasedAt = mergeUnrelatedPR();
     write(join(repo, 'packages', 'a', 'package.json'), '{ "name": "rk-a", "version": "2.0.0" }\n');
-    write(
-      join(repo, 'releasekit.versions.json'),
-      JSON.stringify({ 'packages/a': { name: 'rk-a', version: '2.0.0', at: releasedAt } }),
-    );
-    git(repo, 'add', '-A');
-    git(repo, 'commit', '-qm', 'chore: release rk-a v2.0.0');
+    git(repo, 'commit', '-qam', 'chore: release rk-a v2.0.0');
     git(repo, 'tag', 'rk-a@v2.0.0');
-    pushBranch();
+    mergeUnrelatedPR();
 
     const result = release(mergeSha, ['bump:major']);
 

@@ -1,5 +1,6 @@
 import { inspect } from 'node:util';
 import { shouldMatchPackageTargets } from '@releasekit/core';
+import { createGitCli, isTagAfter } from '@releasekit/git';
 import { Bumper } from 'conventional-recommended-bump';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
@@ -96,12 +97,14 @@ function guardFirstReleaseBump(config: Config, name: string | undefined, current
 }
 
 export async function calculateVersion(config: Config, options: VersionOptions): Promise<string> {
-  const { releasedAfterRun } = options.current;
-  if (releasedAfterRun) {
-    log(
-      `Skipping ${options.name || 'project'}: ${releasedAfterRun} was already released at or after this run's commit`,
-      'info',
-    );
+  const { latestTag } = options;
+  if (
+    config.skipTaggedAfter &&
+    options.hasRealTag !== false &&
+    latestTag &&
+    (await isTagAfter(createGitCli(), latestTag, config.skipTaggedAfter, options.path))
+  ) {
+    log(`Skipping ${options.name || 'project'}: ${latestTag} already released ${config.skipTaggedAfter}`, 'info');
     return '';
   }
   const scoped = applyOverrideScope(config, options);

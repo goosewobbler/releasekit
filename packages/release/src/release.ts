@@ -4,9 +4,9 @@ import type { VersionOutput } from '@releasekit/core';
 import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
 import { PipelineError } from '@releasekit/publish';
-import { isTagCollision, postFailureReport, resolveFailureReportIfPresent } from './failure-report/post.js';
+import { postFailureReport, resolveFailureReportIfPresent } from './failure-report/post.js';
 import { decideFromMergedPRs, type GateOutput } from './gate/gate.js';
-import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern, releaseBranch } from './git.js';
+import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
 import { findMergedPRsForCommit, forgeFor } from './github.js';
 import { resolveScopeToTarget } from './label-utils.js';
 import { markFeederPreviewsStale } from './preview/stale.js';
@@ -55,7 +55,6 @@ async function reportReleaseFailure(versionOutput: VersionOutput, err: PipelineE
         forge: target.forge,
         mode: target.mode,
         prNumber: target.prNumber,
-        alreadyReleased: isTagCollision(err),
       },
       versionOutput,
       err,
@@ -100,25 +99,6 @@ function applyVerdict(options: ReleaseOptions, verdict: GateOutput): void {
     options.prerelease = verdict.prerelease;
   }
   options.target ??= verdict.target;
-}
-
-/** What the re-run guard checks: the pushed commit and the branch the release lands on, read as a push reads it. */
-async function releasedAfterGuard(
-  commit: string,
-  options: ReleaseOptions,
-): Promise<ReleaseOptions['skipReleasedAfter']> {
-  const { loadConfig: loadPublishConfig, resolvePushRemote } = await import('@releasekit/publish');
-  const gitConfig = loadPublishConfig({ cwd: options.projectDir, configPath: options.config }).git;
-  const branch = await releaseBranch(options.branch ?? gitConfig.branch, options.projectDir);
-  if (!branch) {
-    warn(
-      "Not checking whether this commit was already released: the checkout is detached and the workflow didn't run " +
-        'for a branch. Set git.branch in your config or pass --branch <name> to check.',
-    );
-    return undefined;
-  }
-  const cwd = options.projectDir ?? process.cwd();
-  return { commit, remote: await resolvePushRemote(gitConfig, cwd), branch };
 }
 
 /** Config can only add skips, never undo a CLI flag. */
@@ -193,6 +173,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   }
   if (verdict) {
     applyVerdict(options, verdict);
+    options.skipTaggedAfter = getGitHubContext()?.sha ?? undefined;
   }
 
   if (releaseConfig?.ci?.skipPatterns?.length) {
@@ -204,11 +185,6 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
         return null;
       }
     }
-  }
-
-  const pushedSha = getGitHubContext()?.sha;
-  if (verdict && pushedSha) {
-    options.skipReleasedAfter = await releasedAfterGuard(pushedSha, options);
   }
 
   applyStepOverrides(options, releaseConfig);

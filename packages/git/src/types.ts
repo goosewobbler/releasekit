@@ -34,7 +34,6 @@ export interface GitCommitOptions {
 export interface GitTagOptions {
   /** Makes the tag annotated; omitted, the tag is lightweight. */
   message?: string;
-  force?: boolean;
   cwd?: string;
 }
 
@@ -44,8 +43,6 @@ export interface GitFetchOptions {
   cwd?: string;
   /** `--tags --force`: every remote tag too, even one off the fetched branches, replacing a local tag that differs. */
   tags?: boolean;
-  /** Fetches only this ref, into `FETCH_HEAD`, leaving remote-tracking branches alone. */
-  ref?: string;
 }
 
 export interface GitCheckoutOptions {

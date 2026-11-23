@@ -113,21 +113,6 @@ describe('the version record', () => {
     expect(result.stderr).toContain('this is a shallow clone');
   });
 
-  it("should fail on a package's tag and manifest mismatch under mismatchStrategy 'error' only when it's versioned", () => {
-    tempDir = createWorkspaceRepo('rk-version-record-', {
-      packages: { 'pkg-a': 'pkg-a', 'pkg-b': 'pkg-b' },
-      config: { versionPrefix: 'v', sync: false, packageSpecificTags: true, mismatchStrategy: 'error' },
-      tags: ['pkg-a@v0.1.0', 'pkg-b@v1.0.0'],
-    });
-    commitFeature('pkg-a');
-    commitFeature('pkg-b');
-
-    expect(versions(runVersionJson(tempDir, '--target pkg-a'))).toEqual({ 'pkg-a': '0.2.0' });
-    const result = executeCliCommand('--json --target pkg-b', tempDir);
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('Version mismatch detected');
-  });
-
   it("should fail when an entry's commit isn't in the history of HEAD", () => {
     tempDir = createWorkspaceRepo('rk-version-record-', {
       packages: { 'pkg-a': 'pkg-a' },

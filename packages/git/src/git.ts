@@ -316,17 +316,14 @@ export class GitCli implements Git {
 
   async tag(name: string, opts: GitTagOptions = {}): Promise<void> {
     assertNotOption(name, 'tag name');
-    const args = ['tag', ...(opts.force ? ['-f'] : [])];
-    args.push(...(opts.message !== undefined ? ['-a', name, '-m', opts.message] : [name]));
+    const args = opts.message !== undefined ? ['tag', '-a', name, '-m', opts.message] : ['tag', name];
     await this.exec(args, { cwd: this.cwd(opts.cwd) });
   }
 
   async fetch(remote: string, opts: GitFetchOptions = {}): Promise<void> {
     assertNotOption(remote, 'remote');
     const args = ['fetch', ...(opts.prune ? ['--prune'] : []), ...(opts.tags ? ['--tags', '--force'] : [])];
-    // An empty refmap stops git updating the remote-tracking branch for the fetched ref.
-    const refs = opts.ref ? [opts.ref] : [];
-    await this.exec([...args, ...(opts.ref ? ['--refmap='] : []), '--', remote, ...refs], { cwd: this.cwd(opts.cwd) });
+    await this.exec([...args, '--', remote], { cwd: this.cwd(opts.cwd) });
   }
 
   async checkout(ref: string, opts: GitCheckoutOptions = {}): Promise<void> {

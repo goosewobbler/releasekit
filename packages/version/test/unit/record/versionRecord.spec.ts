@@ -169,37 +169,5 @@ describe('version record', () => {
 
       await expect(VersionRecord.open(root, head).assertAncestors()).rejects.toThrow(`a (packages/a) at ${missing}`);
     });
-
-    it("should count a sync release at the run's own commit as released once its shared tag is on the remote", async () => {
-      const runCommit = git('rev-parse', 'HEAD');
-      writeFileSync(file(), JSON.stringify({ 'packages/a': { name: 'a', version: '1.0.1', at: runCommit } }));
-      git('add', '-A');
-      git('-c', 'user.email=t@example.com', '-c', 'user.name=T', 'commit', '-q', '-m', 'chore: release v1.0.1');
-      git('tag', 'v1.0.1');
-      const remote = mkdtempSync(join(tmpdir(), 'rk-record-remote-'));
-      try {
-        git('init', '-q', '--bare', remote);
-        git('push', '-q', '--tags', remote, 'HEAD:refs/heads/main');
-        const config = { sync: true, versionPrefix: 'v', tagTemplate: '${prefix}${version}' } as Config;
-        const record = VersionRecord.open(root, runCommit);
-
-        await record.loadReleasedAfter({ commit: runCommit, remote, branch: 'main' }, config);
-
-        expect(record.current(pkg('a', 'packages/a'), config).releasedAfterRun).toBe('1.0.1');
-      } finally {
-        rmSync(remote, { recursive: true, force: true });
-      }
-    });
-
-    it("should fail the re-run guard when the remote branch can't be fetched", async () => {
-      const head = git('rev-parse', 'HEAD');
-
-      await expect(
-        VersionRecord.open(root, head).loadReleasedAfter(
-          { commit: head, remote: 'origin', branch: 'main' },
-          {} as Config,
-        ),
-      ).rejects.toThrow("Can't fetch main to check what it has already released");
-    });
   });
 });

@@ -115,8 +115,8 @@ export class VersionEngine {
       if (runOptions.overrideScope) {
         effective.overrideScope = runOptions.overrideScope;
       }
-      if (runOptions.skipReleasedAfter) {
-        effective.skipReleasedAfter = runOptions.skipReleasedAfter;
+      if (runOptions.skipTaggedAfter) {
+        effective.skipTaggedAfter = runOptions.skipTaggedAfter;
       }
       if (runOptions.includePrerequisites) {
         this.includePrerequisites = true;
@@ -668,9 +668,6 @@ export class VersionEngine {
     }
     for (const { name, reason } of unseeded) {
       log(`Not seeding ${name} in ${VERSION_RECORD_FILE} (${reason}), so it starts from its manifest`, 'debug');
-    }
-    if (this.config.skipReleasedAfter) {
-      await record.loadReleasedAfter(this.config.skipReleasedAfter, this.config);
     }
     return record;
   }

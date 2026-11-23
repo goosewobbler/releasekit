@@ -38,13 +38,12 @@ export function versionRecordKey(root: string, packageDir: string): string {
 /** An empty record when the file doesn't exist. */
 export function readVersionRecord(root: string): VersionRecordEntries {
   const file = versionRecordPath(root);
-  return fs.existsSync(file) ? parseVersionRecord(fs.readFileSync(file, 'utf-8')) : {};
-}
-
-export function parseVersionRecord(content: string): VersionRecordEntries {
+  if (!fs.existsSync(file)) {
+    return {};
+  }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
   } catch (error) {
     throw new Error(`${VERSION_RECORD_FILE} isn't valid JSON: ${error instanceof Error ? error.message : error}`);
   }
