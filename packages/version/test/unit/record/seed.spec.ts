@@ -123,6 +123,16 @@ describe('seedMissingEntries', { timeout: 30_000 }, () => {
     });
   });
 
+  it("should seed a package without a tag of its own from the repo's tags", async () => {
+    setUpRepo({ sync: false }, { a: '1.0.0' });
+    const at = git(repo, 'rev-parse', 'HEAD');
+    git(repo, 'tag', 'v1.0.0');
+
+    const { record } = await seed();
+
+    expect(record).toEqual({ 'packages/a': { name: 'a', version: '1.0.0', at } });
+  });
+
   it('should seed the manifest version where mismatchStrategy prefer-package picks it', async () => {
     setUpRepo(
       { sync: false, packageSpecificTags: true, mismatchStrategy: 'prefer-package' },

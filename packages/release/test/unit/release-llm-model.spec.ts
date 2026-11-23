@@ -29,7 +29,6 @@ vi.mock('@releasekit/version', () => ({
   loadConfig: vi.fn(() => ({})),
   VersionEngine: vi.fn(function (this: Record<string, unknown>) {
     this.getWorkspacePackages = async () => ({ packages: [{ packageJson: { name: 'test-pkg' } }] });
-    this.setStrategy = vi.fn();
     this.run = vi.fn();
   }),
 }));

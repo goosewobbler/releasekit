@@ -42,7 +42,6 @@ function runVersionEngine(skipTaggedAfter: string): VersionOutput {
     import { VersionEngine, enableJsonOutput, getJsonData, loadConfig } from ${JSON.stringify(pathToFileURL(join(process.cwd(), 'dist/index.js')).href)};
     enableJsonOutput(true);
     const engine = new VersionEngine(loadConfig(), { dryRun: true, skipTaggedAfter: ${JSON.stringify(skipTaggedAfter)} });
-    engine.setStrategy('async');
     await engine.run(await engine.getWorkspacePackages());
     process.stdout.write(JSON.stringify(getJsonData()));
   `;

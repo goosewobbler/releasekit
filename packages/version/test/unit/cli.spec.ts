@@ -32,15 +32,9 @@ const TWO_PACKAGES = {
   root: '/test',
 };
 
-const ONE_PACKAGE = {
-  packages: [{ packageJson: { name: '@scope/package-a' }, dir: '/test/packages/package-a' }],
-  root: '/test',
-};
-
 describe('createVersionCommand', () => {
   const mockGetWorkspacePackages = vi.fn();
   const mockRun = vi.fn();
-  const mockSetStrategy = vi.fn();
   let mockExit: ReturnType<typeof vi.spyOn>;
 
   function mockEngineCapturingConfig(out: { config?: Config; runOptions?: VersionRunOptions }): void {
@@ -54,7 +48,6 @@ describe('createVersionCommand', () => {
       return {
         getWorkspacePackages: mockGetWorkspacePackages,
         run: mockRun,
-        setStrategy: mockSetStrategy,
       } as unknown as VersionEngine;
     });
   }
@@ -63,13 +56,11 @@ describe('createVersionCommand', () => {
     vi.mocked(configModule.loadConfig, { partial: true }).mockReturnValue({ ...mockConfig } as Config);
     mockGetWorkspacePackages.mockResolvedValue(TWO_PACKAGES);
     mockRun.mockResolvedValue(undefined);
-    mockSetStrategy.mockReturnValue(undefined);
 
     vi.mocked(VersionEngine.prototype.getWorkspacePackages, { partial: true }).mockImplementation(
       mockGetWorkspacePackages,
     );
     vi.mocked(VersionEngine.prototype.run, { partial: true }).mockImplementation(mockRun);
-    vi.mocked(VersionEngine.prototype.setStrategy, { partial: true }).mockImplementation(mockSetStrategy);
 
     mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
   });
@@ -114,7 +105,6 @@ describe('createVersionCommand', () => {
       await createVersionCommand().parseAsync(['node', 'test', '--sync']);
 
       expect(captured.runOptions?.sync).toBe(true);
-      expect(mockSetStrategy).toHaveBeenCalledWith('sync');
     });
 
     it('should pass bump to engine when --bump is passed', async () => {
@@ -269,41 +259,17 @@ describe('createVersionCommand', () => {
     });
   });
 
-  describe('versioning strategy selection', () => {
-    it('should use async strategy for multiple packages', async () => {
-      await createVersionCommand().parseAsync(['node', 'test']);
+  it.each([
+    ['async', []],
+    ['sync', ['--sync']],
+  ])('should exit with code 1 without running when no packages resolve (%s)', async (_mode, flags) => {
+    mockGetWorkspacePackages.mockResolvedValue({ packages: [], root: '/test' });
 
-      expect(mockSetStrategy).toHaveBeenCalledWith('async');
-    });
+    await createVersionCommand().parseAsync(['node', 'test', ...flags]);
 
-    it('should use single strategy for one package', async () => {
-      mockGetWorkspacePackages.mockResolvedValue(ONE_PACKAGE);
-
-      await createVersionCommand().parseAsync(['node', 'test']);
-
-      expect(mockSetStrategy).toHaveBeenCalledWith('single');
-    });
-
-    it('should use sync strategy when --sync flag overrides package count', async () => {
-      await createVersionCommand().parseAsync(['node', 'test', '--sync']);
-
-      expect(mockSetStrategy).toHaveBeenCalledWith('sync');
-      expect(mockSetStrategy).not.toHaveBeenCalledWith('async');
-    });
-
-    it.each([
-      ['async', []],
-      ['sync', ['--sync']],
-    ])('should exit with code 1 before choosing a strategy when no packages resolve (%s)', async (_mode, flags) => {
-      mockGetWorkspacePackages.mockResolvedValue({ packages: [], root: '/test' });
-
-      await createVersionCommand().parseAsync(['node', 'test', ...flags]);
-
-      expect(log).toHaveBeenCalledWith('Error: No packages found in workspace', 'error');
-      expect(mockExit).toHaveBeenCalledWith(1);
-      expect(mockSetStrategy).not.toHaveBeenCalled();
-      expect(mockRun).not.toHaveBeenCalled();
-    });
+    expect(log).toHaveBeenCalledWith('Error: No packages found in workspace', 'error');
+    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(mockRun).not.toHaveBeenCalled();
   });
 
   describe('target flag handling', () => {

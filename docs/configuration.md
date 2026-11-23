@@ -62,15 +62,15 @@ Versioning configuration.
 | `baselineTagTemplate` | string | — | Optional secondary tag template for an internal 'baseline' marker that records the release commit on the source branch. Use this when tagTemplate resolves to a tag that gets force-moved off the source branch by a downstream step (e.g. a GitHub Action distributing built artifacts at the version tag) — the baseline tag stays on the release commit so future version-bump and changelog calculations can still find the previous release. Must end with ${version} so the baseline prefix can be derived. Supports the same variables as tagTemplate. Example: "release/${prefix}${version}" produces "release/v1.2.3". |
 | `packageSpecificTags` | boolean | `false` | Tag each package separately, e.g. "scope-pkg@v1.2.3". tagTemplate must then contain ${packageName}. |
 | `preset` | `"angular"` \| `"conventionalcommits"` | `"conventionalcommits"` | Commit convention preset |
-| `sync` | boolean | `true` | Global lockstep versioning. true is sugar for one implicit fixed group of every package — it shares the same mechanism as version.groups. Set to false when using version.groups; sync: true alongside groups is treated as the implicit all-packages fixed group taking precedence (a config conflict, warned about at runtime). |
+| `sync` | boolean | `true` | Version every package in lockstep, as one fixed group: one version and one changelog and tag (one per package with packageSpecificTags), with the root manifests bumped too. It overrides version.groups, with a warning; set false to use them. |
 | `packages` | `string[]` | `[]` | Packages to include in versioning. Empty includes every discovered package. `./` matches only a package at the repository root. |
-| `sharedPackages` | `string[]` | — | Foundational packages whose changes belong in every package’s notes, as exact names or globs. In async mode (`sync: false`, no `groups`, more than one package in the run), commits touching a shared package and no non-shared package are listed under "Project-wide changes" in each released package’s changelog, release notes and release body, covering those since that package’s previous release. A root changelog lists them once per run in such releases, alongside commits that touch no package. Default: none. |
+| `sharedPackages` | `string[]` | — | Foundational packages whose changes belong in every package’s notes, as exact names or globs. In async mode (`sync: false`, no `groups`), commits touching a shared package and no non-shared package are listed under "Project-wide changes" in each released package’s changelog, release notes and release body, covering those since that package’s previous release. A root changelog lists them once per run in such releases, alongside commits that touch no package. Default: none. |
 | `primaryPackages` | `string[]` | `[]` | Packages users install, as exact names or globs. Each anchors a release unit with its group-mates and the internal dependencies it releases with. Used by the standing-PR selection list. In async mode or grouped releases with per-package tags, each primary's release notes also list its group-mates' and internal dependencies' releases since its previous release. |
 | `sharedChangelogFloor` | `"union"` \| `"sinceLastRelease"` | `"union"` | How project-wide entries in the standing PR and the root changelog are bounded in async mode (see sharedPackages); each package's own notes list the shared-package entries since its previous release. "union" (default): repo-level commits accrue from the union of the releasing packages' ranges, floored by the OLDEST unreleased baseline — so a genuinely-global commit recurs in every release until the oldest-baselined package is released past it. "sinceLastRelease": floor the block by the single nearest tag reachable across the repo, so global commits already shown by the most recent release don't recur (recommended for per-package-tag monorepos). |
-| `mainPackage` | string | — | The package a single-mode release versions. In sync mode without packageSpecificTags, the release is named after it, but its version comes from the version record. The changelog still lists every commit in the release. |
+| `mainPackage` | string | — | Names a sync release's changelog when packageSpecificTags is off, and supplies its repository URL. |
 | `skip` | `string[]` | — | Packages to exclude from versioning (glob patterns or exact names). Private packages ("private": true) are skipped automatically — see includePrivate — so they do not need to be listed here. |
 | `includePrivate` | boolean | `false` | Include npm packages marked "private": true (in package.json) in the release flow. Default false: private packages are skipped at discovery — they cannot be published to any registry, mirroring the Cargo `publish = false` and pub `publish_to: none` skips already applied during discovery. Set true to version a private package for internal tracking. A private package listed in version.packages by its exact package name or exact directory path (e.g. "packages/app") is always included regardless of this setting; one matched only by a glob (e.g. "packages/*" or "@scope/*") is still skipped. |
-| `commitMessage` | string | — | Template for the release commit message. Supports ${version} and ${packageName}. Default: 'chore: release ${packageName} v${version}' for sync and single-package releases; otherwise 'chore: release' followed by each released package and version. |
+| `commitMessage` | string | — | Template for the release commit message. Supports ${version} (the first released version) and ${packageName} (the released packages). Default: 'chore: release ${packageName} v${version}' in sync mode; otherwise 'chore: release' followed by each released package and version. |
 | `mismatchStrategy` | `"error"` \| `"warn"` \| `"ignore"` \| `"prefer-package"` \| `"prefer-git"` | `"warn"` | How to handle version mismatches |
 | `versionPrefix` | string | `"v"` | Prefix for version tags. Set "" for tags like "1.2.3". |
 | `prereleaseIdentifier` | string | — | Identifier for prerelease versions (e.g., 'alpha', 'beta') |
@@ -103,8 +103,8 @@ prerequisites vs. selection. Each entry under `groups` is a group name mapping t
 
 - **`fixed`** — any releasable change in *any* member releases **all** members at the shared
   group version, computed as `bump(max(member baselines))`. This is the changesets `fixed`
-  semantics. The global `version.sync: true` flag is exactly this, applied to one implicit
-  group of every package — there is one mechanism, not two.
+  semantics. The global `version.sync: true` flag is this, applied to one group of every
+  package, except that commits anywhere in the repo count and the root manifests are bumped too.
 - **`linked`** — only members with a releasable change release, but every releasing member
   shares the same computed version. Unchanged members are left untouched (no empty re-release).
 - **`independent`** — only members with a releasable change release, each on its **own**
@@ -113,8 +113,8 @@ prerequisites vs. selection. Each entry under `groups` is a group name mapping t
   this for packages coupled by a contract but versioned separately (e.g. a wire protocol across
   an npm package and a Rust crate on different version lines).
 
-**Group baseline** is the highest member version found in tags / manifests; the group bumps
-from there.
+**Group baseline** is the highest member version in the version record, or in the members'
+manifests when none has an entry; the group bumps from there.
 
 > **Member adoption.** A member below the group baseline — never released, or at an older version
 > than the family — adopts the group version on its next release (joining a family at `2.3.0`

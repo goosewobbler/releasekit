@@ -2,7 +2,7 @@
 
 A conceptual overview for contributors and users evaluating ReleaseKit.
 
-[ADR 0008](./adr/0008-versions-live-in-a-version-record.md) replaces the tag baseline this doc describes with a committed version record, and [ADR 0009](./adr/0009-one-versioning-model-packages-and-groups.md) replaces the version step's sync, single, async and group strategies with one model. Until they ship ([#958](https://github.com/goosewobbler/releasekit/issues/958), [#1066](https://github.com/goosewobbler/releasekit/issues/1066)), this doc describes the current behaviour.
+[ADR 0008](./adr/0008-versions-live-in-a-version-record.md) replaces the tag baseline this doc describes with a committed version record. Until it ships ([#958](https://github.com/goosewobbler/releasekit/issues/958), [#1066](https://github.com/goosewobbler/releasekit/issues/1066)), this doc describes the current behaviour.
 
 ---
 
@@ -171,7 +171,7 @@ The run is **fail-fast**: the first registry failure stops the pipeline.
 
 Nothing is pushed on failure. In direct mode the version bump is **not** on `main`. Packages that already published stay on the registry. Re-run; those versions are skipped. Do not delete a tag for a version that was published.
 
-**Per-package mode** — any update has a `tag` (single, async, groups, or sync with `packageSpecificTags`):
+**Per-package mode** — any update has a `tag` (async, groups, or sync with `packageSpecificTags`):
 
 For each update: publish that package (npm, then crates.io, then pub.dev) → verify → push the branch → push its tag. GitHub Releases are created only after every package succeeds.
 

@@ -5,9 +5,9 @@ import semver from 'semver';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as cargoHandler from '../../../src/cargo/cargoHandler.js';
 import * as commitParser from '../../../src/changelog/commitParser.js';
-import { createGroupStrategy } from '../../../src/core/groupStrategy.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
 import type { PackagesWithRoot } from '../../../src/core/versionEngine.js';
+import { versionPackages } from '../../../src/core/versionPackages.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
 import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
@@ -75,7 +75,7 @@ const baseConfig = (overrides: Partial<Config>): Config =>
     ...overrides,
   }) as Config;
 
-describe('createGroupStrategy', () => {
+describe('versionPackages with groups', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(cargoHandler.isVersionedCrate).mockReturnValue(true);
@@ -99,9 +99,6 @@ describe('createGroupStrategy', () => {
     );
     vi.spyOn(formatting, 'deriveBaselineTagPrefix').mockReturnValue(undefined);
     vi.spyOn(formatting, 'displayTag').mockImplementation((tag) => tag);
-    vi.spyOn(formatting, 'formatCommitMessage').mockImplementation((template, version, name) =>
-      template.replace(/\$\{version\}/g, version).replace(/\$\{packageName\}/g, name || ''),
-    );
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -119,10 +116,11 @@ describe('createGroupStrategy', () => {
         return '';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+        workspace([core, utils, spy]),
+        record(),
       );
-      await strategy(workspace([core, utils, spy]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -141,6 +139,7 @@ describe('createGroupStrategy', () => {
       );
       expect(jsonOutput.setPackageUpdateGroup).toHaveBeenCalledWith('@wdio/native-core', 'native');
       expect(jsonOutput.setPackageUpdateGroup).toHaveBeenCalledWith('@wdio/native-spy', 'native');
+      expect(jsonOutput.setVersioningStrategy).toHaveBeenCalledWith('group');
     });
 
     it('should warn about divergence when a releasing fixed group excludes a member', async () => {
@@ -152,10 +151,11 @@ describe('createGroupStrategy', () => {
         opts.name === '@wdio/native-core' ? '2.3.1' : '',
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ skip: ['@wdio/native-spy'], groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+        workspace([core, utils, spy]),
+        record(),
       );
-      await strategy(workspace([core, utils, spy]), record());
 
       expect(logging.log).toHaveBeenCalledWith(
         expect.stringContaining('will release without: @wdio/native-spy'),
@@ -170,10 +170,11 @@ describe('createGroupStrategy', () => {
 
       vi.mocked(calculator.calculateVersion).mockResolvedValue('');
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ skip: ['@wdio/native-spy'], groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+        workspace([core, utils, spy]),
+        record(),
       );
-      await strategy(workspace([core, utils, spy]), record());
 
       expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('will release without'), 'warning');
     });
@@ -192,10 +193,11 @@ describe('createGroupStrategy', () => {
         return '';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+        workspace([core, utils]),
+        record(),
       );
-      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -214,10 +216,11 @@ describe('createGroupStrategy', () => {
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
       vi.mocked(calculator.calculateVersion).mockResolvedValue('');
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+        workspace([core, utils]),
+        record(),
       );
-      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalled();
       expect(jsonOutput.setCommitMessage).not.toHaveBeenCalled();
@@ -237,10 +240,11 @@ describe('createGroupStrategy', () => {
         return '';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'linked' } } }),
+        workspace([core, utils, spy]),
+        record(),
       );
-      await strategy(workspace([core, utils, spy]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(1);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -270,10 +274,11 @@ describe('createGroupStrategy', () => {
         return '';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'linked' } } }),
+        workspace([core, utils, spy]),
+        record(),
       );
-      await strategy(workspace([core, utils, spy]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(2);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -301,13 +306,14 @@ describe('createGroupStrategy', () => {
         return '';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           prereleaseIdentifier: 'next',
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
         }),
+        workspace([service, contract]),
+        record(),
       );
-      await strategy(workspace([service, contract]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(1);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -329,13 +335,14 @@ describe('createGroupStrategy', () => {
         return '';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           prereleaseIdentifier: 'next',
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'fixed' } },
         }),
+        workspace([service, contract]),
+        record(),
       );
-      await strategy(workspace([service, contract]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(2);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -358,13 +365,14 @@ describe('createGroupStrategy', () => {
         opts.name === '@wdio/flutter-service' ? '1.0.0-next.1' : '',
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           prereleaseIdentifier: 'next',
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
         }),
+        workspace([service, contract]),
+        record({ '@wdio/flutter-service': '1.0.0-next.0' }),
       );
-      await strategy(workspace([service, contract]), record({ '@wdio/flutter-service': '1.0.0-next.0' }));
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(1);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -382,13 +390,14 @@ describe('createGroupStrategy', () => {
         opts.name === '@wdio/flutter-service' ? '1.0.0-next.1' : '',
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           prereleaseIdentifier: 'next',
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'fixed' } },
         }),
+        workspace([service, contract]),
+        record({ '@wdio/flutter-service': '1.0.0-next.0' }),
       );
-      await strategy(workspace([service, contract]), record({ '@wdio/flutter-service': '1.0.0-next.0' }));
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(2);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -413,13 +422,14 @@ describe('createGroupStrategy', () => {
         opts.name === 'wdio_flutter' ? '0.0.2-next.0' : '',
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           isPrerelease: true,
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
         }),
+        workspace([service, contract]),
+        record(),
       );
-      await strategy(workspace([service, contract]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio_flutter/package.json',
@@ -439,13 +449,14 @@ describe('createGroupStrategy', () => {
         opts.name === 'wdio_flutter' ? '0.9.0-next.1' : '',
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           isPrerelease: true,
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
         }),
+        workspace([service, contract]),
+        record(),
       );
-      await strategy(workspace([service, contract]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio_flutter/package.json',
@@ -467,10 +478,11 @@ describe('createGroupStrategy', () => {
         return '';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+        workspace([core, utils]),
+        record(),
       );
-      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -501,10 +513,11 @@ describe('createGroupStrategy', () => {
         return '';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+        workspace([core, newcomer]),
+        record(),
       );
-      await strategy(workspace([core, newcomer]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-fresh/package.json',
@@ -530,10 +543,12 @@ describe('createGroupStrategy', () => {
         return '';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+        workspace([core, utils]),
+        record(),
+        ['@wdio/native-core'],
       );
-      await strategy(workspace([core, utils]), record(), ['@wdio/native-core']);
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -560,8 +575,7 @@ describe('createGroupStrategy', () => {
         return '';
       });
 
-      const strategy = createGroupStrategy(baseConfig({ sync: true }));
-      await strategy(workspace([a, b]), record());
+      await versionPackages(baseConfig({ sync: true }), workspace([a, b]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/app-a/package.json',
@@ -589,14 +603,15 @@ describe('createGroupStrategy', () => {
         return '1.0.0-next.6';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } },
           stableOnly: true,
           graduateScope: ['@wdio/native-core'],
         }),
+        workspace([core, utils]),
+        record(),
       );
-      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -621,14 +636,15 @@ describe('createGroupStrategy', () => {
         return '2.0.0-next.3';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           groups: { native: { packages: ['@wdio/native-*'], sync: 'linked' } },
           stableOnly: true,
           graduateScope: ['@wdio/native-utils'],
         }),
+        workspace([core, utils]),
+        record(),
       );
-      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -648,14 +664,15 @@ describe('createGroupStrategy', () => {
 
       vi.mocked(calculator.calculateVersion).mockResolvedValue('1.0.0-next.6');
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } },
           stableOnly: true,
           graduateScope: ['@other/thing'],
         }),
+        workspace([core, utils]),
+        record(),
       );
-      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -675,10 +692,11 @@ describe('createGroupStrategy', () => {
 
       vi.mocked(calculator.calculateVersion).mockResolvedValue('3.1.0');
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { app: { packages: ['@app/*'], sync: 'fixed' } }, stableOnly: true }),
+        workspace([a, b]),
+        record(),
       );
-      await strategy(workspace([a, b]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/app-a/package.json',
@@ -702,15 +720,16 @@ describe('createGroupStrategy', () => {
         opts.name === '@wdio/native-core' ? '2.4.0-next.0' : '',
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } },
           isPrerelease: true,
           prereleaseIdentifier: 'next',
           prereleaseScope: ['@wdio/native-core'],
         }),
+        workspace([core, utils]),
+        record(),
       );
-      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -734,15 +753,16 @@ describe('createGroupStrategy', () => {
         opts.name === '@wdio/native-core' ? '2.4.0' : '',
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } },
           isPrerelease: true,
           prereleaseIdentifier: 'next',
           prereleaseScope: ['@other/thing'],
         }),
+        workspace([core, utils]),
+        record(),
       );
-      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -770,15 +790,16 @@ describe('createGroupStrategy', () => {
         opts.name === '@wdio/tauri-service' ? '1.3.0-next.0' : '0.6.0-next.0',
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           groups: { tauri: { packages: ['@wdio/tauri-*'], sync: 'independent' } },
           isPrerelease: true,
           prereleaseIdentifier: 'next',
           prereleaseScope: ['@wdio/tauri-*'],
         }),
+        workspace([service, plugin]),
+        record(),
       );
-      await strategy(workspace([service, plugin]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-tauri-service/package.json',
@@ -808,10 +829,11 @@ describe('createGroupStrategy', () => {
         return '';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+        workspace([core, standalone]),
+        record(),
       );
-      await strategy(workspace([core, standalone]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/app-standalone/package.json',
@@ -825,15 +847,13 @@ describe('createGroupStrategy', () => {
   describe('config errors', () => {
     it('should throw when a package matches two groups', async () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');
-      const strategy = createGroupStrategy(
-        baseConfig({
-          groups: {
-            a: { packages: ['@wdio/native-*'], sync: 'fixed' },
-            b: { packages: ['@wdio/native-core'], sync: 'linked' },
-          },
-        }),
-      );
-      await expect(strategy(workspace([core]), [], record())).rejects.toThrow(/more than one version group/);
+      const config = baseConfig({
+        groups: {
+          a: { packages: ['@wdio/native-*'], sync: 'fixed' },
+          b: { packages: ['@wdio/native-core'], sync: 'linked' },
+        },
+      });
+      await expect(versionPackages(config, workspace([core]), record())).rejects.toThrow(/more than one version group/);
     });
   });
 
@@ -852,10 +872,11 @@ describe('createGroupStrategy', () => {
         return '';
       });
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } } }),
+        workspace([core, utils]),
+        record(),
       );
-      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -880,10 +901,11 @@ describe('createGroupStrategy', () => {
         opts.name === '@wdio/native-core' ? '2.4.0' : '',
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } } }),
+        workspace([core, utils]),
+        record(),
       );
-      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -908,13 +930,14 @@ describe('createGroupStrategy', () => {
         opts.name === '@wdio/native-core' || opts.name === '@wdio/native-spy' ? '2.4.0' : '',
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           skip: ['@wdio/native-spy'],
           groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } },
         }),
+        workspace([core, utils, spy]),
+        record(),
       );
-      await strategy(workspace([core, utils, spy]), record());
 
       expect(logging.log).toHaveBeenCalledWith(
         expect.stringContaining('will release without: @wdio/native-spy'),
@@ -931,13 +954,14 @@ describe('createGroupStrategy', () => {
         opts.name === '@wdio/native-core' ? '2.4.0' : '',
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           skip: ['@wdio/native-spy'],
           groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } },
         }),
+        workspace([core, spy]),
+        record(),
       );
-      await strategy(workspace([core, spy]), record());
 
       expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('will release without'), 'warning');
     });
@@ -956,10 +980,11 @@ describe('createGroupStrategy', () => {
           pkgDir.endsWith('native-core') ? [{ type: 'added', description: 'New core feature' }] : [],
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+        workspace([core, utils]),
+        record(),
       );
-      await strategy(workspace([core, utils]), record());
 
       expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -983,10 +1008,11 @@ describe('createGroupStrategy', () => {
       // extractChangelogEntriesFromCommits swallows git failures as [], so a changed member can come back empty.
       vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockResolvedValue([]);
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+        workspace([core]),
+        record(),
       );
-      await strategy(workspace([core]), record());
 
       const call = vi
         .mocked(jsonOutput.addChangelogData)
@@ -1013,13 +1039,14 @@ describe('createGroupStrategy', () => {
     });
 
     it("should bump a Dart-only member's pubspec.yaml under its name, ignoring pub.paths", async () => {
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           pub: pubConfig,
           groups: { flutter: { packages: ['wdio_flutter', '@wdio/flutter-service'], sync: 'independent' } },
         }),
+        workspace([dart, service]),
+        record(),
       );
-      await strategy(workspace([dart, service]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(dartPubspec, '1.0.0-next.1', false, {
         recordAs: 'wdio_flutter',
@@ -1029,12 +1056,13 @@ describe('createGroupStrategy', () => {
 
     it('should not tag a member with no manifest to bump', async () => {
       vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(false);
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({
           groups: { flutter: { packages: ['wdio_flutter', '@wdio/flutter-service'], sync: 'independent' } },
         }),
+        workspace([dart, service]),
+        record(),
       );
-      await strategy(workspace([dart, service]), record());
 
       expect(jsonOutput.addTag).not.toHaveBeenCalled();
     });
@@ -1049,10 +1077,11 @@ describe('createGroupStrategy', () => {
         opts.name === '@wdio/native-orphan' ? '3.0.0' : '2.3.1',
       );
 
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+        workspace([core, orphan]),
+        record(),
       );
-      await strategy(workspace([core, orphan]), record());
 
       expect(jsonOutput.addTag).toHaveBeenCalledWith('@wdio/native-core@v2.3.1');
       expect(jsonOutput.addTag).toHaveBeenCalledTimes(1);
@@ -1063,10 +1092,11 @@ describe('createGroupStrategy', () => {
     });
 
     it("should bump an ungrouped Dart package's pubspec.yaml", async () => {
-      const strategy = createGroupStrategy(
+      await versionPackages(
         baseConfig({ pub: pubConfig, groups: { js: { packages: ['@wdio/flutter-service'], sync: 'fixed' } } }),
+        workspace([dart, service]),
+        record(),
       );
-      await strategy(workspace([dart, service]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(dartPubspec, '1.0.0-next.1', false, {
         recordAs: 'wdio_flutter',

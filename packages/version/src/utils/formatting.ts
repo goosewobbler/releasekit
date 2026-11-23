@@ -30,7 +30,7 @@ export function formatTag(
         `To fix this:\n` +
         `• If using sync mode: Set "packageSpecificTags": true in your config to enable package names in tags\n` +
         `• If you want global tags: Remove \${packageName} from your tagTemplate (e.g., use "\${prefix}\${version}")\n` +
-        `• If using single/async mode: Ensure your package.json has a valid "name" field`,
+        `• If versioning packages on their own (async mode): Ensure your package.json has a valid "name" field`,
       'warning',
     );
   }
@@ -47,36 +47,6 @@ export function formatTag(
   }
 
   return `${prefix}${version}`;
-}
-
-export function formatCommitMessage(
-  template: string,
-  version: string,
-  packageName?: string | null,
-  additionalContext?: Record<string, string>,
-): string {
-  if (template.includes('${' + 'packageName}') && !packageName) {
-    log(
-      `Warning: Your commitMessage template contains \${packageName} but no package name is available.\n` +
-        `This will result in an empty package name in the commit message (e.g., "Release @v1.0.0").\n\n` +
-        `To fix this:\n` +
-        `• If using sync mode: Set "packageSpecificTags": true to enable package names in commits\n` +
-        `• If you want generic commit messages: Remove \${packageName} from your commitMessage template\n` +
-        `• If using single/async mode: Ensure your package.json has a valid "name" field`,
-      'warning',
-    );
-  }
-
-  let result = template.replace(/\$\{version\}/g, version).replace(/\$\{packageName\}/g, packageName || '');
-
-  if (additionalContext) {
-    for (const [key, value] of Object.entries(additionalContext)) {
-      const placeholder = `${key ? `\${${key}}` : ''}`;
-      result = result.replace(new RegExp(escapeRegExp(placeholder), 'g'), value);
-    }
-  }
-
-  return result;
 }
 
 export function buildTagStripPatternFromTemplate(template: string, packageName: string, prefix: string): string {

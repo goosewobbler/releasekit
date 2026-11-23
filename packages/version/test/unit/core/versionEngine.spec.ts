@@ -5,13 +5,13 @@ import { cwd as mockCwd } from 'node:process';
 import { getPackagesSync } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VersionEngine } from '../../../src/core/versionEngine.js';
-import * as strategyModule from '../../../src/core/versionStrategies.js';
+import { versionPackages } from '../../../src/core/versionPackages.js';
 import { VersionError } from '../../../src/errors/versionError.js';
-import type { Config } from '../../../src/types.js';
+import type { Config, VersionRunOptions } from '../../../src/types.js';
 import { log } from '../../../src/utils/logging.js';
 
 vi.mock('@manypkg/get-packages');
-vi.mock('../../../src/core/versionStrategies.js');
+vi.mock('../../../src/core/versionPackages.js');
 vi.mock('../../../src/utils/logging.js');
 
 vi.mock('node:process', () => ({
@@ -19,10 +19,6 @@ vi.mock('node:process', () => ({
 }));
 
 describe('Version Engine', () => {
-  const syncStrategyMock = vi.fn().mockResolvedValue(undefined);
-  const singleStrategyMock = vi.fn().mockResolvedValue(undefined);
-  const asyncStrategyMock = vi.fn().mockResolvedValue(undefined);
-
   const mockPackages = {
     root: '/test/workspace',
     rootDir: '/test/workspace',
@@ -54,15 +50,7 @@ describe('Version Engine', () => {
 
     vi.mocked(mockCwd, { partial: true }).mockReturnValue('/test/workspace');
 
-    vi.mocked(strategyModule.createSyncStrategy, { partial: true }).mockReturnValue(syncStrategyMock);
-    vi.mocked(strategyModule.createSingleStrategy, { partial: true }).mockReturnValue(singleStrategyMock);
-    vi.mocked(strategyModule.createAsyncStrategy, { partial: true }).mockReturnValue(asyncStrategyMock);
-    vi.mocked(strategyModule.createStrategy, { partial: true }).mockReturnValue(syncStrategyMock);
-    vi.mocked(strategyModule.createStrategyMap, { partial: true }).mockReturnValue({
-      sync: syncStrategyMock,
-      single: singleStrategyMock,
-      async: asyncStrategyMock,
-    });
+    vi.mocked(versionPackages).mockResolvedValue(undefined);
 
     vi.mocked(getPackagesSync, { partial: true }).mockReturnValue(mockPackages);
   });
@@ -71,17 +59,20 @@ describe('Version Engine', () => {
     vi.restoreAllMocks();
   });
 
+  async function effectiveConfig(config: Config, runOptions?: VersionRunOptions): Promise<Config | undefined> {
+    await new VersionEngine(config, runOptions).run(mockPackages);
+    return vi.mocked(versionPackages).mock.calls[0]?.[0];
+  }
+
   describe('Constructor', () => {
     it('should throw if no config is provided', () => {
       expect(() => new VersionEngine(undefined as unknown as Config)).toThrow('Configuration is required');
     });
 
-    it('should initialize strategies based on config', () => {
-      const engine = new VersionEngine(defaultConfig as Config);
+    it('should pass the config to versionPackages', async () => {
+      await new VersionEngine(defaultConfig as Config).run(mockPackages);
 
-      expect(engine).toBeInstanceOf(VersionEngine);
-      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(defaultConfig as Config);
-      expect(strategyModule.createStrategy).toHaveBeenCalledWith(defaultConfig as Config);
+      expect(versionPackages).toHaveBeenCalledWith(defaultConfig, mockPackages, expect.anything(), [], []);
     });
 
     it('should not mutate the caller config when runOptions are provided', () => {
@@ -93,97 +84,90 @@ describe('Version Engine', () => {
       expect(config.packages).toEqual([]);
     });
 
-    it('should apply bump, dryRun and targets from runOptions (targets stored separately, not in config)', () => {
-      new VersionEngine(defaultConfig as Config, { bump: 'minor', dryRun: true, targets: ['pkg-a', 'pkg-b'] });
+    it('should apply bump, dryRun and targets from runOptions (targets stored separately, not in config)', async () => {
+      const effective = await effectiveConfig(defaultConfig as Config, {
+        bump: 'minor',
+        dryRun: true,
+        targets: ['pkg-a', 'pkg-b'],
+      });
 
-      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'minor', dryRun: true, packages: [] }),
-      );
+      expect(effective).toEqual(expect.objectContaining({ type: 'minor', dryRun: true, packages: [] }));
     });
 
-    it('should apply prerelease string identifier from runOptions', () => {
-      new VersionEngine(defaultConfig as Config, { prerelease: 'beta' });
+    it('should apply prerelease string identifier from runOptions', async () => {
+      const effective = await effectiveConfig(defaultConfig as Config, { prerelease: 'beta' });
 
-      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
-        expect.objectContaining({ prereleaseIdentifier: 'beta', isPrerelease: true }),
-      );
+      expect(effective).toEqual(expect.objectContaining({ prereleaseIdentifier: 'beta', isPrerelease: true }));
     });
 
-    it('should use configured identifier when prerelease: true', () => {
+    it('should use configured identifier when prerelease: true', async () => {
       const configWithAlpha = { ...defaultConfig, prereleaseIdentifier: 'alpha' } as Config;
-      new VersionEngine(configWithAlpha, { prerelease: true });
+      const effective = await effectiveConfig(configWithAlpha, { prerelease: true });
 
-      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
-        expect.objectContaining({ prereleaseIdentifier: 'alpha', isPrerelease: true }),
-      );
+      expect(effective).toEqual(expect.objectContaining({ prereleaseIdentifier: 'alpha', isPrerelease: true }));
     });
 
-    it('should default to "next" when prerelease: true and no configured identifier', () => {
-      new VersionEngine(defaultConfig as Config, { prerelease: true });
+    it('should default to "next" when prerelease: true and no configured identifier', async () => {
+      const effective = await effectiveConfig(defaultConfig as Config, { prerelease: true });
 
-      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
-        expect.objectContaining({ prereleaseIdentifier: 'next', isPrerelease: true }),
-      );
+      expect(effective).toEqual(expect.objectContaining({ prereleaseIdentifier: 'next', isPrerelease: true }));
     });
 
-    it('should apply stable from runOptions as stableOnly on effective config', () => {
-      new VersionEngine(defaultConfig as Config, { stable: true });
+    it('should apply stable from runOptions as stableOnly on effective config', async () => {
+      const effective = await effectiveConfig(defaultConfig as Config, { stable: true });
 
-      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(expect.objectContaining({ stableOnly: true }));
+      expect(effective).toEqual(expect.objectContaining({ stableOnly: true }));
     });
 
-    it('should propagate baseRef from runOptions to effective config', () => {
-      new VersionEngine(defaultConfig as Config, { baseRef: 'abc1234def' });
+    it('should propagate baseRef from runOptions to effective config', async () => {
+      const effective = await effectiveConfig(defaultConfig as Config, { baseRef: 'abc1234def' });
 
-      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(expect.objectContaining({ baseRef: 'abc1234def' }));
+      expect(effective).toEqual(expect.objectContaining({ baseRef: 'abc1234def' }));
     });
 
-    it('should not set baseRef when runOptions does not include it', () => {
-      new VersionEngine(defaultConfig as Config, { bump: 'minor' });
+    it('should not set baseRef when runOptions does not include it', async () => {
+      const effective = await effectiveConfig(defaultConfig as Config, { bump: 'minor' });
 
-      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
-        expect.not.objectContaining({ baseRef: expect.anything() }),
-      );
+      expect(effective).toEqual(expect.not.objectContaining({ baseRef: expect.anything() }));
     });
 
-    it('should fold prereleaseScope into isPrerelease + prereleaseScope on effective config', () => {
-      new VersionEngine(defaultConfig as Config, { prereleaseScope: ['@scope/a'] });
+    it('should fold prereleaseScope into isPrerelease + prereleaseScope on effective config', async () => {
+      const effective = await effectiveConfig(defaultConfig as Config, { prereleaseScope: ['@scope/a'] });
 
-      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
+      expect(effective).toEqual(
         expect.objectContaining({ isPrerelease: true, prereleaseScope: ['@scope/a'], prereleaseIdentifier: 'next' }),
       );
     });
 
-    it('should keep the configured identifier when folding prereleaseScope', () => {
+    it('should keep the configured identifier when folding prereleaseScope', async () => {
       const configWithAlpha = { ...defaultConfig, prereleaseIdentifier: 'alpha' } as Config;
-      new VersionEngine(configWithAlpha, { prereleaseScope: ['@scope/a'] });
+      const effective = await effectiveConfig(configWithAlpha, { prereleaseScope: ['@scope/a'] });
 
-      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
+      expect(effective).toEqual(
         expect.objectContaining({ isPrerelease: true, prereleaseScope: ['@scope/a'], prereleaseIdentifier: 'alpha' }),
       );
     });
 
-    it('should drop prereleaseScope when the global prerelease flag is also set — global wins', () => {
-      new VersionEngine(defaultConfig as Config, { prerelease: true, prereleaseScope: ['@scope/a'] });
+    it('should drop prereleaseScope when the global prerelease flag is also set — global wins', async () => {
+      const effective = await effectiveConfig(defaultConfig as Config, {
+        prerelease: true,
+        prereleaseScope: ['@scope/a'],
+      });
 
       // The key is absent, not undefined, and `objectContaining({ prereleaseScope: undefined })` would require it.
-      const effective = vi.mocked(strategyModule.createStrategyMap).mock.calls[0]?.[0];
       expect(effective?.isPrerelease).toBe(true);
       expect(effective?.prereleaseScope).toBeUndefined();
     });
 
-    it('should fold graduate into stableOnly + graduateScope on effective config', () => {
-      new VersionEngine(defaultConfig as Config, { graduate: ['@scope/a'] });
+    it('should fold graduate into stableOnly + graduateScope on effective config', async () => {
+      const effective = await effectiveConfig(defaultConfig as Config, { graduate: ['@scope/a'] });
 
-      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
-        expect.objectContaining({ stableOnly: true, graduateScope: ['@scope/a'] }),
-      );
+      expect(effective).toEqual(expect.objectContaining({ stableOnly: true, graduateScope: ['@scope/a'] }));
     });
 
-    it('should drop graduate when the global stable flag is also set - global wins', () => {
-      new VersionEngine(defaultConfig as Config, { stable: true, graduate: ['@scope/a'] });
+    it('should drop graduate when the global stable flag is also set - global wins', async () => {
+      const effective = await effectiveConfig(defaultConfig as Config, { stable: true, graduate: ['@scope/a'] });
 
-      const effective = vi.mocked(strategyModule.createStrategyMap).mock.calls[0]?.[0];
       expect(effective?.stableOnly).toBe(true);
       expect(effective?.graduateScope).toBeUndefined();
     });
@@ -489,24 +473,24 @@ describe('Version Engine', () => {
   });
 
   describe('Run method', () => {
-    it('should get workspace packages and execute the current strategy', async () => {
+    it('should get workspace packages and call versionPackages', async () => {
       const engine = new VersionEngine(defaultConfig as Config);
       await engine.run(mockPackages);
-      expect(syncStrategyMock).toHaveBeenCalledWith(mockPackages, expect.anything(), []);
+      expect(versionPackages).toHaveBeenCalledWith(expect.anything(), mockPackages, expect.anything(), [], []);
     });
 
-    it('should pass targets to the strategy function', async () => {
+    it('should pass targets to versionPackages', async () => {
       const engine = new VersionEngine(defaultConfig as Config);
       const targets = ['package-a'];
       await engine.run(mockPackages, targets);
-      expect(syncStrategyMock).toHaveBeenCalledWith(mockPackages, expect.anything(), targets);
+      expect(versionPackages).toHaveBeenCalledWith(expect.anything(), mockPackages, expect.anything(), targets, []);
     });
 
-    it('should propagate errors thrown by the strategy', async () => {
-      const error = new Error('Strategy failed');
-      syncStrategyMock.mockRejectedValue(error);
+    it('should propagate errors thrown by versionPackages', async () => {
+      vi.mocked(versionPackages).mockRejectedValue(new Error('Versioning failed'));
       const engine = new VersionEngine(defaultConfig as Config);
-      await expect(engine.run(mockPackages)).rejects.toThrow('Strategy failed');
+      await expect(engine.run(mockPackages)).rejects.toThrow('Versioning failed');
+      expect(log).toHaveBeenCalledWith('Version engine failed: Versioning failed', 'error');
     });
 
     it('should cache workspace packages for subsequent calls', async () => {
@@ -529,28 +513,23 @@ describe('Version Engine', () => {
       expect(log).toHaveBeenCalledWith(expect.stringContaining('Failed to get packages information'), 'error');
     });
 
-    it('should process all packages', async () => {
-      const engine = new VersionEngine(defaultConfig as Config);
-      await engine.run(mockPackages);
-      expect(syncStrategyMock).toHaveBeenCalledWith(mockPackages, expect.anything(), []);
+    it('should pass every discovered package to versionPackages', async () => {
+      const engine = new VersionEngine(defaultConfig as Config, { exclude: ['package-b'] });
+      const workspace = await engine.getWorkspacePackages();
+      await engine.run(workspace);
+
+      expect(workspace.packages.map((p) => p.packageJson.name)).toEqual(['package-a']);
+      expect(versionPackages).toHaveBeenCalledWith(
+        expect.anything(),
+        workspace,
+        expect.anything(),
+        [],
+        mockPackages.packages,
+      );
     });
   });
 
-  describe('Set Strategy method', () => {
-    it('should change the current strategy', async () => {
-      const engine = new VersionEngine(defaultConfig as Config);
-
-      await engine.run(mockPackages);
-      expect(syncStrategyMock).toHaveBeenCalled();
-
-      engine.setStrategy('async');
-      syncStrategyMock.mockClear();
-
-      await engine.run(mockPackages);
-      expect(syncStrategyMock).not.toHaveBeenCalled();
-      expect(asyncStrategyMock).toHaveBeenCalled();
-    });
-
+  describe('Package discovery', () => {
     it('should discover pure Rust packages with Cargo.toml only', async () => {
       const discoverSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverCargoTomlPackages');
       discoverSpy.mockReturnValue({
