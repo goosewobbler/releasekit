@@ -5077,7 +5077,7 @@ describe('runStandingPRPublish', () => {
     expect(runPublishStep).not.toHaveBeenCalled();
     const reports = forge.comments.filter((c) => c.body.startsWith(FAILURE_MARKER));
     expect(reports).toHaveLength(1);
-    expect(reports[0]?.body).toContain('Roll forward with the next release');
+    expect(reports[0]?.body).toContain('Raise the version in `releasekit.versions.json`');
     expect(reports[0]?.body).not.toContain('release:retry');
   });
 

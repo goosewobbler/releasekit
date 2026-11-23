@@ -277,7 +277,7 @@ function renderRecovery(
     lines.push(
       "Retrying won't help: the remote already has this release's tag at another commit, so that version was released before, and a retry fails the same way.",
       '',
-      "Roll forward with the next release. It bumps past this one. Don't delete or move the tags.",
+      "Raise the version in `releasekit.versions.json` to at least the last released one (`git ls-remote --tags origin` lists the release tags), then release again. Don't delete or move the tags.",
     );
     return lines;
   }

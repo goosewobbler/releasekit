@@ -328,7 +328,7 @@ export async function createReleaseTags(tags: string[], cwd: string, remote: str
     throw createPublishError(
       PublishErrorCode.GIT_TAG_EXISTS,
       `Can't tag this release at ${headSha}: ${taken.map((tag) => `${tag} is at ${remoteTags[tag]}`).join(', ')} ` +
-        'on the remote, so that version was already released. Leave the tags and roll forward with the next release.',
+        'on the remote, so that version was already released. Leave the tags, and raise the version in releasekit.versions.json to at least the last released one.',
     );
   }
 

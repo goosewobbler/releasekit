@@ -164,7 +164,7 @@ env:
 
 **Cause:** The remote already has the tag at another commit, so that version was released before. Tags are created locally before publishing; a local tag that isn't on the remote, such as one a failed batch run left behind, is replaced instead.
 
-**Fix:** Roll forward with the next release, which bumps past this one. Don't delete or move the remote tag; confirm where it points with `git ls-remote --tags origin`. See [Recovering from a failed publish](#recovering-from-a-failed-publish).
+**Fix:** Raise the version in `releasekit.versions.json` to at least the last released one, then release again; the next release bumps past it. A retry, or a release from the same record, computes the same version and fails the same way. Don't delete or move the remote tag; `git ls-remote --tags origin` shows where each tag points.
 
 With `git.push` off, the remote isn't checked, so a local tag at another commit fails with `Tag vX.Y.Z already exists at a different commit`. If that tag was never pushed, delete it (`git tag -d vX.Y.Z`) and re-run `publish` with the original version output.
 

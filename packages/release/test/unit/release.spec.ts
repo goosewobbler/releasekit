@@ -811,7 +811,7 @@ describe('runRelease', () => {
       },
     );
 
-    it('should tell the PR to roll forward, not re-run, when the remote already has a release tag', async () => {
+    it('should tell the PR to raise the version record, not re-run, when the remote already has a release tag', async () => {
       const publish = await import('@releasekit/publish');
       const collision = publish.createPublishError(
         publish.PublishErrorCode.GIT_TAG_EXISTS,
@@ -826,7 +826,7 @@ describe('runRelease', () => {
       await expect(runRelease(noTarget)).rejects.toThrow('This version was already released');
 
       const report = forge.comments.find((c) => c.prNumber === 123 && c.body.startsWith(FAILURE_MARKER))?.body;
-      expect(report).toContain('Roll forward with the next release');
+      expect(report).toContain('Raise the version in `releasekit.versions.json`');
       expect(report).not.toContain('Re-run failed jobs');
       expect(parseFailureReportData(report ?? '')).toMatchObject({ refused: true });
     });

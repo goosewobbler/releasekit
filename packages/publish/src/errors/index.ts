@@ -103,7 +103,10 @@ export function createPublishError(code: PublishErrorCode, details?: string): Pu
       'Check if the tag already exists: git tag -l <tag>',
       'Delete existing tag if needed: git tag -d <tag>',
     ],
-    [PublishErrorCode.GIT_TAG_EXISTS]: ["Roll forward with the next release; don't delete or move the remote tag"],
+    [PublishErrorCode.GIT_TAG_EXISTS]: [
+      'Raise the version in releasekit.versions.json to at least the last released one, then release again',
+      "Don't delete or move the remote tag",
+    ],
     [PublishErrorCode.GIT_PUSH_ERROR]: [
       'Verify remote repository access',
       'Check SSH key or deploy key configuration',
