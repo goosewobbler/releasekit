@@ -683,7 +683,7 @@ export class VersionEngine {
       clearCargoBumps();
       clearReleasedVersions();
       // Callers pass the targets they were given, which the prerequisite expansion has since widened.
-      await this.currentStrategy(packages, this.targetsExpanded ? this.runtimeTargets : targets, record);
+      await this.currentStrategy(packages, record, this.targetsExpanded ? this.runtimeTargets : targets);
       await raiseCargoDependentRequirements(packages.root ?? cwd(), this.config.dryRun ?? false);
       await syncCargoLockfiles(packages.root ?? cwd(), this.config.dryRun ?? false);
       if (Object.keys(this.prerequisiteOf).length > 0) {

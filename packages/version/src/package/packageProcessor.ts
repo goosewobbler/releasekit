@@ -8,7 +8,7 @@ import { BaselineResolver } from '../core/baselineResolver.js';
 import { calculateVersion } from '../core/versionCalculator.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
 import { checkUnreachableTags, getLatestTagForPackage } from '../git/tagsAndBranches.js';
-import { VersionRecord } from '../record/recordFile.js';
+import type { VersionRecord } from '../record/recordFile.js';
 import type { Config, VersionConfigBase } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
@@ -78,8 +78,8 @@ export class PackageProcessor {
    */
   async processPackages(
     packages: Package[],
+    record: VersionRecord,
     repoRoot: string = process.cwd(),
-    record = VersionRecord.empty(repoRoot),
   ): Promise<ProcessResult> {
     const tags: string[] = [];
     const updatedPackagesInfo: Array<{ name: string; version: string; path: string }> = [];

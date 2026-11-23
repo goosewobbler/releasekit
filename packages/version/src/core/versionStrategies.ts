@@ -10,7 +10,7 @@ import { createVersionError, VersionErrorCode } from '../errors/versionError.js'
 import { checkUnreachableTags, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
-import { VersionRecord } from '../record/recordFile.js';
+import type { VersionRecord } from '../record/recordFile.js';
 import type { Config } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
@@ -39,12 +39,7 @@ type ChangelogEntry = VersionChangelogEntry;
 
 export type StrategyType = 'sync' | 'single' | 'async' | 'group';
 
-/** Without a `record`, every package releases from its manifest. */
-export type StrategyFunction = (
-  packages: PackagesWithRoot,
-  targets?: string[],
-  record?: VersionRecord,
-) => Promise<void>;
+export type StrategyFunction = (packages: PackagesWithRoot, record: VersionRecord, targets?: string[]) => Promise<void>;
 
 /** Targeting is applied at discovery time, so this only handles skip. */
 function shouldProcessPackage(pkg: Package, config: Config): boolean {
@@ -53,11 +48,7 @@ function shouldProcessPackage(pkg: Package, config: Config): boolean {
 }
 
 export function createSyncStrategy(config: Config): StrategyFunction {
-  return async (
-    packages: PackagesWithRoot,
-    _targets?: string[],
-    record = VersionRecord.empty(packages.root),
-  ): Promise<void> => {
+  return async (packages: PackagesWithRoot, record: VersionRecord): Promise<void> => {
     try {
       setVersioningStrategy('sync');
       const {
@@ -428,11 +419,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 }
 
 export function createSingleStrategy(config: Config): StrategyFunction {
-  return async (
-    packages: PackagesWithRoot,
-    _targets?: string[],
-    record = VersionRecord.empty(packages.root),
-  ): Promise<void> => {
+  return async (packages: PackagesWithRoot, record: VersionRecord): Promise<void> => {
     try {
       setVersioningStrategy('single');
       const {
@@ -666,11 +653,7 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
 
   const packageProcessor = new PackageProcessor(processorOptions);
 
-  return async (
-    packages: PackagesWithRoot,
-    targets: string[] = [],
-    record = VersionRecord.empty(packages.root),
-  ): Promise<void> => {
+  return async (packages: PackagesWithRoot, record: VersionRecord, targets: string[] = []): Promise<void> => {
     try {
       setVersioningStrategy('async');
       let packagesToProcess = packages.packages;
@@ -685,7 +668,7 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
 
       log(`Processing ${packagesToProcess.length} packages`, 'info');
 
-      const result = await packageProcessor.processPackages(packagesToProcess, packages.root ?? process.cwd(), record);
+      const result = await packageProcessor.processPackages(packagesToProcess, record, packages.root ?? process.cwd());
 
       if (result.updatedPackages.length === 0) {
         log('No packages required a version update.', 'info');

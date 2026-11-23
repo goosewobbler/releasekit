@@ -17,7 +17,7 @@ import { BaseVersionError } from '../errors/baseError.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
 import { checkUnreachableTags, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
-import { VersionRecord } from '../record/recordFile.js';
+import type { VersionRecord } from '../record/recordFile.js';
 import type { Config, CurrentVersion } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
@@ -441,12 +441,8 @@ async function releaseGroup(
 
 export function createGroupStrategy(
   config: Config,
-): (packages: PackagesWithRoot, targets?: string[], record?: VersionRecord) => Promise<void> {
-  return async (
-    packages: PackagesWithRoot,
-    runtimeTargets: string[] = [],
-    record = VersionRecord.empty(packages.root),
-  ): Promise<void> => {
+): (packages: PackagesWithRoot, record: VersionRecord, targets?: string[]) => Promise<void> {
+  return async (packages: PackagesWithRoot, record: VersionRecord, runtimeTargets: string[] = []): Promise<void> => {
     try {
       setVersioningStrategy('group');
       const formattedPrefix = formatVersionPrefix(config.versionPrefix);

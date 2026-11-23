@@ -492,14 +492,14 @@ describe('Version Engine', () => {
     it('should get workspace packages and execute the current strategy', async () => {
       const engine = new VersionEngine(defaultConfig as Config);
       await engine.run(mockPackages);
-      expect(syncStrategyMock).toHaveBeenCalledWith(mockPackages, [], expect.anything());
+      expect(syncStrategyMock).toHaveBeenCalledWith(mockPackages, expect.anything(), []);
     });
 
     it('should pass targets to the strategy function', async () => {
       const engine = new VersionEngine(defaultConfig as Config);
       const targets = ['package-a'];
       await engine.run(mockPackages, targets);
-      expect(syncStrategyMock).toHaveBeenCalledWith(mockPackages, targets, expect.anything());
+      expect(syncStrategyMock).toHaveBeenCalledWith(mockPackages, expect.anything(), targets);
     });
 
     it('should propagate errors thrown by the strategy', async () => {
@@ -532,7 +532,7 @@ describe('Version Engine', () => {
     it('should process all packages', async () => {
       const engine = new VersionEngine(defaultConfig as Config);
       await engine.run(mockPackages);
-      expect(syncStrategyMock).toHaveBeenCalledWith(mockPackages, [], expect.anything());
+      expect(syncStrategyMock).toHaveBeenCalledWith(mockPackages, expect.anything(), []);
     });
   });
 

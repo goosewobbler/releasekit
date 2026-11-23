@@ -12,11 +12,16 @@ import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
 import { PackageProcessor } from '../../../src/package/packageProcessor.js';
 import * as pubHandler from '../../../src/pub/pubHandler.js';
+import type { VersionRecord } from '../../../src/record/recordFile.js';
 import type { Config } from '../../../src/types.js';
 import * as formatting from '../../../src/utils/formatting.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
 import * as manifestHelpers from '../../../src/utils/manifestHelpers.js';
+
+const record = {
+  current: (pkg: Package) => ({ version: pkg.packageJson.version, recorded: true }),
+} as unknown as VersionRecord;
 
 vi.mock('node:path');
 vi.mock('node:process');
@@ -80,11 +85,6 @@ vi.mock('../../../src/utils/manifestHelpers.js', () => ({
   }),
 }));
 vi.mock('../../../src/core/versionCalculator.js');
-vi.mock('../../../src/record/recordFile.js', () => ({
-  VersionRecord: {
-    empty: () => ({ current: (pkg: Package) => ({ version: pkg.packageJson.version, recorded: true }) }),
-  },
-}));
 vi.mock('../../../src/version/versionCalc.js');
 vi.mock('node:fs');
 vi.mock('../../../src/cargo/cargoHandler.js');
@@ -209,7 +209,7 @@ describe('Package Processor', () => {
 
       const processor = new PackageProcessor(minimalOptions);
 
-      const result = await processor.processPackages(mockPackages);
+      const result = await processor.processPackages(mockPackages, record);
 
       expect(result.updatedPackages.length).toBe(mockPackages.length);
       expect(result.tags.length).toBe(mockPackages.length);
@@ -218,7 +218,7 @@ describe('Package Processor', () => {
     it('should initialize with provided options', async () => {
       const processor = new PackageProcessor(defaultOptions);
 
-      const result = await processor.processPackages(mockPackages);
+      const result = await processor.processPackages(mockPackages, record);
 
       expect(result.updatedPackages.length).toBe(2);
       expect(result.updatedPackages.some((p) => p.name === 'package-a')).toBe(true);
@@ -230,7 +230,7 @@ describe('Package Processor', () => {
   describe('processPackages', () => {
     it('should return early if no packages are provided', async () => {
       const processor = new PackageProcessor(defaultOptions);
-      const result = await processor.processPackages([]);
+      const result = await processor.processPackages([], record);
 
       expect(result).toEqual({ updatedPackages: [], tags: [] });
       expect(logging.log).toHaveBeenCalledWith('Found 0 package(s) to process after filtering.', 'info');
@@ -242,7 +242,7 @@ describe('Package Processor', () => {
         ...defaultOptions,
       });
 
-      const result = await processor.processPackages(mockPackages);
+      const result = await processor.processPackages(mockPackages, record);
 
       expect(result.updatedPackages.length).toBe(2);
       expect(result.updatedPackages.some((p) => p.name === 'package-a')).toBe(true);
@@ -256,7 +256,7 @@ describe('Package Processor', () => {
       const extractEntries = vi.spyOn(commitParser, 'extractChangelogEntriesFromCommits');
       const processor = new PackageProcessor(defaultOptions);
 
-      const result = await processor.processPackages(mockPackages);
+      const result = await processor.processPackages(mockPackages, record);
 
       expect(result.updatedPackages.map((p) => p.name)).toEqual(['package-a']);
       expect(jsonOutput.addChangelogData).not.toHaveBeenCalledWith(
@@ -288,7 +288,7 @@ describe('Package Processor', () => {
         skip: ['package-a'],
       });
 
-      await processor.processPackages(mockPackages);
+      await processor.processPackages(mockPackages, record);
 
       expect(logging.log).toHaveBeenCalledWith("Skipping package package-a as it's in the skip list.", 'info');
       expect(calculator.calculateVersion).not.toHaveBeenCalledWith(
@@ -302,7 +302,7 @@ describe('Package Processor', () => {
         ...defaultOptions,
       });
 
-      await processor.processPackages(mockPackages);
+      await processor.processPackages(mockPackages, record);
 
       expect(calculator.calculateVersion).toHaveBeenCalledTimes(2);
 
@@ -326,7 +326,7 @@ describe('Package Processor', () => {
         ...defaultOptions,
       });
 
-      await processor.processPackages(mockPackages);
+      await processor.processPackages(mockPackages, record);
 
       expect(calculator.calculateVersion).toHaveBeenCalledTimes(2);
     });
@@ -337,7 +337,7 @@ describe('Package Processor', () => {
 
       const processor = new PackageProcessor(defaultOptions);
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalled();
     });
@@ -347,7 +347,7 @@ describe('Package Processor', () => {
         ...defaultOptions,
       });
 
-      const result = await processor.processPackages([mockPackages[0]]);
+      const result = await processor.processPackages([mockPackages[0]], record);
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/path/to/package-a/package.json',
@@ -373,7 +373,7 @@ describe('Package Processor', () => {
         ...defaultOptions,
       });
 
-      const result = await processor.processPackages(mockPackages);
+      const result = await processor.processPackages(mockPackages, record);
 
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): 1.1.0');
 
@@ -401,7 +401,7 @@ describe('Package Processor', () => {
         },
       });
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
       expect(calls.length).toBeGreaterThan(0);
@@ -427,7 +427,7 @@ describe('Package Processor', () => {
         },
       });
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       // Same baseline as the changelog, in consumer-facing display form.
       expect(jsonOutput.setPackageUpdatePreviousVersion).toHaveBeenCalledWith('package-a', 'v1.0.0');
@@ -454,7 +454,7 @@ describe('Package Processor', () => {
         },
       });
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('could not be verified from HEAD'), 'warning');
       // previousVersion omitted so the changelog doesn't claim an undiffed baseline.
@@ -475,7 +475,7 @@ describe('Package Processor', () => {
         fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
       });
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(gitTags.getLatestStableTagForPackage).toHaveBeenCalled();
       const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
@@ -495,7 +495,7 @@ describe('Package Processor', () => {
         fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
       });
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(gitTags.getLatestStableTagForPackage).not.toHaveBeenCalled();
       const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
@@ -523,7 +523,7 @@ describe('Package Processor', () => {
         fullConfig: { ...mockConfig, packageSpecificTags: false, writeChangelog: false },
       });
 
-      await processor.processPackages([mockPackages[1]]);
+      await processor.processPackages([mockPackages[1]], record);
 
       expect(gitTags.getLatestStableTag).toHaveBeenCalled();
       expect(gitTags.getLatestStableTagForPackage).not.toHaveBeenCalled();
@@ -553,7 +553,7 @@ describe('Package Processor', () => {
         fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
       });
 
-      await processor.processPackages([mockPackages[1]]);
+      await processor.processPackages([mockPackages[1]], record);
 
       expect(gitTags.getLatestStableTag).toHaveBeenCalled();
       expect(gitTags.getLatestStableTagForPackage).not.toHaveBeenCalled();
@@ -580,7 +580,7 @@ describe('Package Processor', () => {
         fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
       });
 
-      await processor.processPackages([mockPackages[1]]);
+      await processor.processPackages([mockPackages[1]], record);
 
       expect(logging.log).toHaveBeenCalledWith(
         expect.stringContaining('No prior tag found for package-b — its changelog will include the full git history'),
@@ -611,7 +611,7 @@ describe('Package Processor', () => {
         fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
       });
 
-      await processor.processPackages([mockPackages[1]]);
+      await processor.processPackages([mockPackages[1]], record);
 
       expect(logging.log).toHaveBeenCalledWith(
         expect.stringContaining('No prior tag found for package-b — its changelog will start from pkg-b@v1.0.0'),
@@ -636,7 +636,7 @@ describe('Package Processor', () => {
         fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
       });
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(extractSharedSpy).toHaveBeenCalledWith(
         expect.any(String),
@@ -659,7 +659,7 @@ describe('Package Processor', () => {
         fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
       });
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(extractSharedSpy).toHaveBeenCalledWith(
         expect.any(String),
@@ -686,7 +686,7 @@ describe('Package Processor', () => {
 
       // Release set is only package-a, but package-b's dir must still count as "a package dir" so a
       // commit touching only package-b is attributed to it (absent here), not dumped into shared.
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(extractSharedSpy).toHaveBeenCalledWith(
         expect.any(String),
@@ -712,7 +712,7 @@ describe('Package Processor', () => {
         },
       });
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(extractSharedSpy).toHaveBeenCalledWith(
         expect.any(String),
@@ -737,7 +737,7 @@ describe('Package Processor', () => {
         },
       });
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(extractSharedSpy).toHaveBeenCalledWith(
         expect.any(String),
@@ -761,7 +761,7 @@ describe('Package Processor', () => {
       vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([repoLevelEntry]);
 
       const processor = new PackageProcessor({ ...defaultOptions });
-      await processor.processPackages(mockPackages);
+      await processor.processPackages(mockPackages, record);
 
       expect(jsonOutput.setSharedEntries).toHaveBeenCalledWith([repoLevelEntry]);
 
@@ -778,7 +778,7 @@ describe('Package Processor', () => {
       vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([plain, breaking]);
 
       const processor = new PackageProcessor({ ...defaultOptions });
-      await processor.processPackages(mockPackages);
+      await processor.processPackages(mockPackages, record);
 
       expect(jsonOutput.setSharedEntries).toHaveBeenCalledWith([plain, breaking]);
     });
@@ -786,7 +786,7 @@ describe('Package Processor', () => {
     it('should track tags via JSON output without creating git tags', async () => {
       const processor = new PackageProcessor(defaultOptions);
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
       expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('package-a', 'v1.1.0');
@@ -799,7 +799,7 @@ describe('Package Processor', () => {
         dryRun: true,
       });
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(logging.log).toHaveBeenCalledWith('[DRY RUN] Would create tag: v1.1.0', 'info');
       expect(logging.log).toHaveBeenCalledWith(expect.stringMatching(/\[DRY RUN\] Would commit with message:/), 'info');
@@ -811,7 +811,7 @@ describe('Package Processor', () => {
         commitMessageTemplate: 'release: v${version} of packages',
       });
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('release: v1.1.0 of packages');
     });
@@ -826,7 +826,7 @@ describe('Package Processor', () => {
         commitMessageTemplate: 'chore: release ${packageName}@${version} [skip-ci]',
       });
 
-      await processor.processPackages([mockPackages[0]]);
+      await processor.processPackages([mockPackages[0]], record);
 
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a@1.1.0 [skip-ci]');
     });
@@ -837,7 +837,7 @@ describe('Package Processor', () => {
         commitMessageTemplate: 'release: v${version} of package',
       });
 
-      await processor.processPackages(mockPackages);
+      await processor.processPackages(mockPackages, record);
 
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('release: v1.1.0 of package');
     });
@@ -849,7 +849,7 @@ describe('Package Processor', () => {
         fullConfig: mockConfig,
       });
 
-      const result = await processor.processPackages(mockPackages);
+      const result = await processor.processPackages(mockPackages, record);
 
       expect(result.updatedPackages.length).toBe(3);
       expect(result.tags.length).toBe(3);
@@ -866,7 +866,7 @@ describe('Package Processor', () => {
         skip: ['package-a'],
       });
 
-      const result = await processor.processPackages(mockPackages);
+      const result = await processor.processPackages(mockPackages, record);
 
       expect(result.updatedPackages.length).toBe(2);
       expect(result.tags.length).toBe(2);
@@ -885,7 +885,7 @@ describe('Package Processor', () => {
         fullConfig: mockConfig,
       });
 
-      const result = await processor.processPackages(mockPackages);
+      const result = await processor.processPackages(mockPackages, record);
 
       expect(result.updatedPackages.length).toBe(3);
       expect(result.tags.length).toBe(3);
@@ -904,7 +904,7 @@ describe('Package Processor', () => {
         fullConfig: mockConfig,
       });
 
-      await processor.processPackages(mockPackages);
+      await processor.processPackages(mockPackages, record);
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(3);
     });
@@ -917,7 +917,7 @@ describe('Package Processor', () => {
       });
       vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('');
 
-      const result = await processor.processPackages(mockPackages);
+      const result = await processor.processPackages(mockPackages, record);
 
       expect(result.updatedPackages.length).toBe(0);
       expect(result.tags.length).toBe(0);
@@ -931,7 +931,7 @@ describe('Package Processor', () => {
         fullConfig: mockConfig,
       });
 
-      const result = await processor.processPackages(mockPackages);
+      const result = await processor.processPackages(mockPackages, record);
 
       // Git ops are handled by publish.
       expect(jsonOutput.addTag).toHaveBeenCalledTimes(3);
@@ -946,7 +946,7 @@ describe('Package Processor', () => {
         fullConfig: mockConfig,
       });
 
-      await processor.processPackages(mockPackages);
+      await processor.processPackages(mockPackages, record);
 
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith(expect.stringContaining('chore: release'));
     });
@@ -971,7 +971,7 @@ describe('Package Processor', () => {
         fullConfig: mockConfig,
       });
 
-      await processor.processPackages([hybridPackage]);
+      await processor.processPackages([hybridPackage], record);
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/path/to/hybrid-package/package.json',
@@ -1001,7 +1001,7 @@ describe('Package Processor', () => {
         fullConfig: { ...mockConfig, npm: { enabled: false } },
       });
 
-      await processor.processPackages([hybridPackage]);
+      await processor.processPackages([hybridPackage], record);
 
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
         '/path/to/hybrid-package/package.json',
@@ -1086,7 +1086,7 @@ describe('Package Processor', () => {
 
       const originalProcessPackages = processor.processPackages.bind(processor);
       vi.spyOn(processor, 'processPackages').mockImplementation(async (packages) => {
-        const result = await originalProcessPackages(packages);
+        const result = await originalProcessPackages(packages, record);
         result.updatedPackages = [
           {
             name: 'rust-package',
@@ -1097,7 +1097,7 @@ describe('Package Processor', () => {
         return result;
       });
 
-      const result = await processor.processPackages([rustPackage]);
+      const result = await processor.processPackages([rustPackage], record);
 
       expect(result.updatedPackages.length).toBe(1);
       expect(result.updatedPackages[0].name).toBe('rust-package');
@@ -1122,7 +1122,7 @@ describe('Package Processor', () => {
 
       const originalProcessPackages = processor.processPackages.bind(processor);
       vi.spyOn(processor, 'processPackages').mockImplementation(async (packages) => {
-        const result = await originalProcessPackages(packages);
+        const result = await originalProcessPackages(packages, record);
         result.updatedPackages = [
           {
             name: 'rust-package',
@@ -1133,7 +1133,7 @@ describe('Package Processor', () => {
         return result;
       });
 
-      const result = await processor.processPackages([rustPackage]);
+      const result = await processor.processPackages([rustPackage], record);
 
       expect(result.updatedPackages.length).toBe(1);
       expect(result.updatedPackages[0].name).toBe('rust-package');
@@ -1163,7 +1163,7 @@ describe('Package Processor', () => {
         },
       });
 
-      const result = await processor.processPackages([rustPackage]);
+      const result = await processor.processPackages([rustPackage], record);
 
       expect(result).toBeDefined();
     });
@@ -1196,7 +1196,7 @@ describe('Package Processor', () => {
         get: () => 'ver',
       });
 
-      await processor.processPackages([rustPackage]);
+      await processor.processPackages([rustPackage], record);
 
       expect(jsonOutput.addTag).toHaveBeenCalledWith('ver1.1.0');
     });
@@ -1248,7 +1248,7 @@ describe('Package Processor', () => {
         },
       });
 
-      await processor.processPackages([packageA]);
+      await processor.processPackages([packageA], record);
 
       expect(gitTags.getLatestTagForPackage).toHaveBeenCalledWith(
         'package-a',
@@ -1283,7 +1283,7 @@ describe('Package Processor', () => {
         },
       });
 
-      await processor.processPackages([packageA]);
+      await processor.processPackages([packageA], record);
 
       expect(gitTags.getLatestTagForPackage).toHaveBeenCalledWith(
         'package-a',
@@ -1314,7 +1314,7 @@ describe('Package Processor', () => {
         },
       });
 
-      await processor.processPackages([packageA]);
+      await processor.processPackages([packageA], record);
 
       expect(gitTags.getLatestTagForPackage).toHaveBeenCalledWith(
         'package-a',
@@ -1349,7 +1349,7 @@ describe('Package Processor', () => {
         },
       });
 
-      await processor.processPackages([packageA]);
+      await processor.processPackages([packageA], record);
 
       expect(gitTags.getLatestTagForPackage).toHaveBeenCalledWith(
         'package-a',
@@ -1373,7 +1373,7 @@ describe('Package Processor', () => {
       const processor = new PackageProcessor(defaultOptions);
 
       // @ts-expect-error - Testing with null input
-      const result = await processor.processPackages(null);
+      const result = await processor.processPackages(null, record);
 
       expect(result).toEqual({ updatedPackages: [], tags: [] });
       expect(logging.log).toHaveBeenCalledWith('Invalid packages data provided. Expected array of packages.', 'error');
@@ -1383,7 +1383,7 @@ describe('Package Processor', () => {
       const processor = new PackageProcessor(defaultOptions);
 
       // @ts-expect-error - Testing with undefined input
-      const result = await processor.processPackages(undefined);
+      const result = await processor.processPackages(undefined, record);
 
       expect(result).toEqual({ updatedPackages: [], tags: [] });
       expect(logging.log).toHaveBeenCalledWith('Invalid packages data provided. Expected array of packages.', 'error');
@@ -1393,7 +1393,7 @@ describe('Package Processor', () => {
       const processor = new PackageProcessor(defaultOptions);
 
       // @ts-expect-error - Testing with non-array input
-      const result = await processor.processPackages({});
+      const result = await processor.processPackages({}, record);
 
       expect(result).toEqual({ updatedPackages: [], tags: [] });
       expect(logging.log).toHaveBeenCalledWith('Invalid packages data provided. Expected array of packages.', 'error');
@@ -1431,7 +1431,7 @@ describe('Package Processor', () => {
         },
       });
 
-      await processor.processPackages([packageA]);
+      await processor.processPackages([packageA], record);
 
       expect(jsonOutput.addTag).toHaveBeenCalledWith('release/v1.1.0');
     });
@@ -1451,7 +1451,7 @@ describe('Package Processor', () => {
         },
       });
 
-      await processor.processPackages([packageA]);
+      await processor.processPackages([packageA], record);
 
       expect(jsonOutput.addTag).toHaveBeenCalledWith('package-a/v1.1.0');
     });
@@ -1484,7 +1484,7 @@ describe('Package Processor', () => {
         get: () => 'ver',
       });
 
-      await processor.processPackages([packageA]);
+      await processor.processPackages([packageA], record);
 
       expect(jsonOutput.addTag).toHaveBeenCalledWith('ver1.1.0');
     });
@@ -1509,7 +1509,7 @@ describe('Package Processor', () => {
         fullConfig: { ...mockConfig, strictReachable: true },
       });
 
-      await expect(processor.processPackages(mockPackages)).rejects.toBeInstanceOf(StrictReachableError);
+      await expect(processor.processPackages(mockPackages, record)).rejects.toBeInstanceOf(StrictReachableError);
     });
 
     it('should still degrade a genuine changelog-extraction error to a minimal entry', async () => {
@@ -1523,7 +1523,7 @@ describe('Package Processor', () => {
         fullConfig: { ...mockConfig, strictReachable: true },
       });
 
-      await expect(processor.processPackages(mockPackages)).resolves.toBeDefined();
+      await expect(processor.processPackages(mockPackages, record)).resolves.toBeDefined();
       expect(vi.mocked(logging.log)).toHaveBeenCalledWith(
         expect.stringContaining('Error extracting changelog entries'),
         'warning',
