@@ -2,7 +2,7 @@ import { info, type VersionOutput, warn } from '@releasekit/core';
 import { createFakeForge, type FakeForge } from '@releasekit/forge';
 import { FakeGit } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FAILURE_MARKER } from '../../src/failure-report/failure-report.js';
+import { FAILURE_MARKER, parseFailureReportData } from '../../src/failure-report/failure-report.js';
 import type { ReleaseOptions } from '../../src/types.js';
 
 const mockLoadReleaseKitConfig = vi.fn();
@@ -828,6 +828,7 @@ describe('runRelease', () => {
       const report = forge.comments.find((c) => c.prNumber === 123 && c.body.startsWith(FAILURE_MARKER))?.body;
       expect(report).toContain('Roll forward with the next release');
       expect(report).not.toContain('Re-run failed jobs');
+      expect(parseFailureReportData(report ?? '')).toMatchObject({ refused: true });
     });
 
     it('should release only the scope of a merged PR with a scope label', async () => {

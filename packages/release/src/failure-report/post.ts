@@ -23,12 +23,10 @@ export interface PostFailureReportContext {
   prNumber?: number;
   standingPrNumber?: number;
   retryLabelAvailable?: boolean;
-  /** See RecoveryContext.alreadyReleased. */
-  alreadyReleased?: boolean;
 }
 
 /** A release tag already on the remote at another commit: a retry fails the same way. */
-export function isTagCollision(err: PipelineError): boolean {
+function isTagCollision(err: PipelineError): boolean {
   return err.cause instanceof BasePublishError && err.cause.code === PublishErrorCode.GIT_TAG_EXISTS;
 }
 
@@ -46,7 +44,7 @@ export async function postFailureReport(
       mode: ctx.mode,
       standingPrNumber: ctx.standingPrNumber,
       retryLabelAvailable: ctx.retryLabelAvailable,
-      alreadyReleased: ctx.alreadyReleased,
+      alreadyReleased: isTagCollision(error),
     },
   });
 

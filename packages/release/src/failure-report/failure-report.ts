@@ -321,7 +321,8 @@ export function renderFailureReport(input: FailureReportInput): string {
   const lines: string[] = [
     FAILURE_MARKER,
     STATUS_FIELD.encode('unresolved'),
-    DATA_FIELD.encode({ label, published, total }),
+    // A collision published nothing and a retry fails the same way, so the next standing PR treats it as a refusal.
+    DATA_FIELD.encode({ label, published, total, ...(recovery.alreadyReleased ? { refused: true } : {}) }),
     '',
     `## ❌ Release of ${label} did not complete`,
     '',

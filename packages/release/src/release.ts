@@ -4,7 +4,7 @@ import type { VersionOutput } from '@releasekit/core';
 import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
 import { PipelineError } from '@releasekit/publish';
-import { isTagCollision, postFailureReport, resolveFailureReportIfPresent } from './failure-report/post.js';
+import { postFailureReport, resolveFailureReportIfPresent } from './failure-report/post.js';
 import { decideFromMergedPRs, type GateOutput } from './gate/gate.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
 import { findMergedPRsForCommit, forgeFor } from './github.js';
@@ -55,7 +55,6 @@ async function reportReleaseFailure(versionOutput: VersionOutput, err: PipelineE
         forge: target.forge,
         mode: target.mode,
         prNumber: target.prNumber,
-        alreadyReleased: isTagCollision(err),
       },
       versionOutput,
       err,

@@ -166,6 +166,8 @@ env:
 
 **Fix:** Roll forward with the next release, which bumps past this one. Don't delete or move the remote tag; confirm where it points with `git ls-remote --tags origin`. See [Recovering from a failed publish](#recovering-from-a-failed-publish).
 
+With `git.push` off, the remote isn't checked, so a local tag at another commit fails with `Tag vX.Y.Z already exists at a different commit`. If that tag was never pushed, delete it (`git tag -d vX.Y.Z`) and re-run `publish` with the original version output.
+
 ---
 
 ### GitHub release already exists for tag X

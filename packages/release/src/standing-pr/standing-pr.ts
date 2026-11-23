@@ -31,12 +31,7 @@ import { z } from 'zod';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
-import {
-  detectUnresolvedFailure,
-  isTagCollision,
-  postFailureReport,
-  resolveFailureReportIfPresent,
-} from '../failure-report/post.js';
+import { detectUnresolvedFailure, postFailureReport, resolveFailureReportIfPresent } from '../failure-report/post.js';
 import { getHeadCommitMessage, matchesSkipPattern, requireGitHubContext } from '../git.js';
 import { findMergedPRsForCommit, forgeFor } from '../github.js';
 import { readGitHubEvent } from '../github-event.js';
@@ -2010,7 +2005,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
             prNumber,
             standingPrNumber: prNumber,
             retryLabelAvailable: true,
-            alreadyReleased: isTagCollision(err),
           },
           manifest.versionOutput,
           err,

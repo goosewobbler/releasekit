@@ -141,17 +141,22 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
   // Baseline tags share the release commit but stay separate on VersionOutput so github-release can skip them.
   const allTags = [...input.tags, ...(input.baselineTags ?? [])];
   const remoteTags = !dryRun && allTags.length > 0 && config.git.push ? await readRemoteTags(git, ctx) : undefined;
+  const headSha = ctx.output.git.commitSha;
+  const taken = allTags.filter((tag) => remoteTags?.[tag] !== undefined && remoteTags[tag] !== headSha);
+  if (taken.length > 0) {
+    throw createPublishError(
+      PublishErrorCode.GIT_TAG_EXISTS,
+      taken
+        .map(
+          (tag) =>
+            `Tag ${tag} already exists on ${config.git.remote} at a different commit (${remoteTags?.[tag]}) than HEAD (${headSha})`,
+        )
+        .join('; '),
+    );
+  }
   for (const tag of allTags) {
     let replace = false;
     if (!dryRun) {
-      const headSha = await git.headSha(cwd);
-      const remoteSha = remoteTags?.[tag];
-      if (remoteSha !== undefined && remoteSha !== headSha) {
-        throw createPublishError(
-          PublishErrorCode.GIT_TAG_EXISTS,
-          `Tag ${tag} already exists on ${config.git.remote} at a different commit (${remoteSha}) than HEAD (${headSha})`,
-        );
-      }
       if (await git.refExists(`refs/tags/${tag}`, cwd)) {
         // The seam can't resolve a tag's commit directly, so go via log. A log failure resolves to '', so the tag is
         // replaced, or with no remote tags read, fails as GIT_TAG_ERROR rather than as a raw GitError.
