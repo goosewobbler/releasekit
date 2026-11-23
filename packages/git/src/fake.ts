@@ -139,6 +139,10 @@ export class FakeGit implements Git {
     return this.head;
   }
 
+  async isShallow(_cwd?: string): Promise<boolean> {
+    return false;
+  }
+
   async remoteUrl(remote: string, _cwd?: string): Promise<string | null> {
     return this.remoteUrls[remote] ?? null;
   }

@@ -12,10 +12,13 @@ import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
 import { PackageProcessor } from '../../../src/package/packageProcessor.js';
 import * as pubHandler from '../../../src/pub/pubHandler.js';
+import { VersionRecord } from '../../../src/record/recordFile.js';
 import type { Config } from '../../../src/types.js';
 import * as formatting from '../../../src/utils/formatting.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
+
+const record = VersionRecord.empty();
 
 vi.mock('../../../src/cargo/cargoLock.js');
 vi.mock('../../../src/git/tagsAndBranches.js');
@@ -67,6 +70,8 @@ const git = {
   ...gitTags,
 };
 
+const actualPath = await vi.importActual<typeof import('node:path')>('node:path');
+
 describe('Version Strategies', () => {
   const mockPackages = {
     root: '/test/workspace',
@@ -102,6 +107,7 @@ describe('Version Strategies', () => {
     vi.mocked(pubHandler.isReleasablePubspec).mockReturnValue(true);
 
     vi.mocked(path.join, { partial: true }).mockImplementation((...args) => args.join('/'));
+    vi.mocked(path.relative).mockImplementation(actualPath.relative);
     vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(true);
     vi.mocked(git.getLatestTag, { partial: true }).mockResolvedValue('v1.0.0');
     vi.mocked(calculator.calculateVersion, { partial: true }).mockResolvedValue('1.1.0');
@@ -200,7 +206,7 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      await syncStrategy(mockPackages);
+      await syncStrategy(mockPackages, record);
 
       expect(git.getLatestTag).toHaveBeenCalled();
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
@@ -236,7 +242,7 @@ describe('Version Strategies', () => {
       const memberPubspec = '/test/workspace/packages/a/pubspec.yaml';
       vi.mocked(fs.existsSync, { partial: true }).mockImplementation((filePath) => filePath === memberPubspec);
       const config: Partial<Config> = { ...defaultConfig, sync: true };
-      await strategies.createSyncStrategy(config as Config)(mockPackages);
+      await strategies.createSyncStrategy(config as Config)(mockPackages, record);
 
       expect(vi.mocked(packageManagement.updatePackageVersion).mock.calls).toEqual([
         [memberPubspec, '1.1.0', false, { recordAs: 'package-a' }],
@@ -247,7 +253,7 @@ describe('Version Strategies', () => {
     it('should skip a pubspec that discovery would not treat as a package', async () => {
       vi.mocked(pubHandler.isReleasablePubspec).mockReturnValue(false);
       const config: Partial<Config> = { ...defaultConfig, sync: true };
-      await strategies.createSyncStrategy(config as Config)(mockPackages);
+      await strategies.createSyncStrategy(config as Config)(mockPackages, record);
 
       const pubspecCalls = vi
         .mocked(packageManagement.updatePackageVersion)
@@ -264,7 +270,7 @@ describe('Version Strategies', () => {
       });
       const config: Partial<Config> = { ...defaultConfig, sync: true };
 
-      await expect(strategies.createSyncStrategy(config as Config)(mockPackages)).rejects.toThrow(
+      await expect(strategies.createSyncStrategy(config as Config)(mockPackages, record)).rejects.toThrow(
         'No version field found',
       );
       expect(logging.log).not.toHaveBeenCalledWith(
@@ -278,7 +284,7 @@ describe('Version Strategies', () => {
       const config: Partial<Config> = { ...defaultConfig, sync: true, npm: { enabled: false } };
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      await syncStrategy(mockPackages);
+      await syncStrategy(mockPackages, record);
 
       // Root package.json calls take 4 args, member package.json calls 3.
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
@@ -318,7 +324,7 @@ describe('Version Strategies', () => {
         packages: [{ dir: '/test/workspace', packageJson: { name: 'root-pkg', version: '1.0.0' } }],
       };
       const config: Partial<Config> = { ...defaultConfig, sync: true, npm: { enabled: false } };
-      await strategies.createSyncStrategy(config as Config)(singlePkg as typeof mockPackages);
+      await strategies.createSyncStrategy(config as Config)(singlePkg as typeof mockPackages, record);
 
       const cargoCalls = vi
         .mocked(packageManagement.updatePackageVersion)
@@ -337,7 +343,7 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      await syncStrategy(mockPackages);
+      await syncStrategy(mockPackages, record);
 
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
         config as Config,
@@ -364,7 +370,7 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      await syncStrategy(mockPackages);
+      await syncStrategy(mockPackages, record);
 
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
         config as Config,
@@ -375,7 +381,7 @@ describe('Version Strategies', () => {
       );
 
       expect(logging.log).toHaveBeenCalledWith(
-        "Main package 'package-z' not found. Using root package for version determination.",
+        "Main package 'package-z' not found. Using the root package for the changelog.",
         'warning',
       );
     });
@@ -387,7 +393,7 @@ describe('Version Strategies', () => {
       };
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
-      await syncStrategy(mockPackages);
+      await syncStrategy(mockPackages, record);
 
       // packages/a is the version source; commits are checked from the root so other packages' changes still bump.
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
@@ -407,7 +413,7 @@ describe('Version Strategies', () => {
       };
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
-      await syncStrategy(mockPackages);
+      await syncStrategy(mockPackages, record);
 
       expect(formatting.formatCommitMessage).toHaveBeenCalledWith(
         'chore: release ${' + 'packageName}@${' + 'version} [skip-ci]',
@@ -432,7 +438,7 @@ describe('Version Strategies', () => {
       };
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
-      await syncStrategy(singlePackageRepo);
+      await syncStrategy(singlePackageRepo, record);
 
       // With no workspace packages formatCommitMessage is bypassed to avoid its spurious warning, and the
       // double space left by the empty ${packageName} collapses.
@@ -449,7 +455,7 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      await syncStrategy(mockPackages);
+      await syncStrategy(mockPackages, record);
 
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalled();
       expect(jsonOutput.addTag).not.toHaveBeenCalled();
@@ -477,7 +483,7 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      await syncStrategy(mockPackages);
+      await syncStrategy(mockPackages, record);
 
       // Baseline tags stay on the source branch's history, so the semver scan filters to them.
       expect(git.getLatestTag).toHaveBeenCalledWith('release/v');
@@ -496,7 +502,7 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      await syncStrategy(mockPackages);
+      await syncStrategy(mockPackages, record);
 
       expect(git.getLatestTag).toHaveBeenCalledWith('v');
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
@@ -514,7 +520,7 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      await syncStrategy(mockPackages);
+      await syncStrategy(mockPackages, record);
 
       expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -536,7 +542,7 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      await syncStrategy(mockPackages);
+      await syncStrategy(mockPackages, record);
 
       expect(git.getLatestTagForPackage).not.toHaveBeenCalled();
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
@@ -554,7 +560,7 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      await syncStrategy(mockPackages);
+      await syncStrategy(mockPackages, record);
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, {
         isRoot: true,
@@ -572,7 +578,7 @@ describe('Version Strategies', () => {
 
         const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-        await syncStrategy(mockPackages);
+        await syncStrategy(mockPackages, record);
 
         expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith(
           '/test/workspace',
@@ -600,7 +606,7 @@ describe('Version Strategies', () => {
 
         const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-        await syncStrategy(mockPackages);
+        await syncStrategy(mockPackages, record);
 
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -619,7 +625,7 @@ describe('Version Strategies', () => {
         const config: Partial<Config> = { ...defaultConfig, sync: true };
         const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-        await syncStrategy(mockPackages);
+        await syncStrategy(mockPackages, record);
 
         expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith(
           '/test/workspace',
@@ -643,7 +649,7 @@ describe('Version Strategies', () => {
 
         const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-        await syncStrategy(mockPackages);
+        await syncStrategy(mockPackages, record);
 
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -662,7 +668,7 @@ describe('Version Strategies', () => {
 
         const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-        await syncStrategy(mockPackages);
+        await syncStrategy(mockPackages, record);
 
         expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith(
           '/test/workspace',
@@ -687,7 +693,7 @@ describe('Version Strategies', () => {
         };
 
         const syncStrategy = strategies.createSyncStrategy(config as Config);
-        await syncStrategy(mockPackages);
+        await syncStrategy(mockPackages, record);
 
         expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith(
           '/test/workspace',
@@ -711,7 +717,7 @@ describe('Version Strategies', () => {
         };
 
         const syncStrategy = strategies.createSyncStrategy(config as Config);
-        await syncStrategy(mockPackages);
+        await syncStrategy(mockPackages, record);
 
         expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith(
           '/test/workspace',
@@ -734,7 +740,7 @@ describe('Version Strategies', () => {
         };
 
         const syncStrategy = strategies.createSyncStrategy(config as Config);
-        await syncStrategy(mockPackages);
+        await syncStrategy(mockPackages, record);
 
         expect(jsonOutput.addTag).toHaveBeenCalledWith('package-a-v1.1.0');
         expect(jsonOutput.addTag).toHaveBeenCalledWith('package-b-v1.1.0');
@@ -751,7 +757,7 @@ describe('Version Strategies', () => {
         };
 
         const syncStrategy = strategies.createSyncStrategy(config as Config);
-        await syncStrategy(mockPackages);
+        await syncStrategy(mockPackages, record);
 
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(expect.objectContaining({ packageName: 'package-a' }));
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(expect.objectContaining({ packageName: 'package-b' }));
@@ -766,7 +772,7 @@ describe('Version Strategies', () => {
         };
 
         const syncStrategy = strategies.createSyncStrategy(config as Config);
-        await syncStrategy(mockPackages);
+        await syncStrategy(mockPackages, record);
 
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(expect.objectContaining({ packageName: 'monorepo' }));
         expect(jsonOutput.addChangelogData).toHaveBeenCalledTimes(1);
@@ -787,7 +793,7 @@ describe('Version Strategies', () => {
         };
 
         const syncStrategy = strategies.createSyncStrategy(config as Config);
-        await syncStrategy(rootOnlyRepo);
+        await syncStrategy(rootOnlyRepo, record);
 
         // With no mainPackage or workspace packages, mainPkgName is undefined and the entry falls back to 'monorepo'.
         expect(jsonOutput.addChangelogData).toHaveBeenCalledTimes(1);
@@ -804,7 +810,7 @@ describe('Version Strategies', () => {
 
         const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-        await syncStrategy(mockPackages);
+        await syncStrategy(mockPackages, record);
 
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -825,7 +831,7 @@ describe('Version Strategies', () => {
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-      await singleStrategy(mockPackages);
+      await singleStrategy(mockPackages, record);
 
       expect(git.getLatestTag).toHaveBeenCalled();
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
@@ -853,7 +859,7 @@ describe('Version Strategies', () => {
     it('should not tag a package with no manifest to bump', async () => {
       vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(false);
       const config: Partial<Config> = { ...defaultConfig, mainPackage: 'package-a' };
-      await strategies.createSingleStrategy(config as Config)(mockPackages);
+      await strategies.createSingleStrategy(config as Config)(mockPackages, record);
 
       expect(jsonOutput.addTag).not.toHaveBeenCalled();
       expect(jsonOutput.addChangelogData).not.toHaveBeenCalled();
@@ -861,7 +867,7 @@ describe('Version Strategies', () => {
 
     it('should update pubspec.yaml in single mode', async () => {
       const config: Partial<Config> = { ...defaultConfig, mainPackage: 'package-a' };
-      await strategies.createSingleStrategy(config as Config)(mockPackages);
+      await strategies.createSingleStrategy(config as Config)(mockPackages, record);
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/test/workspace/packages/a/pubspec.yaml',
@@ -881,7 +887,7 @@ describe('Version Strategies', () => {
       const config: Partial<Config> = { ...defaultConfig, mainPackage: 'package-a' };
       const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-      await singleStrategy(mockPackages);
+      await singleStrategy(mockPackages, record);
 
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('could not be verified from HEAD'), 'warning');
       expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
@@ -898,7 +904,7 @@ describe('Version Strategies', () => {
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-      await singleStrategy(mockPackages);
+      await singleStrategy(mockPackages, record);
 
       expect(formatting.formatCommitMessage).toHaveBeenCalledWith(
         'chore: release ${' + 'packageName}@${' + 'version} [skip-ci]',
@@ -938,7 +944,7 @@ describe('Version Strategies', () => {
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-      await singleStrategy(mockPackages);
+      await singleStrategy(mockPackages, record);
 
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
         config as Config,
@@ -964,7 +970,7 @@ describe('Version Strategies', () => {
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-      await expect(singleStrategy(mockPackages)).rejects.toThrow('Package not found: package-z');
+      await expect(singleStrategy(mockPackages, record)).rejects.toThrow('Package not found: package-z');
     });
 
     it('should exit early if no version change needed', async () => {
@@ -977,7 +983,7 @@ describe('Version Strategies', () => {
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-      await singleStrategy(mockPackages);
+      await singleStrategy(mockPackages, record);
 
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalled();
       expect(jsonOutput.addTag).not.toHaveBeenCalled();
@@ -1010,7 +1016,7 @@ describe('Version Strategies', () => {
 
         const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-        await singleStrategy(hybridPackages);
+        await singleStrategy(hybridPackages, record);
 
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
@@ -1034,7 +1040,7 @@ describe('Version Strategies', () => {
 
         const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-        await singleStrategy(hybridPackages);
+        await singleStrategy(hybridPackages, record);
 
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
@@ -1060,7 +1066,7 @@ describe('Version Strategies', () => {
 
         const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-        await singleStrategy(hybridPackages);
+        await singleStrategy(hybridPackages, record);
 
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
@@ -1090,7 +1096,7 @@ describe('Version Strategies', () => {
 
         const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-        await singleStrategy(hybridPackages);
+        await singleStrategy(hybridPackages, record);
 
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
@@ -1118,7 +1124,7 @@ describe('Version Strategies', () => {
 
         const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-        await singleStrategy(hybridPackages);
+        await singleStrategy(hybridPackages, record);
 
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
@@ -1145,7 +1151,7 @@ describe('Version Strategies', () => {
 
         const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-        await singleStrategy(hybridPackages);
+        await singleStrategy(hybridPackages, record);
 
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
@@ -1171,9 +1177,13 @@ describe('Version Strategies', () => {
 
       const asyncStrategy = strategies.createAsyncStrategy(config as Config);
 
-      await asyncStrategy(mockPackages);
+      await asyncStrategy(mockPackages, record);
 
-      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages, '/test/workspace');
+      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(
+        mockPackages.packages,
+        expect.anything(),
+        '/test/workspace',
+      );
 
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
       expect(logging.log).toHaveBeenCalledWith('Updated 1 package(s): package-a', 'success');
@@ -1187,7 +1197,7 @@ describe('Version Strategies', () => {
 
       const asyncStrategy = strategies.createAsyncStrategy(config as Config);
 
-      await asyncStrategy(mockPackages, ['package-b']);
+      await asyncStrategy(mockPackages, record, ['package-b']);
 
       const expectedFilteredPackages = [
         {
@@ -1199,6 +1209,7 @@ describe('Version Strategies', () => {
 
       expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(
         expectedFilteredPackages,
+        expect.anything(),
         '/test/workspace',
       );
 
@@ -1237,7 +1248,7 @@ describe('Version Strategies', () => {
 
       const asyncStrategy = strategies.createAsyncStrategy(config as Config);
 
-      await asyncStrategy(mockPackagesWithScopes, ['@scope/*']);
+      await asyncStrategy(mockPackagesWithScopes, record, ['@scope/*']);
 
       const expectedFilteredPackages = [
         {
@@ -1254,6 +1265,7 @@ describe('Version Strategies', () => {
 
       expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(
         expectedFilteredPackages,
+        expect.anything(),
         '/test/workspace',
       );
 
@@ -1269,9 +1281,13 @@ describe('Version Strategies', () => {
 
       const asyncStrategy = strategies.createAsyncStrategy(config as Config);
 
-      await asyncStrategy(mockPackages);
+      await asyncStrategy(mockPackages, record);
 
-      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages, '/test/workspace');
+      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(
+        mockPackages.packages,
+        expect.anything(),
+        '/test/workspace',
+      );
 
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
     });
@@ -1284,9 +1300,13 @@ describe('Version Strategies', () => {
 
       const asyncStrategy = strategies.createAsyncStrategy(config as Config);
 
-      await asyncStrategy(mockPackages);
+      await asyncStrategy(mockPackages, record);
 
-      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages, '/test/workspace');
+      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(
+        mockPackages.packages,
+        expect.anything(),
+        '/test/workspace',
+      );
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
     });
 
@@ -1302,7 +1322,7 @@ describe('Version Strategies', () => {
 
       const asyncStrategy = strategies.createAsyncStrategy(config as Config);
 
-      await asyncStrategy(mockPackages);
+      await asyncStrategy(mockPackages, record);
 
       expect(logging.log).toHaveBeenCalledWith('No packages required a version update.', 'info');
     });
@@ -1338,7 +1358,7 @@ describe('Version Strategies', () => {
 
       const strategy = strategies.createStrategy(config as Config);
 
-      await expect(strategy(mockPackages)).resolves.toBeUndefined();
+      await expect(strategy(mockPackages, record)).resolves.toBeUndefined();
     });
 
     it('should return async strategy as default', () => {
@@ -1384,7 +1404,7 @@ describe('Version Strategies', () => {
       };
       const strategy = strategies.createStrategy(config as Config);
       // isRoot=true on the root package.json is a sync-strategy fingerprint the group strategy never produces.
-      await strategy(mockPackages);
+      await strategy(mockPackages, record);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, {
         isRoot: true,
       });

@@ -8,6 +8,7 @@ import { BaselineResolver } from '../core/baselineResolver.js';
 import { calculateVersion } from '../core/versionCalculator.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
 import { checkUnreachableTags, getLatestTagForPackage } from '../git/tagsAndBranches.js';
+import type { VersionRecord } from '../record/recordFile.js';
 import type { Config, VersionConfigBase } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
@@ -75,7 +76,11 @@ export class PackageProcessor {
    * config-driven `cargo.paths` / `pub.paths` writes; pass the workspace root, since the tool can run
    * from a subdirectory narrower than the repo.
    */
-  async processPackages(packages: Package[], repoRoot: string = process.cwd()): Promise<ProcessResult> {
+  async processPackages(
+    packages: Package[],
+    record: VersionRecord,
+    repoRoot: string = process.cwd(),
+  ): Promise<ProcessResult> {
     const tags: string[] = [];
     const updatedPackagesInfo: Array<{ name: string; version: string; path: string }> = [];
 
@@ -169,7 +174,7 @@ export class PackageProcessor {
           const packageDir = pkgPath;
           let manifestFallbackUsed = false;
 
-          const manifestResult = getVersionFromManifests(packageDir);
+          const manifestResult = getVersionFromManifests(packageDir, this.fullConfig);
           if (manifestResult.manifestFound && manifestResult.version) {
             log(
               `Using ${manifestResult.manifestType} version ${manifestResult.version} for ${name} as no package-specific tags found`,
@@ -207,6 +212,7 @@ export class PackageProcessor {
         name,
         prereleaseIdentifier: this.config.prereleaseIdentifier,
         type: this.config.type,
+        current: record.current(pkg, this.fullConfig),
       });
 
       if (!nextVersion) {

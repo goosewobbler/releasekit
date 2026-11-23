@@ -97,6 +97,7 @@ export interface Git {
   isRepository(cwd?: string): Promise<boolean>;
   currentBranch(cwd?: string): Promise<string>;
   headSha(cwd?: string): Promise<string>;
+  isShallow(cwd?: string): Promise<boolean>;
   remoteUrl(remote: string, cwd?: string): Promise<string | null>;
   listTags(opts?: GitListTagsOptions): Promise<string[]>;
   /** The most recent reachable tag (`describe --tags --abbrev=0`). */

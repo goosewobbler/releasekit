@@ -135,6 +135,11 @@ export class GitCli implements Git {
     return stdout.trim();
   }
 
+  async isShallow(cwd?: string): Promise<boolean> {
+    const { stdout } = await this.exec(['rev-parse', '--is-shallow-repository'], { cwd: this.cwd(cwd) });
+    return stdout.trim() === 'true';
+  }
+
   async remoteUrl(remote: string, cwd?: string): Promise<string | null> {
     assertNotOption(remote, 'remote');
     return (await this.runSoft(['remote', 'get-url', remote], { cwd: this.cwd(cwd) }))?.stdout.trim() ?? null;

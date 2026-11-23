@@ -1,7 +1,7 @@
 /**
  * A fixed/linked group's version is `bump(max member baseline)` applied once, using the largest bump
  * any member earned. Members below it (never released, or an older package joining a higher family)
- * adopt it, deliberately overriding the per-package "initial version from package.json" rule.
+ * adopt it.
  */
 
 import fs from 'node:fs';
@@ -17,7 +17,8 @@ import { BaseVersionError } from '../errors/baseError.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
 import { checkUnreachableTags, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
-import type { Config } from '../types.js';
+import type { VersionRecord } from '../record/recordFile.js';
+import type { Config, CurrentVersion } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
@@ -70,20 +71,10 @@ interface MemberPlan {
   commitScope: string[];
 }
 
-function cleanBaseline(version: string | undefined): string {
-  if (!version) {
-    return '0.0.0';
-  }
-  // Plain semver.coerce() strips the prerelease (1.0.0-next.0 -> 1.0.0), which would graduate a linked
-  // or fixed group off its prerelease line on every increment.
-  return (
-    semver.valid(semver.clean(version) ?? '') ?? semver.coerce(version, { includePrerelease: true })?.version ?? '0.0.0'
-  );
-}
-
 async function planMember(
   config: Config,
   pkg: Package,
+  current: CurrentVersion,
   formattedPrefix: string,
   globalTag: string,
   globalPrefix: string | undefined,
@@ -130,14 +121,18 @@ async function planMember(
     commitScope,
     name,
     type: config.type,
+    current,
   });
 
-  const manifestVersion = pkg.packageJson.version;
-  const tagVersion = latestTag ? cleanBaseline(latestTag) : undefined;
-  const candidates = [manifestVersion, tagVersion].map(cleanBaseline).filter((v) => v !== '0.0.0');
-  const baseline = candidates.length > 0 ? candidates.sort(semver.rcompare)[0] : '0.0.0';
-
-  return { pkg, baseline, latestTag, usedPackageSpecificTag, ownNext, changed: !!ownNext, commitScope };
+  return {
+    pkg,
+    baseline: current.version,
+    latestTag,
+    usedPackageSpecificTag,
+    ownNext,
+    changed: !!ownNext,
+    commitScope,
+  };
 }
 
 function memberBumpRank(plan: MemberPlan): number {
@@ -230,11 +225,8 @@ function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config)
   const creatingPrerelease = bumpType !== 'prerelease' && !semver.prerelease(maxBaseline) && wantsPrerelease;
 
   // Advance within an existing prerelease line (1.0.0-next.0 -> 1.0.0-next.1) - graduation requires
-  // stable=true. Otherwise the published baseline is re-emitted, which never-regress can't recover when a
-  // member's ownNext sits below it, for:
-  //  - a spurious stable magnitude, when a member's manifest lags its prerelease tag so the backwards
-  //    `semver.diff` reads as `major`; and
-  //  - a prerelease rank, which the `bumpType === 'prerelease'` branch returns unchanged.
+  // stable=true. Otherwise a prerelease rank re-emits the published baseline unchanged, which never-regress
+  // can't recover when a member's ownNext sits below it.
   const stayOnPrereleaseLine = !!semver.prerelease(maxBaseline) && wantsPrerelease;
 
   let groupVersion: string;
@@ -447,8 +439,10 @@ async function releaseGroup(
   return released;
 }
 
-export function createGroupStrategy(config: Config): (packages: PackagesWithRoot, targets?: string[]) => Promise<void> {
-  return async (packages: PackagesWithRoot, runtimeTargets: string[] = []): Promise<void> => {
+export function createGroupStrategy(
+  config: Config,
+): (packages: PackagesWithRoot, record: VersionRecord, targets?: string[]) => Promise<void> {
+  return async (packages: PackagesWithRoot, record: VersionRecord, runtimeTargets: string[] = []): Promise<void> => {
     try {
       setVersioningStrategy('group');
       const formattedPrefix = formatVersionPrefix(config.versionPrefix);
@@ -485,8 +479,10 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
           continue;
         }
 
+        const groupCurrent = group.sync === 'independent' ? undefined : record.groupCurrent(members, config);
+        const currentOf = (pkg: Package) => record.current(pkg, config, groupCurrent);
         const plans = await Promise.all(
-          members.map((pkg) => planMember(config, pkg, formattedPrefix, globalTag, globalPrefix)),
+          members.map((pkg) => planMember(config, pkg, currentOf(pkg), formattedPrefix, globalTag, globalPrefix)),
         );
         const computation = computeGroup(group, plans, config);
 
@@ -506,7 +502,9 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
             droppedNames = excludedMembers.map((m) => m.packageJson.name);
           } else {
             const excludedPlans = await Promise.all(
-              excludedMembers.map((m) => planMember(config, m, formattedPrefix, globalTag, globalPrefix, true)),
+              excludedMembers.map((m) =>
+                planMember(config, m, currentOf(m), formattedPrefix, globalTag, globalPrefix, true),
+              ),
             );
             droppedNames = excludedPlans.filter((p) => p.changed).map((p) => p.pkg.packageJson.name);
           }
@@ -538,7 +536,14 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         if (!targetFilter(pkg) || !shouldProcess(pkg, config)) {
           continue;
         }
-        const plan = await planMember(config, pkg, formattedPrefix, globalTag, globalPrefix);
+        const plan = await planMember(
+          config,
+          pkg,
+          record.current(pkg, config),
+          formattedPrefix,
+          globalTag,
+          globalPrefix,
+        );
         if (!plan.changed || !checkManifestToBump(pkg.packageJson.name, pkg.dir, config, { ignorePaths: true })) {
           continue;
         }

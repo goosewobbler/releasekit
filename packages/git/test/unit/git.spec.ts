@@ -59,6 +59,13 @@ describe('GitCli queries', () => {
     expect(calls[0].args).toEqual(['rev-parse', 'HEAD']);
   });
 
+  it('should read whether the repository is shallow from rev-parse --is-shallow-repository', async () => {
+    const { run, calls } = makeRunner({ stdout: 'true\n' });
+    expect(await new GitCli(run).isShallow('/r')).toBe(true);
+    expect(calls[0].args).toEqual(['rev-parse', '--is-shallow-repository']);
+    expect(await new GitCli(makeRunner({ stdout: 'false\n' }).run).isShallow()).toBe(false);
+  });
+
   it('should return the remote url, trimmed', async () => {
     const { run, calls } = makeRunner({ stdout: 'git@github.com:o/r.git\n' });
     expect(await new GitCli(run).remoteUrl('origin', '/r')).toBe('git@github.com:o/r.git');

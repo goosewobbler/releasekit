@@ -62,6 +62,13 @@ export interface VersionRunOptions {
   skipTaggedAfter?: string;
 }
 
+/** The version a package releases from. */
+export interface CurrentVersion {
+  version: string;
+  /** False when the package has no entry, so this is its first release. */
+  recorded: boolean;
+}
+
 export interface VersionConfigBase {
   versionPrefix: string;
   type?: ReleaseType;
@@ -162,6 +169,8 @@ export function toVersionConfig(config: VersionConfig = VersionConfigSchema.pars
 }
 
 export interface VersionOptions extends VersionConfigBase {
+  /** Bounds the commits the bump reads. */
   latestTag: string;
   hasRealTag?: boolean;
+  current: CurrentVersion;
 }

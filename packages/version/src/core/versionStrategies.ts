@@ -10,6 +10,7 @@ import { createVersionError, VersionErrorCode } from '../errors/versionError.js'
 import { checkUnreachableTags, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
+import type { VersionRecord } from '../record/recordFile.js';
 import type { Config } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
@@ -38,7 +39,7 @@ type ChangelogEntry = VersionChangelogEntry;
 
 export type StrategyType = 'sync' | 'single' | 'async' | 'group';
 
-export type StrategyFunction = (packages: PackagesWithRoot, targets?: string[]) => Promise<void>;
+export type StrategyFunction = (packages: PackagesWithRoot, record: VersionRecord, targets?: string[]) => Promise<void>;
 
 /** Targeting is applied at discovery time, so this only handles skip. */
 function shouldProcessPackage(pkg: Package, config: Config): boolean {
@@ -47,7 +48,7 @@ function shouldProcessPackage(pkg: Package, config: Config): boolean {
 }
 
 export function createSyncStrategy(config: Config): StrategyFunction {
-  return async (packages: PackagesWithRoot): Promise<void> => {
+  return async (packages: PackagesWithRoot, record: VersionRecord): Promise<void> => {
     try {
       setVersioningStrategy('sync');
       const {
@@ -74,7 +75,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       const commitScope = [repoRoot];
 
       // mainPkgPath/Name name the changelog and baseline tag and locate the repo URL; versionSourcePath/Name
-      // only supply the base version and the package-specific tag lookup.
+      // only supply the package-specific tag lookup.
       let mainPkgPath = packages.root;
       let mainPkgName: string | undefined;
       let versionSourcePath = mainPkgPath;
@@ -87,15 +88,14 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           mainPkgName = mainPkg.packageJson.name;
           versionSourcePath = mainPkgPath;
           versionSourceName = mainPkgName;
-          log(`Using ${mainPkgName} as primary package for version determination`, 'info');
+          log(`Using ${mainPkgName} as the primary package for the changelog and tag lookup`, 'info');
         } else {
-          log(`Main package '${mainPackage}' not found. Using root package for version determination.`, 'warning');
+          log(`Main package '${mainPackage}' not found. Using the root package for the changelog.`, 'warning');
         }
       } else if (packages.packages.length > 0) {
-        // Read a real version rather than the root package.json's placeholder (e.g. 0.0.0).
         versionSourcePath = packages.packages[0].dir;
         versionSourceName = packages.packages[0].packageJson.name;
-        log(`No mainPackage specified; using ${versionSourceName} as sync version source`, 'info');
+        log(`No mainPackage specified; using ${versionSourceName} for the tag lookup`, 'info');
       }
 
       if (!mainPkgPath) {
@@ -147,6 +147,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         commitScope,
         name: versionSourceName,
         type: config.type,
+        current: record.groupCurrent(packages.packages, config),
       });
 
       if (!nextVersion) {
@@ -418,7 +419,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 }
 
 export function createSingleStrategy(config: Config): StrategyFunction {
-  return async (packages: PackagesWithRoot): Promise<void> => {
+  return async (packages: PackagesWithRoot, record: VersionRecord): Promise<void> => {
     try {
       setVersioningStrategy('single');
       const {
@@ -494,6 +495,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         commitScope,
         name: packageName,
         type: config.type,
+        current: record.current(pkg, config),
       });
 
       if (!nextVersion) {
@@ -651,7 +653,7 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
 
   const packageProcessor = new PackageProcessor(processorOptions);
 
-  return async (packages: PackagesWithRoot, targets: string[] = []): Promise<void> => {
+  return async (packages: PackagesWithRoot, record: VersionRecord, targets: string[] = []): Promise<void> => {
     try {
       setVersioningStrategy('async');
       let packagesToProcess = packages.packages;
@@ -666,7 +668,7 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
 
       log(`Processing ${packagesToProcess.length} packages`, 'info');
 
-      const result = await packageProcessor.processPackages(packagesToProcess, packages.root ?? process.cwd());
+      const result = await packageProcessor.processPackages(packagesToProcess, record, packages.root ?? process.cwd());
 
       if (result.updatedPackages.length === 0) {
         log('No packages required a version update.', 'info');

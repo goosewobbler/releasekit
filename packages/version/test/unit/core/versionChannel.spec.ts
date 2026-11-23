@@ -4,27 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { calculateVersion } from '../../../src/core/versionCalculator.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
 import type { Config, VersionOptions } from '../../../src/types.js';
-import * as manifestHelpers from '../../../src/utils/manifestHelpers.js';
-import * as versionUtils from '../../../src/utils/versionUtils.js';
 
-// These specs drive the real calculateVersion, semver and bumpVersion, stubbing only git tag lookups, manifest
-// reads and the conventional-commit bumper, so assertions check genuine output. versionCalculator.spec automocks
-// versionUtils, which empties STANDARD_BUMP_TYPES and neuters this exact path.
+// These specs drive the real calculateVersion, semver and bumpVersion, stubbing only git tag lookups and the
+// conventional-commit bumper, so assertions check genuine output. versionCalculator.spec automocks versionUtils,
+// which empties STANDARD_BUMP_TYPES and neuters this exact path.
 vi.mock('../../../src/git/tagsAndBranches.js');
-vi.mock('../../../src/utils/manifestHelpers.js');
+
+let current: VersionOptions['current'] = { version: '0.1.0', recorded: false };
 
 function baselineAt(version: string): void {
-  vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValue({
-    source: 'package',
-    version,
-    reason: 'test baseline',
-  });
-  vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
-    version,
-    manifestFound: true,
-    manifestPath: '/repo/packages/pkg/package.json',
-    manifestType: 'package.json',
-  });
+  current = { version, recorded: true };
 }
 
 function inferredBump(releaseType: ReleaseType): void {
@@ -39,6 +28,7 @@ const options = (overrides: Partial<VersionOptions> = {}): VersionOptions => ({
   versionPrefix: 'v',
   path: '/repo/packages/pkg',
   name: 'my-pkg',
+  current,
   ...overrides,
 });
 

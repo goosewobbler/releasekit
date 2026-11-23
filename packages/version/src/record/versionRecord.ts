@@ -5,11 +5,16 @@ import { z } from 'zod';
 
 export const VERSION_RECORD_FILE = 'releasekit.versions.json';
 
+const SemverSchema = z
+  .string()
+  // semver.valid accepts a `v` prefix and drops build metadata, so compare the start instead of the whole string.
+  .refine((version) => semver.valid(version) !== null && /^\d/.test(version), 'not a semver version, such as 1.2.3');
+
 const VersionRecordEntrySchema = z.looseObject({
   name: z.string(),
-  version: z.string(),
+  version: SemverSchema,
   at: z.string(),
-  lastStable: z.looseObject({ version: z.string(), at: z.string() }).optional(),
+  lastStable: z.looseObject({ version: SemverSchema, at: z.string() }).optional(),
 });
 
 const VersionRecordSchema = z.record(z.string(), VersionRecordEntrySchema);

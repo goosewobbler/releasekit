@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Package, Tool } from '@manypkg/get-packages';
+import semver from 'semver';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as cargoHandler from '../../../src/cargo/cargoHandler.js';
 import * as commitParser from '../../../src/changelog/commitParser.js';
@@ -11,7 +12,8 @@ import * as gitTags from '../../../src/git/tagsAndBranches.js';
 import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
 import * as pubHandler from '../../../src/pub/pubHandler.js';
-import type { Config } from '../../../src/types.js';
+import type { VersionRecord } from '../../../src/record/recordFile.js';
+import type { Config, CurrentVersion } from '../../../src/types.js';
 import * as formatting from '../../../src/utils/formatting.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
@@ -50,6 +52,17 @@ function workspace(packages: Package[]): PackagesWithRoot {
     tool: 'pnpm' as unknown as Tool,
     packages,
   } as unknown as PackagesWithRoot;
+}
+
+/** A record with an entry for every package: `versions` by name, else its manifest version. */
+function record(versions: Record<string, string> = {}): VersionRecord {
+  const current = (pkg: Package): CurrentVersion => ({
+    version: versions[pkg.packageJson.name] ?? (pkg.packageJson.version as string),
+    recorded: true,
+  });
+  const groupCurrent = (members: Package[]): CurrentVersion =>
+    members.map(current).reduce((max, c) => (semver.gt(c.version, max.version) ? c : max));
+  return { current, groupCurrent } as unknown as VersionRecord;
 }
 
 const baseConfig = (overrides: Partial<Config>): Config =>
@@ -109,7 +122,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([core, utils, spy]));
+      await strategy(workspace([core, utils, spy]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -142,7 +155,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ skip: ['@wdio/native-spy'], groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([core, utils, spy]));
+      await strategy(workspace([core, utils, spy]), record());
 
       expect(logging.log).toHaveBeenCalledWith(
         expect.stringContaining('will release without: @wdio/native-spy'),
@@ -160,7 +173,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ skip: ['@wdio/native-spy'], groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([core, utils, spy]));
+      await strategy(workspace([core, utils, spy]), record());
 
       expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('will release without'), 'warning');
     });
@@ -182,7 +195,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([core, utils]));
+      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -204,7 +217,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([core, utils]));
+      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalled();
       expect(jsonOutput.setCommitMessage).not.toHaveBeenCalled();
@@ -227,7 +240,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'linked' } } }),
       );
-      await strategy(workspace([core, utils, spy]));
+      await strategy(workspace([core, utils, spy]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(1);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -260,7 +273,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'linked' } } }),
       );
-      await strategy(workspace([core, utils, spy]));
+      await strategy(workspace([core, utils, spy]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(2);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -294,7 +307,7 @@ describe('createGroupStrategy', () => {
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
         }),
       );
-      await strategy(workspace([service, contract]));
+      await strategy(workspace([service, contract]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(1);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -322,7 +335,7 @@ describe('createGroupStrategy', () => {
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'fixed' } },
         }),
       );
-      await strategy(workspace([service, contract]));
+      await strategy(workspace([service, contract]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(2);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -337,17 +350,10 @@ describe('createGroupStrategy', () => {
       );
     });
 
-    it('should increment within the prerelease when the latest tag is a prerelease', async () => {
-      // The published prerelease lives in the tag while the manifest still reads 0.0.1 (an
-      // interrupted release that tagged & published but never committed the bump). The baseline must
-      // keep the tag's prerelease, else it coerces to a stable 1.0.0 and the group graduates to
-      // 2.0.0-next.0 instead of incrementing to 1.0.0-next.1.
+    it('should increment within the prerelease when the recorded version is a prerelease', async () => {
       const service = mkPackage('@wdio/flutter-service', '0.0.1');
       const contract = mkPackage('wdio_flutter', '0.0.1');
 
-      vi.mocked(gitTags.getLatestTagForPackage).mockImplementation(async (name) =>
-        name === '@wdio/flutter-service' ? 'wdio-flutter-service@v1.0.0-next.0' : '',
-      );
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
         opts.name === '@wdio/flutter-service' ? '1.0.0-next.1' : '',
       );
@@ -358,7 +364,7 @@ describe('createGroupStrategy', () => {
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
         }),
       );
-      await strategy(workspace([service, contract]));
+      await strategy(workspace([service, contract]), record({ '@wdio/flutter-service': '1.0.0-next.0' }));
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(1);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -368,14 +374,10 @@ describe('createGroupStrategy', () => {
       );
     });
 
-    it('should increment within the prerelease for a fixed group when the latest tag is a prerelease', async () => {
-      // Same interrupted-release baseline as the linked case; `fixed` would write a wrong version to every member.
+    it('should increment within the prerelease for a fixed group when the recorded version is a prerelease', async () => {
       const service = mkPackage('@wdio/flutter-service', '0.0.1');
       const contract = mkPackage('wdio_flutter', '0.0.1');
 
-      vi.mocked(gitTags.getLatestTagForPackage).mockImplementation(async (name) =>
-        name === '@wdio/flutter-service' ? 'wdio-flutter-service@v1.0.0-next.0' : '',
-      );
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
         opts.name === '@wdio/flutter-service' ? '1.0.0-next.1' : '',
       );
@@ -386,72 +388,7 @@ describe('createGroupStrategy', () => {
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'fixed' } },
         }),
       );
-      await strategy(workspace([service, contract]));
-
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(2);
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
-        '/ws/packages/wdio-flutter-service/package.json',
-        '1.0.0-next.1',
-        undefined,
-      );
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
-        '/ws/packages/wdio_flutter/package.json',
-        '1.0.0-next.1',
-        undefined,
-      );
-    });
-
-    it('should not graduate an explicit prerelease when a member manifest lags its prerelease tag', async () => {
-      // Manifest 0.0.1 lags the unreachable 1.0.0-next.0 tag, so ownNext (0.0.2-next.0) sits below the group
-      // baseline. The backwards diff reads as a `major`, but graduation requires stable=true and never-regress
-      // can't recover a stable 1.0.0.
-      const service = mkPackage('@wdio/flutter-service', '0.0.1');
-      const contract = mkPackage('wdio_flutter', '0.0.1');
-
-      vi.mocked(gitTags.getLatestTagForPackage).mockImplementation(async (name) =>
-        name === '@wdio/flutter-service' ? 'wdio-flutter-service@v1.0.0-next.0' : '',
-      );
-      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
-        opts.name === '@wdio/flutter-service' ? '0.0.2-next.0' : '',
-      );
-
-      const strategy = createGroupStrategy(
-        baseConfig({
-          isPrerelease: true,
-          prereleaseIdentifier: 'next',
-          groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
-        }),
-      );
-      await strategy(workspace([service, contract]));
-
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(1);
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
-        '/ws/packages/wdio-flutter-service/package.json',
-        '1.0.0-next.1',
-        undefined,
-      );
-    });
-
-    it('should not graduate an explicit prerelease in a fixed group when a member manifest lags its tag', async () => {
-      // As above, but `fixed` would stamp a silent graduation across the whole group.
-      const service = mkPackage('@wdio/flutter-service', '0.0.1');
-      const contract = mkPackage('wdio_flutter', '0.0.1');
-
-      vi.mocked(gitTags.getLatestTagForPackage).mockImplementation(async (name) =>
-        name === '@wdio/flutter-service' ? 'wdio-flutter-service@v1.0.0-next.0' : '',
-      );
-      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
-        opts.name === '@wdio/flutter-service' ? '0.0.2-next.0' : '',
-      );
-
-      const strategy = createGroupStrategy(
-        baseConfig({
-          isPrerelease: true,
-          prereleaseIdentifier: 'next',
-          groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'fixed' } },
-        }),
-      );
-      await strategy(workspace([service, contract]));
+      await strategy(workspace([service, contract]), record({ '@wdio/flutter-service': '1.0.0-next.0' }));
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(2);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -467,16 +404,13 @@ describe('createGroupStrategy', () => {
     });
 
     it('should still advance the prerelease when no prereleaseIdentifier is configured', async () => {
-      // Same manifest-lags-tag scenario; the risk is re-emitting the published baseline, which never-regress
-      // can't catch since ownNext sits below maxBaseline.
-      const service = mkPackage('@wdio/flutter-service', '0.0.1');
+      // Without the prerelease-line rule, a change in the lower member re-emits the group's recorded prerelease,
+      // and never-regress can't catch it because that member's ownNext sits below it.
+      const service = mkPackage('@wdio/flutter-service', '1.0.0-next.0');
       const contract = mkPackage('wdio_flutter', '0.0.1');
 
-      vi.mocked(gitTags.getLatestTagForPackage).mockImplementation(async (name) =>
-        name === '@wdio/flutter-service' ? 'wdio-flutter-service@v1.0.0-next.0' : '',
-      );
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
-        opts.name === '@wdio/flutter-service' ? '0.0.2-next.0' : '',
+        opts.name === 'wdio_flutter' ? '0.0.2-next.0' : '',
       );
 
       const strategy = createGroupStrategy(
@@ -485,25 +419,22 @@ describe('createGroupStrategy', () => {
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
         }),
       );
-      await strategy(workspace([service, contract]));
+      await strategy(workspace([service, contract]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
-        '/ws/packages/wdio-flutter-service/package.json',
+        '/ws/packages/wdio_flutter/package.json',
         '1.0.0-next.1',
         undefined,
       );
     });
 
     it('should advance the prerelease when the aggregate rank is itself prerelease and no identifier is set', async () => {
-      // A higher member's prerelease tag sets the group baseline (1.0.0-next.0) while the changed member only
+      // A higher member's prerelease sets the group baseline (1.0.0-next.0) while the changed member only
       // increments its own lower line. Returning the baseline unchanged would republish 1.0.0-next.0, and
       // never-regress can't raise it.
       const service = mkPackage('@wdio/flutter-service', '1.0.0-next.0');
       const contract = mkPackage('wdio_flutter', '0.9.0-next.0');
 
-      vi.mocked(gitTags.getLatestTagForPackage).mockImplementation(async (name) =>
-        name === '@wdio/flutter-service' ? 'wdio-flutter-service@v1.0.0-next.0' : '',
-      );
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
         opts.name === 'wdio_flutter' ? '0.9.0-next.1' : '',
       );
@@ -514,7 +445,7 @@ describe('createGroupStrategy', () => {
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
         }),
       );
-      await strategy(workspace([service, contract]));
+      await strategy(workspace([service, contract]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio_flutter/package.json',
@@ -539,7 +470,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([core, utils]));
+      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -573,7 +504,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([core, newcomer]));
+      await strategy(workspace([core, newcomer]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-fresh/package.json',
@@ -602,7 +533,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([core, utils]), ['@wdio/native-core']);
+      await strategy(workspace([core, utils]), record(), ['@wdio/native-core']);
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -630,7 +561,7 @@ describe('createGroupStrategy', () => {
       });
 
       const strategy = createGroupStrategy(baseConfig({ sync: true }));
-      await strategy(workspace([a, b]));
+      await strategy(workspace([a, b]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/app-a/package.json',
@@ -665,7 +596,7 @@ describe('createGroupStrategy', () => {
           graduateScope: ['@wdio/native-core'],
         }),
       );
-      await strategy(workspace([core, utils]));
+      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -697,7 +628,7 @@ describe('createGroupStrategy', () => {
           graduateScope: ['@wdio/native-utils'],
         }),
       );
-      await strategy(workspace([core, utils]));
+      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -724,7 +655,7 @@ describe('createGroupStrategy', () => {
           graduateScope: ['@other/thing'],
         }),
       );
-      await strategy(workspace([core, utils]));
+      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -747,7 +678,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { app: { packages: ['@app/*'], sync: 'fixed' } }, stableOnly: true }),
       );
-      await strategy(workspace([a, b]));
+      await strategy(workspace([a, b]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/app-a/package.json',
@@ -779,7 +710,7 @@ describe('createGroupStrategy', () => {
           prereleaseScope: ['@wdio/native-core'],
         }),
       );
-      await strategy(workspace([core, utils]));
+      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -811,7 +742,7 @@ describe('createGroupStrategy', () => {
           prereleaseScope: ['@other/thing'],
         }),
       );
-      await strategy(workspace([core, utils]));
+      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -847,7 +778,7 @@ describe('createGroupStrategy', () => {
           prereleaseScope: ['@wdio/tauri-*'],
         }),
       );
-      await strategy(workspace([service, plugin]));
+      await strategy(workspace([service, plugin]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-tauri-service/package.json',
@@ -880,7 +811,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([core, standalone]));
+      await strategy(workspace([core, standalone]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/app-standalone/package.json',
@@ -902,7 +833,7 @@ describe('createGroupStrategy', () => {
           },
         }),
       );
-      await expect(strategy(workspace([core]))).rejects.toThrow(/more than one version group/);
+      await expect(strategy(workspace([core]), [], record())).rejects.toThrow(/more than one version group/);
     });
   });
 
@@ -924,7 +855,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } } }),
       );
-      await strategy(workspace([core, utils]));
+      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -952,7 +883,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } } }),
       );
-      await strategy(workspace([core, utils]));
+      await strategy(workspace([core, utils]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
@@ -983,7 +914,7 @@ describe('createGroupStrategy', () => {
           groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } },
         }),
       );
-      await strategy(workspace([core, utils, spy]));
+      await strategy(workspace([core, utils, spy]), record());
 
       expect(logging.log).toHaveBeenCalledWith(
         expect.stringContaining('will release without: @wdio/native-spy'),
@@ -1006,7 +937,7 @@ describe('createGroupStrategy', () => {
           groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } },
         }),
       );
-      await strategy(workspace([core, spy]));
+      await strategy(workspace([core, spy]), record());
 
       expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('will release without'), 'warning');
     });
@@ -1028,7 +959,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([core, utils]));
+      await strategy(workspace([core, utils]), record());
 
       expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1055,7 +986,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([core]));
+      await strategy(workspace([core]), record());
 
       const call = vi
         .mocked(jsonOutput.addChangelogData)
@@ -1088,7 +1019,7 @@ describe('createGroupStrategy', () => {
           groups: { flutter: { packages: ['wdio_flutter', '@wdio/flutter-service'], sync: 'independent' } },
         }),
       );
-      await strategy(workspace([dart, service]));
+      await strategy(workspace([dart, service]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(dartPubspec, '1.0.0-next.1', false, {
         recordAs: 'wdio_flutter',
@@ -1103,7 +1034,7 @@ describe('createGroupStrategy', () => {
           groups: { flutter: { packages: ['wdio_flutter', '@wdio/flutter-service'], sync: 'independent' } },
         }),
       );
-      await strategy(workspace([dart, service]));
+      await strategy(workspace([dart, service]), record());
 
       expect(jsonOutput.addTag).not.toHaveBeenCalled();
     });
@@ -1121,7 +1052,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([core, orphan]));
+      await strategy(workspace([core, orphan]), record());
 
       expect(jsonOutput.addTag).toHaveBeenCalledWith('@wdio/native-core@v2.3.1');
       expect(jsonOutput.addTag).toHaveBeenCalledTimes(1);
@@ -1135,7 +1066,7 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ pub: pubConfig, groups: { js: { packages: ['@wdio/flutter-service'], sync: 'fixed' } } }),
       );
-      await strategy(workspace([dart, service]));
+      await strategy(workspace([dart, service]), record());
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(dartPubspec, '1.0.0-next.1', false, {
         recordAs: 'wdio_flutter',

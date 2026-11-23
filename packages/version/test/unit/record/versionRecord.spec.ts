@@ -1,10 +1,12 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { devNull, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Package } from '@manypkg/get-packages';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VersionRecord } from '../../../src/record/recordFile.js';
 import { readVersionRecord, recordRelease } from '../../../src/record/versionRecord.js';
+import type { Config } from '../../../src/types.js';
 
 describe('version record', () => {
   let root: string;
@@ -36,6 +38,18 @@ describe('version record', () => {
       writeFileSync(file(), JSON.stringify({ 'packages/a': { name: 'a', version: '1.0.0' } }));
 
       expect(() => readVersionRecord(root)).toThrow('releasekit.versions.json is malformed at "packages/a.at"');
+    });
+
+    it('should reject a version with a tag prefix', () => {
+      writeFileSync(file(), JSON.stringify({ 'packages/a': { name: 'a', version: 'v1.0.0', at: 'sha' } }));
+
+      expect(() => readVersionRecord(root)).toThrow('releasekit.versions.json is malformed at "packages/a.version"');
+    });
+
+    it('should keep a version with build metadata, as a pubspec carries it', () => {
+      writeFileSync(file(), JSON.stringify({ 'packages/a': { name: 'a', version: '1.2.3+4', at: 'sha' } }));
+
+      expect(readVersionRecord(root)['packages/a'].version).toBe('1.2.3+4');
     });
   });
 
@@ -93,6 +107,79 @@ describe('version record', () => {
       VersionRecord.open(root, 'head').saveReleases(new Map(), packages(), false);
 
       expect(existsSync(file())).toBe(false);
+    });
+
+    it("should remove an entry whose name another package's entry already holds, rather than move it", () => {
+      writeFileSync(
+        file(),
+        JSON.stringify({
+          'packages/old-a': { name: 'a', version: '1.0.0', at: 'old' },
+          'packages/a': { name: 'a', version: '2.0.0', at: 'new' },
+        }),
+      );
+      const record = VersionRecord.open(root, 'head');
+
+      expect(record.reconcile(packages())).toEqual([]);
+      record.saveReleases(new Map([['b', '1.0.0']]), packages(), false);
+      expect(Object.keys(JSON.parse(readFileSync(file(), 'utf-8')))).toEqual(['packages/a', 'packages/b']);
+    });
+  });
+
+  describe('current versions without an entry', () => {
+    const manifests = (dir: string, files: Record<string, string>) => {
+      mkdirSync(join(root, dir), { recursive: true });
+      for (const [name, content] of Object.entries(files)) {
+        writeFileSync(join(root, dir, name), content);
+      }
+      return pkg(dir, dir);
+    };
+
+    it("should start a package from its first enabled ecosystem's manifest", () => {
+      const hybrid = manifests('hybrid', {
+        'package.json': JSON.stringify({ name: 'hybrid', version: '1.0.0' }),
+        'Cargo.toml': '[package]\nname = "hybrid"\nversion = "2.0.0"\n',
+      });
+      const config = { npm: { enabled: false } } as Config;
+
+      expect(VersionRecord.open(root, 'head').current(hybrid, config)).toEqual({ version: '2.0.0', recorded: false });
+    });
+
+    it('should start a group with no entries from the highest of its manifest versions, else 0.1.0', () => {
+      const a = manifests('a', { 'package.json': JSON.stringify({ name: 'a', version: '1.2.0' }) });
+      const b = manifests('b', { 'package.json': JSON.stringify({ name: 'b', version: '1.10.0' }) });
+      const unversioned = manifests('c', { 'package.json': JSON.stringify({ name: 'c' }) });
+      const record = VersionRecord.open(root, 'head');
+
+      expect(record.groupCurrent([a, b], {} as Config)).toEqual({ version: '1.10.0', recorded: false });
+      expect(record.groupCurrent([unversioned], {} as Config)).toEqual({ version: '0.1.0', recorded: false });
+    });
+  });
+
+  describe('git checks', () => {
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf-8' }).trim();
+
+    beforeEach(() => {
+      vi.stubEnv('GIT_CONFIG_GLOBAL', devNull);
+      vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
+      git('init', '-q', '-b', 'main');
+      git('-c', 'user.email=t@example.com', '-c', 'user.name=T', 'commit', '-q', '--allow-empty', '-m', 'init');
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("should fail when a prerelease's last stable commit isn't in the history of HEAD", async () => {
+      const head = git('rev-parse', 'HEAD');
+      const missing = '0'.repeat(40);
+      writeFileSync(
+        file(),
+        JSON.stringify({
+          'packages/a': { name: 'a', version: '1.1.0-next.0', at: head, lastStable: { version: '1.0.0', at: missing } },
+        }),
+      );
+
+      await expect(VersionRecord.open(root, head).assertAncestors()).rejects.toThrow(`a (packages/a) at ${missing}`);
     });
   });
 });
