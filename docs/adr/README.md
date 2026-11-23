@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Each ADR records one significant, hard-to-reverse decision — the context, the decision, and its consequences — following [Michael Nygard's format](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions). ADRs are immutable once accepted; a decision is changed by adding a new ADR that supersedes an older one, not by editing it.
+Each ADR records one significant, hard-to-reverse decision — the context, the decision, and its consequences — following [Michael Nygard's format](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions). While the work an ADR drives is in progress, a flaw found in it is corrected in place, and its Status says so. Once that work is done, the ADR is immutable: a decision is changed by adding a new ADR that supersedes an older one, not by editing it.
 
 Roadmap sequencing lives in [ROADMAP.md](../../ROADMAP.md); implementation detail lives in issues. ADRs capture only the durable *why* behind a choice.
 
