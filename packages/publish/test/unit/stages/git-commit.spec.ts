@@ -208,13 +208,14 @@ describe('git-commit stage', () => {
       expect(ctx.output.git.tags).toContain('foo@v1.0.0');
     });
 
-    it('should throw when tag exists at a different commit', async () => {
+    it("should throw when tag exists at a different commit and pushes are off, so the remote's tags aren't read", async () => {
       seedGit({
         existingRefs: ['refs/tags/foo@v1.0.0'],
         headSha: 'newsha',
         commits: { 'foo@v1.0.0': 'oldsha\n' },
       });
       const ctx = createContext();
+      ctx.config.git.push = false;
 
       await expect(runGitCommitStage(ctx)).rejects.toThrow(/already exists at a different commit/);
     });

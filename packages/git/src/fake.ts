@@ -23,6 +23,7 @@ export interface FakeCommitRecord {
 export interface FakeTagRecord {
   name: string;
   message?: string;
+  force?: boolean;
 }
 
 export interface FakePushRecord {
@@ -43,6 +44,7 @@ export interface FakeGitSeed {
   mergedTags?: Record<string, string[]>;
   nearestTag?: string | null;
   headSha?: string;
+  shallow?: boolean;
   currentBranch?: string;
   remoteUrls?: Record<string, string>;
   existingRefs?: string[];
@@ -81,6 +83,7 @@ export class FakeGit implements Git {
   private readonly mergedTags: Record<string, string[]>;
   private readonly nearestTag: string | null;
   private readonly head: string;
+  private readonly shallow: boolean;
   private readonly branch: string;
   private readonly remoteUrls: Record<string, string>;
   private readonly existingRefs: Set<string>;
@@ -111,6 +114,7 @@ export class FakeGit implements Git {
     this.mergedTags = seed.mergedTags ?? {};
     this.nearestTag = seed.nearestTag ?? null;
     this.head = seed.headSha ?? '0000000000000000000000000000000000000000';
+    this.shallow = seed.shallow ?? false;
     this.branch = seed.currentBranch ?? 'main';
     this.remoteUrls = seed.remoteUrls ?? {};
     this.existingRefs = new Set(seed.existingRefs ?? []);
@@ -136,6 +140,10 @@ export class FakeGit implements Git {
 
   async headSha(_cwd?: string): Promise<string> {
     return this.head;
+  }
+
+  async isShallow(_cwd?: string): Promise<boolean> {
+    return this.shallow;
   }
 
   async remoteUrl(remote: string, _cwd?: string): Promise<string | null> {
@@ -217,7 +225,7 @@ export class FakeGit implements Git {
   }
 
   async tag(name: string, opts: GitTagOptions = {}): Promise<void> {
-    this.tagged.push({ name, message: opts.message });
+    this.tagged.push({ name, message: opts.message, ...(opts.force ? { force: true } : {}) });
     if (!this.tagsList.includes(name)) {
       this.tagsList.push(name);
     }

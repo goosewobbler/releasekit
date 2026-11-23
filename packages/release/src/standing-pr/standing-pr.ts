@@ -298,7 +298,8 @@ async function commitAndForcePush(
 /**
  * Standing-PR publish sets `skipGitCommit: true` to avoid duplicating the squash-merge commit, which also skips the
  * pipeline's tag creation. Mirrors `runGitCommitStage`'s idempotency (packages/publish/src/stages/git-commit.ts).
- * Never throws: the pipeline's `--tags` push publishes whatever tags were created.
+ * Throws only for a tag that already exists on the remote at another commit; otherwise the pipeline's `--tags` push
+ * publishes whatever tags were created.
  */
 export async function createReleaseTags(tags: string[], cwd: string): Promise<void> {
   if (tags.length === 0) {
@@ -315,24 +316,34 @@ export async function createReleaseTags(tags: string[], cwd: string): Promise<vo
     return;
   }
 
+  const remoteTags = await git.remoteTags('origin', cwd);
+  const taken = tags.filter((tag) => remoteTags[tag] !== undefined && remoteTags[tag] !== headSha);
+  if (taken.length > 0) {
+    throw new Error(
+      `Can't tag this release at ${headSha}: ${taken.map((tag) => `${tag} is at ${remoteTags[tag]}`).join(', ')} ` +
+        'on origin. Move or delete those tags, then retry.',
+    );
+  }
+
   for (const tag of tags) {
+    let replace = false;
     if (await git.refExists(`refs/tags/${tag}`, cwd)) {
       let existing = '';
       try {
         existing = (await git.log({ range: tag, format: '%H', extraArgs: ['-1'], cwd })).trim();
       } catch {
-        // Unresolvable: fall through to the warn below.
+        // Unresolvable: replaced below like any other tag that isn't on the remote.
       }
       if (existing === headSha) {
         info(`Tag ${tag} already exists at HEAD, skipping`);
         continue;
       }
-      warn(`Tag ${tag} exists at ${existing} but HEAD is ${headSha} — skipping (re-tag manually if intended)`);
-      continue;
+      info(`Replacing tag ${tag} at ${existing}, which was never pushed`);
+      replace = true;
     }
 
     try {
-      await git.tag(tag, { message: `Release ${tag}`, cwd });
+      await git.tag(tag, { message: `Release ${tag}`, force: replace, cwd });
       success(`Created tag: ${tag}`);
     } catch (err) {
       warn(`Failed to create tag ${tag}: ${err instanceof Error ? err.message : String(err)}`);

@@ -135,6 +135,11 @@ export class GitCli implements Git {
     return stdout.trim();
   }
 
+  async isShallow(cwd?: string): Promise<boolean> {
+    const { stdout } = await this.exec(['rev-parse', '--is-shallow-repository'], { cwd: this.cwd(cwd) });
+    return stdout.trim() === 'true';
+  }
+
   async remoteUrl(remote: string, cwd?: string): Promise<string | null> {
     assertNotOption(remote, 'remote');
     return (await this.runSoft(['remote', 'get-url', remote], { cwd: this.cwd(cwd) }))?.stdout.trim() ?? null;
@@ -311,7 +316,8 @@ export class GitCli implements Git {
 
   async tag(name: string, opts: GitTagOptions = {}): Promise<void> {
     assertNotOption(name, 'tag name');
-    const args = opts.message !== undefined ? ['tag', '-a', name, '-m', opts.message] : ['tag', name];
+    const args = ['tag', ...(opts.force ? ['-f'] : [])];
+    args.push(...(opts.message !== undefined ? ['-a', name, '-m', opts.message] : [name]));
     await this.exec(args, { cwd: this.cwd(opts.cwd) });
   }
 

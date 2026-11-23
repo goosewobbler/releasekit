@@ -1,21 +1,12 @@
 import { inspect } from 'node:util';
-import { sanitizePackageName, shouldMatchPackageTargets } from '@releasekit/core';
-import { createGitCli, isTagAfter } from '@releasekit/git';
+import { shouldMatchPackageTargets } from '@releasekit/core';
 import { Bumper } from 'conventional-recommended-bump';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
 import { getCommitsLength, refExists } from '../git/tagsAndBranches.js';
 import type { Config, VersionOptions } from '../types.js';
-import { buildTagStripPatternFromTemplate, deriveBaselineTagPrefix, escapeRegExp } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
-import { getVersionFromManifests } from '../utils/manifestHelpers.js';
-import {
-  bumpVersion,
-  getBestVersionSource,
-  normalizePrereleaseIdentifier,
-  STANDARD_BUMP_TYPES,
-  type VersionSourceResult,
-} from '../utils/versionUtils.js';
+import { bumpVersion, normalizePrereleaseIdentifier, STANDARD_BUMP_TYPES } from '../utils/versionUtils.js';
 import { createPreset } from './presets.js';
 
 /**
@@ -92,7 +83,7 @@ function guardFirstReleaseBump(config: Config, name: string | undefined, current
   const pkg = name || 'package';
   const bumped = bumpVersion(currentVer, type);
   const message =
-    `${pkg} has no prior tag and a stable manifest (${currentVer}); --bump ${type} will publish ${bumped}, not ${currentVer}. ` +
+    `${pkg} has no prior release and a stable manifest (${currentVer}); --bump ${type} will publish ${bumped}, not ${currentVer}. ` +
     `To release ${currentVer}, stage the manifest at a prerelease (e.g. ${currentVer}-next.0, which graduates), ` +
     `or set version.allowFirstBump (or pass --allow-first-bump) to apply the bump.`;
   if ((config.mismatchStrategy ?? 'warn') === 'error') {
@@ -105,14 +96,12 @@ function guardFirstReleaseBump(config: Config, name: string | undefined, current
 }
 
 export async function calculateVersion(config: Config, options: VersionOptions): Promise<string> {
-  const { latestTag } = options;
-  if (
-    config.skipTaggedAfter &&
-    options.hasRealTag !== false &&
-    latestTag &&
-    (await isTagAfter(createGitCli(), latestTag, config.skipTaggedAfter, options.path))
-  ) {
-    log(`Skipping ${options.name || 'project'}: ${latestTag} already released ${config.skipTaggedAfter}`, 'info');
+  const { releasedAfterRun } = options.current;
+  if (releasedAfterRun) {
+    log(
+      `Skipping ${options.name || 'project'}: ${releasedAfterRun} was already released at or after this run's commit`,
+      'info',
+    );
     return '';
   }
   const scoped = applyOverrideScope(config, options);
@@ -122,13 +111,7 @@ export async function calculateVersion(config: Config, options: VersionOptions):
 async function calculateVersionInner(config: Config, options: VersionOptions): Promise<string> {
   log(`Starting version calculation for ${options.name || 'project'}`, 'debug');
 
-  const {
-    type: configType,
-    preset,
-    versionPrefix,
-    prereleaseIdentifier: configPrereleaseIdentifier,
-    mismatchStrategy,
-  } = config;
+  const { type: configType, preset, prereleaseIdentifier: configPrereleaseIdentifier } = config;
 
   const {
     latestTag,
@@ -137,107 +120,29 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
     commitScope = pkgPath ? [pkgPath] : [],
     type: optionsType,
     prereleaseIdentifier: optionsPrereleaseIdentifier,
+    current,
   } = options;
 
   const type = optionsType || configType;
   const prereleaseIdentifier = optionsPrereleaseIdentifier || configPrereleaseIdentifier;
 
   const initialVersion = '0.1.0';
-
-  const hasNoTags = options.hasRealTag === false || !latestTag || latestTag.trim() === '';
-  log(`Resolved type: ${type}, hasNoTags: ${hasNoTags}, hasRealTag: ${options.hasRealTag}`, 'debug');
+  const firstRelease = !current.recorded;
+  log(`Resolved type: ${type}, current version: ${current.version}${firstRelease ? ' (first release)' : ''}`, 'debug');
 
   const normalizedPrereleaseId = normalizePrereleaseIdentifier(prereleaseIdentifier, config);
 
   try {
-    const originalPrefix = versionPrefix || '';
-    log(`Original prefix: ${originalPrefix}`, 'debug');
-
-    function buildTagStripPattern(packageName: string | undefined, prefix: string): string {
-      /* biome-ignore lint/suspicious/noTemplateCurlyInString: searching for literal template placeholder */
-      if (config.tagTemplate && packageName && config.tagTemplate.includes('${packageName}')) {
-        const templatePattern = buildTagStripPatternFromTemplate(config.tagTemplate, packageName, prefix);
-        if (templatePattern) {
-          return templatePattern;
-        }
-      }
-
-      if (!packageName) {
-        return escapeRegExp(prefix);
-      }
-      const sanitized = sanitizePackageName(packageName);
-      const escapedRaw = escapeRegExp(`${packageName}@${prefix}`);
-      const escapedDash = escapeRegExp(`${sanitized}-${prefix}`);
-      return `(?:${escapedRaw}|${escapedDash})`;
-    }
-
-    let escapedTagPattern = buildTagStripPattern(name, originalPrefix);
-
-    // latestTag may carry a template's multi-segment prefix (e.g. `release/v0.21.0`), which the
-    // consumer-prefix pattern alone leaves behind, so semver.clean would fail and fall back to 0.1.0.
-    for (const template of [config.tagTemplate, config.baselineTagTemplate]) {
-      const templatePrefix = deriveBaselineTagPrefix(template, originalPrefix, name);
-      if (templatePrefix) {
-        escapedTagPattern = `(?:${escapeRegExp(templatePrefix)}|${escapedTagPattern})`;
-      }
-    }
-
-    let versionSource: VersionSourceResult | undefined;
-
-    if (pkgPath) {
-      const packageDir = pkgPath;
-      const manifestResult = getVersionFromManifests(packageDir);
-      const packageVersion =
-        manifestResult.manifestFound && manifestResult.version ? manifestResult.version : undefined;
-
-      versionSource = await getBestVersionSource(
-        // A manifest-derived tag is a version base, not a git ref, so there's nothing to verify.
-        options.hasRealTag === false ? undefined : latestTag,
-        packageVersion,
-        packageDir,
-        mismatchStrategy,
-      );
-      log(`Using version source: ${versionSource.source} (${versionSource.reason})`, 'info');
-      log(`Version source version: ${versionSource.version}`, 'debug');
-    }
-
-    function getCurrentVersionFromSource(): string {
-      if (!versionSource) {
-        if (hasNoTags) {
-          log(`No tags, using initial version: ${initialVersion}`, 'debug');
-          return initialVersion;
-        }
-        const cleanedTag = semver.clean(latestTag) || latestTag;
-        const version = semver.clean(cleanedTag.replace(new RegExp(`^${escapedTagPattern}`), '')) || '0.0.0';
-        log(`Fallback version from tag: ${version}`, 'debug');
-        return version;
-      }
-
-      if (versionSource.source === 'git') {
-        const cleanedTag = semver.clean(versionSource.version) || versionSource.version;
-        const version = semver.clean(cleanedTag.replace(new RegExp(`^${escapedTagPattern}`), '')) || '0.0.0';
-        log(`Git version: ${version}`, 'debug');
-        return version;
-      }
-
-      log(`Package/initial version: ${versionSource.version}`, 'debug');
-      return versionSource.version;
-    }
-
     // Warn but fall through - returning the manifest verbatim on a first release would ignore
     // --stable, --bump and prereleaseIdentifier.
-    log(
-      `Checking first release scenario: latestTag=${latestTag}, type=${type}, stableOnly=${config.stableOnly}`,
-      'debug',
-    );
-    if (hasNoTags && type) {
-      log(`No previous tag found for ${name || 'project'} - this appears to be a first release`, 'warning');
+    if (firstRelease && type) {
+      log(`No previous release found for ${name || 'project'} - this appears to be a first release`, 'warning');
     }
 
     log(`Checking stableOnly mode: ${config.stableOnly}`, 'debug');
     if (config.stableOnly) {
       log(`StableOnly mode activated`, 'debug');
-      const currentVer = getCurrentVersionFromSource();
+      const currentVer = current.version;
       log(`Current version in stableOnly: ${currentVer}`, 'debug');
       if (semver.prerelease(currentVer)) {
         log(`Current version is prerelease, graduating`, 'debug');
@@ -255,7 +160,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         log(`Current version is stable and no type specified, skipping`, 'debug');
         log(`Skipping ${name || 'package'}: already at stable version ${currentVer}`, 'info');
         return '';
-      } else if (hasNoTags) {
+      } else if (firstRelease) {
         guardFirstReleaseBump(config, name, currentVer, type);
       }
       log(`Stable package with explicit bump label, falling through to normal logic`, 'debug');
@@ -266,7 +171,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
 
     if (specifiedType) {
       log(`Handling specified type: ${specifiedType}`, 'debug');
-      const currentVersion = getCurrentVersionFromSource();
+      const currentVersion = current.version;
       log(`Current version for specified type: ${currentVersion}`, 'debug');
 
       const isCurrentPrerelease = semver.prerelease(currentVersion);
@@ -330,7 +235,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       // Bound the commit scan to the changelog's baseline: conventional-recommended-bump's own tag detection
       // misses baseline tags (e.g. `release/v0.29.0`) and would scan all history, inflating the bump. An
       // unresolvable tag falls back to the unbounded default rather than throwing.
-      const latestTagReachable = !!latestTag && (await refExists(latestTag, pkgPath));
+      const latestTagReachable = options.hasRealTag !== false && !!latestTag && (await refExists(latestTag, pkgPath));
       const bumpFrom = config.baseRef ?? (latestTagReachable ? latestTag : undefined);
       // Omitted, not undefined: an undefined `from` replaces the bumper's own tag lookup.
       bumper.commits({
@@ -342,29 +247,16 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         recommendedBump && 'releaseType' in recommendedBump ? (recommendedBump.releaseType as ReleaseType) : undefined;
       log(`Conventional commits release type: ${releaseTypeFromCommits}`, 'debug');
 
-      const currentVersion = getCurrentVersionFromSource();
+      const currentVersion = current.version;
       log(`Current version from conventional commits: ${currentVersion}`, 'debug');
 
-      log(`Checking commit counting logic`, 'debug');
-      if (versionSource && versionSource.source === 'git') {
-        log(`Version source is git, checking commits`, 'debug');
-        const commitsLength = await getCommitsLength(commitScope, versionSource.version);
-        log(`Commits since ${versionSource.version}: ${commitsLength}`, 'debug');
+      if (latestTagReachable) {
+        const commitsLength = await getCommitsLength(commitScope, latestTag);
+        log(`Commits since ${latestTag}: ${commitsLength}`, 'debug');
         if (commitsLength === 0) {
-          log(
-            `No new commits found for ${name || 'project'} since ${versionSource.version}, skipping version bump`,
-            'info',
-          );
+          log(`No new commits found for ${name || 'project'} since ${latestTag}, skipping version bump`, 'info');
           return '';
         }
-      } else if (versionSource && versionSource.source === 'package') {
-        log(`Version source is package, skipping commit count`, 'debug');
-        log(
-          `Using package version ${versionSource.version} as base, letting conventional commits determine bump necessity`,
-          'debug',
-        );
-      } else {
-        log(`No version source or unknown source type`, 'debug');
       }
 
       log(`Checking if conventional commits indicate bump`, 'debug');

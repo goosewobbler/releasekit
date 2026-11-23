@@ -115,8 +115,8 @@ export class VersionEngine {
       if (runOptions.overrideScope) {
         effective.overrideScope = runOptions.overrideScope;
       }
-      if (runOptions.skipTaggedAfter) {
-        effective.skipTaggedAfter = runOptions.skipTaggedAfter;
+      if (runOptions.skipReleasedAfter) {
+        effective.skipReleasedAfter = runOptions.skipReleasedAfter;
       }
       if (runOptions.includePrerequisites) {
         this.includePrerequisites = true;
@@ -643,8 +643,19 @@ export class VersionEngine {
   }
 
   private async openRecord(root: string, at: string): Promise<VersionRecord> {
+    if (await createGitCli().isShallow(root)) {
+      throw new Error(
+        'The version step needs the full history and tags, and this is a shallow clone. Fetch it in full ' +
+          '(git fetch --unshallow --tags, or fetch-depth: 0 with actions/checkout).',
+      );
+    }
     // Opened before the strategy writes anything, so a malformed record fails the run with nothing touched.
     const record = VersionRecord.open(root, at);
+    const moved = record.reconcile(this.discoveredPackages);
+    if (moved.length > 0) {
+      log(`Moving ${moved.join(', ')} to the new path in ${VERSION_RECORD_FILE}`, 'info');
+    }
+    await record.assertAncestors();
     // Every package the version step can release, whatever this run targets: private packages and those outside
     // version.packages never release, and sync mode reads its shared version from the first of these.
     const releasable = new Set(this.config.releasablePackageDirs ?? []);
@@ -658,6 +669,9 @@ export class VersionEngine {
     for (const { name, reason } of unseeded) {
       log(`Not seeding ${name} in ${VERSION_RECORD_FILE} (${reason}), so it starts from its manifest`, 'debug');
     }
+    if (this.config.skipReleasedAfter) {
+      await record.loadReleasedAfter(this.config.skipReleasedAfter);
+    }
     return record;
   }
 
@@ -668,17 +682,17 @@ export class VersionEngine {
       const at = await createGitCli()
         .headSha(root)
         .catch(() => undefined);
-      const record = at ? await this.openRecord(root, at) : undefined;
+      const record = at ? await this.openRecord(root, at) : VersionRecord.empty(root);
       clearCargoBumps();
       clearReleasedVersions();
       // Callers pass the targets they were given, which the prerequisite expansion has since widened.
-      await this.currentStrategy(packages, this.targetsExpanded ? this.runtimeTargets : targets);
+      await this.currentStrategy(packages, this.targetsExpanded ? this.runtimeTargets : targets, record);
       await raiseCargoDependentRequirements(packages.root ?? cwd(), this.config.dryRun ?? false);
       await syncCargoLockfiles(packages.root ?? cwd(), this.config.dryRun ?? false);
       if (Object.keys(this.prerequisiteOf).length > 0) {
         tagPrerequisiteRoles(this.config.overrideScope ?? [], this.prerequisiteOf);
       }
-      record?.saveReleases(getReleasedVersions(), packages.packages, this.config.dryRun ?? false);
+      record.saveReleases(getReleasedVersions(), packages.packages, this.config.dryRun ?? false);
       if (isJsonOutputMode()) {
         // Bundled sections only enrich notes, so a failure here mustn't stop the release.
         await recordBundledReleases(getJsonData(), this.discoveredPackages, this.config, packages.root ?? cwd()).catch(

@@ -260,13 +260,20 @@ describe('createReleaseTags', () => {
     expect(fakeGit.tagged).toHaveLength(0);
   });
 
-  it('should not recreate a tag that points at a different commit', async () => {
+  it("should replace a tag at a different commit that origin doesn't have", async () => {
     fakeGit = new ControllableGit({ headSha: 'abc123', existingRefs: ['refs/tags/v1.2.3'] });
     fakeGit.subjects = ['feat: some feature'];
     fakeGit.tagCommitSha = 'othersha';
 
     await createReleaseTags(['v1.2.3'], '/tmp/test');
 
+    expect(fakeGit.tagged).toEqual([{ name: 'v1.2.3', message: 'Release v1.2.3', force: true }]);
+  });
+
+  it('should fail without tagging when origin has a tag at a different commit', async () => {
+    fakeGit = new ControllableGit({ headSha: 'abc123', remoteTags: { origin: { 'v1.2.3': 'othersha' } } });
+
+    await expect(createReleaseTags(['v1.2.3'], '/tmp/test')).rejects.toThrow('v1.2.3 is at othersha on origin');
     expect(fakeGit.tagged).toHaveLength(0);
   });
 

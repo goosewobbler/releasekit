@@ -8,6 +8,7 @@ import { BaselineResolver } from '../core/baselineResolver.js';
 import { calculateVersion } from '../core/versionCalculator.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
 import { checkUnreachableTags, getLatestTagForPackage } from '../git/tagsAndBranches.js';
+import { VersionRecord } from '../record/recordFile.js';
 import type { Config, VersionConfigBase } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
@@ -75,7 +76,11 @@ export class PackageProcessor {
    * config-driven `cargo.paths` / `pub.paths` writes; pass the workspace root, since the tool can run
    * from a subdirectory narrower than the repo.
    */
-  async processPackages(packages: Package[], repoRoot: string = process.cwd()): Promise<ProcessResult> {
+  async processPackages(
+    packages: Package[],
+    repoRoot: string = process.cwd(),
+    record = VersionRecord.empty(repoRoot),
+  ): Promise<ProcessResult> {
     const tags: string[] = [];
     const updatedPackagesInfo: Array<{ name: string; version: string; path: string }> = [];
 
@@ -207,6 +212,7 @@ export class PackageProcessor {
         name,
         prereleaseIdentifier: this.config.prereleaseIdentifier,
         type: this.config.type,
+        current: record.current(pkg, this.fullConfig),
       });
 
       if (!nextVersion) {

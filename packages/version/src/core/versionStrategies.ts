@@ -10,6 +10,7 @@ import { createVersionError, VersionErrorCode } from '../errors/versionError.js'
 import { checkUnreachableTags, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
+import { VersionRecord } from '../record/recordFile.js';
 import type { Config } from '../types.js';
 import { resolveCommitScope } from '../utils/commitScope.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
@@ -38,7 +39,12 @@ type ChangelogEntry = VersionChangelogEntry;
 
 export type StrategyType = 'sync' | 'single' | 'async' | 'group';
 
-export type StrategyFunction = (packages: PackagesWithRoot, targets?: string[]) => Promise<void>;
+/** Without a `record`, every package releases from its manifest. */
+export type StrategyFunction = (
+  packages: PackagesWithRoot,
+  targets?: string[],
+  record?: VersionRecord,
+) => Promise<void>;
 
 /** Targeting is applied at discovery time, so this only handles skip. */
 function shouldProcessPackage(pkg: Package, config: Config): boolean {
@@ -47,7 +53,11 @@ function shouldProcessPackage(pkg: Package, config: Config): boolean {
 }
 
 export function createSyncStrategy(config: Config): StrategyFunction {
-  return async (packages: PackagesWithRoot): Promise<void> => {
+  return async (
+    packages: PackagesWithRoot,
+    _targets?: string[],
+    record = VersionRecord.empty(packages.root),
+  ): Promise<void> => {
     try {
       setVersioningStrategy('sync');
       const {
@@ -74,7 +84,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       const commitScope = [repoRoot];
 
       // mainPkgPath/Name name the changelog and baseline tag and locate the repo URL; versionSourcePath/Name
-      // only supply the base version and the package-specific tag lookup.
+      // only supply the package-specific tag lookup.
       let mainPkgPath = packages.root;
       let mainPkgName: string | undefined;
       let versionSourcePath = mainPkgPath;
@@ -147,6 +157,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         commitScope,
         name: versionSourceName,
         type: config.type,
+        current: record.groupCurrent(packages.packages, config),
       });
 
       if (!nextVersion) {
@@ -418,7 +429,11 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 }
 
 export function createSingleStrategy(config: Config): StrategyFunction {
-  return async (packages: PackagesWithRoot): Promise<void> => {
+  return async (
+    packages: PackagesWithRoot,
+    _targets?: string[],
+    record = VersionRecord.empty(packages.root),
+  ): Promise<void> => {
     try {
       setVersioningStrategy('single');
       const {
@@ -494,6 +509,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         commitScope,
         name: packageName,
         type: config.type,
+        current: record.current(pkg, config),
       });
 
       if (!nextVersion) {
@@ -651,7 +667,11 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
 
   const packageProcessor = new PackageProcessor(processorOptions);
 
-  return async (packages: PackagesWithRoot, targets: string[] = []): Promise<void> => {
+  return async (
+    packages: PackagesWithRoot,
+    targets: string[] = [],
+    record = VersionRecord.empty(packages.root),
+  ): Promise<void> => {
     try {
       setVersioningStrategy('async');
       let packagesToProcess = packages.packages;
@@ -666,7 +686,7 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
 
       log(`Processing ${packagesToProcess.length} packages`, 'info');
 
-      const result = await packageProcessor.processPackages(packagesToProcess, packages.root ?? process.cwd());
+      const result = await packageProcessor.processPackages(packagesToProcess, packages.root ?? process.cwd(), record);
 
       if (result.updatedPackages.length === 0) {
         log('No packages required a version update.', 'info');

@@ -6,7 +6,7 @@ import type { Forge } from '@releasekit/forge';
 import { PipelineError } from '@releasekit/publish';
 import { postFailureReport, resolveFailureReportIfPresent } from './failure-report/post.js';
 import { decideFromMergedPRs, type GateOutput } from './gate/gate.js';
-import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
+import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern, releaseBranchRef } from './git.js';
 import { findMergedPRsForCommit, forgeFor } from './github.js';
 import { resolveScopeToTarget } from './label-utils.js';
 import { markFeederPreviewsStale } from './preview/stale.js';
@@ -171,9 +171,18 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     info(`Not releasing: ${verdict.reason}`);
     return null;
   }
-  if (verdict) {
+  const pushedSha = getGitHubContext()?.sha;
+  if (verdict && pushedSha) {
     applyVerdict(options, verdict);
-    options.skipTaggedAfter = getGitHubContext()?.sha ?? undefined;
+    const branch = options.branch ?? releaseKitConfig.git?.branch;
+    const remoteBranch = await releaseBranchRef(releaseKitConfig.git?.remote ?? 'origin', branch, options.projectDir);
+    if (!remoteBranch) {
+      throw new Error(
+        "Can't tell which branch this release lands on, to check what it has already released: the checkout is " +
+          'detached. Set git.branch in your config or pass --branch <name>.',
+      );
+    }
+    options.skipReleasedAfter = { commit: pushedSha, remoteBranch };
   }
 
   if (releaseConfig?.ci?.skipPatterns?.length) {

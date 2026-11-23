@@ -807,6 +807,17 @@ describe('runRelease', () => {
       },
     );
 
+    it("should have the version step skip what the release branch's remote record released after the pushed commit", async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ git: { remote: 'upstream', branch: 'release-line' } });
+      merge({ number: 123, labels: ['bump:minor'] });
+
+      await runRelease(noTarget);
+
+      expect(versionRunOptions()).toMatchObject({
+        skipReleasedAfter: { commit: 'sha-123', remoteBranch: 'upstream/release-line' },
+      });
+    });
+
     it('should release only the scope of a merged PR with a scope label', async () => {
       mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit', scopeLabels: { 'scope:core': '@test/core' } });
       merge({ number: 123, labels: ['scope:core'] });

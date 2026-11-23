@@ -67,6 +67,8 @@ const git = {
   ...gitTags,
 };
 
+const actualPath = await vi.importActual<typeof import('node:path')>('node:path');
+
 describe('Version Strategies', () => {
   const mockPackages = {
     root: '/test/workspace',
@@ -102,6 +104,7 @@ describe('Version Strategies', () => {
     vi.mocked(pubHandler.isReleasablePubspec).mockReturnValue(true);
 
     vi.mocked(path.join, { partial: true }).mockImplementation((...args) => args.join('/'));
+    vi.mocked(path.relative).mockImplementation(actualPath.relative);
     vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(true);
     vi.mocked(git.getLatestTag, { partial: true }).mockResolvedValue('v1.0.0');
     vi.mocked(calculator.calculateVersion, { partial: true }).mockResolvedValue('1.1.0');
@@ -1173,7 +1176,11 @@ describe('Version Strategies', () => {
 
       await asyncStrategy(mockPackages);
 
-      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages, '/test/workspace');
+      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(
+        mockPackages.packages,
+        '/test/workspace',
+        expect.anything(),
+      );
 
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
       expect(logging.log).toHaveBeenCalledWith('Updated 1 package(s): package-a', 'success');
@@ -1200,6 +1207,7 @@ describe('Version Strategies', () => {
       expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(
         expectedFilteredPackages,
         '/test/workspace',
+        expect.anything(),
       );
 
       expect(logging.log).toHaveBeenCalledWith('Runtime targets filter: 2 → 1 packages (package-b)', 'info');
@@ -1255,6 +1263,7 @@ describe('Version Strategies', () => {
       expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(
         expectedFilteredPackages,
         '/test/workspace',
+        expect.anything(),
       );
 
       expect(logging.log).toHaveBeenCalledWith('Runtime targets filter: 3 → 2 packages (@scope/*)', 'info');
@@ -1271,7 +1280,11 @@ describe('Version Strategies', () => {
 
       await asyncStrategy(mockPackages);
 
-      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages, '/test/workspace');
+      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(
+        mockPackages.packages,
+        '/test/workspace',
+        expect.anything(),
+      );
 
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
     });
@@ -1286,7 +1299,11 @@ describe('Version Strategies', () => {
 
       await asyncStrategy(mockPackages);
 
-      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages, '/test/workspace');
+      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(
+        mockPackages.packages,
+        '/test/workspace',
+        expect.anything(),
+      );
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
     });
 

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { isCargoToml, isPubspecYaml, parsePubspec } from '@releasekit/config';
 import { getCargoInfo } from '../cargo/cargoHandler.js';
 import { getPubInfo } from '../pub/pubHandler.js';
+import type { Config } from '../types.js';
 import { log } from './logging.js';
 
 export interface ManifestVersionResult {
@@ -12,12 +13,16 @@ export interface ManifestVersionResult {
   manifestType: 'package.json' | 'Cargo.toml' | 'pubspec.yaml' | null;
 }
 
-export function getVersionFromManifests(packageDir: string): ManifestVersionResult {
+/** With `ecosystems`, a manifest whose ecosystem it turns off is passed over. */
+export function getVersionFromManifests(
+  packageDir: string,
+  ecosystems: Pick<Config, 'npm' | 'cargo' | 'pub'> = {},
+): ManifestVersionResult {
   const packageJsonPath = path.join(packageDir, 'package.json');
   const cargoTomlPath = path.join(packageDir, 'Cargo.toml');
   const pubspecPath = path.join(packageDir, 'pubspec.yaml');
 
-  if (fs.existsSync(packageJsonPath)) {
+  if (ecosystems.npm?.enabled !== false && fs.existsSync(packageJsonPath)) {
     try {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
       if (packageJson.version) {
@@ -36,7 +41,7 @@ export function getVersionFromManifests(packageDir: string): ManifestVersionResu
     }
   }
 
-  if (fs.existsSync(cargoTomlPath)) {
+  if (ecosystems.cargo?.enabled !== false && fs.existsSync(cargoTomlPath)) {
     try {
       const cargoInfo = getCargoInfo(cargoTomlPath);
       if (cargoInfo.version) {
@@ -55,7 +60,7 @@ export function getVersionFromManifests(packageDir: string): ManifestVersionResu
     }
   }
 
-  if (fs.existsSync(pubspecPath)) {
+  if (ecosystems.pub?.enabled !== false && fs.existsSync(pubspecPath)) {
     try {
       const pubspec = parsePubspec(pubspecPath);
       // YAML reads an unquoted `version: 1.0` as a number.

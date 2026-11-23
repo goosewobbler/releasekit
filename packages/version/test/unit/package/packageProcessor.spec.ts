@@ -80,6 +80,11 @@ vi.mock('../../../src/utils/manifestHelpers.js', () => ({
   }),
 }));
 vi.mock('../../../src/core/versionCalculator.js');
+vi.mock('../../../src/record/recordFile.js', () => ({
+  VersionRecord: {
+    empty: () => ({ current: (pkg: Package) => ({ version: pkg.packageJson.version, recorded: true }) }),
+  },
+}));
 vi.mock('../../../src/version/versionCalc.js');
 vi.mock('node:fs');
 vi.mock('../../../src/cargo/cargoHandler.js');

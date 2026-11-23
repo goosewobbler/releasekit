@@ -5,11 +5,13 @@ import { z } from 'zod';
 
 export const VERSION_RECORD_FILE = 'releasekit.versions.json';
 
+const SemverSchema = z.string().refine((version) => semver.valid(version) !== null, 'not a semver version');
+
 const VersionRecordEntrySchema = z.looseObject({
   name: z.string(),
-  version: z.string(),
+  version: SemverSchema,
   at: z.string(),
-  lastStable: z.looseObject({ version: z.string(), at: z.string() }).optional(),
+  lastStable: z.looseObject({ version: SemverSchema, at: z.string() }).optional(),
 });
 
 const VersionRecordSchema = z.record(z.string(), VersionRecordEntrySchema);
@@ -36,12 +38,13 @@ export function versionRecordKey(root: string, packageDir: string): string {
 /** An empty record when the file doesn't exist. */
 export function readVersionRecord(root: string): VersionRecordEntries {
   const file = versionRecordPath(root);
-  if (!fs.existsSync(file)) {
-    return {};
-  }
+  return fs.existsSync(file) ? parseVersionRecord(fs.readFileSync(file, 'utf-8')) : {};
+}
+
+export function parseVersionRecord(content: string): VersionRecordEntries {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    parsed = JSON.parse(content);
   } catch (error) {
     throw new Error(`${VERSION_RECORD_FILE} isn't valid JSON: ${error instanceof Error ? error.message : error}`);
   }

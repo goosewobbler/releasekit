@@ -16,6 +16,23 @@ export async function tagAfter(sha: string, cwd?: string): Promise<string | null
   return tag && (await isTagAfter(git, tag, sha, cwd)) ? tag : null;
 }
 
+/**
+ * The remote-tracking branch a release lands on: `branch`, else the checked-out branch, else the workflow's branch.
+ * Null when none is known, as in a detached checkout outside a branch workflow.
+ */
+export async function releaseBranchRef(
+  remote: string,
+  branch: string | undefined,
+  cwd?: string,
+): Promise<string | null> {
+  const current = await createGitCli()
+    .currentBranch(cwd)
+    .catch(() => 'HEAD');
+  const fromWorkflow = process.env.GITHUB_REF?.match(/^refs\/heads\/(.+)$/)?.[1];
+  const resolved = branch ?? (current === 'HEAD' ? fromWorkflow : current);
+  return resolved ? `${remote}/${resolved}` : null;
+}
+
 async function headLog(format: string, cwd?: string): Promise<string | null> {
   try {
     return (await createGitCli().log({ format, extraArgs: ['-1'], cwd })).trim();

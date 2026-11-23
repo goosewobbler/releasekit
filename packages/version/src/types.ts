@@ -56,10 +56,25 @@ export interface VersionRunOptions {
    */
   exclude?: string[];
   /**
-   * The commit this run releases. A package whose latest tag is reachable from HEAD and comes after it is skipped,
-   * so a re-run checked out past that commit's release doesn't release the package again.
+   * The commit this run releases, and the remote base branch. A package whose entry in that branch's version record
+   * has an `at` at or after the commit is skipped, so a re-run of an older workflow doesn't release it again.
    */
-  skipTaggedAfter?: string;
+  skipReleasedAfter?: ReleasedAfter;
+}
+
+/** The commit a re-run releases, and the remote-tracking branch, such as `origin/main`, whose record it checks. */
+export interface ReleasedAfter {
+  commit: string;
+  remoteBranch: string;
+}
+
+/** The version a package releases from. */
+export interface CurrentVersion {
+  version: string;
+  /** False when the package has no entry, so this is its first release. */
+  recorded: boolean;
+  /** The version the remote base branch's record released at or after the run's commit, if any. */
+  releasedAfterRun?: string;
 }
 
 export interface VersionConfigBase {
@@ -103,8 +118,8 @@ export interface Config extends VersionConfigBase {
   baseRef?: string;
   /** Runtime override - see VersionRunOptions.overrideScope. */
   overrideScope?: string[];
-  /** Runtime override - see VersionRunOptions.skipTaggedAfter. */
-  skipTaggedAfter?: string;
+  /** Runtime override - see VersionRunOptions.skipReleasedAfter. */
+  skipReleasedAfter?: ReleasedAfter;
   /** Runtime override (see VersionRunOptions.graduate), always set together with `stableOnly`. Empty
    *  with `stableOnly` set graduates every prerelease. */
   graduateScope?: string[];
@@ -162,6 +177,8 @@ export function toVersionConfig(config: VersionConfig = VersionConfigSchema.pars
 }
 
 export interface VersionOptions extends VersionConfigBase {
+  /** Bounds the commits the bump reads. */
   latestTag: string;
   hasRealTag?: boolean;
+  current: CurrentVersion;
 }

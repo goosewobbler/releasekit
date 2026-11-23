@@ -13,7 +13,7 @@ import { deriveBaselineTagPrefix, formatVersionPrefix } from '../utils/formattin
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
 import { hasManifestToBump } from '../utils/manifestUpdates.js';
 import { versionFromTag } from '../utils/versionAction.js';
-import { getBestVersionSource } from '../utils/versionUtils.js';
+import { getBestVersionSource, VersionMismatchError } from '../utils/versionUtils.js';
 import { type VersionRecordEntries, type VersionRecordEntry, versionRecordKey } from './versionRecord.js';
 
 /** The tag a version run resolves as a package's last release, and where its last stable tag is looked up. */
@@ -106,6 +106,10 @@ async function seedFrom(lookup: ReleaseLookup, config: Config, root: string): Pr
     const source = await getBestVersionSource(lookup.tag, manifestVersion, lookup.sourceDir, config.mismatchStrategy);
     version = source.source === 'git' ? versionFromTag(lookup.tag) : source.version;
   } catch (error) {
+    // Under `mismatchStrategy: 'error'` a mismatch fails the run, as the lookup did before the record.
+    if (error instanceof VersionMismatchError) {
+      throw error;
+    }
     return { reason: error instanceof Error ? error.message : String(error) };
   }
   if (!version) {
