@@ -4,6 +4,7 @@ export { BasePublishError, createPublishError, PipelineError, PublishError, Publ
 export { publishDidChange } from './output.js';
 export { runPipeline } from './pipeline/index.js';
 export { pipelineErrorEnvelope } from './pipeline-error-envelope.js';
+export { resolvePushRemote } from './stages/git-push.js';
 export { parseInput } from './stages/input.js';
 export type {
   CargoConfig,

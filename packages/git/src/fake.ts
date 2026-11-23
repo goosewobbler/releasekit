@@ -23,6 +23,7 @@ export interface FakeCommitRecord {
 export interface FakeTagRecord {
   name: string;
   message?: string;
+  force?: boolean;
 }
 
 export interface FakePushRecord {
@@ -217,7 +218,7 @@ export class FakeGit implements Git {
   }
 
   async tag(name: string, opts: GitTagOptions = {}): Promise<void> {
-    this.tagged.push({ name, message: opts.message });
+    this.tagged.push({ name, message: opts.message, ...(opts.force ? { force: true } : {}) });
     if (!this.tagsList.includes(name)) {
       this.tagsList.push(name);
     }

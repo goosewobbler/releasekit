@@ -1,5 +1,5 @@
 import { createFakeGit, type FakeGit, type FakeGitSeed } from '@releasekit/git';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultConfig } from '../../../src/config.js';
 import { publishDidChange } from '../../../src/output.js';
 import { runGitCommitStage } from '../../../src/stages/git-commit.js';
@@ -58,6 +58,10 @@ function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
 }
 
 describe('git-commit stage', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: tag does not exist, so a fresh tag is created.
@@ -208,15 +212,29 @@ describe('git-commit stage', () => {
       expect(ctx.output.git.tags).toContain('foo@v1.0.0');
     });
 
-    it('should throw when tag exists at a different commit', async () => {
+    it("should throw when tag exists at a different commit and pushes are off, so the remote's tags aren't read", async () => {
       seedGit({
         existingRefs: ['refs/tags/foo@v1.0.0'],
         headSha: 'newsha',
         commits: { 'foo@v1.0.0': 'oldsha\n' },
       });
       const ctx = createContext();
+      ctx.config.git.push = false;
 
       await expect(runGitCommitStage(ctx)).rejects.toThrow(/already exists at a different commit/);
+    });
+
+    it("should read the remote's tags through the authenticated URL a push uses", async () => {
+      vi.stubEnv('RK_PUSH_TOKEN', 'secret');
+      seedGit({
+        headSha: 'newsha',
+        remoteUrls: { origin: 'https://github.com/owner/repo.git' },
+        remoteTags: { 'https://x-access-token:secret@github.com/owner/repo.git': { 'foo@v1.0.0': 'oldsha' } },
+      });
+      const ctx = createContext();
+      ctx.config.git.httpsTokenEnv = 'RK_PUSH_TOKEN';
+
+      await expect(runGitCommitStage(ctx)).rejects.toThrow(/already exists on origin at a different commit/);
     });
 
     it('should create tag when it does not exist', async () => {
