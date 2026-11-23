@@ -174,7 +174,7 @@ export class PackageProcessor {
           const packageDir = pkgPath;
           let manifestFallbackUsed = false;
 
-          const manifestResult = getVersionFromManifests(packageDir);
+          const manifestResult = getVersionFromManifests(packageDir, this.fullConfig);
           if (manifestResult.manifestFound && manifestResult.version) {
             log(
               `Using ${manifestResult.manifestType} version ${manifestResult.version} for ${name} as no package-specific tags found`,

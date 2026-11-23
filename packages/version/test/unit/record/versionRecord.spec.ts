@@ -39,6 +39,12 @@ describe('version record', () => {
 
       expect(() => readVersionRecord(root)).toThrow('releasekit.versions.json is malformed at "packages/a.at"');
     });
+
+    it('should reject a version with a tag prefix', () => {
+      writeFileSync(file(), JSON.stringify({ 'packages/a': { name: 'a', version: 'v1.0.0', at: 'sha' } }));
+
+      expect(() => readVersionRecord(root)).toThrow('releasekit.versions.json is malformed at "packages/a.version"');
+    });
   });
 
   describe('recordRelease', () => {

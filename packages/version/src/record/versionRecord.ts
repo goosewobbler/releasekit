@@ -5,7 +5,9 @@ import { z } from 'zod';
 
 export const VERSION_RECORD_FILE = 'releasekit.versions.json';
 
-const SemverSchema = z.string().refine((version) => semver.valid(version) !== null, 'not a semver version');
+const SemverSchema = z
+  .string()
+  .refine((version) => semver.valid(version) === version, 'not a semver version, such as 1.2.3');
 
 const VersionRecordEntrySchema = z.looseObject({
   name: z.string(),
