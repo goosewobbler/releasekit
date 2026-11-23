@@ -79,7 +79,7 @@
     "@types/node": "catalog:",
     "@types/semver": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "fast-check": "^4.10.1",
+    "fast-check": "^4.10.3",
     "tsup": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
