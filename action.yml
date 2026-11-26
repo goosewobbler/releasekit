@@ -238,14 +238,14 @@ runs:
 
     - name: Checkout (SSH)
       if: ${{ inputs.skip-checkout != 'true' && inputs.ssh-key != '' && steps.access.outputs.pushes == 'true' }}
-      uses: actions/checkout@v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         ssh-key: ${{ inputs.ssh-key }}
         fetch-depth: 0
 
     - name: Checkout (HTTPS)
       if: ${{ inputs.skip-checkout != 'true' && (inputs.ssh-key == '' || steps.access.outputs.pushes != 'true') }}
-      uses: actions/checkout@v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         fetch-depth: 0
         # An empty input (a secret unset on a fork run) falls back to the workflow token.
@@ -277,12 +277,12 @@ runs:
         fi
 
     - name: Setup pnpm
-      uses: pnpm/action-setup@v6
+      uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       with:
         version: ${{ steps.pnpm-setup.outputs.version }}
 
     - name: Setup Node
-      uses: actions/setup-node@v7
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ inputs.node-version }}
         cache: ${{ steps.pnpm-setup.outputs.cache }}
