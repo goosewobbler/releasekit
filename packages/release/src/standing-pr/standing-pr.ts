@@ -1568,7 +1568,6 @@ async function updateStandingPR(options: StandingPROptions, banner: ProgressBann
   }
 
   // Held-back packages are excluded, not just unticked, so no untagged orphan bump lands on base.
-  info('Writing version bumps...');
   const writeOptions = buildBaseReleaseOptions(options, false, {
     ...buildExtras,
     stable: syncGraduated || undefined,
@@ -1576,13 +1575,32 @@ async function updateStandingPR(options: StandingPROptions, banner: ProgressBann
     graduate: writeGraduate.length > 0 ? writeGraduate : undefined,
     prereleaseScope: writePrereleaseScope.length > 0 ? writePrereleaseScope : undefined,
   });
-  const versionOutput = await runVersionStep(writeOptions);
+  // With every change held back there's nothing to write, and excluding them can leave the version step no package.
+  const allHeldBack =
+    dryUpdates.length > 0 &&
+    dryUpdates.every((u) => effectiveDeselected.has(u.packageName)) &&
+    writeGraduate.every((name) => effectiveDeselected.has(name));
+  let versionOutput: VersionOutput;
+  if (allHeldBack) {
+    info('Every change is held back, so there are no version bumps to write');
+    versionOutput = {
+      dryRun: false,
+      strategy: versionOutputDry.strategy,
+      updates: [],
+      changelogs: [],
+      tags: [],
+      sharedEntries: versionOutputDry.sharedEntries,
+    };
+  } else {
+    info('Writing version bumps...');
+    versionOutput = await runVersionStep(writeOptions);
+  }
 
   // The write can come back empty when a release landed on `base` and tagged after the dry run, which would render a
-  // degenerate body. Publishable-only so a sync root-only bump is caught too. Offered graduations keep the PR open
-  // with nothing ticked.
+  // degenerate body. Publishable-only so a sync root-only bump is caught too. Offered graduations and held-back rows
+  // keep the PR open with nothing ticked.
   const graduationOffered = graduationUpdates.length > 0 || syncGraduationOffered;
-  if (publishableUpdates(versionOutput).length === 0 && !graduationOffered) {
+  if (publishableUpdates(versionOutput).length === 0 && !graduationOffered && !allHeldBack) {
     return closeEmptyQueue(existingStandingPr, forge);
   }
 
@@ -1864,7 +1882,9 @@ async function updateStandingPR(options: StandingPROptions, banner: ProgressBann
     holds.push(
       sync
         ? 'Nothing to release: tick "graduate to stable" to graduate the prerelease'
-        : 'Nothing to release: tick a graduation row to ship its stable version',
+        : allHeldBack
+          ? 'Nothing ticked to release: re-tick a package to release it'
+          : 'Nothing to release: tick a graduation row to ship its stable version',
     );
   }
 
