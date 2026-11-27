@@ -1,0 +1,22 @@
+{
+  "packages/notes": {
+    "name": "@releasekit/notes",
+    "version": "0.48.0",
+    "at": "c4f7773ec792fa400c86e75836737bb66be0b7ff"
+  },
+  "packages/publish": {
+    "name": "@releasekit/publish",
+    "version": "0.48.0",
+    "at": "c4f7773ec792fa400c86e75836737bb66be0b7ff"
+  },
+  "packages/release": {
+    "name": "@releasekit/release",
+    "version": "0.48.0",
+    "at": "c4f7773ec792fa400c86e75836737bb66be0b7ff"
+  },
+  "packages/version": {
+    "name": "@releasekit/version",
+    "version": "0.48.0",
+    "at": "c4f7773ec792fa400c86e75836737bb66be0b7ff"
+  }
+}
