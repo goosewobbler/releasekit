@@ -128,4 +128,25 @@ describe('standing-PR model regressions', () => {
     expect(model.openPr).toBeDefined();
     expect(world.log).toEqual([]);
   }, 120_000);
+
+  it('should keep the standing PR open with every row unticked once each change is held back', async () => {
+    world = World.create({ sync: false, enforceMergeAuthor: false });
+    current.forge = world.forge;
+
+    await runSequence(world, [
+      new MergeFeeder('fix', ['rk-b']),
+      new Update('push'),
+      new MergeFeeder('fix', ['rk-a']),
+      new ToggleSelection(MAINTAINER, 'rk-b'),
+      new ToggleSelection(MAINTAINER, 'rk-a'),
+    ]);
+
+    expect(world.log).toEqual([]);
+    const pr = world.forge.openStandingPr(RELEASE_BRANCH);
+    expect(pr?.body).toContain('- [ ] `rk-a` → 1.0.1 <!-- rk-sel:rk-a -->');
+    expect(pr?.body).toContain('- [ ] `rk-b` → 1.0.1 <!-- rk-sel:rk-b -->');
+    const manifest = parseManifest(world.forge.manifestWrites.at(-1)?.body ?? '');
+    expect(manifest.deselected).toEqual(['rk-a', 'rk-b']);
+    expect(manifest.versionOutput.updates).toEqual([]);
+  }, 120_000);
 });

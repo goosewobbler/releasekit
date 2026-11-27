@@ -1112,35 +1112,46 @@ describe('runStandingPRUpdate', () => {
     expect(body).not.toContain('rk-sel:@wdio/tauri-plugin');
   });
 
-  it('should cascade a held-back primary to exclude its whole unit from the write', async () => {
-    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
-    await withPrimaries();
-    vi.mocked(runVersionStep).mockResolvedValue(
-      tauriVersionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
-    );
-    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+  it.each([{ labels: [] as string[] }, { labels: ['graduate:@wdio/tauri-service'] }])(
+    'should cascade a held-back primary to hold back its whole unit, with labels $labels',
+    async ({ labels }) => {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      await withPrimaries();
+      vi.mocked(runVersionStep).mockResolvedValue(
+        tauriVersionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const priorBody = [
-      '<!-- releasekit-selection -->',
-      '',
-      '- [ ] **`@wdio/tauri-service`** → 1.4.0 <!-- rk-sel:@wdio/tauri-service -->',
-      '  <details><summary>ships 1 coupled</summary>',
-      '',
-      '  - `@wdio/tauri-plugin` → 1.4.0 · coupled',
-      '  </details>',
-      '',
-      '<!-- releasekit-selection-end -->',
-    ].join('\n');
-    await mockForge({
-      standingPR: openStandingPR(99),
-      pullRequests: { 99: { body: priorBody, labels: [] } },
-    });
+      const priorBody = [
+        '<!-- releasekit-selection -->',
+        '',
+        '- [ ] **`@wdio/tauri-service`** → 1.4.0 <!-- rk-sel:@wdio/tauri-service -->',
+        '  <details><summary>ships 1 coupled</summary>',
+        '',
+        '  - `@wdio/tauri-plugin` → 1.4.0 · coupled',
+        '  </details>',
+        '',
+        '<!-- releasekit-selection-end -->',
+      ].join('\n');
+      const forge = await mockForge({
+        standingPR: openStandingPR(99),
+        pullRequests: { 99: { body: priorBody, labels } },
+      });
 
-    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
-    expect(writeCall.exclude?.slice().sort()).toEqual(['@wdio/tauri-plugin', '@wdio/tauri-service']);
-  });
+      expect(vi.mocked(runVersionStep)).toHaveBeenCalledTimes(1);
+      const writes = [...forge.createdComments, ...forge.updatedComments].map((c) => c.body);
+      const manifest = parseManifest(writes.find((b) => b.includes(MANIFEST_MARKER)) ?? '');
+      expect(manifest.deselected).toEqual(['@wdio/tauri-plugin', '@wdio/tauri-service']);
+      expect(forge.commitStatuses).toContainEqual(
+        expect.objectContaining({
+          state: 'pending',
+          description: 'Nothing ticked to release: re-tick a package to release it',
+        }),
+      );
+    },
+  );
 
   describe('streamlined primaries with a prerequisite and an orphan', () => {
     // `@app/x` has no group but a prerequisite, `@app/y` anchors a group, and `@app/z` sits outside both units.
@@ -1262,8 +1273,9 @@ describe('runStandingPRUpdate', () => {
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
-    expect(writeCall.exclude?.slice().sort()).toEqual(['@wdio/tauri-plugin', '@wdio/tauri-service']);
+    const writes = [...forge.createdComments, ...forge.updatedComments].map((c) => c.body);
+    const manifest = parseManifest(writes.find((b) => b.includes(MANIFEST_MARKER)) ?? '');
+    expect(manifest.deselected).toEqual(['@wdio/tauri-plugin', '@wdio/tauri-service']);
     expect(forge.upsertedComments.map((c) => c.marker)).not.toContain('<!-- releasekit-selection-denied -->');
   });
 
