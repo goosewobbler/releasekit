@@ -1,7 +1,12 @@
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getWorkspacePackageDirs, getWorkspacePackageNames, getWorkspacePackageVersions } from '../../src/index.js';
+import {
+  getWorkspaceDependencyGraph,
+  getWorkspacePackageDirs,
+  getWorkspacePackageNames,
+  getWorkspacePackageVersions,
+} from '../../src/index.js';
 import { cleanupTempDir } from '../utils/tempFixture.js';
 import { createWorkspaceRepo, writeVersionConfig } from '../utils/workspace.js';
 
@@ -43,6 +48,22 @@ describe('workspace package lookups', () => {
       dart_core: join(repo, 'packages/dart_core'),
     });
     expect(versions).toEqual({ '@test/web': '0.1.0', engine: '2.0.0', dart_core: '3.0.0' });
+  });
+
+  it('should return the dependents of npm dependencies and Cargo path dependencies', async () => {
+    write(
+      'packages/app/package.json',
+      JSON.stringify({ name: '@test/app', version: '0.1.0', dependencies: { '@test/web': 'workspace:*' } }),
+    );
+    write(
+      'packages/plugin/Cargo.toml',
+      '[package]\nname = "plugin"\nversion = "1.0.0"\n\n[dependencies]\nengine = { path = "../engine", version = "2.0.0" }\n',
+    );
+
+    const graph = await getWorkspaceDependencyGraph({ cwd: repo });
+
+    expect([...graph.getInternalDependents('@test/web')]).toEqual(['@test/app']);
+    expect([...graph.getInternalDependents('engine')]).toEqual(['plugin']);
   });
 
   it('should scope to version.packages', async () => {
