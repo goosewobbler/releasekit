@@ -2,8 +2,9 @@ import type { CIConfig, ReleaseKitConfig } from '@releasekit/config';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import { info, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
-import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern, tagAfter } from '../git.js';
+import { getGitHubContext, getHeadCommitMessage, getUpstreamSha, matchesSkipPattern, tagAfter } from '../git.js';
 import { fetchPRLabels, findMergedPRsForCommit, forgeFor, PRLookupError, postOrUpdateComment } from '../github.js';
+import { readGitHubEvent } from '../github-event.js';
 import { DEFAULT_LABELS, type LabelConfig, resolveScopeToTarget } from '../label-utils.js';
 import { evaluatePR, type PREvaluation } from './evaluate-pr.js';
 
@@ -95,7 +96,7 @@ export interface MergedPRDecisionInput {
   forge: Forge;
   releaseKitConfig: ReleaseKitConfig;
   projectDir: string;
-  /** The commit the run was triggered for: its merged PR decides. */
+  /** `GITHUB_SHA`. Its merged PR decides, except in a `workflow_run`, where the commit the upstream run tested does. */
   pushedSha: string;
   scope?: string;
 }
@@ -105,6 +106,42 @@ export interface MergedPRDecisionInput {
  * direct push; a failed lookup throws a {@link PRLookupError}.
  */
 export async function decideFromMergedPRs(input: MergedPRDecisionInput): Promise<GateOutput> {
+  const testedSha = workflowRunHeadSha();
+  if (!testedSha) {
+    return decideForCommit(input);
+  }
+  const verdict = await decideForCommit({ ...input, pushedSha: testedSha });
+  if (!verdict.shouldRelease) {
+    return verdict;
+  }
+  // `skip-checkout` syncs the checkout to the branch tip after the event fired, so GITHUB_SHA alone can be stale.
+  // Its rebase keeps the job's own commits on top, so HEAD needn't be the tip.
+  const upstream = await getUpstreamSha(input.projectDir);
+  const untested =
+    input.pushedSha !== testedSha
+      ? `${input.pushedSha.slice(0, 7)}, the default branch's tip`
+      : upstream && upstream !== testedSha
+        ? `${upstream.slice(0, 7)}, the checked-out branch's tip`
+        : undefined;
+  if (!untested) {
+    return verdict;
+  }
+  const winner = verdict.evaluations.find((e) => e.shouldRelease);
+  const subject = winner ? `PR #${winner.prNumber}` : 'the pushed commit';
+  const reason = `Not releasing ${subject}: the triggering workflow run tested ${testedSha.slice(0, 7)}, not ${untested}`;
+  warn(reason);
+  const { labels, prNumbers, evaluations } = verdict;
+  return { shouldRelease: false, labels, prNumbers, evaluations, reason };
+}
+
+function workflowRunHeadSha(): string | undefined {
+  if (process.env.GITHUB_EVENT_NAME !== 'workflow_run') {
+    return undefined;
+  }
+  return readGitHubEvent<{ workflow_run?: { head_sha?: string } }>()?.workflow_run?.head_sha;
+}
+
+async function decideForCommit(input: MergedPRDecisionInput): Promise<GateOutput> {
   const { forge, releaseKitConfig, projectDir, pushedSha, scope } = input;
   const ciConfig = releaseKitConfig.ci;
 

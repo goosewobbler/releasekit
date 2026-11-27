@@ -151,6 +151,8 @@ In GitHub Actions (`GITHUB_REPOSITORY`, `GITHUB_SHA` and `GITHUB_TOKEN` set, out
 
 Only the pushed commit's PR counts. A push that carries several merges is decided by the last one, and a run cancelled before it releases (say, by a later push) doesn't pass its PR's labels on to the next run; re-run it to release that PR.
 
+In a run triggered by `workflow_run`, the pushed commit is the one the triggering run tested (`workflow_run.head_sha`), not `GITHUB_SHA`, which is the default branch's tip. If the branch has moved past that commit, or `skip-checkout` synced the checkout past it, the run doesn't release, so untested commits don't ship, and it logs why (in `gate` mode, the step summary shows it too). Re-running that CI run skips again. The next release includes the PR's commits; to release them sooner, dispatch the release workflow, which reads no PR labels. While merges land faster than CI finishes, no run releases until one has tested the tip.
+
 Under `ci.standingPr.authorization.enforceMergeAuthor`, `release` refuses a merged PR whose merger lacks the required permission, and posts the [failure report](./troubleshooting.md#the-failure-report) on it. A direct push has no merger, so it isn't checked.
 
 Looking up the PR needs `pull-requests: read`. If the lookup fails, `release` fails and names the permission. `--draft` and `--from-draft` ignore PR labels.
