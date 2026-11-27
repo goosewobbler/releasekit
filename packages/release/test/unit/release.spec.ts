@@ -1,3 +1,6 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { info, type VersionOutput, warn } from '@releasekit/core';
 import { createFakeForge, type FakeForge } from '@releasekit/forge';
 import { FakeGit } from '@releasekit/git';
@@ -984,6 +987,95 @@ describe('runRelease', () => {
           expect(result).toBeNull();
         },
       );
+    });
+
+    describe('a workflow_run triggered by CI on the default branch', () => {
+      // A merged, then B merged before A's CI finished: GITHUB_SHA is B's merge whichever run triggers.
+      const prA = { number: 1, labels: ['release:immediate'], headRef: 'feat-a' };
+      const prB = { number: 2, labels: ['release:immediate', 'bump:major'], headRef: 'feat-b' };
+
+      let dir: string;
+
+      function ciFinished(headSha: string): void {
+        const eventPath = path.join(dir, 'event.json');
+        fs.writeFileSync(eventPath, JSON.stringify({ workflow_run: { head_sha: headSha } }));
+        vi.stubEnv('GITHUB_EVENT_NAME', 'workflow_run');
+        vi.stubEnv('GITHUB_EVENT_PATH', eventPath);
+      }
+
+      beforeEach(() => {
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-workflow-run-'));
+        mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr' });
+        vi.stubEnv('GITHUB_SHA', 'sha-2');
+        merge(prB, prA);
+        checkedOut('sha-2');
+      });
+
+      function checkedOut(upstreamSha: string, headSha = upstreamSha): void {
+        fakeGit = new FakeGit({
+          nearestTag: 'v1.0.0',
+          headSha,
+          commits: { 'refs/remotes/origin/main': `${upstreamSha}\n`, '*': 'feat: some feature\n' },
+        });
+      }
+
+      afterEach(() => {
+        fs.rmSync(dir, { recursive: true, force: true });
+      });
+
+      it("should evaluate A's labels and skip, not release B, when A's CI finishes after B merged", async () => {
+        ciFinished('sha-1');
+
+        const verdict = await gate();
+        const result = await runRelease(noTarget);
+
+        expect(verdict).toMatchObject({
+          shouldRelease: false,
+          prNumbers: [1],
+          labels: ['release:immediate'],
+          reason: expect.stringContaining('the triggering workflow run tested sha-1, not sha-2'),
+        });
+        expect(verdict.bump).toBeUndefined();
+        expect(vi.mocked(warn)).toHaveBeenCalledWith(verdict.reason);
+        expect(result).toBeNull();
+        expect(MockVersionEngine).not.toHaveBeenCalled();
+      });
+
+      it('should skip A when skip-checkout synced the checkout past the commit both event SHAs name', async () => {
+        vi.stubEnv('GITHUB_SHA', 'sha-1');
+        ciFinished('sha-1');
+
+        const verdict = await gate();
+        const result = await runRelease(noTarget);
+
+        expect(verdict).toMatchObject({
+          shouldRelease: false,
+          prNumbers: [1],
+          reason: expect.stringContaining("tested sha-1, not sha-2, the checked-out branch's tip"),
+        });
+        expect(result).toBeNull();
+        expect(MockVersionEngine).not.toHaveBeenCalled();
+      });
+
+      it("should release B when the job's own commit sits on top of the tested tip", async () => {
+        ciFinished('sha-2');
+        checkedOut('sha-2', 'sha-local');
+
+        const verdict = await gate();
+
+        expect(verdict).toMatchObject({ shouldRelease: true, prNumbers: [2] });
+      });
+
+      it("should release B with its labels when B's own CI finishes", async () => {
+        ciFinished('sha-2');
+
+        const verdict = await gate();
+        const result = await runRelease(noTarget);
+
+        expect(verdict).toMatchObject({ shouldRelease: true, prNumbers: [2], bump: 'major' });
+        expect(result).not.toBeNull();
+        expect(versionRunOptions().bump).toBe('major');
+      });
     });
 
     describe('CLI flags', () => {

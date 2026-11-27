@@ -5,6 +5,21 @@ export async function getHeadCommitMessage(cwd?: string): Promise<string | null>
   return headLog('%s', cwd);
 }
 
+/** The checked-out branch's `origin` tip; null outside a branch checkout, as in a gate-only job. */
+export async function getUpstreamSha(cwd?: string): Promise<string | null> {
+  try {
+    const git = createGitCli();
+    const branch = await git.currentBranch(cwd);
+    if (branch === 'HEAD') {
+      return null;
+    }
+    const sha = await git.log({ range: `refs/remotes/origin/${branch}`, format: '%H', extraArgs: ['-1'], cwd });
+    return sha.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getHeadParents(cwd?: string): Promise<string[]> {
   return (await headLog('%P', cwd))?.split(' ') ?? [];
 }
