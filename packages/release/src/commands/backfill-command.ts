@@ -393,7 +393,7 @@ function resolveTargets(
   return [{ packageName, pkgPath, repoUrl: pkgJson.repoUrl ?? null }];
 }
 
-/** Mirrors how the sync strategy names its single changelog and finds its repo URL. */
+/** Mirrors how a sync release names its single changelog and finds its repo URL. */
 function syncTarget(versionConfig: VersionConfig, workspace: Workspace): BackfillTarget {
   const mainPkg = versionConfig.mainPackage
     ? workspace.packages.find((p) => p.packageJson.name === versionConfig.mainPackage)

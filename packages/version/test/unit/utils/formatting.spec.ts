@@ -3,7 +3,6 @@ import {
   buildTagStripPatternFromTemplate,
   deriveBaselineTagPrefix,
   displayTag,
-  formatCommitMessage,
   formatTag,
   formatVersionPrefix,
 } from '../../../src/utils/formatting.js';
@@ -80,7 +79,7 @@ describe('formatting', () => {
           'packageName} from your tagTemplate (e.g., use "${' +
           'prefix}${' +
           'version}")\n' +
-          '• If using single/async mode: Ensure your package.json has a valid "name" field',
+          '• If versioning packages on their own (async mode): Ensure your package.json has a valid "name" field',
         'warning',
       );
     });
@@ -125,93 +124,6 @@ describe('formatting', () => {
     });
   });
 
-  describe('formatCommitMessage', () => {
-    it('should replace version placeholder in template', () => {
-      const result = formatCommitMessage('Release version ${' + 'version}', '1.0.0');
-      expect(result).toBe('Release version 1.0.0');
-    });
-
-    it('should replace both version and additional context placeholders', () => {
-      const result = formatCommitMessage('Release ${' + 'scope} version ${' + 'version}', '1.0.0', undefined, {
-        scope: 'app',
-      });
-      expect(result).toBe('Release app version 1.0.0');
-    });
-
-    it('should handle missing additional context', () => {
-      const result = formatCommitMessage('Release ${' + 'scope} version ${' + 'version}', '1.0.0');
-      expect(result).toBe('Release ${' + 'scope} version 1.0.0');
-    });
-
-    it('should replace packageName placeholder in template', () => {
-      const result = formatCommitMessage('Release ${' + 'packageName}@${' + 'version}', '1.0.0', 'my-package');
-      expect(result).toBe('Release my-package@1.0.0');
-    });
-
-    it('should replace all placeholders together', () => {
-      const result = formatCommitMessage(
-        'Release ${' + 'packageName}@${' + 'version} in ${' + 'scope} scope',
-        '1.0.0',
-        'my-package',
-        { scope: 'app' },
-      );
-      expect(result).toBe('Release my-package@1.0.0 in app scope');
-    });
-
-    it('should warn when using ${packageName} without providing packageName', () => {
-      const result = formatCommitMessage('Release ${' + 'packageName}@${' + 'version}', '1.0.0');
-      expect(result).toBe('Release @1.0.0');
-      expect(logSpy).toHaveBeenCalledWith(
-        'Warning: Your commitMessage template contains ${' +
-          'packageName} but no package name is available.\n' +
-          'This will result in an empty package name in the commit message (e.g., "Release @v1.0.0").\n\n' +
-          'To fix this:\n' +
-          '• If using sync mode: Set "packageSpecificTags": true to enable package names in commits\n' +
-          '• If you want generic commit messages: Remove ${' +
-          'packageName} from your commitMessage template\n' +
-          '• If using single/async mode: Ensure your package.json has a valid "name" field',
-        'warning',
-      );
-    });
-
-    it('should not warn when using ${packageName} with packageName provided', () => {
-      const result = formatCommitMessage('Release ${' + 'packageName}@${' + 'version}', '1.0.0', 'my-package');
-      expect(result).toBe('Release my-package@1.0.0');
-      expect(logSpy).not.toHaveBeenCalled();
-    });
-
-    it('should not warn when not using ${packageName} in template', () => {
-      const result = formatCommitMessage('Release version ${' + 'version}', '1.0.0');
-      expect(result).toBe('Release version 1.0.0');
-      expect(logSpy).not.toHaveBeenCalled();
-    });
-
-    it('should handle additional context keys with special regex characters', () => {
-      const result = formatCommitMessage(
-        '${' + 'test.key} ${' + 'test*key} ${' + 'test+key} ${' + 'test?key}',
-        '1.0.0',
-        undefined,
-        {
-          'test.key': 'dot',
-          'test*key': 'star',
-          'test+key': 'plus',
-          'test?key': 'question',
-        },
-      );
-      expect(result).toBe('dot star plus question');
-    });
-
-    it('should handle additional context keys with regex metacharacters', () => {
-      const result = formatCommitMessage('${' + 'a$b} ${' + 'c^d} ${' + 'e|f} ${' + 'g[h]}', '1.0.0', undefined, {
-        a$b: 'dollar',
-        'c^d': 'caret',
-        'e|f': 'pipe',
-        'g[h]': 'bracket',
-      });
-      expect(result).toBe('dollar caret pipe bracket');
-    });
-  });
-
   describe('formatTag with context-aware warnings', () => {
     it('should show warning when template uses packageName but none provided', () => {
       formatTag('1.0.0', 'v', null, '${' + 'packageName}@${' + 'prefix}${' + 'version}', false);
@@ -224,23 +136,6 @@ describe('formatting', () => {
 
     it('should not show warning when template uses packageName and one is provided', () => {
       formatTag('1.0.0', 'v', 'my-package', '${' + 'packageName}@${' + 'prefix}${' + 'version}', false);
-
-      expect(logSpy).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('formatCommitMessage with context-aware warnings', () => {
-    it('should show warning when template uses packageName but none provided', () => {
-      formatCommitMessage('chore: release ${' + 'packageName}@${' + 'version}', '1.0.0');
-
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Warning: Your commitMessage template contains ${' + 'packageName}'),
-        'warning',
-      );
-    });
-
-    it('should not show warning when template uses packageName and one is provided', () => {
-      formatCommitMessage('chore: release ${' + 'packageName}@${' + 'version}', '1.0.0', 'my-package');
 
       expect(logSpy).not.toHaveBeenCalled();
     });

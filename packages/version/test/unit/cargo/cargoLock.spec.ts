@@ -1,5 +1,5 @@
 /**
- * Cargo.lock sync on every path that bumps a Cargo.toml. Each test runs a real strategy through
+ * Cargo.lock sync on every path that bumps a Cargo.toml. Each test runs a real version run through
  * `VersionEngine.run` over a git work tree on disk and checks the crates' own lock and a fixture app's lock.
  */
 import { execFileSync } from 'node:child_process';
@@ -12,7 +12,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as commitParser from '../../../src/changelog/commitParser.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
 import { type PackagesWithRoot, VersionEngine } from '../../../src/core/versionEngine.js';
-import type { StrategyType } from '../../../src/core/versionStrategies.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
 import * as tagVerification from '../../../src/git/tagVerification.js';
 import type { Config } from '../../../src/types.js';
@@ -135,10 +134,8 @@ function bump(next: Record<string, string>): void {
   vi.mocked(calculator.calculateVersion).mockImplementation(async (_config, options) => next[options.name ?? ''] ?? '');
 }
 
-async function runVersion(strategy: StrategyType, config: Partial<Config>, packages: PackagesWithRoot): Promise<void> {
-  const engine = new VersionEngine(baseConfig(config));
-  engine.setStrategy(strategy);
-  await engine.run(packages);
+async function runVersion(config: Partial<Config>, packages: PackagesWithRoot): Promise<void> {
+  await new VersionEngine(baseConfig(config)).run(packages);
 }
 
 const git = (cwd: string, ...args: string[]): string => execFileSync('git', args, { cwd, encoding: 'utf8' });
@@ -189,37 +186,32 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  it.each<[string, StrategyType, Partial<Config>, 'alpha' | 'both', Versions]>([
+  it.each<[string, Partial<Config>, 'alpha' | 'both', Versions]>([
     [
       'a version group',
-      'group',
       { groups: { rust: { packages: ['alpha', 'beta'], sync: 'fixed' } } },
       'both',
       { alpha: '1.1.0', beta: '1.1.0' },
     ],
     [
       'the ungrouped path in group mode',
-      'group',
       { groups: { other: { packages: ['beta'], sync: 'fixed' } } },
       'both',
       { alpha: '1.1.0', beta: '1.0.0' },
     ],
-    ['the per-package processor', 'async', {}, 'both', { alpha: '1.1.0', beta: '1.0.0' }],
-    ['updateCargoFiles in a sync release', 'sync', { sync: true }, 'both', { alpha: '1.1.0', beta: '1.1.0' }],
-    ['updateCargoFiles in a single-package release', 'single', {}, 'alpha', { alpha: '1.1.0', beta: '1.0.0' }],
-  ])(
-    'should sync every lock that records a crate bumped through %s',
-    async (_label, strategy, config, scope, expected) => {
-      bump({ alpha: '1.1.0' });
-      const packages = scope === 'both' ? both() : [crate(root, 'alpha')];
+    ['an async release', {}, 'both', { alpha: '1.1.0', beta: '1.0.0' }],
+    ['a sync release', { sync: true }, 'both', { alpha: '1.1.0', beta: '1.1.0' }],
+    ['a single-package release', {}, 'alpha', { alpha: '1.1.0', beta: '1.0.0' }],
+  ])('should sync every lock that records a crate bumped through %s', async (_label, config, scope, expected) => {
+    bump({ alpha: '1.1.0' });
+    const packages = scope === 'both' ? both() : [crate(root, 'alpha')];
 
-      await runVersion(strategy, config, workspace(root, packages));
+    await runVersion(config, workspace(root, packages));
 
-      expect(read(ownLock)).toBe(workspaceLock(expected));
-      expect(read(fixtureLock)).toBe(appLock(expected));
-      expect(git(root, 'diff', '--name-only', '--', '*.lock')).toBe('crates/Cargo.lock\nfixtures/app/Cargo.lock\n');
-    },
-  );
+    expect(read(ownLock)).toBe(workspaceLock(expected));
+    expect(read(fixtureLock)).toBe(appLock(expected));
+    expect(git(root, 'diff', '--name-only', '--', '*.lock')).toBe('crates/Cargo.lock\nfixtures/app/Cargo.lock\n');
+  });
 
   it('should sync the lock for a Cargo.toml found through cargo.paths (Tauri layout)', async () => {
     const appDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-lock-tauri-')));
@@ -231,11 +223,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     bump({ desktop: '0.5.0' });
 
     try {
-      await runVersion(
-        'async',
-        { cargo: { enabled: true, paths: ['src-tauri'] } },
-        workspace(appDir, [app as Package]),
-      );
+      await runVersion({ cargo: { enabled: true, paths: ['src-tauri'] } }, workspace(appDir, [app as Package]));
       expect(read(crateLock)).toBe('version = 4\n\n[[package]]\nname = "desktop"\nversion = "0.5.0"\n');
     } finally {
       fs.rmSync(appDir, { recursive: true, force: true });
@@ -266,7 +254,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
       git(root, 'add', '-A');
       bump(next);
 
-      await runVersion('async', { cargo: { enabled: true, paths: ['src-tauri'] } }, workspace(root, apps));
+      await runVersion({ cargo: { enabled: true, paths: ['src-tauri'] } }, workspace(root, apps));
 
       for (const name of ['one', 'two']) {
         expect(read(tauriLockOf(name))).toBe(tauriLock(next[name] ?? '0.1.0'));
@@ -285,7 +273,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     git(root, 'add', '-A');
     bump({ one: '0.2.0', two: '0.4.0' });
 
-    await runVersion('async', { cargo: { enabled: true, paths: ['src-tauri'] } }, workspace(root, apps));
+    await runVersion({ cargo: { enabled: true, paths: ['src-tauri'] } }, workspace(root, apps));
 
     expect(read(tauriLockOf('one'))).toBe(tauriLock('0.2.0'));
     expect(read(tauriLockOf('two'))).toBe(tauriLock('0.4.0'));
@@ -302,7 +290,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     git(root, 'add', '-A');
     bump({ two: '0.4.0' });
 
-    await runVersion('async', { cargo: { enabled: true, paths: ['src-tauri'] } }, workspace(root, apps));
+    await runVersion({ cargo: { enabled: true, paths: ['src-tauri'] } }, workspace(root, apps));
 
     expect(read(tauriLockOf('two'))).toBe(tauriLock('0.4.0'));
     expect(read(path.join(root, 'Cargo.lock'))).toBe(tauriLock('0.1.0'));
@@ -319,11 +307,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     bump({ desk: '0.2.0' });
     const app = { dir: appDir, relativeDir: 'apps/desk', packageJson: { name: 'desk', version: '0.1.0' } };
 
-    await runVersion(
-      'async',
-      { cargo: { enabled: true, paths: ['src-tauri'] } },
-      workspace(root, [app as unknown as Package]),
-    );
+    await runVersion({ cargo: { enabled: true, paths: ['src-tauri'] } }, workspace(root, [app as unknown as Package]));
 
     expect(read(appLock)).toBe('version = 4\n\n[[package]]\nname = "desk"\nversion = "0.2.0"\n');
   });
@@ -338,7 +322,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     bump({ alpha: '1.1.0' });
 
     try {
-      await runVersion('group', { groups: { rust: { packages: ['alpha'], sync: 'fixed' } } }, workspace(root, both()));
+      await runVersion({ groups: { rust: { packages: ['alpha'], sync: 'fixed' } } }, workspace(root, both()));
     } finally {
       vi.unstubAllEnvs();
       fs.rmSync(bin, { recursive: true, force: true });
@@ -353,7 +337,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     enableJsonOutput(true);
     bump({ alpha: '1.1.0' });
 
-    await runVersion('async', { dryRun: true }, workspace(root, both()));
+    await runVersion({ dryRun: true }, workspace(root, both()));
 
     expect(read(ownLock)).toBe(workspaceLock({ alpha: '1.0.0', beta: '1.0.0' }));
     expect(read(fixtureLock)).toBe(appLock({ alpha: '1.0.0', beta: '1.0.0' }));
@@ -369,7 +353,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     fs.writeFileSync(fixtureLock, ambiguous);
     bump({ beta: '2.0.0' });
 
-    const run = runVersion('async', {}, workspace(root, both()));
+    const run = runVersion({}, workspace(root, both()));
 
     await expect(run).rejects.toMatchObject({ code: 'CARGO_LOCK_SYNC_ERROR' });
     expect(exitCodeForError(await run.catch((error: unknown) => error))).toBe(EXIT_CODES.VERSION_ERROR);
@@ -384,7 +368,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     );
     bump({ beta: '2.0.0' });
 
-    await expect(runVersion('async', { dryRun: true }, workspace(root, both()))).rejects.toMatchObject({
+    await expect(runVersion({ dryRun: true }, workspace(root, both()))).rejects.toMatchObject({
       code: 'CARGO_LOCK_SYNC_ERROR',
     });
   });
@@ -393,7 +377,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     git(root, 'rm', '-q', '--cached', 'crates/Cargo.lock', 'fixtures/app/Cargo.lock');
     bump({ alpha: '1.1.0' });
 
-    await runVersion('async', {}, workspace(root, both()));
+    await runVersion({}, workspace(root, both()));
 
     expect(read(ownLock)).toBe(workspaceLock({ alpha: '1.1.0', beta: '1.0.0' }));
     expect(read(fixtureLock)).toBe(appLock({ alpha: '1.0.0', beta: '1.0.0' }));
@@ -405,7 +389,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     fs.writeFileSync(path.join(root, '.gitignore'), 'Cargo.lock\n');
     bump({ alpha: '1.1.0' });
 
-    await runVersion('async', {}, workspace(root, both()));
+    await runVersion({}, workspace(root, both()));
 
     expect(read(ownLock)).toBe(workspaceLock({ alpha: '1.0.0', beta: '1.0.0' }));
     expect(read(fixtureLock)).toBe(appLock({ alpha: '1.1.0', beta: '1.0.0' }));
@@ -416,7 +400,7 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     fs.rmSync(fixtureLock);
     bump({ alpha: '1.1.0' });
 
-    await runVersion('async', {}, workspace(root, both()));
+    await runVersion({}, workspace(root, both()));
 
     expect(fs.existsSync(ownLock)).toBe(false);
     expect(fs.existsSync(fixtureLock)).toBe(false);

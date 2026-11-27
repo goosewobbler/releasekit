@@ -8,7 +8,7 @@ Semantic versioning based on Git history and conventional commits.
 ## Features
 
 - **Conventional commits** — automatic version bumps from commit history (`feat:` → minor, `fix:` → patch, `BREAKING CHANGE` → major)
-- **Monorepo support** — sync, single, or independent (async) versioning strategies
+- **Monorepo support** — lockstep (sync), grouped, or independent (async) versioning
 - **npm and Rust** — updates both `package.json` and `Cargo.toml` manifests
 - **Branch patterns** — determine bumps from branch names (e.g. `feature/*` → minor)
 - **Package targeting** — version specific packages with `--target`

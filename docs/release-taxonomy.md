@@ -24,7 +24,7 @@ forever, regardless of what any single release happens to target. Three modes (f
 [`version.groups`](./configuration.md#versiongroups)):
 
 - **`fixed`** — any change in any member releases **all** members at one shared version. The global
-  `version.sync: true` is exactly this over one implicit all-packages group.
+  `version.sync: true` is this over one all-packages group, counting commits anywhere in the repo.
 - **`linked`** — only changed members release, but every releasing member shares the same computed
   version. Unchanged members stay put.
 - **`independent`** — only changed members release, each on its **own** commit-driven version line

@@ -40,21 +40,7 @@ export async function runVersionStep(options: ReleaseOptions): Promise<VersionOu
     throw new Error('No packages found in workspace');
   }
 
-  const hasGroups = config.groups && Object.keys(config.groups).length > 0;
-  const effectiveSync = options.sync || config.sync;
-  if (hasGroups && !effectiveSync) {
-    engine.setStrategy('group');
-    await engine.run(pkgsResult, targets);
-  } else if (effectiveSync) {
-    engine.setStrategy('sync');
-    await engine.run(pkgsResult);
-  } else if (resolvedCount === 1) {
-    engine.setStrategy('single');
-    await engine.run(pkgsResult);
-  } else {
-    engine.setStrategy('async');
-    await engine.run(pkgsResult, targets);
-  }
+  await engine.run(pkgsResult, targets);
 
   return getJsonData() as VersionOutput;
 }

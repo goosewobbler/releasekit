@@ -33,6 +33,8 @@ export interface BaselineInput {
   /** Whether `latestTag` is a real git tag (vs. a manifest-fallback synthetic tag, or empty). */
   hasRealTag: boolean;
   usedPackageSpecificTag: boolean;
+  /** The prefix `latestTag` was found by when it isn't the package's own, if not the run's `globalTagPrefix`. */
+  globalTagPrefix?: string;
   /** Drives the prerelease→stable graduation floor. */
   nextVersion: string;
   /** Package name for the graduation stable-tag lookup (package-specific series). */
@@ -69,7 +71,8 @@ export class BaselineResolver {
 
   async resolve(input: BaselineInput): Promise<PackageBaseline> {
     const { pkgDir, latestTag, hasRealTag, usedPackageSpecificTag, nextVersion, graduationName } = input;
-    const { baseRef, strictReachable, versionPrefix, globalTagPrefix, tagTemplate } = this.opts;
+    const { baseRef, strictReachable, versionPrefix, tagTemplate } = this.opts;
+    const globalTagPrefix = 'globalTagPrefix' in input ? input.globalTagPrefix : this.opts.globalTagPrefix;
 
     // On graduation, aggregate the changelog from the last *stable* tag, not the prerelease `latestTag`
     // (which usually holds only the release-prep commit).

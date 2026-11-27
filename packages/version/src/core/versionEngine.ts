@@ -37,7 +37,7 @@ import { log } from '../utils/logging.js';
 import { recordBundledReleases } from './bundling.js';
 import { isGroupMode } from './groupResolution.js';
 import { resolvePrerequisiteTargets } from './prerequisiteScope.js';
-import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
+import { versionPackages } from './versionPackages.js';
 import { buildWorkspaceGraph } from './workspaceGraph.js';
 
 export interface PackagesWithRoot extends Packages {
@@ -55,8 +55,6 @@ function matchesWorkspaceGlobs(relativePath: string, globs: string[]): boolean {
 export class VersionEngine {
   private config: Config;
   private workspaceCache: PackagesWithRoot | null = null;
-  private strategies: Record<StrategyType, StrategyFunction>;
-  private currentStrategy: StrategyFunction;
   private runtimeTargets: string[] = [];
   private includePrerequisites = false;
   private excludePackages: string[] = [];
@@ -97,7 +95,7 @@ export class VersionEngine {
         effective.stableOnly = true;
         effective.graduateScope = runOptions.graduate;
       }
-      // Twin of graduate above; the group strategy also gates group-level prerelease on the scope.
+      // Twin of graduate above; a group's prerelease is also gated on the scope.
       if (!runOptions.prerelease && runOptions.prereleaseScope?.length) {
         effective.isPrerelease = true;
         effective.prereleaseIdentifier = effective.prereleaseIdentifier || 'next';
@@ -127,10 +125,6 @@ export class VersionEngine {
     }
 
     this.config = effective;
-
-    this.strategies = createStrategyMap(effective);
-
-    this.currentStrategy = createStrategy(effective);
   }
 
   /** Null when no package.json exists from the project directory upwards. */
@@ -564,12 +558,9 @@ export class VersionEngine {
         this.targetsExpanded = true;
         this.config.overrideScope = overrideScope;
         this.prerequisiteOf = prerequisiteOf;
-        // Rebuild strategies so they pick up the override scope derived from the workspace graph.
-        this.strategies = createStrategyMap(this.config);
-        this.currentStrategy = createStrategy(this.config);
       }
 
-      // The group strategy filters targets itself: it needs full membership to expand a `--target` on part
+      // Group versioning filters targets itself: it needs full membership to expand a `--target` on part
       // of an atomic group to the whole group. config.packages still applies - it scopes the universe.
       const deferTargetsToGroups = Object.keys(this.config.groups ?? {}).length > 0;
 
@@ -683,7 +674,13 @@ export class VersionEngine {
       clearCargoBumps();
       clearReleasedVersions();
       // Callers pass the targets they were given, which the prerequisite expansion has since widened.
-      await this.currentStrategy(packages, record, this.targetsExpanded ? this.runtimeTargets : targets);
+      await versionPackages(
+        this.config,
+        packages,
+        record,
+        this.targetsExpanded ? this.runtimeTargets : targets,
+        this.discoveredPackages,
+      );
       await raiseCargoDependentRequirements(packages.root ?? cwd(), this.config.dryRun ?? false);
       await syncCargoLockfiles(packages.root ?? cwd(), this.config.dryRun ?? false);
       if (Object.keys(this.prerequisiteOf).length > 0) {
@@ -714,9 +711,5 @@ export class VersionEngine {
       }
       throw error;
     }
-  }
-
-  public setStrategy(strategyType: StrategyType): void {
-    this.currentStrategy = this.strategies[strategyType];
   }
 }

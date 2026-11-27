@@ -47,7 +47,7 @@ describe('changelog tags', () => {
       { sync: true, ...perPackageTags },
       { 'pkg-a': 'pkg-a/v0.2.0', 'pkg-b': 'pkg-b/v0.2.0' },
     ],
-    ['a single-package release', 'single', ['pkg-a'], unsynced, { 'pkg-a': 'pkg-a/v0.2.0' }],
+    ['a single-package release', 'async', ['pkg-a'], unsynced, { 'pkg-a': 'pkg-a/v0.2.0' }],
     ['an async release', 'async', ['pkg-a', 'pkg-b'], unsynced, { 'pkg-a': 'pkg-a/v0.2.0', 'pkg-b': 'pkg-b/v0.2.0' }],
     [
       'a group release with an ungrouped package',

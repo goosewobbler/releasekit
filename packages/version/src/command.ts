@@ -80,31 +80,7 @@ export function createVersionCommand(): Command {
           throw new Error('No packages found in workspace');
         }
 
-        const hasGroups = config.groups && Object.keys(config.groups).length > 0;
-        const effectiveSync = options.sync || config.sync;
-        if (hasGroups && !effectiveSync) {
-          log('Using version-groups strategy.', 'info');
-          engine.setStrategy('group');
-          await engine.run(pkgsResult, cliTargets);
-        } else if (effectiveSync) {
-          log('Using sync versioning strategy.', 'info');
-          engine.setStrategy('sync');
-          await engine.run(pkgsResult);
-        } else if (resolvedCount === 1) {
-          log('Using single package versioning strategy.', 'info');
-          if (cliTargets.length > 0) {
-            log('--target flag is ignored for single package strategy.', 'warning');
-          }
-          engine.setStrategy('single');
-          await engine.run(pkgsResult);
-        } else {
-          log('Using async versioning strategy.', 'info');
-          if (cliTargets.length > 0) {
-            log(`Targeting specific packages: ${cliTargets.join(', ')}`, 'info');
-          }
-          engine.setStrategy('async');
-          await engine.run(pkgsResult, cliTargets);
-        }
+        await engine.run(pkgsResult, cliTargets);
 
         log('Versioning process completed.', 'success');
 

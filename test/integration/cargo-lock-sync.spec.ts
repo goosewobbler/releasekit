@@ -102,16 +102,12 @@ describe.skipIf(!cargoAvailable())('Cargo.lock sync (real cargo)', () => {
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   it.each([
-    [
-      'version.groups',
-      { groups: { rust: { packages: ['rk-core', 'rk-cli'], sync: 'fixed' } } },
-      'Using version-groups strategy',
-    ],
-    ['the per-package processor', {}, 'Using async versioning strategy'],
-    ['updateCargoFiles', { sync: true }, 'Using sync versioning strategy'],
+    ['version.groups', { groups: { rust: { packages: ['rk-core', 'rk-cli'], sync: 'fixed' } } }, 'package(s) as group'],
+    ['an async release', {}, 'package(s) as async'],
+    ['a sync release', { sync: true }, 'package(s) as sync'],
   ])(
     'should leave every lock that records a crate bumped through %s accepted by cargo --locked',
-    (_path, config, strategyLog) => {
+    (_path, config, modeLog) => {
       // A Cargo workspace with its own lock, plus a fixture app (its own workspace and lock) that uses
       // the workspace's crates by path, as webdriverio/desktop-mobile's Tauri and Dioxus apps do.
       const repo = join(dir, 'repo');
@@ -131,7 +127,7 @@ describe.skipIf(!cargoAvailable())('Cargo.lock sync (real cargo)', () => {
       }
       commitWithChange(repo, ['rk-core', 'rk-cli'], join(repo, 'crates', 'core'));
 
-      expect(releasekitVersion(repo, config)).toContain(strategyLog);
+      expect(releasekitVersion(repo, config)).toContain(modeLog);
 
       const bumped = ['core', 'cli']
         .map((crate) => ({ name: `rk-${crate}`, version: crateVersion(join(repo, 'crates', crate, 'Cargo.toml')) }))

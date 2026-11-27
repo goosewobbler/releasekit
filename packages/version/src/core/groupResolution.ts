@@ -124,11 +124,6 @@ export function resolveGroups(config: Config, packages: Package[]): GroupResolut
   };
 }
 
-/**
- * Drives strategy selection. `sync: true` stays on the sync strategy rather than the group engine: its
- * single-shared-tag / `monorepo`-changelog / root-bump output is depended on by standing-PR manifests
- * and downstream consumers.
- */
 export function hasExplicitGroups(config: Pick<Config, 'groups'>): boolean {
   return Object.keys(config.groups ?? {}).length > 0;
 }

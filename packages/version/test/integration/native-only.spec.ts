@@ -75,6 +75,24 @@ describe('Rust-only repo', () => {
     expect(output.tags).toEqual(['v1.0.1']);
   });
 
+  it.each([
+    ['version.packages', { packages: ['rk-core'] }, ''],
+    ['--target', {}, '--target rk-core'],
+  ])('should leave a root crate that %s leaves out of a sync release unbumped', (_case, version, args) => {
+    write('releasekit.config.json', JSON.stringify({ version: { sync: true, cargo: { enabled: true }, ...version } }));
+    write('Cargo.toml', '[package]\nname = "rk-app"\nversion = "0.1.0"\n\n[workspace]\nmembers = ["crates/*"]\n');
+    write('crates/core/Cargo.toml', '[package]\nname = "rk-core"\nversion = "0.1.0"\n');
+    initGitRepo(tempDir);
+    createConventionalCommit(tempDir, 'feat', 'add feature');
+
+    const result = executeCliCommand(`--json ${args}`.trim(), tempDir);
+
+    expect(result.status).toBe(0);
+    expect(readVersionOutput(result.stdout).updates.map((u) => [u.packageName, relativeFiles(u.files)])).toEqual([
+      ['rk-core', ['crates/core/Cargo.toml']],
+    ]);
+  });
+
   it('should skip a member crate that inherits its version, with a warning, and release the rest', () => {
     write('Cargo.toml', '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\nversion = "0.3.0"\n');
     write('crates/literal/Cargo.toml', '[package]\nname = "literal"\nversion = "0.1.0"\n');

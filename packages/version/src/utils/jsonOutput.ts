@@ -100,7 +100,7 @@ export function isJsonOutputMode(): boolean {
 }
 
 /** Lets consumers (preview, standing PR) render sync releases as a single versioned unit. */
-export function setVersioningStrategy(strategy: 'sync' | 'single' | 'async' | 'group'): void {
+export function setVersioningStrategy(strategy: 'sync' | 'async' | 'group'): void {
   if (!_jsonOutputMode) {
     return;
   }

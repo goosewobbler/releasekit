@@ -269,7 +269,7 @@ The next release finds the previous one by the same tag format, so changing it m
 ### Behaviour in Different Modes
 
 - **Sync mode**: one tag for the release, or one per package with `packageSpecificTags`. A single-package repo with `packageSpecificTags` gets `pkg@v1.2.3`.
-- **Single and async modes**: one tag per released package. In a monorepo, set `packageSpecificTags` so packages don't share tag names.
+- **Async mode and groups**: one tag per released package. In a monorepo, set `packageSpecificTags` so packages don't share tag names.
 
 ## Troubleshooting Template Configuration
 
@@ -287,7 +287,7 @@ This will result in an empty package name in the tag (e.g., "@v1.0.0" instead of
 To fix this:
 • If using sync mode: Set "packageSpecificTags": true in your config to enable package names in tags
 • If you want global tags: Remove ${packageName} from your tagTemplate (e.g., use "${prefix}${version}")
-• If using single/async mode: Ensure your package.json has a valid "name" field
+• If versioning packages on their own (async mode): Ensure your package.json has a valid "name" field
 ```
 
 **Solutions:**
@@ -308,7 +308,7 @@ To fix this:
    }
    ```
 
-3. **For Single/Async Mode**: Ensure your `package.json` has a valid `name` field
+3. **For Async Mode**: Ensure your `package.json` has a valid `name` field
    ```json
    {
      "name": "my-package",
@@ -336,7 +336,7 @@ For global commit messages, use templates without `${packageName}`:
 
 ## Monorepo Versioning Modes
 
-While primarily used for single packages now, `releasekit-version` retains options for monorepo workflows, controlled mainly by the `sync` flag in `releasekit.config.json`.
+`sync` and `version.groups` in `releasekit.config.json` choose how a monorepo's packages are versioned: all together, in declared groups, or each on its own.
 
 ### Sync Mode (`sync: true`)
 
@@ -346,11 +346,15 @@ This is the default.
 -   **Tag Behaviour:** One tag from `tagTemplate`, such as `v1.2.3`. With `packageSpecificTags`, one tag per package, such as `scope-pkg@v1.2.3`.
 -   **Use Case:** Suitable for monorepos where all packages are tightly coupled and released together with the same version number. Also the effective mode for single-package repositories.
 
+### Groups (`sync: false` with `groups`)
+
+Each declared group releases together, and every other package releases on its own, as in async mode. See [`version.groups`](../../../docs/configuration.md#versiongroups).
+
 ### Async Mode (`sync: false`)
 
 *(Note: This mode relies heavily on monorepo tooling and structure, like `pnpm workspaces` and correctly configured package dependencies.)*
 
--   **Behaviour (Default - No `-t` flag):** The tool analyzes commits to determine which specific packages within the monorepo have changed since the last relevant commit/tag.
+-   **Behaviour (Default - No `-t` flag):** Every package, including the only one in a single-package repo, is versioned on its own. The tool analyzes commits to determine which specific packages within the monorepo have changed since the last relevant commit/tag.
     -   It calculates an appropriate version bump **independently for each changed package** based on the commits affecting that package.
     -   Only the `package.json` files of the changed packages are updated.
     -   A **single commit** is created grouping all the version bumps, using the commit message template, and each updated package gets its own tag.

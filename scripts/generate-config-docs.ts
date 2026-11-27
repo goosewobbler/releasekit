@@ -208,8 +208,8 @@ function renderVersion(prop: SchemaProperty): void {
     emit(
       '- **`fixed`** — any releasable change in *any* member releases **all** members at the shared',
       '  group version, computed as `bump(max(member baselines))`. This is the changesets `fixed`',
-      '  semantics. The global `version.sync: true` flag is exactly this, applied to one implicit',
-      '  group of every package — there is one mechanism, not two.',
+      '  semantics. The global `version.sync: true` flag is this, applied to one group of every',
+      '  package, except that commits anywhere in the repo count and the root manifests are bumped too.',
       '- **`linked`** — only members with a releasable change release, but every releasing member',
       '  shares the same computed version. Unchanged members are left untouched (no empty re-release).',
       '- **`independent`** — only members with a releasable change release, each on its **own**',
@@ -220,8 +220,8 @@ function renderVersion(prop: SchemaProperty): void {
       '',
     );
     emit(
-      '**Group baseline** is the highest member version found in tags / manifests; the group bumps',
-      'from there.',
+      "**Group baseline** is the highest member version in the version record, or in the members'",
+      'manifests when none has an entry; the group bumps from there.',
       '',
     );
     emit(

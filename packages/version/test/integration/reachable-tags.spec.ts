@@ -32,7 +32,6 @@ function runVersionEngine(cwd: string, baseRef: string): VersionOutput {
     import { VersionEngine, enableJsonOutput, getJsonData, loadConfig } from ${JSON.stringify(join(process.cwd(), 'dist/index.js'))};
     enableJsonOutput(true);
     const engine = new VersionEngine(loadConfig(), { dryRun: true, baseRef: ${JSON.stringify(baseRef)} });
-    engine.setStrategy('sync');
     await engine.run(await engine.getWorkspacePackages());
     process.stdout.write(JSON.stringify(getJsonData()));
   `;

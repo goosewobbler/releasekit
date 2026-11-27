@@ -123,7 +123,7 @@ const VersionConfigBaseSchema = z.strictObject({
     .boolean()
     .default(true)
     .describe(
-      'Global lockstep versioning. true is sugar for one implicit fixed group of every package — it shares the same mechanism as version.groups. Set to false when using version.groups; sync: true alongside groups is treated as the implicit all-packages fixed group taking precedence (a config conflict, warned about at runtime).',
+      'Version every package in lockstep, as one fixed group: one version and one changelog and tag (one per package with packageSpecificTags), with the root manifests bumped too. It overrides version.groups, with a warning; set false to use them.',
     ),
   groups: z
     .record(z.string(), VersionGroupSchema)
@@ -141,7 +141,7 @@ const VersionConfigBaseSchema = z.strictObject({
     .array(z.string())
     .optional()
     .describe(
-      'Foundational packages whose changes belong in every package’s notes, as exact names or globs. In async mode (`sync: false`, no `groups`, more than one package in the run), commits touching a shared package and no non-shared package are listed under "Project-wide changes" in each released package’s changelog, release notes and release body, covering those since that package’s previous release. A root changelog lists them once per run in such releases, alongside commits that touch no package. Default: none.',
+      'Foundational packages whose changes belong in every package’s notes, as exact names or globs. In async mode (`sync: false`, no `groups`), commits touching a shared package and no non-shared package are listed under "Project-wide changes" in each released package’s changelog, release notes and release body, covering those since that package’s previous release. A root changelog lists them once per run in such releases, alongside commits that touch no package. Default: none.',
     ),
   primaryPackages: z
     .array(z.string())
@@ -158,9 +158,7 @@ const VersionConfigBaseSchema = z.strictObject({
   mainPackage: z
     .string()
     .optional()
-    .describe(
-      'The package a single-mode release versions. In sync mode without packageSpecificTags, the release is named after it, but its version comes from the version record. The changelog still lists every commit in the release.',
-    ),
+    .describe("Names a sync release's changelog when packageSpecificTags is off, and supplies its repository URL."),
   skip: z
     .array(z.string())
     .optional()
@@ -175,7 +173,7 @@ const VersionConfigBaseSchema = z.strictObject({
     ),
   commitMessage: z.string().optional().describe(
     // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
-    "Template for the release commit message. Supports ${version} and ${packageName}. Default: 'chore: release ${packageName} v${version}' for sync and single-package releases; otherwise 'chore: release' followed by each released package and version.",
+    "Template for the release commit message. Supports ${version} (the first released version) and ${packageName} (the released packages). Default: 'chore: release ${packageName} v${version}' in sync mode; otherwise 'chore: release' followed by each released package and version.",
   ),
   mismatchStrategy: z
     .enum(['error', 'warn', 'ignore', 'prefer-package', 'prefer-git'])

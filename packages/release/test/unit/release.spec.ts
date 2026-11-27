@@ -40,14 +40,12 @@ const mockGetJsonData = vi.fn();
 const mockFlushPendingWrites = vi.fn();
 const mockVersionLoadConfig = vi.fn();
 const mockVersionEngineRun = vi.fn();
-const mockVersionEngineSetStrategy = vi.fn();
 const mockVersionEngineGetWorkspacePackages = vi.fn();
 
 const MockVersionEngine = vi.fn(function (this: Record<string, unknown>, config, runOptions) {
   this.config = config;
   this.runOptions = runOptions;
   this.run = mockVersionEngineRun;
-  this.setStrategy = mockVersionEngineSetStrategy;
   this.getWorkspacePackages = mockVersionEngineGetWorkspacePackages;
 });
 
@@ -315,7 +313,6 @@ describe('runRelease', () => {
 
     const runOptions = MockVersionEngine.mock.calls[0]?.[1];
     expect(runOptions.sync).toBe(true);
-    expect(mockVersionEngineSetStrategy).toHaveBeenCalledWith('sync');
   });
 
   it('should pass bump type to VersionEngine', async () => {
@@ -375,29 +372,13 @@ describe('runRelease', () => {
     });
   });
 
-  it('should use single strategy for one package', async () => {
-    mockVersionEngineGetWorkspacePackages.mockResolvedValue({
-      packages: [{ packageJson: { name: 'solo-pkg' }, dir: '/test' }],
-      root: '/test',
-    });
+  it('should run the engine over the resolved packages with the targets', async () => {
+    const packages = { packages: [{ packageJson: { name: 'pkg-a' }, dir: '/test/a' }], root: '/test' };
+    mockVersionEngineGetWorkspacePackages.mockResolvedValue(packages);
 
-    await runRelease(defaultOptions);
+    await runRelease({ ...defaultOptions, target: 'pkg-a' });
 
-    expect(mockVersionEngineSetStrategy).toHaveBeenCalledWith('single');
-  });
-
-  it('should use async strategy for multiple packages', async () => {
-    mockVersionEngineGetWorkspacePackages.mockResolvedValue({
-      packages: [
-        { packageJson: { name: 'pkg-a' }, dir: '/test/a' },
-        { packageJson: { name: 'pkg-b' }, dir: '/test/b' },
-      ],
-      root: '/test',
-    });
-
-    await runRelease(defaultOptions);
-
-    expect(mockVersionEngineSetStrategy).toHaveBeenCalledWith('async');
+    expect(mockVersionEngineRun).toHaveBeenCalledWith(packages, ['pkg-a']);
   });
 
   it('should throw when no packages found', async () => {
