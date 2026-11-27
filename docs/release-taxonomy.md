@@ -73,8 +73,8 @@ It never invents coupling; it just narrows the set:
 
 Selection composes with the other two: selecting one member of an atomic group still pulls in the
 whole group (the invariant wins); selecting a target with `--include-prerequisites` still derives its
-prerequisites. Unticking a package that is a prerequisite of a still-ticked target, or a member of an
-`independent` group, surfaces a ⚠️ warning — you can do it, but you're told what you're splitting.
+prerequisites. Unticking a package that is a prerequisite of a still-ticked target, a runtime dependency of
+a still-releasing package, or a member of an `independent` group, surfaces a ⚠️ warning — you can do it, but you're told what you're splitting.
 Members of a lockstep (`fixed`/`linked`) group can't be held back individually.
 
 In standing-PR mode the checkboxes and scope labels are a **release-control surface** — they decide

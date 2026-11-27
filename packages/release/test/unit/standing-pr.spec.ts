@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { Package } from '@manypkg/get-packages';
 import type { CIConfig } from '@releasekit/config';
 import type { VersionChangelogEntry, VersionPackageChangelog, VersionPackageUpdate } from '@releasekit/core';
 import { matchesPackageTarget } from '@releasekit/core';
@@ -110,7 +111,14 @@ let mergedVersions: Record<string, string> = {};
 const mockGetWorkspacePackageVersions = vi
   .fn<(...args: unknown[]) => Promise<Record<string, string>>>()
   .mockResolvedValue({});
+// The update builds its dependency graph from these with the real `buildWorkspaceGraph`; Cargo.toml contents come from
+// the mocked `node:fs`.
+let workspacePackages: Package[] = [];
 vi.mock('@releasekit/version', () => ({
+  getWorkspaceDependencyGraph: async () => {
+    const { buildWorkspaceGraph } = await vi.importActual<typeof import('@releasekit/version')>('@releasekit/version');
+    return buildWorkspaceGraph(workspacePackages);
+  },
   getWorkspacePackageNames: (...args: unknown[]) => mockGetWorkspacePackageNames(...args),
   getWorkspacePackageVersions: (...args: unknown[]) => mockGetWorkspacePackageVersions(...args),
   getWorkspacePackageDirs: async () =>
@@ -462,6 +470,7 @@ describe('runStandingPRUpdate', () => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue(defaultConfig as ReturnType<typeof loadConfig>);
     mockGetWorkspacePackageVersions.mockResolvedValue({});
+    workspacePackages = [];
 
     // HEAD SHA defaults to 'abc123' (the status-check sha the gate assertions key on); the HEAD
     // subject defaults to a non-release commit so the skip-pattern guards pass.
@@ -1224,6 +1233,143 @@ describe('runStandingPRUpdate', () => {
       const { exclude } = await run({ x: false, y: true, z: true });
 
       expect(exclude).toEqual(['@app/x', '@app/x-core']);
+    });
+  });
+
+  describe('an unticked dependency of a releasing package', () => {
+    const pkg = (dir: string, name: string, manifest: Record<string, unknown> = {}) =>
+      ({ dir: `/test/packages/${dir}`, packageJson: { name, version: '1.0.0', ...manifest } }) as unknown as Package;
+    const manifests: Record<string, string> = {
+      '/test/packages/tauri/package.json': '{}',
+      '/test/packages/electron/package.json': '{}',
+      '/test/packages/types/package.json': '{}',
+      '/test/packages/utils/package.json': '{}',
+      '/test/packages/app/package.json': '{}',
+      '/test/packages/tauri-plugin/Cargo.toml':
+        '[package]\nname = "tauri-plugin-zubridge"\nversion = "1.0.0"\n\n' +
+        '[dependencies]\nzubridge-core = { path = "../core", version = "0.1.0" }\n',
+      '/test/packages/core/Cargo.toml': '[package]\nname = "zubridge-core"\nversion = "0.1.0"\n',
+    };
+
+    const run = async (
+      unticked: string,
+      primaryPackages = ['@zubridge/tauri', '@zubridge/electron'],
+      writeOnly: Array<{ packageName: string; newVersion: string; filePath: string }> = [],
+    ) => {
+      const { loadConfig } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, selection: 'streamlined' } },
+        git: { branch: 'main' },
+        release: { ci: { skipPatterns: ['chore: release '] } },
+        version: {
+          sync: false,
+          groups: { tauri: { sync: 'fixed', packages: ['@zubridge/tauri', 'tauri-plugin-zubridge'] } },
+          primaryPackages,
+        },
+      } as unknown as ReturnType<typeof loadConfig>);
+      workspacePackages = [
+        pkg('tauri', '@zubridge/tauri', { dependencies: { '@zubridge/types': 'workspace:*' } }),
+        pkg('tauri-plugin', 'tauri-plugin-zubridge'),
+        pkg('core', 'zubridge-core'),
+        pkg('types', '@zubridge/types'),
+        pkg('electron', '@zubridge/electron', { devDependencies: { '@zubridge/utils': 'workspace:*' } }),
+        pkg('utils', '@zubridge/utils'),
+        pkg('app', '@zubridge/app', { dependencies: { '@zubridge/types': 'workspace:*' } }),
+      ];
+      mockGetWorkspacePackageNames.mockResolvedValue(workspacePackages.map((p) => p.packageJson.name));
+      const fs = await import('node:fs');
+      vi.mocked(fs.existsSync).mockImplementation((p) => String(p) in manifests);
+      vi.mocked(fs.readFileSync).mockImplementation(((p: string) => manifests[String(p)]) as typeof fs.readFileSync);
+
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const dryOutput = {
+        dryRun: false,
+        strategy: 'group',
+        updates: [
+          {
+            packageName: '@zubridge/tauri',
+            newVersion: '1.1.0',
+            filePath: 'packages/tauri/package.json',
+            group: 'tauri',
+          },
+          {
+            packageName: 'tauri-plugin-zubridge',
+            newVersion: '1.1.0',
+            filePath: 'packages/tauri-plugin/Cargo.toml',
+            group: 'tauri',
+          },
+          { packageName: 'zubridge-core', newVersion: '0.2.0', filePath: 'packages/core/Cargo.toml' },
+          { packageName: '@zubridge/types', newVersion: '1.1.0', filePath: 'packages/types/package.json' },
+          { packageName: '@zubridge/electron', newVersion: '1.1.0', filePath: 'packages/electron/package.json' },
+          { packageName: '@zubridge/utils', newVersion: '1.0.1', filePath: 'packages/utils/package.json' },
+        ],
+        changelogs: [],
+        tags: [],
+        commitMessage: 'chore: release',
+        sharedEntries: [],
+      };
+      vi.mocked(runVersionStep)
+        .mockResolvedValueOnce(dryOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+        .mockResolvedValueOnce({ ...dryOutput, updates: [...dryOutput.updates, ...writeOnly] } as unknown as Awaited<
+          ReturnType<typeof runVersionStep>
+        >);
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+      const rows = ['@zubridge/tauri', '@zubridge/electron', '@zubridge/types', '@zubridge/utils', 'zubridge-core'];
+      const priorBody = [
+        '<!-- releasekit-selection -->',
+        '',
+        ...rows.map((name) => `- ${name === unticked ? '[ ]' : '[x]'} \`${name}\` <!-- rk-sel:${name} -->`),
+        '',
+        '<!-- releasekit-selection-end -->',
+      ].join('\n');
+      const forge = await mockForge({
+        standingPR: openStandingPR(99),
+        pullRequests: { 99: { body: priorBody, labels: [] } },
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
+      return { exclude: writeCall.exclude, body: forge.updatedPullRequests[0]?.changes.body ?? '' };
+    };
+
+    it('should warn about an npm runtime dependency, still holding it back', async () => {
+      const { exclude, body } = await run('@zubridge/types');
+
+      expect(body).toContain(
+        '> ⚠️ `@zubridge/types` is a dependency of still-selected `@zubridge/tauri` — unticking it publishes it against an unreleased dependency.',
+      );
+      expect(exclude).toEqual(['@zubridge/types']);
+    });
+
+    it("should warn about a Cargo path dependency of a primary's group member", async () => {
+      const { body } = await run('zubridge-core');
+
+      expect(body).toContain('> ⚠️ `zubridge-core` is a dependency of still-selected `tauri-plugin-zubridge`');
+    });
+
+    it('should not warn about a dependency only a devDependencies entry names', async () => {
+      const { exclude, body } = await run('@zubridge/utils');
+
+      expect(body).not.toContain('⚠️');
+      expect(exclude).toEqual(['@zubridge/utils']);
+    });
+
+    it('should warn about a dependency of a package only the write releases, such as a ticked graduation', async () => {
+      const { body } = await run('@zubridge/types', undefined, [
+        { packageName: '@zubridge/app', newVersion: '2.0.0', filePath: 'packages/app/package.json' },
+      ]);
+
+      expect(body).toContain(
+        '> ⚠️ `@zubridge/types` is a dependency of still-selected `@zubridge/app`, `@zubridge/tauri`',
+      );
+    });
+
+    it('should warn about a dependency that is itself a primary while its dependent unit releases', async () => {
+      const { body } = await run('@zubridge/types', ['@zubridge/tauri', '@zubridge/electron', '@zubridge/types']);
+
+      expect(body).toContain('> ⚠️ `@zubridge/types` is a dependency of still-selected `@zubridge/tauri`');
     });
   });
 

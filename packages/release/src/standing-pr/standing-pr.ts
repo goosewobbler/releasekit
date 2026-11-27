@@ -4,7 +4,12 @@ import {
   loadConfig as loadReleaseKitConfig,
   runFormatCommand,
 } from '@releasekit/config';
-import type { VersionChangelogEntry, VersionOutput, VersionPackageUpdate } from '@releasekit/core';
+import type {
+  VersionChangelogEntry,
+  VersionOutput,
+  VersionPackageUpdate,
+  WorkspaceDependencyGraph,
+} from '@releasekit/core';
 import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
 import {
   VersionChangelogEntrySchema,
@@ -1757,7 +1762,14 @@ async function updateStandingPR(options: StandingPROptions, banner: ProgressBann
   // changelog; the write output omits held-back packages entirely.
   let renderSelectionBlock: ((withChangelogs: boolean) => string) | undefined;
   if (!sync && versionOutputDry.strategy !== 'sync') {
-    const warnings = selectionWarnings(dryUpdates, effectiveDeselected, groups);
+    let graph: WorkspaceDependencyGraph | undefined;
+    if (effectiveDeselected.size > 0) {
+      const { getWorkspaceDependencyGraph } = await import('@releasekit/version');
+      graph = await getWorkspaceDependencyGraph({ cwd, configPath: options.config });
+    }
+    // The write output, not the dry rows, includes the ticked graduation rows.
+    const releasing = new Set(publishableUpdates(versionOutput).map((u) => u.packageName));
+    const warnings = selectionWarnings(dryUpdates, effectiveDeselected, groups, graph && { graph, releasing });
     for (const w of warnings) {
       warn(`Selection: ${w.reason}`);
     }

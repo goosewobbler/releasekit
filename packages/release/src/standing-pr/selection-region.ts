@@ -1,4 +1,4 @@
-import type { ReleaseChannel, VersionOutput } from '@releasekit/core';
+import type { ReleaseChannel, VersionOutput, WorkspaceDependencyGraph } from '@releasekit/core';
 import {
   deriveReleaseChannel,
   extractSelectionRegion,
@@ -637,6 +637,7 @@ export function selectionWarnings(
   updates: VersionOutput['updates'],
   deselected: ReadonlySet<string>,
   groups: Record<string, { sync?: string }>,
+  dependencies?: { graph: Pick<WorkspaceDependencyGraph, 'getInternalDependents'>; releasing: ReadonlySet<string> },
 ): SelectionWarning[] {
   const warnings: SelectionWarning[] = [];
   for (const update of updates) {
@@ -653,12 +654,17 @@ export function selectionWarnings(
         });
       }
     }
-    const dependents = (update.prerequisiteOf ?? []).filter((t) => !deselected.has(t));
+    const releasingDependents = [...(dependencies?.graph.getInternalDependents(update.packageName) ?? [])].filter(
+      (name) => dependencies?.releasing.has(name) && !deselected.has(name),
+    );
+    const prerequisiteOf = (update.prerequisiteOf ?? []).filter((t) => !deselected.has(t));
+    const dependents = [...new Set([...prerequisiteOf, ...releasingDependents])].sort((a, b) => a.localeCompare(b));
     if (dependents.length > 0) {
       const list = dependents.map((t) => `\`${t}\``).join(', ');
+      const role = prerequisiteOf.length === dependents.length ? 'prerequisite' : 'dependency';
       warnings.push({
         packageName: update.packageName,
-        reason: `\`${update.packageName}\` is a prerequisite of still-selected ${list} — unticking it publishes ${dependents.length > 1 ? 'them' : 'it'} against an unreleased dependency.`,
+        reason: `\`${update.packageName}\` is a ${role} of still-selected ${list} — unticking it publishes ${dependents.length > 1 ? 'them' : 'it'} against an unreleased dependency.`,
       });
     }
   }

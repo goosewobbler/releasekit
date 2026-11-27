@@ -1,5 +1,7 @@
+import type { WorkspaceDependencyGraph } from '@releasekit/core';
 import { loadConfig } from './config.js';
 import { VersionEngine } from './core/versionEngine.js';
+import { buildWorkspaceGraph } from './core/workspaceGraph.js';
 
 /**
  * Every package discovery finds (npm, cargo & pub), whether or not it changed; `version.packages`, the private filter
@@ -47,4 +49,14 @@ export async function getWorkspacePackageVersions(
     }
   }
   return versions;
+}
+
+/** Internal dependency graph of the packages `getWorkspacePackageNames` returns. */
+export async function getWorkspaceDependencyGraph(
+  options: { cwd?: string; configPath?: string } = {},
+): Promise<WorkspaceDependencyGraph> {
+  const config = loadConfig({ cwd: options.cwd, configPath: options.configPath });
+  const engine = new VersionEngine(config, { dryRun: true });
+  const { packages } = await engine.getWorkspacePackages(options.cwd);
+  return buildWorkspaceGraph(packages);
 }

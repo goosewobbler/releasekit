@@ -6,6 +6,7 @@ export { isGroupMode } from './core/groupResolution.js';
 export { calculateVersion } from './core/versionCalculator.js';
 export { VersionEngine } from './core/versionEngine.js';
 export { createAsyncStrategy, createSingleStrategy, createSyncStrategy } from './core/versionStrategies.js';
+export { buildWorkspaceGraph } from './core/workspaceGraph.js';
 export { BaseVersionError } from './errors/baseError.js';
 export { createVersionError, VersionErrorCode } from './errors/versionError.js';
 export { listGlobalTags, listPackageTags } from './git/tagsAndBranches.js';
@@ -22,4 +23,9 @@ export {
   type VersionActionInput,
   type VersionActionResult,
 } from './utils/versionAction.js';
-export { getWorkspacePackageDirs, getWorkspacePackageNames, getWorkspacePackageVersions } from './workspace.js';
+export {
+  getWorkspaceDependencyGraph,
+  getWorkspacePackageDirs,
+  getWorkspacePackageNames,
+  getWorkspacePackageVersions,
+} from './workspace.js';
